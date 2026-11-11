@@ -57,7 +57,7 @@ and iOS see each other.
     are fetched at build time (`iosApp/fetch-fonts.sh`, `fetch-symbols.sh`): the map works offline;
   - Core Location (position, compass, declination) and Core Motion (motion, barometer);
   - map downloads with a background URLSession; terrain downloads shared with Android
-    (`TerrainStore`; Android still cuts terrain at the coast, iOS not yet);
+    (`TerrainStore`), cut at the coastline (iOS: `SeaMask` on the shared reader);
   - search (offline and online), share sheet, Apple Maps, the Files picker (GPX, places, `.map`),
     GPX/`.map` files and `maparound://` links opened from other apps; Documents in Files.
   - Not yet on iOS: track recording, route planning (no online router yet), marked trails,

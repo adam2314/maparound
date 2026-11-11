@@ -21,6 +21,7 @@ import app.maparound.shared.fileSystem
 import okio.Path.Companion.toPath
 import app.maparound.map.maplibre.TileService
 import app.maparound.places.PlaceRepository
+import app.maparound.terrain.MapCoastMasks
 import app.maparound.routing.PlannerSession
 import app.maparound.shared.net.userAgent
 import app.maparound.tools.ToolsSession
@@ -62,7 +63,8 @@ object IosApp {
     val terrain = TerrainStore(
         demDir = "$documents/dem",
         prefs = prefs,
-        coast = { null }, // cutting terrain at the coast comes later on iOS
+        // Terrain ends at the coastline of the installed maps.
+        coast = { maps.files.value.filterNot { it.isWorld }.map { it.path }.takeIf { it.isNotEmpty() }?.let(::MapCoastMasks) },
         isMetered = { false },
         freeBytes = { freeBytes(documents) },
     )
