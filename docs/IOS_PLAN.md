@@ -28,10 +28,25 @@ and iOS see each other.
   `String.format`, ISO times, URL coding, bytes, streaming XML, NFD, bit set) and `shared.crypto`
   (javax.crypto on Android; CommonCrypto + a common GCM on iOS, checked against published test
   vectors). Tests run on the JVM and the iOS simulator.
-- **Still Android-only, by design until later phases**: sessions that hold app state
-  (`ToolsSession`, `PlannerSession`, `PartySession`; they move with the UI in phase 2 behind
-  platform interfaces), downloads and HTTP (phase 3), map layers & rendering (mapsforge; iOS uses
-  MapLibre), BRouter (phase 6), sensors, BLE and MQTT transports (phases 3 and 5).
+- **Phase 2 (shared UI)**: every screen is common Compose code — map (with cards, Layers sheet,
+  planner panel), library (routes & places), party, offline maps, sensors (compass, speed,
+  motion, barometer), tools, search, 3D controls, raster maps, and the app frame
+  (`MapAroundRoot`). Settings (`Prefs`), places, tracks, `ToolsSession`, `PlannerSession` and
+  the recorder state are common too. What only a platform can do comes through small
+  interfaces, given as composition locals or parameters:
+  - the map: `MapSurface` / `MapListener` with a shared `BaseMap` description (Android:
+    `AndroidMapSurface` around the mapsforge `MapController`);
+  - the 3D view: `Scene3DControl` in a view slot (Android: OpenGL `Scene3DView`);
+  - `DeviceSensors` (positions as `GeoFix`, compass, motion, pressure, declination),
+    `PlatformActions` (share sheet, open elsewhere), `rememberFilePicker`, `RecordingControl`,
+    `Searcher`, `RasterLibrary`, `OfflineData` (installed maps, downloads, catalog, terrain,
+    trails, routing data), `PartyController` and `PartyPlatform` (QR, Meshtastic picker),
+    `KeyValueStore` (SharedPreferences / NSUserDefaults), `PlatformBackHandler`, `KeepScreenOn`.
+  Android keeps only these adapters, its services and the Satellites tab. iOS implements the
+  same interfaces in phase 3.
+- **Still Android-only, by design until later phases**: the implementations behind those
+  interfaces — downloads and HTTP, map rendering (mapsforge; iOS uses MapLibre), BRouter
+  (phase 6), sensors, BLE and MQTT transports (phases 3 and 5).
 
 ## 1. What changes on iOS
 

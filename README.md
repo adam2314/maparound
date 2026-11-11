@@ -14,7 +14,7 @@ Licence: **GPL-3.0** (see [LICENSE](LICENSE)); bundled components keep their own
 | **Map** | Pan/zoom map, my-location dot with accuracy circle and follow mode, long-press to drop a pin (coordinates, DMS, distance/bearing from you, copy, open in another app). Buttons for **search**, layers, the **route planner**, **map tools**, the **3D view** and **track recording**; zoom with pinch or double-tap. |
 | **Search** (on the map, magnifier) | Your saved places, coordinates in any format and map links, and names in the **offline maps** around the map centre (towns, peaks, springs, streets, paths, hotels…, within 25 km, works without internet) as you type; **online** search of OpenStreetMap anywhere (Photon, with Nominatim as a fallback) when you press search. Picking a result drops a labelled pin there. |
 | **Map tools** (on the map, ruler button) | **Azimuth & range** between two points (true and magnetic bearing, mils, back bearing, height difference, slope, place B by bearing + distance). **Line of sight** from A to B with a terrain profile and where the view is blocked. **Viewshed**: a circle (250 m–25 km) showing ground in sight (green) and hidden (red). **Coordinate converter**: one point in decimal degrees, deg-min, deg-min-sec, UTM, MGRS, Israeli ITM, Plus Code and Maidenhead; type or paste any of them to jump there; pick the format used on pins. |
-| **Route planner** (on the map) | Tap points (start, stops, end); tap a numbered point to remove it. Profiles **Hike / Bike / Car** follow paths and roads; **Line** draws straight lines to measure. Shows distance, climb/descent, estimated time and an elevation profile; undo, reverse, save to the library. |
+| **Route planner** (on the map) | Tap points (start, stops, end); tap a numbered point to remove it. Profiles **Hike / Bike / Car** follow paths and roads; **Line** draws straight lines to measure. Shows distance, climb/descent, estimated time and an elevation profile; undo, reverse, save to the library. |whats
 | **3D view** (on the map, cube button) | The map in 3D, streamed as you move: terrain relief with the map draped on it (your offline topo style, or the online layer, or satellite), detailed near you and coarser to the horizon, and buildings extruded from the offline map close up (heights from OSM `height` / `building:levels`). One finger pans, pinch zooms, two fingers turn and tilt; relief exaggeration ×1–4, buildings on/off, face north. |
 | **Places** (Library → Places) | Your own points of interest: save from any pin or your location with a name, category (⭐ favourite, ⛺ camp, 💧 water, 🔭 viewpoint, 🅿️ parking, ⛽ fuel, 🍴 food, ⚠️ danger, 📍 other) and a note. Shown on the map (Layers → Saved places); tap one for route here, share, viewshed, edit, delete. The list searches names and notes, filters by category and sorts by distance, name or date. Import waypoints from any GPX file, share or export places as GPX. |
 | **Library** | Routes & tracks, and Places. Library of saved routes and tracks (GPX files): show/hide on the map, elevation profile & stats, share as GPX, rename, delete, **import GPX** from other apps. **Record** a track with GPS; it keeps recording with the screen off. |
@@ -306,19 +306,25 @@ phone locked depends on how the Android Auto host keeps the app running.
 
 ## Code layout
 
-The logic that doesn't need Android lives in `shared/` (Kotlin Multiplatform, Android + iOS) under
-the same package names, so the app uses it as if it were its own; `docs/IOS_PLAN.md` describes the
-iOS version it is for.
+Everything that doesn't need Android — the logic and all the Compose screens — lives in `shared/`
+(Kotlin Multiplatform, Android + iOS) under the same package names. The app module keeps what only
+Android can do (mapsforge rendering, services, DownloadManager, sensors, BLE, MQTT, BRouter, Android
+Auto) and plugs it into the shared screens through small interfaces (`MapSurface`,
+`DeviceSensors`, `OfflineData`, `PartyController`…; see `docs/IOS_PLAN.md`, which also describes
+the iOS version this is for).
 
 ```
 shared/src/
   commonMain/kotlin/app/maparound/
+    ui/                    all Compose screens and the app frame (MapAroundRoot), theme, formatting
+    map/                   MapSurface (the map as the screens drive it), BaseMap, markers, tile sources
     tools/ sensors/ three/ search/ routing/ terrain/ raster/ places/ tracks/ trails/ share/ party/ data/
-                           the pure parts of the app packages below: geodesy, sight & viewshed,
-                           coordinates, tilt & trip, 3D tiles & meshes, search engine, routing
-                           geometry, contours, elevation tiles (memory-mapped), HGT processing,
-                           RMAP, places & GPX, trail cells, links, party protocol & engine,
-                           Meshtastic codec, map catalog & names
+                           the shared parts of the app packages below: geodesy, sight & viewshed,
+                           coordinates, tilt & trip, sensor interfaces, 3D tiles & meshes, search
+                           engine, routing geometry & planner session, contours, elevation tiles
+                           (memory-mapped), HGT processing, RMAP, places, GPX & track library, trail
+                           cells, links, party protocol, engine & state, Meshtastic codec, map
+                           catalog, settings (Prefs) and the offline-data interfaces
     shared/mapsforge/      a Kotlin port of the mapsforge map reader (no rendering)
     shared/mvt/            mapsforge data → vector tiles (for MapLibre on iOS)
     shared/util/           what Java has and iOS doesn't: number formatting, ISO times, URL coding,
@@ -344,7 +350,7 @@ app/src/main/java/app/maparound/
   car/                     Android Auto: car app service, session, map renderer on the car surface, template screen
   party/                   party key & encryption, Meshtastic protobuf codec, engine, MQTT & BLE transports, service
   sensors/                 location, GNSS status, compass, motion (tilt, accelerometer, gyro), speed & trip, barometer
-  ui/                      Compose screens (Map + planner, Routes, Party, Offline, Sensors)
+  ui/                      Android root (permissions, start-up), platform actions, Satellites tab, 3D view host
 brouter/                   vendored BRouter routing engine (Java, MIT)
 ```
 
