@@ -45,7 +45,11 @@ object ThemeStyle {
         val out = Converter()
         root.background?.let { out.layers += layer("background", "background", AREA_FLAG) { put("paint", obj("background-color" to color(it))) } }
         out.walk(root.children, Ctx.ROOT)
-        return Result(out.layers, out.hillshade)
+        // mapsforge draws labels and symbols after all areas and lines, whatever the theme's order.
+        val isLabel = { l: JsonObject -> (l["type"] as? JsonPrimitive)?.content == "symbol" }
+        val layers = out.layers.filterNot(isLabel) + out.layers.filter(isLabel)
+        val hillshade = out.hillshade?.let { h -> Hillshade(out.layers.take(h.index).count { !isLabel(it) }, h.minZoom, h.maxZoom, h.magnitude) }
+        return Result(layers, hillshade)
     }
 
     // ---- the theme as a tree ----------------------------------------------------------------------

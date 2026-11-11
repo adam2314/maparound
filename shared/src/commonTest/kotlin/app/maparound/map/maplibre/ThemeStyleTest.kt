@@ -81,7 +81,8 @@ class ThemeStyleTest {
             </rendertheme>
         """.trimIndent()
         val layers = ThemeStyle.convert(xml).layers
-        assertEquals(listOf("background", "line", "line", "symbol", "fill", "line", "fill", "line"), layers.map { it.type })
+        // Labels above everything else, like mapsforge draws them.
+        assertEquals(listOf("background", "line", "line", "fill", "line", "fill", "line", "symbol"), layers.map { it.type })
 
         val road = layers[1]
         assertEquals("line", road.str("source-layer"))
@@ -98,7 +99,7 @@ class ThemeStyleTest {
         assertEquals(listOf(4.0, 2.0), thin["line-dasharray"]!!.jsonArray.map { it.jsonPrimitive.doubleOrNull })
         assertEquals(1.5, thin["line-offset"]!!.jsonPrimitive.doubleOrNull)
 
-        val town = layers[3]
+        val town = layers[7]
         assertEquals("poi", town.str("source-layer"))
         assertEquals(8, town["minzoom"]!!.jsonPrimitive.content.toInt())
         assertTrue(matches(town, mapOf("place" to "town", "name" to "Vaduz")))
@@ -107,8 +108,9 @@ class ThemeStyleTest {
         assertEquals(1.25, town["paint"]!!.jsonObject["text-halo-width"]!!.jsonPrimitive.doubleOrNull)
 
         // Water: on areas, and on whole-sea tiles; marked as land cover for hybrid maps.
-        assertEquals(listOf("area", "area", "sea", "sea"), layers.drop(4).take(4).map { it.str("source-layer") })
-        assertTrue(layers.drop(4).all { it["metadata"]?.jsonObject?.get(ThemeStyle.AREA_FLAG) != null })
+        val water = layers.subList(3, 7)
+        assertEquals(listOf("area", "area", "sea", "sea"), water.map { it.str("source-layer") })
+        assertTrue(water.all { it["metadata"]?.jsonObject?.get(ThemeStyle.AREA_FLAG) != null })
     }
 
     @Test
@@ -118,6 +120,8 @@ class ThemeStyleTest {
         val layers = result.layers
         assertTrue(layers.size > 300, "${layers.size} layers")
         assertEquals(layers.size, layers.map { it.id }.toSet().size, "unique ids")
+        // All labels and symbols come after the last area or line.
+        assertTrue(layers.indexOfLast { it.type != "symbol" } < layers.indexOfFirst { it.type == "symbol" })
         assertEquals("background", layers[0].type)
         assertNotNull(result.hillshade)
         assertEquals(8, result.hillshade!!.minZoom)
