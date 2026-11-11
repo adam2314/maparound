@@ -341,7 +341,7 @@ private fun SensorDetails(info: SensorInfo, unit: String) {
         listOfNotNull(
             info.name,
             info.vendor.takeIf { it.isNotBlank() },
-            "range ±${localFixed(info.maxRange.toDouble(), 0)} $unit",
+            "range ±${localFixed(info.maxRange.toDouble(), 0)} $unit".takeIf { info.maxRange > 0 },
             info.maxRateHz?.let { "up to $it Hz" },
         ).joinToString(" · "),
         style = MaterialTheme.typography.labelSmall,

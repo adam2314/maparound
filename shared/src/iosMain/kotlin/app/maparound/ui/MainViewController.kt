@@ -4,6 +4,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.viewinterop.UIKitInteropProperties
@@ -26,7 +29,7 @@ import app.maparound.raster.LocalRasters
 import app.maparound.sensors.LocalDeviceSensors
 import app.maparound.tracks.LocalTracks
 import app.maparound.ui.theme.MapAroundTheme
-import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.merge
 import platform.UIKit.UIView
 import platform.UIKit.UIViewController
 
@@ -38,6 +41,9 @@ interface NativeMapView : NativeMap {
 /** The whole app for iOS: the shared Compose screens with iOS's services; [newMap] makes a map view. */
 fun MainViewController(newMap: () -> NativeMapView): UIViewController = ComposeUIViewController {
     val app = IosApp
+    val hasLocation by app.sensors.permission.collectAsState()
+    // Ask once at the first start, like the Android app.
+    LaunchedEffect(Unit) { if (app.sensors.canAsk) app.sensors.requestPermission() }
     CompositionLocalProvider(
         LocalPrefs provides app.prefs,
         LocalDeviceSensors provides app.sensors,
@@ -53,9 +59,9 @@ fun MainViewController(newMap: () -> NativeMapView): UIViewController = ComposeU
     ) {
         MapAroundTheme {
             MapAroundRoot(
-                hasLocation = false,
-                requestLocation = {},
-                messages = remember { emptyFlow<String>() },
+                hasLocation = hasLocation,
+                requestLocation = app.sensors::requestPermission,
+                messages = remember { merge(app.downloads.events, app.terrain.events) },
                 onStart = {},
                 createMap = { MapLibreSurface(newMap(), app.tiles, app.style) },
                 mapView = { map, modifier ->

@@ -14,3 +14,9 @@ expect fun httpGet(url: String, headers: Map<String, String> = emptyMap(), timeo
 
 fun httpGetText(url: String, headers: Map<String, String> = emptyMap(), timeoutMs: Int = 15_000): String =
     httpGet(url, headers, timeoutMs).decodeToString()
+
+/**
+ * Downloads [url] into the file [path] (streamed, replacing it). Blocking: call off the main
+ * thread; stops soon after [isActive] turns false. Throws like [httpGet].
+ */
+expect fun httpDownload(url: String, path: String, timeoutMs: Int = 30_000, isActive: () -> Boolean = { true })

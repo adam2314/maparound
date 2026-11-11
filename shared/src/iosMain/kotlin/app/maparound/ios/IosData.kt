@@ -5,15 +5,10 @@ package app.maparound.ios
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import app.maparound.data.CatalogEntry
-import app.maparound.data.DownloadInfo
 import app.maparound.data.InstalledMaps
 import app.maparound.data.LocalMap
-import app.maparound.data.MapDownloads
 import app.maparound.data.RoutingData
 import app.maparound.data.RoutingDataState
-import app.maparound.data.TerrainData
-import app.maparound.data.TerrainState
 import app.maparound.data.TrailData
 import app.maparound.data.TrailState
 import app.maparound.places.PlaceRepository
@@ -23,7 +18,6 @@ import app.maparound.search.SearchEngine
 import app.maparound.search.SearchResult
 import app.maparound.shared.fileSystem
 import app.maparound.shared.net.httpGetText
-import app.maparound.terrain.DemIndex
 import app.maparound.terrain.GeoBounds
 import app.maparound.ui.Searcher
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -96,29 +90,12 @@ private const val LATER = "Coming to iPhone in a later version"
 
 // What phase 3 hasn't built yet on iOS: answers that say so instead of doing nothing.
 
-object PendingDownloads : MapDownloads {
-    override fun enqueue(entry: CatalogEntry, url: String, wifiOnly: Boolean): String = "Map downloads: $LATER"
-    override fun cancel(id: Long) = Unit
-    override fun poll(): List<DownloadInfo> = emptyList()
-}
-
 private fun cells(bounds: GeoBounds): List<Pair<Int, Int>> {
     val out = ArrayList<Pair<Int, Int>>()
     for (lat in floor(bounds.minLat).toInt()..floor(bounds.maxLat - 1e-9).toInt()) {
         for (lon in floor(bounds.minLon).toInt()..floor(bounds.maxLon - 1e-9).toInt()) out += lat to lon
     }
     return out
-}
-
-class PendingTerrain(private val dir: String) : TerrainData {
-    override val state: StateFlow<TerrainState> = MutableStateFlow(TerrainState())
-    override fun cellsFor(bounds: GeoBounds) = cells(bounds)
-    override fun missingCells(bounds: GeoBounds) =
-        cells(bounds).filterNot { (lat, lon) -> fileSystem.exists("$dir/${DemIndex.nameFor(lat, lon)}.hgt".toPath()) }
-    override fun estimateBytes(cells: Int, highDetail: Boolean): Long = cells * if (highDetail) 3601L * 3601 * 2 else 1201L * 1201 * 2
-    override fun download(label: String, bounds: GeoBounds, highDetail: Boolean): String = "Terrain downloads: $LATER"
-    override fun cancel() = Unit
-    override fun deleteAll() = Unit
 }
 
 object PendingTrails : TrailData {

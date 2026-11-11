@@ -154,6 +154,9 @@ jobs:
           mkdir -p "$DATA/Documents/maps" "$DATA/Documents/dem"
           cp testdata/liechtenstein.map "$DATA/Documents/maps/europe__liechtenstein.map"
           cp testdata/N47E009.hgt "$DATA/Documents/dem/"
+          # Location allowed, and the simulator in Vaduz.
+          xcrun simctl privacy "$UDID" grant location app.maparound || true
+          xcrun simctl location "$UDID" set 47.1410,9.5215 || true
           # MAPAROUND_DEMO starts over Vaduz; MAPAROUND_TAB opens another tab.
           shot() {
             xcrun simctl terminate "$UDID" app.maparound 2>/dev/null || true
@@ -164,6 +167,7 @@ jobs:
           shot screenshot.png Map 40
           shot screenshot-offline.png Offline 15
           shot screenshot-library.png Routes 15
+          shot screenshot-sensors.png Sensors 15
           xcrun simctl spawn "$UDID" log show --last 5m --style compact --predicate 'process == "MapAround"' > app-log.txt || true
           tail -40 app-log.txt || true
 
@@ -176,6 +180,7 @@ jobs:
             screenshot.png
             screenshot-offline.png
             screenshot-library.png
+            screenshot-sensors.png
             app-log.txt
           if-no-files-found: ignore
 
@@ -190,6 +195,7 @@ jobs:
           [ -f screenshot.png ] && cp screenshot.png /tmp/shots/
           [ -f screenshot-offline.png ] && cp screenshot-offline.png /tmp/shots/
           [ -f screenshot-library.png ] && cp screenshot-library.png /tmp/shots/
+          [ -f screenshot-sensors.png ] && cp screenshot-sensors.png /tmp/shots/
           [ -f app-log.txt ] && cp app-log.txt /tmp/shots/
           # The build log's errors and last lines, to see why a build failed.
           if [ -f build-log.txt ]; then

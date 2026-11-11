@@ -25,6 +25,8 @@ targets:
       properties:
         CFBundleDisplayName: MapAround
         CFBundleShortVersionString: "0.1.0"
+        NSLocationWhenInUseUsageDescription: "MapAround shows where you are on the map and measures your speed and altitude."
+        NSMotionUsageDescription: "MapAround shows the air pressure and motion sensors on the Sensors tab."
         UILaunchScreen: {}
         # Compose Multiplatform draws at the display's full refresh rate (and checks for this key).
         CADisableMinimumFrameDurationOnPhone: true

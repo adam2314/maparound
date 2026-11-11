@@ -17,3 +17,27 @@ actual fun httpGet(url: String, headers: Map<String, String>, timeoutMs: Int): B
         conn.disconnect()
     }
 }
+
+actual fun httpDownload(url: String, path: String, timeoutMs: Int, isActive: () -> Boolean) {
+    val conn = URL(url).openConnection() as HttpURLConnection
+    try {
+        conn.connectTimeout = timeoutMs
+        conn.readTimeout = timeoutMs
+        conn.setRequestProperty("User-Agent", userAgent)
+        val status = conn.responseCode
+        if (status !in 200..299) throw HttpException(status)
+        conn.inputStream.buffered(1 shl 16).use { input ->
+            java.io.File(path).outputStream().buffered(1 shl 16).use { out ->
+                val buf = ByteArray(1 shl 16)
+                while (true) {
+                    if (!isActive()) throw java.io.IOException("Stopped")
+                    val n = input.read(buf)
+                    if (n < 0) break
+                    out.write(buf, 0, n)
+                }
+            }
+        }
+    } finally {
+        conn.disconnect()
+    }
+}

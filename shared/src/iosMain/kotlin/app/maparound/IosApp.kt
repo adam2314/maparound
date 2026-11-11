@@ -8,10 +8,12 @@ import app.maparound.data.UserDefaultsStore
 import app.maparound.ios.IosInstalledMaps
 import app.maparound.ios.IosSearcher
 import app.maparound.ios.IosSensors
-import app.maparound.ios.PendingDownloads
+import app.maparound.ios.IosMapDownloads
+import app.maparound.ios.freeBytes
 import app.maparound.ios.PendingRouting
-import app.maparound.ios.PendingTerrain
+import app.maparound.data.TerrainStore
 import app.maparound.ios.PendingTrails
+import app.maparound.map.TileSources
 import app.maparound.map.maplibre.BasicLayers
 import app.maparound.map.maplibre.MapStyle
 import app.maparound.map.maplibre.ThemeStyle
@@ -48,11 +50,19 @@ object IosApp {
     val tracks = TrackRepository(documents, UserDefaultsStore("tracks"))
     val sensors = IosSensors()
     val searcher = IosSearcher(places, maps)
+    val downloads = IosMapDownloads(maps)
+    val terrain = TerrainStore(
+        demDir = "$documents/dem",
+        prefs = prefs,
+        coast = { null }, // cutting terrain at the coast comes later on iOS
+        isMetered = { false },
+        freeBytes = { freeBytes(documents) },
+    )
     val offline = OfflineData(
         maps = maps,
-        downloads = PendingDownloads,
+        downloads = downloads,
         catalog = MapCatalog(),
-        terrain = PendingTerrain("$documents/dem"),
+        terrain = terrain,
         trails = PendingTrails,
         routing = PendingRouting,
     )
@@ -63,9 +73,12 @@ object IosApp {
 
     init {
         userAgent = "MapAround/$version (iOS; offline OSM map viewer)"
-        ToolsSession.terrainSource = { "$documents/dem" to 0 }
+        ToolsSession.terrainSource = { terrain.demDir to terrain.state.value.version }
         PlannerSession.library = tracks
-        if (demo) prefs.saveLastPosition(MapPos(47.141, 9.521, 14))
+        if (demo) {
+            prefs.saveLastPosition(MapPos(47.141, 9.521, 14))
+            prefs.setBaseLayer(TileSources.OFFLINE_ID) // the offline map, drawn with the Topo style
+        }
     }
 
     private fun env(name: String): String? = NSProcessInfo.processInfo.environment[name] as? String
