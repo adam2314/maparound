@@ -4,6 +4,7 @@ import app.maparound.places.PlaceRepository
 import app.maparound.raster.RasterMapRepository
 import android.app.Application
 import app.maparound.data.MapCatalog
+import app.maparound.shared.net.userAgent
 import app.maparound.data.MapDownloader
 import app.maparound.data.MapFilesRepository
 import app.maparound.data.Prefs
@@ -51,6 +52,7 @@ object AppGraph {
     val catalog = MapCatalog()
 
     fun init(app: Application) {
+        userAgent = USER_AGENT
         prefs = Prefs(SharedPrefsStore(app, "maparound"))
         mapFiles = MapFilesRepository(app)
         downloader = MapDownloader(app, mapFiles)

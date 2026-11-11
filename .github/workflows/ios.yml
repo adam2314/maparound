@@ -125,10 +125,8 @@ jobs:
           mkdir -p testdata
           [ -f testdata/liechtenstein.map ] || curl -fsSL -A "MapAround-CI (github.com/adam2314/maparound)" \
             -o testdata/liechtenstein.map https://download.mapsforge.org/maps/v5/europe/liechtenstein.map
-          cp testdata/liechtenstein.map iosApp/MapAround/liechtenstein.map
-          # Elevation for the 3D spike: the 1° tile around Liechtenstein (same source as the app).
+          # Elevation around Liechtenstein (the 1° tile, same source as the app).
           [ -f testdata/N47E009.hgt ] || curl -fsSL https://elevation-tiles-prod.s3.amazonaws.com/skadi/N47/N47E009.hgt.gz | gunzip > testdata/N47E009.hgt
-          cp testdata/N47E009.hgt iosApp/MapAround/N47E009.hgt
 
       - name: Generate the Xcode project
         run: |
@@ -150,20 +148,21 @@ jobs:
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID" -b
           xcrun simctl install "$UDID" iosApp/build/Build/Products/Debug-iphonesimulator/MapAround.app
-          xcrun simctl launch "$UDID" app.maparound
-          sleep 30
-          xcrun simctl io "$UDID" screenshot screenshot.png
-          # Again with the demo switch: the shared Compose screen moves the map to Malbun and zooms in,
-          # and the map reports its camera back to the screen's top card.
-          xcrun simctl terminate "$UDID" app.maparound || true
-          SIMCTL_CHILD_MAPAROUND_DEMO=1 xcrun simctl launch "$UDID" app.maparound
-          sleep 30
-          xcrun simctl io "$UDID" screenshot screenshot-demo.png
-          # And in the 3D view: one terrain tile drawn with Metal.
-          xcrun simctl terminate "$UDID" app.maparound || true
-          SIMCTL_CHILD_MAPAROUND_DEMO=3d xcrun simctl launch "$UDID" app.maparound
-          sleep 80 # the map picture for the terrain takes ~50 s on the CI simulator
-          xcrun simctl io "$UDID" screenshot screenshot-3d.png
+          # The test map and its terrain in the app's Documents folder, as if downloaded.
+          DATA=$(xcrun simctl get_app_container "$UDID" app.maparound data)
+          mkdir -p "$DATA/Documents/maps" "$DATA/Documents/dem"
+          cp testdata/liechtenstein.map "$DATA/Documents/maps/europe__liechtenstein.map"
+          cp testdata/N47E009.hgt "$DATA/Documents/dem/"
+          # MAPAROUND_DEMO starts over Vaduz; MAPAROUND_TAB opens another tab.
+          shot() {
+            xcrun simctl terminate "$UDID" app.maparound 2>/dev/null || true
+            SIMCTL_CHILD_MAPAROUND_DEMO=1 SIMCTL_CHILD_MAPAROUND_TAB="$2" xcrun simctl launch "$UDID" app.maparound
+            sleep "$3"
+            xcrun simctl io "$UDID" screenshot "$1"
+          }
+          shot screenshot.png Map 40
+          shot screenshot-offline.png Offline 15
+          shot screenshot-library.png Routes 15
           xcrun simctl spawn "$UDID" log show --last 5m --style compact --predicate 'process == "MapAround"' > app-log.txt || true
           tail -40 app-log.txt || true
 
@@ -174,8 +173,8 @@ jobs:
           name: ios-simulator-screenshot
           path: |
             screenshot.png
-            screenshot-demo.png
-            screenshot-3d.png
+            screenshot-offline.png
+            screenshot-library.png
             app-log.txt
           if-no-files-found: ignore
 
@@ -188,8 +187,8 @@ jobs:
         run: |
           mkdir -p /tmp/shots
           [ -f screenshot.png ] && cp screenshot.png /tmp/shots/
-          [ -f screenshot-demo.png ] && cp screenshot-demo.png /tmp/shots/
-          [ -f screenshot-3d.png ] && cp screenshot-3d.png /tmp/shots/
+          [ -f screenshot-offline.png ] && cp screenshot-offline.png /tmp/shots/
+          [ -f screenshot-library.png ] && cp screenshot-library.png /tmp/shots/
           [ -f app-log.txt ] && cp app-log.txt /tmp/shots/
           # The build log's errors and last lines, to see why a build failed.
           if [ -f build-log.txt ]; then

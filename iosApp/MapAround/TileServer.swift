@@ -2,14 +2,14 @@ import Foundation
 import Network
 import MapAroundShared
 
-/// A minimal HTTP server on 127.0.0.1 that answers MapLibre's tile requests
-/// (`/osm/{z}/{x}/{y}.pbf`) with vector tiles made by the shared Kotlin code.
+/// A minimal HTTP server on 127.0.0.1 that answers MapLibre's requests with what the shared
+/// Kotlin TileService makes (vector tiles from the mapsforge maps, see TileService.kt).
 final class TileServer {
     private let listener: NWListener
-    private let queue = DispatchQueue(label: "app.maparound.tiles") // serial: MapTiles is not thread safe
-    private let tiles: MapTiles
+    private let queue = DispatchQueue(label: "app.maparound.tiles") // serial: TileService answers one request at a time
+    private let tiles: TileService
 
-    init(tiles: MapTiles) throws {
+    init(tiles: TileService) throws {
         self.tiles = tiles
         let params = NWParameters.tcp
         params.requiredLocalEndpoint = NWEndpoint.hostPort(host: "127.0.0.1", port: .any)
@@ -37,22 +37,17 @@ final class TileServer {
                 return
             }
             let path = request.split(separator: " ").dropFirst().first.map(String.init) ?? "/"
-            let body = self.handle(path)
-            let head = "HTTP/1.1 \(body == nil ? "404 Not Found" : "200 OK")\r\n" +
-                "Content-Type: application/x-protobuf\r\n" +
-                "Content-Length: \(body?.count ?? 0)\r\n" +
-                "Connection: close\r\n\r\n"
+            let answer = self.tiles.respondData(path: path)
+            let body = answer.map { $0.data as Data }
+            // Tile URLs carry a key of the map files, so a tile never changes: MapLibre may keep it.
+            var head = "HTTP/1.1 \(answer == nil ? "404 Not Found" : "200 OK")\r\n"
+            head += "Content-Type: \(answer?.contentType ?? "text/plain")\r\n"
+            head += "Content-Length: \(body?.count ?? 0)\r\n"
+            if answer != nil { head += "Cache-Control: max-age=31536000\r\n" }
+            head += "Connection: close\r\n\r\n"
             var out = Data(head.utf8)
             if let body { out.append(body) }
             connection.send(content: out, completion: .contentProcessed { _ in connection.cancel() })
         }
-    }
-
-    private func handle(_ path: String) -> Data? {
-        let parts = path.split(separator: "/")
-        guard parts.count == 4, parts[0] == "osm",
-              let z = Int32(parts[1]), let x = Int32(parts[2]),
-              let y = Int32(parts[3].split(separator: ".").first ?? "") else { return nil }
-        return tiles.tileData(z: z, x: x, y: y) as Data
     }
 }

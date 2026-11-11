@@ -1,0 +1,217 @@
+package app.maparound.map.maplibre
+
+import app.maparound.data.MapPos
+import app.maparound.map.BaseMap
+import app.maparound.map.MapListener
+import app.maparound.map.MapSurface
+import app.maparound.map.PartyMarker
+import app.maparound.map.PlaceMarker
+import app.maparound.map.ToolLine
+import app.maparound.routing.GeoPoint
+import app.maparound.sensors.GeoFix
+import app.maparound.three.Camera3D
+import app.maparound.tools.Viewshed
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonObject
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.pow
+import kotlin.math.roundToInt
+import kotlin.math.tan
+
+/**
+ * The shared map screen's [MapSurface] on a MapLibre view ([native]): the base map as a style
+ * from [style], the overlays as GeoJSON, taps and gestures back to the [listener].
+ *
+ * Zoom levels in [MapPos] are mapsforge's (256-point tiles, as on Android); MapLibre's are one
+ * lower for the same scale.
+ */
+class MapLibreSurface(
+    val native: NativeMap,
+    private val tiles: TileService,
+    private val style: MapStyle,
+) : MapSurface {
+    override var listener: MapListener? = null
+
+    private var lastStyle: String? = null
+
+    init {
+        native.setCallbacks(object : NativeMapCallbacks {
+            override fun onUserGesture() {
+                listener?.onUserGesture()
+            }
+
+            override fun onTap(lat: Double, lon: Double, tapped: String?) {
+                val l = listener ?: return
+                when {
+                    tapped == null -> l.onTap(GeoPoint(lat, lon))
+                    tapped == TAP_ME -> l.onMyLocationTap()
+                    tapped.startsWith(TAP_WAYPOINT) -> tapped.removePrefix(TAP_WAYPOINT).toIntOrNull()?.let(l::onWaypointTap)
+                    tapped.startsWith(TAP_PARTY) -> l.onPartyMarkerTap(tapped.removePrefix(TAP_PARTY))
+                    tapped.startsWith(TAP_PLACE) -> l.onPlaceTap(tapped.removePrefix(TAP_PLACE))
+                    else -> l.onTap(GeoPoint(lat, lon))
+                }
+            }
+
+            override fun onLongPress(lat: Double, lon: Double) {
+                listener?.onLongPress(GeoPoint(lat, lon))
+            }
+        })
+        applyStyle(style.build(null, tiles.baseUrl, tiles.version))
+    }
+
+    // ---- camera ---------------------------------------------------------------------------------
+
+    override fun position(): MapPos {
+        val c = native.camera()
+        return MapPos(c.lat, c.lon, (c.zoom + ZOOM_OFFSET).roundToInt())
+    }
+
+    override fun moveTo(pos: MapPos) {
+        native.moveCamera(
+            pos.lat.coerceIn(-85.0, 85.0), pos.lon.coerceIn(-180.0, 180.0),
+            (pos.zoom.coerceIn(MIN_ZOOM, MAX_ZOOM) - ZOOM_OFFSET).toDouble(), animated = false,
+        )
+    }
+
+    override fun animateTo(lat: Double, lon: Double, minZoom: Int?) {
+        val zoom = native.camera().zoom
+        val target = if (minZoom != null && zoom + ZOOM_OFFSET < minZoom) (minZoom - ZOOM_OFFSET).toDouble() else zoom
+        native.moveCamera(lat, lon, target, animated = true)
+    }
+
+    override fun showPoints(points: List<GeoPoint>) {
+        when (points.size) {
+            0 -> Unit
+            1 -> animateTo(points[0].lat, points[0].lon, minZoom = 15)
+            else -> native.fitBounds(
+                points.minOf { it.lat }, points.minOf { it.lon }, points.maxOf { it.lat }, points.maxOf { it.lon }, animated = true,
+            )
+        }
+    }
+
+    override fun camera3D(): Camera3D? {
+        val h = native.viewHeight()
+        if (h <= 0) return null
+        val c = native.camera()
+        // Ground metres across the view's height, then the distance that shows that at a 45° field of view.
+        val metresPerPoint = EARTH_CIRCUMFERENCE_M * cos(c.lat * PI / 180) / (512 * 2.0.pow(c.zoom))
+        val distance = metresPerPoint * h / (2 * tan(22.5 * PI / 180)) * 0.8
+        return Camera3D(c.lat, c.lon, distance.toFloat())
+    }
+
+    // ---- base map ---------------------------------------------------------------------------------
+
+    override suspend fun setBaseMap(base: BaseMap) {
+        val version = if (base is BaseMap.Offline) {
+            val paths = base.maps.map { it.path }
+            withContext(Dispatchers.Default) { tiles.setMaps(paths) }
+        } else {
+            tiles.version
+        }
+        applyStyle(style.build(base, tiles.baseUrl, version))
+    }
+
+    private fun applyStyle(json: String) {
+        if (json == lastStyle) return
+        lastStyle = json
+        native.setStyle(json)
+    }
+
+    /** Marked trails over online maps come with the trails layer on iOS (phase 4). */
+    override fun setTrailOverlay(enabled: Boolean) = Unit
+
+    // ---- overlays ---------------------------------------------------------------------------------
+
+    override fun setPlannedRoute(line: List<GeoPoint>, waypoints: List<GeoPoint>) {
+        val features = ArrayList<JsonObject>()
+        GeoJson.line(line, mapOf("role" to "line"))?.let(features::add)
+        waypoints.forEachIndexed { i, p ->
+            val kind = when (i) {
+                0 -> 0
+                waypoints.lastIndex -> 2
+                else -> 1
+            }
+            features += GeoJson.point(p.lat, p.lon, mapOf("role" to "wp", "icon" to MarkerIcons.waypoint(i + 1, kind), "tap" to "$TAP_WAYPOINT$i"))
+        }
+        native.setGeoJson(MapStyle.ROUTE, GeoJson.collection(features))
+    }
+
+    override fun setShownTracks(tracks: Map<String, List<GeoPoint>>) {
+        native.setGeoJson(MapStyle.TRACKS, GeoJson.collection(tracks.mapNotNull { (id, pts) -> GeoJson.line(pts, mapOf("id" to id)) }))
+    }
+
+    override fun setRecording(points: List<GeoPoint>) {
+        native.setGeoJson(MapStyle.RECORDING, GeoJson.collection(listOfNotNull(GeoJson.line(points, emptyMap()))))
+    }
+
+    /** The viewshed image comes with the map tools on iOS (phase 4); lines, ring and points are drawn. */
+    override fun setTools(a: GeoPoint?, b: GeoPoint?, lines: List<ToolLine>, ring: Pair<GeoPoint, Double>?, viewshed: Viewshed?) {
+        val features = ArrayList<JsonObject>()
+        ring?.let { (c, r) -> features += GeoJson.ring(GeoJson.circle(c.lat, c.lon, r), mapOf("role" to "ring"), polygon = false) }
+        for (l in lines) {
+            val vis = when (l.visible) {
+                true -> "yes"
+                false -> "no"
+                null -> "plain"
+            }
+            GeoJson.line(l.points, mapOf("role" to "line", "vis" to vis))?.let(features::add)
+        }
+        a?.let { features += GeoJson.point(it.lat, it.lon, mapOf("role" to "letter", "icon" to MarkerIcons.letter("A", COLOR_A))) }
+        b?.let { features += GeoJson.point(it.lat, it.lon, mapOf("role" to "letter", "icon" to MarkerIcons.letter("B", COLOR_B))) }
+        native.setGeoJson(MapStyle.TOOLS, GeoJson.collection(features))
+    }
+
+    override fun setPartyMarkers(markers: List<PartyMarker>) {
+        native.setGeoJson(MapStyle.PARTY, GeoJson.collection(markers.map { m ->
+            GeoJson.point(m.lat, m.lon, mapOf("icon" to MarkerIcons.party(m.kind, m.color, m.label, m.stale), "tap" to "$TAP_PARTY${m.key}"))
+        }))
+    }
+
+    override fun setPlaces(places: List<PlaceMarker>) {
+        native.setGeoJson(MapStyle.PLACES, GeoJson.collection(places.map { p ->
+            GeoJson.point(p.lat, p.lon, mapOf("icon" to MarkerIcons.place(p.color, p.emoji, p.label), "tap" to "$TAP_PLACE${p.id}"))
+        }))
+    }
+
+    override fun updateLocation(fix: GeoFix?) {
+        val features = ArrayList<JsonObject>()
+        if (fix != null) {
+            val accuracy = fix.accuracyM?.toDouble() ?: 0.0
+            if (accuracy > 0) features += GeoJson.ring(GeoJson.circle(fix.lat, fix.lon, accuracy), mapOf("role" to "accuracy"), polygon = true)
+            features += GeoJson.point(fix.lat, fix.lon, mapOf("role" to "dot", "icon" to MarkerIcons.ME, "tap" to TAP_ME))
+        }
+        native.setGeoJson(MapStyle.ME, GeoJson.collection(features))
+    }
+
+    override fun setPin(point: GeoPoint?) {
+        native.setGeoJson(MapStyle.PIN, GeoJson.collection(listOfNotNull(point?.let { GeoJson.point(it.lat, it.lon, mapOf("icon" to MarkerIcons.PIN)) })))
+    }
+
+    override fun onResume() = Unit
+    override fun onPause() = Unit
+
+    override fun destroy() {
+        native.setCallbacks(null)
+        listener = null
+    }
+
+    companion object {
+        /** mapsforge zoom = MapLibre zoom + this (256- vs 512-point tiles). */
+        const val ZOOM_OFFSET = 1
+
+        // The same limits as the Android map.
+        const val MIN_ZOOM = 2
+        const val MAX_ZOOM = 21
+
+        const val TAP_ME = "me"
+        const val TAP_WAYPOINT = "wp:"
+        const val TAP_PARTY = "party:"
+        const val TAP_PLACE = "place:"
+
+        private const val COLOR_A = 0xFF1565C0.toInt()
+        private const val COLOR_B = 0xFFEF6C00.toInt()
+        private const val EARTH_CIRCUMFERENCE_M = 40_075_016.686
+    }
+}

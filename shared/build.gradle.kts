@@ -41,6 +41,7 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
         }
         androidUnitTest.dependencies {
             implementation("junit:junit:4.13.2")

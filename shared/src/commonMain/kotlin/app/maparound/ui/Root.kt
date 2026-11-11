@@ -59,8 +59,11 @@ fun MapAroundRoot(
     view3d: @Composable (Scene3DViewArgs) -> Unit,
     /** The Satellites tab (Android only). */
     satellites: (@Composable (hasLocation: Boolean, requestLocation: () -> Unit) -> Unit)?,
+    /** The tabs this platform has so far. */
+    tabs: List<Tab> = Tab.entries,
+    initialTab: Tab = Tab.Map,
 ) {
-    var tab by rememberSaveable { mutableStateOf(Tab.Map) }
+    var tab by rememberSaveable { mutableStateOf(initialTab) }
 
     val snackbar = remember { SnackbarHostState() }
     val party = LocalParty.current
@@ -98,7 +101,7 @@ fun MapAroundRoot(
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
             NavigationBar {
-                Tab.entries.forEach { t ->
+                tabs.forEach { t ->
                     NavigationBarItem(
                         selected = tab == t,
                         onClick = { tab = t },
