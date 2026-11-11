@@ -1,15 +1,12 @@
 package app.maparound.ui.theme
 
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 
 private val LightColors = lightColorScheme(
     primary = Color(0xFF1B6B4A),
@@ -29,14 +26,13 @@ private val DarkColors = darkColorScheme(
     tertiary = Color(0xFFA5CCDF),
 )
 
+/** The platform's own colours if it has them (Android 12+: from the wallpaper), else null. */
+@Composable
+internal expect fun platformColorScheme(dark: Boolean): ColorScheme?
+
 @Composable
 fun MapAroundTheme(content: @Composable () -> Unit) {
     val dark = isSystemInDarkTheme()
-    val context = LocalContext.current
-    val colors = when {
-        Build.VERSION.SDK_INT >= 31 -> if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        dark -> DarkColors
-        else -> LightColors
-    }
+    val colors = platformColorScheme(dark) ?: if (dark) DarkColors else LightColors
     MaterialTheme(colorScheme = colors, content = content)
 }

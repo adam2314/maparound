@@ -19,7 +19,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import java.util.Locale
+import app.maparound.shared.util.fixed
+import app.maparound.shared.util.localFixed
+import app.maparound.shared.util.padded
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -81,7 +83,7 @@ object Fmt {
 
     fun cardinal(deg: Float): String = compass16[(((deg % 360f + 360f) % 360f) / 22.5f + 0.5f).toInt() % 16]
 
-    fun latLon(lat: Double, lon: Double): String = String.format(Locale.US, "%.5f, %.5f", lat, lon)
+    fun latLon(lat: Double, lon: Double): String = "${fixed(lat, 5)}, ${fixed(lon, 5)}"
 
     fun dms(lat: Double, lon: Double): String = "${dmsPart(lat, "N", "S")}  ${dmsPart(lon, "E", "W")}"
 
@@ -91,16 +93,16 @@ object Fmt {
         val mFull = (a - d) * 60
         val m = mFull.toInt()
         val s = (mFull - m) * 60
-        return String.format(Locale.US, "%d°%02d′%04.1f″%s", d, m, s, if (value >= 0) pos else neg)
+        return "$d°${padded(m, 2)}′${fixed(s, 1).padStart(4, PAD)}″${if (value >= 0) pos else neg}"
     }
 
     fun distance(meters: Float): String = when {
         meters < 1000 -> "${meters.roundToInt()} m"
-        meters < 100_000 -> String.format(Locale.getDefault(), "%.1f km", meters / 1000)
+        meters < 100_000 -> "${localFixed((meters / 1000).toDouble(), 1)} km"
         else -> "${(meters / 1000).roundToInt()} km"
     }
 
-    fun oneDecimal(value: Number): String = String.format(Locale.getDefault(), "%.1f", value.toDouble())
+    fun oneDecimal(value: Number): String = localFixed(value.toDouble(), 1)
 
     /** 754 s -> "13 min", 15000 s -> "4 h 10 min". */
     fun duration(seconds: Long): String {
@@ -109,6 +111,7 @@ object Fmt {
     }
 
     /** Running clock for recordings: "1:05:09". */
-    fun clock(seconds: Long): String =
-        String.format(Locale.ROOT, "%d:%02d:%02d", seconds / 3600, (seconds / 60) % 60, seconds % 60)
+    fun clock(seconds: Long): String = "${seconds / 3600}:${padded((seconds / 60) % 60, 2)}:${padded(seconds % 60, 2)}"
+
+    private const val PAD = '0'
 }
