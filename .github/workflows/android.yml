@@ -20,15 +20,32 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # A small real map for the reader tests (cached; mapsforge.org updates it monthly).
+      - name: Test map
+        id: month
+        run: echo "month=$(date +%Y-%m)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: testdata
+          key: testmap-${{ steps.month.outputs.month }}
+      - run: |
+          mkdir -p testdata
+          [ -f testdata/liechtenstein.map ] || curl -fsSL -A "MapAround-CI (github.com/adam2314/maparound)" \
+            -o testdata/liechtenstein.map https://download.mapsforge.org/maps/v5/europe/liechtenstein.map
+
       - name: Unit tests and debug APK
-        run: ./gradlew :app:testDebugUnitTest :app:assembleDebug --console=plain
+        env:
+          MAP_FILE: ${{ github.workspace }}/testdata/liechtenstein.map
+        run: ./gradlew :app:testDebugUnitTest :shared:testDebugUnitTest :app:assembleDebug --console=plain
 
       - name: Test report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: unit-test-results
-          path: app/build/test-results/testDebugUnitTest/
+          path: |
+            app/build/test-results/testDebugUnitTest/
+            shared/build/test-results/testDebugUnitTest/
           if-no-files-found: ignore
 
       - name: Debug APK

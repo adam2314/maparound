@@ -14,4 +14,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "MapAround"
-include(":app", ":brouter")
+include(":app", ":brouter", ":shared")

@@ -18,3 +18,4 @@ tools/topo-preview/.kotlin/
 # Xcode (iOS app, later)
 xcuserdata/
 DerivedData/
+testdata/
