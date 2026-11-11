@@ -7,6 +7,14 @@ import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import app.maparound.routing.GeoPoint
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,34 +33,15 @@ import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.sinh
 
-/** A raster map (RMAP) the user added. Large files are read where they are, never copied. */
-data class RasterMap(
-    val id: String,
-    val name: String,
-    /** A content:// URI (picked with the file picker) or a file path. */
-    val source: String,
-    val sizeBytes: Long,
-    val north: Double,
-    val south: Double,
-    val west: Double,
-    val east: Double,
-    val projection: String,
-    val width: Int,
-    val height: Int,
-    val levels: Int,
-) {
-    val center: GeoPoint get() = GeoPoint((north + south) / 2, (west + east) / 2)
-}
-
-class RasterMapRepository(private val context: Context) {
+class RasterMapRepository(private val context: Context) : RasterLibrary {
     private val sp = context.getSharedPreferences("raster_maps", Context.MODE_PRIVATE)
     private val _maps = MutableStateFlow(load())
-    val maps: StateFlow<List<RasterMap>> = _maps.asStateFlow()
+    override val maps: StateFlow<List<RasterMap>> = _maps.asStateFlow()
 
     private class Opened(val closeable: AutoCloseable, val renderer: RasterRenderer)
     private val opened = ConcurrentHashMap<String, Opened>()
 
-    fun get(id: String): RasterMap? = _maps.value.firstOrNull { it.id == id }
+    override fun get(id: String): RasterMap? = _maps.value.firstOrNull { it.id == id }
 
     /** Adds an RMAP picked with the file picker (keeps read access to it). Blocking. */
     fun add(uri: Uri): RasterMap {
@@ -70,7 +59,7 @@ class RasterMapRepository(private val context: Context) {
         return saved
     }
 
-    fun remove(id: String) {
+    override fun remove(id: String) {
         val map = get(id) ?: return
         opened.remove(id)?.closeable?.let { runCatching { it.close() } }
         if (map.source.startsWith("content:")) {
@@ -78,6 +67,19 @@ class RasterMapRepository(private val context: Context) {
         }
         _maps.value = _maps.value.filterNot { it.id == id }
         save()
+    }
+
+    /** Opens the file picker for an .rmap; the file stays where it is (no copy). */
+    @Composable
+    override fun rememberPicker(onResult: (Result<RasterMap>) -> Unit): () -> Unit {
+        val scope = rememberCoroutineScope()
+        val callback = rememberUpdatedState(onResult)
+        val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) {
+                scope.launch { callback.value(withContext(Dispatchers.IO) { runCatching { add(uri) } }) }
+            }
+        }
+        return { launcher.launch(arrayOf("*/*")) }
     }
 
     /** A renderer for the map (opens the file on first use). Null if it can't be read any more. */

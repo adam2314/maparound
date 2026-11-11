@@ -214,9 +214,9 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
     }
 
     val rasterMaps by AppGraph.rasters.maps.collectAsState()
-    val addRaster = rememberRasterPicker { r ->
+    val addRaster = AppGraph.rasters.rememberPicker { r ->
         r.fold(
-            { showRasterOnMap(it); onShowOnMap() },
+            { showRasterOnMap(AppGraph.prefs, it); onShowOnMap() },
             { e -> scope.launch { snackbar.showSnackbar(rasterError(e)) } },
         )
     }
@@ -329,7 +329,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
             }
 
             // ---- raster maps (RMAP), read in place ----
-            rasterMapsSection(rasterMaps, addRaster, { showRasterOnMap(it); onShowOnMap() }) {
+            rasterMapsSection(rasterMaps, addRaster, { showRasterOnMap(AppGraph.prefs, it); onShowOnMap() }, { removeRaster(AppGraph.prefs, AppGraph.rasters, it) }) {
                 SectionHeader("Raster maps", if (rasterMaps.isEmpty()) null else Formatter.formatShortFileSize(context, rasterMaps.sumOf { it.sizeBytes }))
             }
 

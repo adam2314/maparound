@@ -9,6 +9,7 @@ import android.opengl.Matrix
 import android.util.Log
 import android.view.GestureDetector
 import android.view.MotionEvent
+import app.maparound.ui.Scene3DControl
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import javax.microedition.khronos.egl.EGL10
@@ -25,7 +26,6 @@ import kotlin.math.sin
 import kotlin.math.tan
 
 /** Where the 3D camera looks and from how far; kept when the view is rebuilt (e.g. satellite on/off). */
-data class Camera3D(val lat: Double, val lon: Double, val distance: Float, val yaw: Float = 0f, val pitch: Float = 45f)
 
 /**
  * Streamed 3D map (OpenGL ES 3): terrain tiles with the map draped on them, loaded around the
@@ -34,7 +34,7 @@ data class Camera3D(val lat: Double, val lon: Double, val distance: Float, val y
  * zooms in.
  */
 @SuppressLint("ViewConstructor")
-class Scene3DView(context: Context, start: Camera3D, private val engine: TerrainEngine) : GLSurfaceView(context) {
+class Scene3DView(context: Context, start: Camera3D, private val engine: TerrainEngine) : GLSurfaceView(context), Scene3DControl {
     private val renderer = Renderer3D(engine, start)
 
     init {
@@ -46,8 +46,8 @@ class Scene3DView(context: Context, start: Camera3D, private val engine: Terrain
         renderMode = RENDERMODE_WHEN_DIRTY
     }
 
-    val camera: Camera3D get() = renderer.camera()
-    val status: String get() = renderer.status
+    override val camera: Camera3D get() = renderer.camera()
+    override val status: String get() = renderer.status
 
     fun setExaggeration(e: Float) {
         if (renderer.exaggeration == e) return
@@ -61,7 +61,7 @@ class Scene3DView(context: Context, start: Camera3D, private val engine: Terrain
         requestRender()
     }
 
-    fun faceNorth() {
+    override fun faceNorth() {
         renderer.yaw = 0f
         renderer.pitch = 45f
         requestRender()

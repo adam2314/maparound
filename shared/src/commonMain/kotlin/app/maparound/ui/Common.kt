@@ -115,6 +115,19 @@ object Fmt {
         return if (minutes < 60) "$minutes min" else "${minutes / 60} h ${minutes % 60} min"
     }
 
+    /** "830 B", "4.2 kB", "530 MB", "1.2 GB": decimal units, like Android's short file sizes. */
+    fun fileSize(bytes: Long): String {
+        if (bytes < 1000) return "$bytes B"
+        val units = listOf("kB", "MB", "GB", "TB")
+        var v = bytes / 1000.0
+        var u = 0
+        while (v >= 999.5 && u < units.lastIndex) {
+            v /= 1000.0
+            u++
+        }
+        return (if (v < 10) localFixed(v, 1) else localFixed(v, 0)) + " " + units[u]
+    }
+
     /** "Just now", "5 min ago", "3 hours ago", "Yesterday", "4 days ago", "Nov 3", "Nov 3, 2024" (local time). */
     fun relativeTime(timeMs: Long, nowMs: Long = nowMillis()): String {
         val ago = nowMs - timeMs

@@ -608,7 +608,7 @@ fun MapScreen(
 
     shareTarget?.let { (la, lo, label) -> PointShareSheet(la, lo, label, onDismiss = { shareTarget = null }) }
 
-    scene3d?.let { req -> Scene3DScreen(req, onClose = { scene3d = null }) }
+    scene3d?.let { req -> Scene3DScreen(req, onClose = { scene3d = null }) { Scene3DAndroidView(it) } }
 
     if (searching) {
         SearchOverlay(
@@ -899,7 +899,7 @@ private fun LayersSheet(
                 }
             }
             SheetHeader("Background of the offline map")
-            val addRaster = rememberRasterPicker { r -> r.fold({ showRasterOnMap(it); onDismiss() }, onRasterError) }
+            val addRaster = AppGraph.rasters.rememberPicker { r -> r.fold({ showRasterOnMap(AppGraph.prefs, it); onDismiss() }, onRasterError) }
             fun pick(bg: String) {
                 prefs.setBaseLayer(TileSources.OFFLINE_ID)
                 if (bg == app.maparound.data.Prefs.BACKGROUND_SATELLITE && background != bg) prefs.setVectorOnBackground(true)
@@ -928,7 +928,7 @@ private fun LayersSheet(
                     subtitle = "Raster map · ${m.projection}",
                     icon = Icons.Filled.Image,
                     onClick = { pick(app.maparound.data.Prefs.BACKGROUND_RASTER + m.id) },
-                    onRemove = { removeRaster(m) },
+                    onRemove = { removeRaster(AppGraph.prefs, AppGraph.rasters, m) },
                 )
             }
             TextButton(onClick = addRaster, modifier = Modifier.padding(horizontal = 12.dp)) {
