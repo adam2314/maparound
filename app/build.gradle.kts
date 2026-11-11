@@ -66,6 +66,9 @@ dependencies {
     implementation("org.mapsforge:mapsforge-map-android:$mapsforgeVersion")
     implementation("com.caverock:androidsvg:1.4")
 
+    // Logic shared with the iOS app (Kotlin Multiplatform)
+    implementation(project(":shared"))
+
     // Offline routing engine (vendored BRouter, MIT)
     implementation(project(":brouter"))
 

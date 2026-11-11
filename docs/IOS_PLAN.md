@@ -13,6 +13,20 @@ and iOS see each other.
 - **Apple Developer Program**: not yet. Work on the simulator in CI until installing on the
   iPhone; join before TestFlight and before requesting the CarPlay entitlement.
 
+## Progress
+
+- **Phase 0**: CI builds and tests on the iOS simulator and publishes a screenshot to the
+  `ci-screenshots` branch. Spike (a) works: the Kotlin mapsforge reader → vector tiles →
+  MapLibre draws Liechtenstein offline. Spikes (b) Compose + MapLibre and (c) Metal are still open.
+- **Phase 1, step 1**: the pure core lives in `shared/src/commonMain` under its old package names
+  (so Android code is unchanged): coordinates, sight & viewshed, tilt & trip, 3D tiles & meshes,
+  search ranking, routing geometry, contours, RMAP, places, GPX, links, party protocol &
+  Meshtastic protobufs. JVM-only APIs replaced by `app.maparound.shared.util` (formatting, time,
+  URL coding, bytes, XML, NFD) and `shared.crypto` (javax.crypto on Android; CommonCrypto + a
+  common GCM on iOS, checked against published test vectors). Their tests run on JVM and iOS.
+- **Phase 1, next**: terrain files (DEM index, HGT processing), trails, map catalog parsing and
+  offline search on the ported reader.
+
 ## 1. What changes on iOS
 
 | Android today | Why it can't go to iOS as is | iOS answer |

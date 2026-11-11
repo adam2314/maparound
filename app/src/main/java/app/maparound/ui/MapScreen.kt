@@ -727,9 +727,11 @@ private fun PartyMarkerCard(
     val member = party.members.firstOrNull { "m${it.id}" == key }
     val radio = party.meshNodes.firstOrNull { "r${it.num}" == key }
     val meet = party.meeting?.takeIf { key == "meet" }
+    val memberAt = member?.position
+    val radioAt = radio?.position
     val (title, lat, lon, at) = when {
-        member?.position != null -> Quad(member.displayName + if (member.sos) " · SOS" else "", member.position.lat, member.position.lon, member.positionAt)
-        radio?.position != null -> Quad("Radio ${radio.name}", radio.position.lat, radio.position.lon, radio.heardAt)
+        member != null && memberAt != null -> Quad(member.displayName + if (member.sos) " · SOS" else "", memberAt.lat, memberAt.lon, member.positionAt)
+        radio != null && radioAt != null -> Quad("Radio ${radio.name}", radioAt.lat, radioAt.lon, radio.heardAt)
         meet != null -> Quad("Meeting point", meet.lat, meet.lon, 0L)
         else -> return
     }

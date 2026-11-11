@@ -48,7 +48,7 @@ class TrackRepository(private val context: Context) {
             val track = if (cached != null && cached.first == f.lastModified()) {
                 cached.second
             } else {
-                runCatching { f.inputStream().use { Gpx.read(it, f.nameWithoutExtension, f.lastModified()) } }
+                runCatching { Gpx.read(f.readBytes(), f.nameWithoutExtension, f.lastModified()) }
                     .getOrNull()?.also { cache[f.name] = f.lastModified() to it }
             }
             track?.let { SavedTrack(f.name, it) }
@@ -62,7 +62,7 @@ class TrackRepository(private val context: Context) {
 
     fun save(track: Track, show: Boolean = true): SavedTrack {
         val file = uniqueFile(track.name)
-        file.outputStream().use { Gpx.write(track, it) }
+        file.bufferedWriter().use { Gpx.write(track, it) }
         refresh()
         if (show) setVisible(file.name, true)
         return SavedTrack(file.name, track)
@@ -70,7 +70,7 @@ class TrackRepository(private val context: Context) {
 
     fun rename(id: String, name: String) {
         val t = get(id)?.track ?: return
-        File(dir, id).outputStream().use { Gpx.write(t.copy(name = name), it) }
+        File(dir, id).bufferedWriter().use { Gpx.write(t.copy(name = name), it) }
         refresh()
     }
 
@@ -94,7 +94,7 @@ class TrackRepository(private val context: Context) {
             val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
                 if (c.moveToFirst()) c.getString(0) else null
             }?.substringBeforeLast('.') ?: "Imported"
-            val track = resolver.openInputStream(uri)?.use { Gpx.read(it, name, System.currentTimeMillis()) }
+            val track = resolver.openInputStream(uri)?.use { Gpx.read(it.readBytes(), name, System.currentTimeMillis()) }
                 ?: error("Cannot open file")
             save(track)
         }
@@ -122,7 +122,7 @@ class TrackRepository(private val context: Context) {
         val points = readJournal()
         if (points.size >= 2) {
             val track = Track(defaultName(points.first().time ?: journal.lastModified()) + " (recovered)", TrackKind.RECORDED, points, points.first().time ?: journal.lastModified())
-            File(dir, uniqueFile(track.name).name).outputStream().use { Gpx.write(track, it) }
+            File(dir, uniqueFile(track.name).name).bufferedWriter().use { Gpx.write(track, it) }
         }
         journal.delete()
         refresh()

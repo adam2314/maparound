@@ -140,10 +140,10 @@ object IncomingShare {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
                     val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Can't open the file")
-                    val content = Gpx.parse(bytes.inputStream())
+                    val content = Gpx.parse(bytes)
                     val base = name?.substringBeforeLast('.') ?: "Imported"
                     val hasLine = content.trackPoints.isNotEmpty() || content.routePoints.isNotEmpty()
-                    val waypoints = if (hasLine || content.waypoints.size >= 2) app.maparound.places.Places.readGpx(bytes.inputStream()) else emptyList()
+                    val waypoints = if (hasLine || content.waypoints.size >= 2) app.maparound.places.Places.readGpx(bytes) else emptyList()
                     when {
                         hasLine -> Item.Track(
                             AppGraph.tracks.save(Gpx.toTrack(content, base, System.currentTimeMillis())),

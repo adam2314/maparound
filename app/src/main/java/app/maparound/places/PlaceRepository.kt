@@ -37,7 +37,7 @@ class PlaceRepository(private val context: Context) {
 
     /** Adds the waypoints of a GPX file; returns how many were new. */
     fun importGpx(uri: Uri): Int {
-        val incoming = context.contentResolver.openInputStream(uri)?.use { Places.readGpx(it) }
+        val incoming = context.contentResolver.openInputStream(uri)?.use { Places.readGpx(it.readBytes()) }
             ?: throw IllegalArgumentException("Can't open the file")
         return addAll(incoming)
     }
@@ -55,7 +55,7 @@ class PlaceRepository(private val context: Context) {
     }
 
     private fun load(): List<Place> = try {
-        if (file.isFile) file.inputStream().use { Places.readGpx(it) } else emptyList()
+        if (file.isFile) Places.readGpx(file.readBytes()) else emptyList()
     } catch (e: Exception) {
         Log.w(TAG, "Couldn't read ${file.name}; keeping a copy", e)
         file.copyTo(File(base, "places-unreadable-${System.currentTimeMillis()}.gpx"), overwrite = true)

@@ -29,7 +29,7 @@ object Sharing {
     /** A GPX file with one waypoint, for GPS devices and apps like OsmAnd or Garmin. */
     fun sharePointGpx(context: Context, lat: Double, lon: Double, label: String?) {
         val file = File(sharedDir(context), slug(label ?: "location") + ".gpx")
-        file.outputStream().use { Gpx.writeWaypoint(label, lat, lon, it) }
+        file.bufferedWriter().use { Gpx.writeWaypoint(label, lat, lon, it) }
         shareFile(context, file, "application/gpx+xml", SharedLinks.pointText(lat, lon, label), label ?: "Location")
     }
 
@@ -45,7 +45,7 @@ object Sharing {
      */
     fun shareRoute(context: Context, track: Track, gpxFile: File? = null) {
         val file = gpxFile?.takeIf { it.isFile } ?: File(sharedDir(context), slug(track.name) + ".gpx").also { f ->
-            f.outputStream().use { Gpx.write(track, it) }
+            f.bufferedWriter().use { Gpx.write(track, it) }
         }
         shareFile(context, file, "application/gpx+xml", routeText(track), track.name)
     }

@@ -80,8 +80,8 @@ fun ElevationProfile(points: List<GeoPoint>, modifier: Modifier = Modifier) {
 fun StatsLine(stats: TrackStats, durationS: Long?, modifier: Modifier = Modifier) {
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(Fmt.distance(stats.distanceM.toFloat()), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        if (stats.ascentM != null) {
-            Text("↑ ${stats.ascentM.roundToInt()} m  ↓ ${stats.descentM?.roundToInt() ?: 0} m", style = MaterialTheme.typography.titleMedium)
+        stats.ascentM?.let { ascent ->
+            Text("↑ ${ascent.roundToInt()} m  ↓ ${stats.descentM?.roundToInt() ?: 0} m", style = MaterialTheme.typography.titleMedium)
         }
         if (durationS != null && durationS > 0) {
             Text(Fmt.duration(durationS), style = MaterialTheme.typography.titleMedium)
