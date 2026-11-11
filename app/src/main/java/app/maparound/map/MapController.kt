@@ -197,7 +197,6 @@ class MapController(
                         model.displayModel.tileSize, 1f, model.frameBufferModel.overdrawFactor, true,
                     )
                     layer = TileDownloadLayer(cache, model.mapViewPosition, UrlTemplateTileSource(background.source), graphics)
-                    if (resumed) layer.onResume()
                 }
                 is Background.Raster -> {
                     cache = AndroidUtil.createTileCache(
@@ -207,6 +206,8 @@ class MapController(
                 }
             }
             layers.add(0, layer)
+            // Only after it's on the map: mapsforge creates a download layer's threads when it is added.
+            if (resumed && layer is TileDownloadLayer) layer.onResume()
             bgLayer = layer
             bgCache = cache
         }
