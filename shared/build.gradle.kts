@@ -32,6 +32,7 @@ kotlin {
             implementation(compose.material3)
             implementation(compose.ui)
             implementation(compose.materialIconsExtended)
+            implementation("org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

@@ -1,8 +1,5 @@
 package app.maparound.ui
 
-import android.hardware.SensorManager
-import android.location.Location
-import android.location.LocationManager
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -37,31 +34,31 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.maparound.AppGraph
+import app.maparound.data.LocalPrefs
 import app.maparound.data.Prefs
-import app.maparound.sensors.LocationSource
+import app.maparound.sensors.Barometric
+import app.maparound.sensors.GeoFix
+import app.maparound.sensors.LocalDeviceSensors
 import app.maparound.sensors.PressureHistory
-import app.maparound.sensors.PressureSource
-import app.maparound.sensors.bestAltitude
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
-import java.util.Locale
+import app.maparound.shared.util.localFixed
+import app.maparound.shared.util.localSigned
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 
 @Composable
 fun BarometerScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
-    val context = LocalContext.current
-    val available = remember { PressureSource.isAvailable(context) }
+    val sensors = LocalDeviceSensors.current
+    val available = remember { sensors.hasBarometer }
     if (!available) {
         MessageScreen(
             Icons.Filled.Speed,
@@ -70,8 +67,8 @@ fun BarometerScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
         )
         return
     }
-    val prefs = AppGraph.prefs
-    val pressureFlow = remember { PressureSource.updates(context) }
+    val prefs = LocalPrefs.current
+    val pressureFlow = remember { sensors.pressure() }
     val raw by pressureFlow.collectAsStateWithLifecycle(initialValue = null)
     var smoothed by remember { mutableStateOf<Float?>(null) }
     LaunchedEffect(raw) {
@@ -85,7 +82,7 @@ fun BarometerScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
     var showCalibrate by remember { mutableStateOf(false) }
 
     val pressure = smoothed
-    val altitude = pressure?.let { SensorManager.getAltitude(seaLevel, it) }
+    val altitude = pressure?.let { Barometric.altitude(seaLevel, it) }
     val calibrated = abs(seaLevel - Prefs.STANDARD_PRESSURE) > 0.01f
 
     Column(
@@ -102,7 +99,7 @@ fun BarometerScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
                 )
                 if (pressure != null) {
                     Text(
-                        String.format(Locale.getDefault(), "%.2f inHg · %.0f mmHg", pressure * 0.02953f, pressure * 0.750062f),
+                        "${localFixed(pressure * 0.02953, 2)} inHg · ${localFixed(pressure * 0.750062, 0)} mmHg",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -146,7 +143,7 @@ fun BarometerScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
                     if (trend == null) {
                         "Collecting data… keep the app open for 10+ minutes to see a trend."
                     } else {
-                        String.format(Locale.getDefault(), "%+.1f hPa per hour · %s", trend, trendLabel(trend))
+                        "${localSigned(trend.toDouble(), 1)} hPa per hour · ${trendLabel(trend)}"
                     },
                     style = MaterialTheme.typography.bodyLarge,
                 )
@@ -194,14 +191,14 @@ private fun CalibrateDialog(
     onDismiss: () -> Unit,
     onApply: (Float) -> Unit,
 ) {
-    val context = LocalContext.current
+    val sensors = LocalDeviceSensors.current
     var altitudeText by remember { mutableStateOf("") }
     var qnhText by remember { mutableStateOf("") }
-    val locationFlow: Flow<Location?> = remember(hasLocation) {
-        if (hasLocation) LocationSource.updates(context) else flowOf(null)
+    val locationFlow: Flow<GeoFix?> = remember(hasLocation) {
+        if (hasLocation) sensors.locations() else flowOf(null)
     }
     val location by locationFlow.collectAsStateWithLifecycle(initialValue = null)
-    val gpsAltitude = location?.takeIf { it.provider == LocationManager.GPS_PROVIDER }?.bestAltitude()
+    val gpsAltitude = location?.takeIf { it.satellite }?.altitudeM
 
     val altitude = altitudeText.replace(',', '.').toDoubleOrNull()?.takeIf { it in -500.0..9000.0 }
     val qnh = qnhText.replace(',', '.').toFloatOrNull()?.takeIf { it in 850f..1100f }

@@ -220,3 +220,6 @@ class Prefs(private val sp: KeyValueStore) {
         sp.putString(K_COORD_FORMAT, value.name)
     }
 }
+
+/** The app's settings, provided at the root of the shared UI. */
+val LocalPrefs = androidx.compose.runtime.staticCompositionLocalOf<Prefs> { error("No Prefs provided") }

@@ -1,6 +1,5 @@
 package app.maparound.ui
 
-import android.hardware.Sensor
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -38,18 +37,21 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.maparound.AppGraph
+import app.maparound.data.LocalPrefs
 import app.maparound.sensors.LevelFrame
+import app.maparound.sensors.LocalDeviceSensors
 import app.maparound.sensors.MotionSample
-import app.maparound.sensors.MotionSource
+import app.maparound.sensors.MotionSensor
+import app.maparound.sensors.SensorInfo
 import app.maparound.sensors.Vec3
-import java.util.Locale
+import app.maparound.shared.util.localFixed
+import app.maparound.shared.util.localSigned
+import app.maparound.shared.util.toDegrees
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -65,20 +67,20 @@ private val Danger = Color(0xFFC62828)
 /** Inclinometer, accelerometer (with a G-meter) and gyroscope. */
 @Composable
 fun MotionScreen() {
-    val context = LocalContext.current
-    val accelInfo = remember { MotionSource.info(context, Sensor.TYPE_ACCELEROMETER) }
-    val gyroInfo = remember { MotionSource.info(context, Sensor.TYPE_GYROSCOPE) }
+    val sensors = LocalDeviceSensors.current
+    val accelInfo = remember { sensors.motionInfo(MotionSensor.ACCELEROMETER) }
+    val gyroInfo = remember { sensors.motionInfo(MotionSensor.GYROSCOPE) }
     if (accelInfo == null && gyroInfo == null) {
         MessageScreen(Icons.Filled.ScreenRotation, "No motion sensors", "This device reports no accelerometer or gyroscope.")
         return
     }
-    val flow = remember { MotionSource.updates(context) }
+    val flow = remember { sensors.motion() }
     val sample by flow.collectAsStateWithLifecycle(initialValue = null)
     // The last ~10 s for the charts (not state itself; [tick] triggers redraws).
     val history = remember { ArrayDeque<MotionSample>() }
     var tick by remember { mutableIntStateOf(0) }
     var peakG by remember { mutableFloatStateOf(0f) }
-    val levelUp by AppGraph.prefs.levelUp.collectAsState()
+    val levelUp by LocalPrefs.current.levelUp.collectAsState()
     LaunchedEffect(sample) {
         val s = sample ?: return@LaunchedEffect
         history.addLast(s)
@@ -111,6 +113,7 @@ fun MotionScreen() {
 
 @Composable
 private fun TiltCard(frame: LevelFrame, gravity: Vec3, calibrated: Boolean) {
+    val prefs = LocalPrefs.current
     val tilt = frame.tilt(gravity)
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -136,8 +139,8 @@ private fun TiltCard(frame: LevelFrame, gravity: Vec3, calibrated: Boolean) {
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { AppGraph.prefs.setLevelUp(gravity) }) { Text("Set as level") }
-                if (calibrated) TextButton(onClick = { AppGraph.prefs.setLevelUp(null) }) { Text("Reset") }
+                Button(onClick = { prefs.setLevelUp(gravity) }) { Text("Set as level") }
+                if (calibrated) TextButton(onClick = { prefs.setLevelUp(null) }) { Text("Reset") }
             }
             Text(
                 (if (calibrated) "Zeroed to your holder. " else "Measured against the phone lying flat or standing upright. ") +
@@ -206,7 +209,7 @@ private fun AccelCard(
     history: ArrayDeque<MotionSample>,
     tick: Int,
     peakG: Float,
-    info: MotionSource.Info,
+    info: SensorInfo,
     onResetPeak: () -> Unit,
 ) {
     val a = sample?.accel
@@ -216,7 +219,7 @@ private fun AccelCard(
             Text("Accelerometer", style = MaterialTheme.typography.labelLarge)
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(
-                    a?.let { String.format(Locale.getDefault(), "%.2f g", it.norm / G) } ?: "—",
+                    a?.let { "${localFixed((it.norm / G).toDouble(), 2)} g" } ?: "—",
                     style = MaterialTheme.typography.displaySmall,
                     fontWeight = FontWeight.Bold,
                 )
@@ -225,7 +228,7 @@ private fun AccelCard(
             a?.let { AxisLine(it, "m/s²") }
             if (lin != null) {
                 Text(
-                    String.format(Locale.getDefault(), "Movement %.2f g · peak %.2f g", lin.norm / G, peakG),
+                    "Movement ${localFixed((lin.norm / G).toDouble(), 2)} g · peak ${localFixed(peakG.toDouble(), 2)} g",
                     style = MaterialTheme.typography.titleMedium,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -234,11 +237,11 @@ private fun AccelCard(
                         Column(Modifier.padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             val (fwd, right) = frame.horizontal(lin)
                             Text(
-                                String.format(Locale.getDefault(), "%s %.2f g", if (fwd >= 0) "Speeding up" else "Braking", abs(fwd) / G),
+                                "${if (fwd >= 0) "Speeding up" else "Braking"} ${localFixed((abs(fwd) / G).toDouble(), 2)} g",
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                             Text(
-                                String.format(Locale.getDefault(), "Sideways %.2f g %s", abs(right) / G, if (right >= 0) "→" else "←"),
+                                "Sideways ${localFixed((abs(right) / G).toDouble(), 2)} g ${if (right >= 0) "→" else "←"}",
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                             TextButton(onClick = onResetPeak) { Text("Reset peak") }
@@ -247,7 +250,7 @@ private fun AccelCard(
                 }
                 LiveChart(history.mapNotNull { it.linear }, tick, "m/s², gravity removed", Modifier.fillMaxWidth().height(110.dp))
             }
-            SensorInfo(info, "m/s²")
+            SensorDetails(info, "m/s²")
         }
     }
 }
@@ -257,7 +260,7 @@ private fun AxisLine(v: Vec3, unit: String, scale: Float = 1f) {
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         listOf("x" to v.x, "y" to v.y, "z" to v.z).forEachIndexed { i, (name, value) ->
             Text(
-                String.format(Locale.getDefault(), "%s %+.2f", name, value * scale),
+                "$name ${localSigned((value * scale).toDouble(), 2)}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = listOf(AxisX, AxisY, AxisZ)[i],
                 fontWeight = FontWeight.Medium,
@@ -295,9 +298,9 @@ private fun GMeter(history: ArrayDeque<MotionSample>, frame: LevelFrame, tick: I
 // ---- gyroscope -----------------------------------------------------------------------------------------------------
 
 @Composable
-private fun GyroCard(sample: MotionSample?, frame: LevelFrame?, history: ArrayDeque<MotionSample>, tick: Int, info: MotionSource.Info) {
+private fun GyroCard(sample: MotionSample?, frame: LevelFrame?, history: ArrayDeque<MotionSample>, tick: Int, info: SensorInfo) {
     val g = sample?.gyro
-    val deg = Math.toDegrees(1.0).toFloat()
+    val deg = toDegrees(1.0).toFloat()
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Gyroscope", style = MaterialTheme.typography.labelLarge)
@@ -322,23 +325,23 @@ private fun GyroCard(sample: MotionSample?, frame: LevelFrame?, history: ArrayDe
             g?.let {
                 AxisLine(it, "°/s", deg)
                 Text(
-                    String.format(Locale.getDefault(), "Total rotation %.0f°/s", it.norm * deg),
+                    "Total rotation ${localFixed((it.norm * deg).toDouble(), 0)}°/s",
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
             LiveChart(history.mapNotNull { s -> s.gyro?.let { it * deg } }, tick, "°/s", Modifier.fillMaxWidth().height(110.dp), minRange = 20f)
-            SensorInfo(info, "rad/s")
+            SensorDetails(info, "rad/s")
         }
     }
 }
 
 @Composable
-private fun SensorInfo(info: MotionSource.Info, unit: String) {
+private fun SensorDetails(info: SensorInfo, unit: String) {
     Text(
         listOfNotNull(
             info.name,
             info.vendor.takeIf { it.isNotBlank() },
-            String.format(Locale.getDefault(), "range ±%.0f %s", info.maxRange, unit),
+            "range ±${localFixed(info.maxRange.toDouble(), 0)} $unit",
             info.maxRateHz?.let { "up to $it Hz" },
         ).joinToString(" · "),
         style = MaterialTheme.typography.labelSmall,
@@ -369,7 +372,7 @@ fun LiveChart(series: List<Vec3>, tick: Int, unit: String, modifier: Modifier, m
             }
             drawPath(path, color, style = Stroke(1.5.dp.toPx(), join = StrokeJoin.Round))
         }
-        drawText(measurer, String.format(Locale.getDefault(), "±%.1f %s", maxAbs, unit), topLeft = Offset(4.dp.toPx(), 0f), style = label)
+        drawText(measurer, "±${localFixed(maxAbs.toDouble(), 1)} $unit", topLeft = Offset(4.dp.toPx(), 0f), style = label)
         val t = measurer.measure("last 10 s", label)
         drawText(t, topLeft = Offset(size.width - t.size.width - 4.dp.toPx(), size.height - t.size.height))
     }

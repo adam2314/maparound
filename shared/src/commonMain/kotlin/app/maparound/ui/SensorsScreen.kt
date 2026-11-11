@@ -15,12 +15,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
-/** Compass, speed, motion (tilt, accelerometer, gyroscope), barometer and satellite reception, as tabs. */
+/**
+ * Compass, speed, motion (tilt, accelerometer, gyroscope), barometer and, where the platform
+ * reports it ([satellites], Android only), satellite reception, as tabs.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SensorsScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
+fun SensorsScreen(hasLocation: Boolean, requestLocation: () -> Unit, satellites: (@Composable () -> Unit)? = null) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
-    val titles = listOf("Compass", "Speed", "Motion", "Barometer", "Satellites")
+    val titles = listOfNotNull("Compass", "Speed", "Motion", "Barometer", if (satellites != null) "Satellites" else null)
     Column(Modifier.fillMaxSize()) {
         PrimaryScrollableTabRow(selectedTabIndex = tab, edgePadding = 8.dp) {
             titles.forEachIndexed { i, title ->
@@ -33,7 +36,7 @@ fun SensorsScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
                 1 -> SpeedScreen(hasLocation, requestLocation)
                 2 -> MotionScreen()
                 3 -> BarometerScreen(hasLocation, requestLocation)
-                else -> GnssScreen(hasLocation, requestLocation)
+                else -> satellites?.invoke()
             }
         }
     }

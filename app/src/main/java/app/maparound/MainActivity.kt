@@ -8,6 +8,10 @@ import app.maparound.share.IncomingShare
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.CompositionLocalProvider
+import app.maparound.data.LocalPrefs
+import app.maparound.sensors.AndroidSensors
+import app.maparound.sensors.LocalDeviceSensors
 import app.maparound.ui.MapAroundRoot
 import app.maparound.ui.theme.MapAroundTheme
 
@@ -15,9 +19,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        val sensors = AndroidSensors(this)
         setContent {
-            MapAroundTheme {
-                MapAroundRoot()
+            // What the shared screens get from the platform.
+            CompositionLocalProvider(LocalPrefs provides AppGraph.prefs, LocalDeviceSensors provides sensors) {
+                MapAroundTheme {
+                    MapAroundRoot()
+                }
             }
         }
         // Only for a fresh start: a recreated activity would otherwise import the same file again.

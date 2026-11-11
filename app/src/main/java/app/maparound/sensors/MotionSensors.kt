@@ -10,21 +10,11 @@ import android.view.Surface
 import android.view.WindowManager
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.conflate
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
-
-data class Orientation(
-    val azimuth: Float,   // magnetic heading of the top of the screen, 0..360
-    val pitch: Float,
-    val roll: Float,
-    val accuracy: Int,    // SensorManager.SENSOR_STATUS_*
-)
 
 /** Compass heading from the fused rotation-vector sensor (falls back to accelerometer + magnetometer). */
 object OrientationSource {
@@ -141,26 +131,11 @@ object OrientationSource {
     }
 }
 
-/** One snapshot of the motion sensors, in phone coordinates. */
-data class MotionSample(
-    val timeNs: Long,
-    /** m/s², including gravity (what the accelerometer reads). */
-    val accel: Vec3?,
-    /** m/s², gravity removed. */
-    val linear: Vec3?,
-    /** m/s², pointing up (the reaction to gravity). */
-    val gravity: Vec3?,
-    /** rad/s, counter-clockwise positive about each axis. */
-    val gyro: Vec3?,
-)
-
 /** Accelerometer, gyroscope and the fused gravity / linear-acceleration sensors, about 25 times a second. */
 object MotionSource {
-    data class Info(val name: String, val vendor: String, val maxRange: Float, val resolution: Float, val maxRateHz: Int?)
-
-    fun info(context: Context, type: Int): Info? {
+    fun info(context: Context, type: Int): SensorInfo? {
         val s = context.getSystemService(SensorManager::class.java)?.getDefaultSensor(type) ?: return null
-        return Info(s.name, s.vendor, s.maximumRange, s.resolution, s.minDelay.takeIf { it > 0 }?.let { 1_000_000 / it })
+        return SensorInfo(s.name, s.vendor, s.maximumRange, s.resolution, s.minDelay.takeIf { it > 0 }?.let { 1_000_000 / it })
     }
 
     fun updates(context: Context, periodMs: Long = 40): Flow<MotionSample> = callbackFlow {
@@ -226,36 +201,5 @@ object PressureSource {
         }
         sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_NORMAL)
         awaitClose { sm.unregisterListener(listener) }
-    }
-}
-
-/**
- * Pressure samples recorded while the app is open (one every few seconds, last 3 hours),
- * kept across screen switches for the trend chart.
- */
-object PressureHistory {
-    data class Sample(val timeMs: Long, val hPa: Float)
-
-    private const val INTERVAL_MS = 5_000L
-    private const val WINDOW_MS = 3 * 60 * 60 * 1000L
-
-    private val _samples = MutableStateFlow<List<Sample>>(emptyList())
-    val samples: StateFlow<List<Sample>> = _samples.asStateFlow()
-
-    fun add(hPa: Float) {
-        val now = System.currentTimeMillis()
-        val list = _samples.value
-        if (list.isNotEmpty() && now - list.last().timeMs < INTERVAL_MS) return
-        _samples.value = (list + Sample(now, hPa)).dropWhile { now - it.timeMs > WINDOW_MS }
-    }
-
-    /** Pressure change in hPa per hour over the last [windowMs], or null if too little data. */
-    fun trendPerHour(samples: List<Sample>, windowMs: Long = 30 * 60 * 1000L): Float? {
-        if (samples.size < 2) return null
-        val end = samples.last()
-        val start = samples.firstOrNull { end.timeMs - it.timeMs <= windowMs } ?: return null
-        val span = end.timeMs - start.timeMs
-        if (span < 10 * 60 * 1000L) return null
-        return (end.hPa - start.hPa) / (span / 3_600_000f)
     }
 }

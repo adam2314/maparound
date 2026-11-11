@@ -9,3 +9,6 @@ fun localFixed(v: Double, decimals: Int): String {
     val sep = localDecimalSeparator()
     return if (sep == '.') s else s.replace('.', sep)
 }
+
+/** [localFixed] with a sign always shown, like `"%+.nf"`. */
+fun localSigned(v: Double, decimals: Int): String = (if (v >= 0) "+" else "") + localFixed(v, decimals)

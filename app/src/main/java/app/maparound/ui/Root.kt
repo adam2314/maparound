@@ -151,7 +151,7 @@ fun MapAroundRoot() {
                 Tab.Routes -> LibraryScreen(hasLocation, requestLocation, snackbar, onShowMap = { tab = Tab.Map })
                 Tab.Party -> PartyScreen(hasLocation, requestLocation, snackbar, onShowMap = { tab = Tab.Map })
                 Tab.Offline -> OfflineMapsScreen(snackbar = snackbar, onShowOnMap = { tab = Tab.Map })
-                Tab.Sensors -> SensorsScreen(hasLocation, requestLocation)
+                Tab.Sensors -> SensorsScreen(hasLocation, requestLocation, satellites = { GnssScreen(hasLocation, requestLocation) })
             }
         }
     }

@@ -1,8 +1,5 @@
 package app.maparound.ui
 
-import android.hardware.GeomagneticField
-import android.hardware.SensorManager
-import android.location.Location
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -41,50 +38,46 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.maparound.AppGraph
-import app.maparound.sensors.LocationSource
+import app.maparound.data.LocalPrefs
+import app.maparound.sensors.GeoFix
+import app.maparound.sensors.LocalDeviceSensors
 import app.maparound.sensors.Orientation
-import app.maparound.sensors.OrientationSource
-import app.maparound.sensors.bestAltitude
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
-import java.util.Locale
+import app.maparound.sensors.SensorAccuracy
+import app.maparound.shared.util.localFixed
+import app.maparound.shared.util.nowMillis
+import app.maparound.shared.util.toRadians
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CompassScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
-    val context = LocalContext.current
-    val available = remember { OrientationSource.isAvailable(context) }
+    val sensors = LocalDeviceSensors.current
+    val available = remember { sensors.hasCompass }
     if (!available) {
         MessageScreen(Icons.Filled.Explore, "No compass sensor", "This device has no magnetometer, so a compass isn't available.")
         return
     }
-    val prefs = AppGraph.prefs
-    val orientationFlow = remember { OrientationSource.updates(context) }
+    val prefs = LocalPrefs.current
+    val orientationFlow = remember { sensors.orientation() }
     val reading: Orientation? by orientationFlow.collectAsStateWithLifecycle(initialValue = null)
     val trueNorth by prefs.trueNorth.collectAsState()
 
-    val locationFlow: Flow<Location?> = remember(hasLocation) {
-        if (hasLocation) LocationSource.updates(context, 5_000L) else flowOf(null)
+    val locationFlow: Flow<GeoFix?> = remember(hasLocation) {
+        if (hasLocation) sensors.locations(5_000L) else flowOf(null)
     }
     val location by locationFlow.collectAsStateWithLifecycle(initialValue = null)
-    val declination: Float? = location?.let {
-        GeomagneticField(
-            it.latitude.toFloat(), it.longitude.toFloat(),
-            (it.bestAltitude() ?: 0.0).toFloat(), System.currentTimeMillis(),
-        ).declination
-    }
+    val declination: Float? = location?.let { sensors.declination(it.lat, it.lon, it.altitudeM ?: 0.0, nowMillis()) }
     val heading: Float? = reading?.let { r ->
         val correction = if (trueNorth) declination ?: 0f else 0f
         ((r.azimuth + correction) % 360f + 360f) % 360f
@@ -142,7 +135,7 @@ fun CompassScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
         }
 
         val r = reading
-        if (r != null && r.accuracy <= SensorManager.SENSOR_STATUS_ACCURACY_LOW) {
+        if (r != null && r.accuracy <= SensorAccuracy.LOW) {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
                 Text(
                     "Compass needs calibration: wave your phone in a figure‑8 a few times, away from metal and magnets.",
@@ -157,7 +150,7 @@ fun CompassScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
                 InfoRow("Sensor accuracy", r?.let { accuracyLabel(it.accuracy) } ?: "—")
                 InfoRow(
                     "Declination",
-                    declination?.let { String.format(Locale.getDefault(), "%.1f° %s", abs(it), if (it >= 0) "E" else "W") }
+                    declination?.let { "${localFixed(abs(it).toDouble(), 1)}° ${if (it >= 0) "E" else "W"}" }
                         ?: "needs location",
                 )
             }
@@ -171,10 +164,10 @@ fun CompassScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
 }
 
 private fun accuracyLabel(accuracy: Int) = when (accuracy) {
-    SensorManager.SENSOR_STATUS_ACCURACY_HIGH -> "High"
-    SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM -> "Medium"
-    SensorManager.SENSOR_STATUS_ACCURACY_LOW -> "Low"
-    SensorManager.SENSOR_STATUS_UNRELIABLE -> "Unreliable"
+    SensorAccuracy.HIGH -> "High"
+    SensorAccuracy.MEDIUM -> "Medium"
+    SensorAccuracy.LOW -> "Low"
+    SensorAccuracy.UNRELIABLE -> "Unreliable"
     else -> "Unknown"
 }
 
@@ -204,7 +197,7 @@ private fun CompassDial(rotation: Float, modifier: Modifier) {
                     deg % 10 == 0 -> 0.06f
                     else -> 0.035f
                 } * r
-                val a = Math.toRadians(deg.toDouble())
+                val a = toRadians(deg.toDouble())
                 val dir = Offset(sin(a).toFloat(), -cos(a).toFloat())
                 val outer = c + dir * (r * 0.97f)
                 val inner = c + dir * (r * 0.97f - len)

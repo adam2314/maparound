@@ -1,8 +1,5 @@
 package app.maparound.ui
 
-import android.location.LocationManager
-import android.os.Build
-import android.os.SystemClock
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -23,7 +20,6 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -36,23 +32,22 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.maparound.AppGraph
-import app.maparound.sensors.LocationSource
+import app.maparound.data.LocalPrefs
+import app.maparound.sensors.LocalDeviceSensors
 import app.maparound.sensors.SpeedSession
 import app.maparound.sensors.SpeedUnit
 import app.maparound.sensors.TripStats
-import kotlinx.coroutines.delay
-import java.util.Locale
+import app.maparound.shared.util.localFixed
+import app.maparound.shared.util.padded
 import kotlin.math.max
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 
 /** Ground speed from GPS, direction of travel and trip statistics. Keeps the screen on while open. */
 @Composable
@@ -67,32 +62,29 @@ fun SpeedScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
         )
         return
     }
-    val context = LocalContext.current
-    val view = LocalView.current
-    DisposableEffect(view) {
-        view.keepScreenOn = true
-        onDispose { view.keepScreenOn = false }
-    }
-    val locations = remember { LocationSource.updates(context) }
+    val sensors = LocalDeviceSensors.current
+    val prefs = LocalPrefs.current
+    KeepScreenOn()
+    val locations = remember { sensors.locations() }
     val location by locations.collectAsStateWithLifecycle(initialValue = null)
     LaunchedEffect(location) {
         val l = location ?: return@LaunchedEffect
-        if (l.provider != LocationManager.GPS_PROVIDER) return@LaunchedEffect // network fixes have no usable speed
+        if (!l.satellite) return@LaunchedEffect // network fixes have no usable speed
         SpeedSession.add(
-            TripStats.Fix(l.time, l.latitude, l.longitude, l.speed.toDouble().takeIf { l.hasSpeed() }, l.accuracy.toDouble().takeIf { l.hasAccuracy() }),
-            elapsedMs = l.elapsedRealtimeNanos / 1_000_000,
-            speedAccuracyMps = if (Build.VERSION.SDK_INT >= 26 && l.hasSpeedAccuracy()) l.speedAccuracyMetersPerSecond else null,
-            courseDeg = l.bearing.takeIf { l.hasBearing() },
+            TripStats.Fix(l.timeMs, l.lat, l.lon, l.speedMps?.toDouble(), l.accuracyM?.toDouble()),
+            elapsedMs = l.elapsedMs,
+            speedAccuracyMps = l.speedAccuracyMps,
+            courseDeg = l.bearingDeg,
         )
     }
-    val now by produceState(SystemClock.elapsedRealtime()) {
+    val now by produceState(sensors.elapsedMs()) {
         while (true) {
             delay(1000)
-            value = SystemClock.elapsedRealtime()
+            value = sensors.elapsedMs()
         }
     }
     val s by SpeedSession.state.collectAsState()
-    val unit by AppGraph.prefs.speedUnit.collectAsState()
+    val unit by prefs.speedUnit.collectAsState()
     val fresh = s.fixAtElapsedMs > 0 && now - s.fixAtElapsedMs < 5_000
 
     Column(
@@ -128,7 +120,7 @@ fun SpeedScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
                     SpeedUnit.entries.forEachIndexed { i, u ->
                         SegmentedButton(
                             selected = unit == u,
-                            onClick = { AppGraph.prefs.setSpeedUnit(u) },
+                            onClick = { prefs.setSpeedUnit(u) },
                             shape = SegmentedButtonDefaults.itemShape(i, SpeedUnit.entries.size),
                             icon = {},
                         ) { Text(u.label) }
@@ -168,13 +160,13 @@ fun SpeedScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
 
 private fun fmtSpeed(mps: Double, unit: SpeedUnit): String {
     val v = mps * unit.perMps
-    return if (v < 10) String.format(Locale.getDefault(), "%.1f", v) else v.roundToInt().toString()
+    return if (v < 10) localFixed(v, 1) else v.roundToInt().toString()
 }
 
 /** Minutes per kilometre, e.g. "12:30 /km". */
 private fun pace(mps: Double): String {
     val secPerKm = (1000 / mps).roundToInt()
-    return String.format(Locale.ROOT, "%d:%02d /km", secPerKm / 60, secPerKm % 60)
+    return "${secPerKm / 60}:${padded(secPerKm % 60, 2)} /km"
 }
 
 @Composable
