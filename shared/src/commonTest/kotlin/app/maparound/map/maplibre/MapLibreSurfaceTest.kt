@@ -63,9 +63,9 @@ class MapLibreSurfaceTest {
 
     @Test
     fun offlineStyleHasTheVectorTilesAndEveryOverlay() {
-        val json = style.build(offline(), "http://127.0.0.1:5000", "3")
+        val json = style.build(offline(), TileService().apply { baseUrl = "http://127.0.0.1:5000" })
         val src = sources(json)
-        assertEquals("http://127.0.0.1:5000/osm/3/{z}/{x}/{y}.pbf", src["osm"]!!.jsonObject["tiles"]!!.jsonArray[0].jsonPrimitive.content)
+        assertEquals("http://127.0.0.1:5000/osm/0/{z}/{x}/{y}.pbf", src["osm"]!!.jsonObject["tiles"]!!.jsonArray[0].jsonPrimitive.content)
         for (id in MapStyle.OVERLAY_SOURCES) assertNotNull(src[id], id)
         val ids = layers(json).map { it["id"]!!.jsonPrimitive.content }
         assertTrue("forest" in ids && "roads" in ids)
@@ -77,18 +77,18 @@ class MapLibreSurfaceTest {
 
     @Test
     fun satelliteHybridKeepsLinesAndLabelsOnly() {
-        val hybrid = layers(style.build(offline(Prefs.BACKGROUND_SATELLITE), "http://x", "1"))
+        val hybrid = layers(style.build(offline(Prefs.BACKGROUND_SATELLITE), TileService()))
         val ids = hybrid.map { it["id"]!!.jsonPrimitive.content }
         assertTrue("satellite" in ids && "roads" in ids && "places" in ids)
         assertTrue("forest" !in ids && "land" !in ids)
-        val imageryOnly = layers(style.build(offline(Prefs.BACKGROUND_SATELLITE, vectorOnTop = false), "http://x", "1"))
+        val imageryOnly = layers(style.build(offline(Prefs.BACKGROUND_SATELLITE, vectorOnTop = false), TileService()))
         assertTrue(imageryOnly.none { it["source"]?.jsonPrimitive?.content == "osm" })
     }
 
     @Test
     fun onlineSubdomainsBecomeSeparateUrls() {
         val src = OnlineSource("t", "Test", "https://{s}.tiles.example/{z}/{x}/{y}.png", attribution = "©")
-        val json = style.build(BaseMap.Online(src), "http://x", "1")
+        val json = style.build(BaseMap.Online(src), TileService())
         val tiles = sources(json)["online"]!!.jsonObject["tiles"]!!.jsonArray.map { it.jsonPrimitive.content }
         assertEquals(listOf("https://a.tiles.example/{z}/{x}/{y}.png", "https://b.tiles.example/{z}/{x}/{y}.png", "https://c.tiles.example/{z}/{x}/{y}.png"), tiles)
     }

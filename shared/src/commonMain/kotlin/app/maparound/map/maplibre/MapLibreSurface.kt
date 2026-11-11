@@ -58,7 +58,7 @@ class MapLibreSurface(
                 listener?.onLongPress(GeoPoint(lat, lon))
             }
         })
-        applyStyle(style.build(null, tiles.baseUrl, tiles.version))
+        applyStyle(style.build(null, tiles))
     }
 
     // ---- camera ---------------------------------------------------------------------------------
@@ -104,13 +104,14 @@ class MapLibreSurface(
     // ---- base map ---------------------------------------------------------------------------------
 
     override suspend fun setBaseMap(base: BaseMap) {
-        val version = if (base is BaseMap.Offline) {
+        if (base is BaseMap.Offline) {
             val paths = base.maps.map { it.path }
-            withContext(Dispatchers.Default) { tiles.setMaps(paths) }
-        } else {
-            tiles.version
+            withContext(Dispatchers.Default) {
+                tiles.setMaps(paths)
+                if (base.contours || base.hillshade) tiles.refreshTerrain()
+            }
         }
-        applyStyle(style.build(base, tiles.baseUrl, version))
+        applyStyle(style.build(base, tiles))
     }
 
     private fun applyStyle(json: String) {

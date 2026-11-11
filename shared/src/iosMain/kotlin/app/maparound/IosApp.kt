@@ -18,7 +18,6 @@ import app.maparound.map.maplibre.BasicLayers
 import app.maparound.map.maplibre.MapStyle
 import app.maparound.map.maplibre.ThemeStyle
 import app.maparound.shared.fileSystem
-import kotlinx.serialization.json.JsonObject
 import okio.Path.Companion.toPath
 import app.maparound.map.maplibre.TileService
 import app.maparound.places.PlaceRepository
@@ -42,9 +41,9 @@ object IosApp {
     val version: String = NSBundle.mainBundle.objectForInfoDictionaryKey("CFBundleShortVersionString") as? String ?: "0"
 
     val prefs = Prefs(UserDefaultsStore("maparound"))
-    val tiles = TileService()
+    val tiles = TileService("$documents/dem")
     /** The map style, made from the Android map's theme (topo.xml in the app bundle). */
-    val style = MapStyle(themeLayers(), BasicLayers.GLYPHS)
+    val style = theme()?.let { MapStyle(it.layers, BasicLayers.GLYPHS, it.hillshade) } ?: MapStyle(BasicLayers.layers, BasicLayers.GLYPHS)
     val maps = IosInstalledMaps("$documents/maps")
     val places = PlaceRepository(documents)
     val tracks = TrackRepository(documents, UserDefaultsStore("tracks"))
@@ -83,11 +82,8 @@ object IosApp {
 
     private fun env(name: String): String? = NSProcessInfo.processInfo.environment[name] as? String
 
-    private fun themeLayers(): List<JsonObject> = runCatching {
+    private fun theme(): ThemeStyle.Result? = runCatching {
         val path = NSBundle.mainBundle.pathForResource("topo", "xml") ?: error("topo.xml is not in the app")
-        ThemeStyle.convert(fileSystem.read(path.toPath()) { readUtf8() }).layers
-    }.getOrElse {
-        println("MapAround: map theme not loaded ($it), using the basic style")
-        BasicLayers.layers
-    }
+        ThemeStyle.convert(fileSystem.read(path.toPath()) { readUtf8() })
+    }.onFailure { println("MapAround: map theme not loaded ($it), using the basic style") }.getOrNull()
 }

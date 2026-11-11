@@ -161,7 +161,7 @@ class ThemeStyleTest {
             maps = emptyList(), topo = true, contours = false, hillshade = false, terrainVersion = 0, trails = false,
             trailsVersion = 0, background = app.maparound.data.Prefs.BACKGROUND_SATELLITE, vectorOnTop = true, rasterMaps = emptyList(),
         )
-        val json = kotlinx.serialization.json.Json.parseToJsonElement(style.build(base, "http://x", "1")).jsonObject
+        val json = kotlinx.serialization.json.Json.parseToJsonElement(style.build(base, TileService())).jsonObject
         val layers = json["layers"]!!.jsonArray.map { it.jsonObject }
         assertTrue(layers.none { it["metadata"]?.jsonObject?.get(ThemeStyle.AREA_FLAG) != null })
         assertTrue(layers.any { it.type == "line" && it.str("source") == MapStyle.OSM_SOURCE })

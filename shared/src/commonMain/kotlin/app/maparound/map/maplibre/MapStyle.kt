@@ -23,10 +23,16 @@ import kotlinx.serialization.json.putJsonObject
  * [vectorLayers] draw the offline maps' vector tiles (source [OSM_SOURCE], layers poi, line,
  * area and sea); [glyphs] is the font URL template for their labels.
  */
-class MapStyle(private val vectorLayers: List<JsonObject>, private val glyphs: String) {
+class MapStyle(
+    private val vectorLayers: List<JsonObject>,
+    private val glyphs: String,
+    /** Where hill shading goes among [vectorLayers] (the theme says), and its zoom range. */
+    private val hillshade: ThemeStyle.Hillshade? = null,
+) {
 
-    /** The whole style document for [base] (null: an empty map with the overlays only). */
-    fun build(base: BaseMap?, tilesBaseUrl: String, osmVersion: String): String = buildJsonObject {
+    /** The whole style document for [base] (null: an empty map with the overlays only), tiles from [tiles]. */
+    fun build(base: BaseMap?, tiles: TileService): String = buildJsonObject {
+        val tilesBaseUrl = tiles.baseUrl
         put("version", 8)
         put("name", "MapAround")
         put("glyphs", glyphs)
@@ -42,10 +48,31 @@ class MapStyle(private val vectorLayers: List<JsonObject>, private val glyphs: S
             is BaseMap.Offline -> {
                 sources[OSM_SOURCE] = buildJsonObject {
                     put("type", "vector")
-                    putJsonArray("tiles") { add(JsonPrimitive("$tilesBaseUrl/osm/$osmVersion/{z}/{x}/{y}.pbf")) }
+                    putJsonArray("tiles") { add(JsonPrimitive("$tilesBaseUrl/osm/${tiles.version}/{z}/{x}/{y}.pbf")) }
                     put("minzoom", 0)
                     put("maxzoom", OSM_MAX_ZOOM)
                     put("attribution", "© OpenStreetMap contributors")
+                }
+                val terrain = tiles.terrainVersion
+                val themeLayers = vectorLayers.toMutableList()
+                if (terrain != null && base.contours) {
+                    sources[ThemeStyle.CONTOURS] = buildJsonObject {
+                        put("type", "vector")
+                        putJsonArray("tiles") { add(JsonPrimitive("$tilesBaseUrl/contours/$terrain/{z}/{x}/{y}.pbf")) }
+                        put("minzoom", TerrainTiles.CONTOUR_MIN_ZOOM)
+                        put("maxzoom", TerrainTiles.CONTOUR_MAX_ZOOM)
+                    }
+                }
+                if (terrain != null && base.hillshade) {
+                    sources[DEM_SOURCE] = buildJsonObject {
+                        put("type", "raster-dem")
+                        put("encoding", "terrarium")
+                        putJsonArray("tiles") { add(JsonPrimitive("$tilesBaseUrl/dem/$terrain/{z}/{x}/{y}.png")) }
+                        put("tileSize", TerrainTiles.DEM_SIZE)
+                        put("maxzoom", TerrainTiles.DEM_MAX_ZOOM)
+                    }
+                    val at = (hillshade?.index ?: 1).coerceIn(0, themeLayers.size)
+                    themeLayers.add(at, hillshadeLayer())
                 }
                 val satellite = base.background == Prefs.BACKGROUND_SATELLITE
                 if (satellite) {
@@ -54,8 +81,8 @@ class MapStyle(private val vectorLayers: List<JsonObject>, private val glyphs: S
                 }
                 // Over imagery only lines, symbols and labels stay ("hybrid"), or nothing at all.
                 layers += when {
-                    !satellite -> vectorLayers
-                    base.vectorOnTop -> vectorLayers.filter { !it.isLandCover() }
+                    !satellite -> themeLayers
+                    base.vectorOnTop -> themeLayers.filter { !it.isLandCover() }
                     else -> emptyList()
                 }
             }
@@ -71,6 +98,19 @@ class MapStyle(private val vectorLayers: List<JsonObject>, private val glyphs: S
         // Theme layers for tiles this map doesn't have (contours, trails) stay out.
         put("layers", JsonArray(layers.filter { l -> (l as JsonObject).source().let { it == null || it in sources } }))
     }.toString()
+
+    /** MapLibre's own hill shading from the elevation tiles, in the Topo style's browns. */
+    private fun hillshadeLayer() = layer("hillshade", "hillshade") {
+        put("source", DEM_SOURCE)
+        put("minzoom", maxOf((hillshade?.minZoom ?: 8) - 1, 0))
+        hillshade?.maxZoom?.takeIf { it < 99 }?.let { put("maxzoom", it) }
+        put("paint", obj(
+            "hillshade-exaggeration" to 0.45,
+            "hillshade-shadow-color" to "#5B4A33",
+            "hillshade-highlight-color" to "rgba(255,255,255,0.35)",
+            "hillshade-accent-color" to "#5B4A33",
+        ))
+    }
 
     private fun overlayLayers(): List<JsonObject> = listOf(
         line("tracks-casing", TRACKS, "#FFFFFF", 7.0),
@@ -125,6 +165,7 @@ class MapStyle(private val vectorLayers: List<JsonObject>, private val glyphs: S
         const val TAP_PREFIX = "tap-"
 
         const val OSM_SOURCE = "osm"
+        const val DEM_SOURCE = "dem"
 
         /** Deepest zoom the tile server is asked for; MapLibre scales those tiles further. */
         const val OSM_MAX_ZOOM = 16
