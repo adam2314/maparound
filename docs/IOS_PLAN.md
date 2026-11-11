@@ -18,14 +18,20 @@ and iOS see each other.
 - **Phase 0**: CI builds and tests on the iOS simulator and publishes a screenshot to the
   `ci-screenshots` branch. Spike (a) works: the Kotlin mapsforge reader → vector tiles →
   MapLibre draws Liechtenstein offline. Spikes (b) Compose + MapLibre and (c) Metal are still open.
-- **Phase 1, step 1**: the pure core lives in `shared/src/commonMain` under its old package names
-  (so Android code is unchanged): coordinates, sight & viewshed, tilt & trip, 3D tiles & meshes,
-  search ranking, routing geometry, contours, RMAP, places, GPX, links, party protocol &
-  Meshtastic protobufs. JVM-only APIs replaced by `app.maparound.shared.util` (formatting, time,
-  URL coding, bytes, XML, NFD) and `shared.crypto` (javax.crypto on Android; CommonCrypto + a
-  common GCM on iOS, checked against published test vectors). Their tests run on JVM and iOS.
-- **Phase 1, next**: terrain files (DEM index, HGT processing), trails, map catalog parsing and
-  offline search on the ported reader.
+- **Phase 1 (shared core)**: the pure core lives in `shared/src/commonMain` under its old
+  package names (so Android code barely changed): coordinates, sight & viewshed, tilt & trip,
+  3D tiles & meshes, routing geometry, contours, elevation tiles (memory-mapped on both) & HGT
+  processing, RMAP, places, GPX, trail cells (same binary files as before), links, party
+  protocol & engine, Meshtastic protobufs, map catalog & names, and the search engine (offline
+  names through the ported reader, checked name-for-name against mapsforge; online URLs and JSON).
+  JVM-only APIs replaced by `app.maparound.shared.util` (formatting identical to
+  `String.format`, ISO times, URL coding, bytes, streaming XML, NFD, bit set) and `shared.crypto`
+  (javax.crypto on Android; CommonCrypto + a common GCM on iOS, checked against published test
+  vectors). Tests run on the JVM and the iOS simulator.
+- **Still Android-only, by design until later phases**: sessions that hold app state
+  (`ToolsSession`, `PlannerSession`, `PartySession`; they move with the UI in phase 2 behind
+  platform interfaces), downloads and HTTP (phase 3), map layers & rendering (mapsforge; iOS uses
+  MapLibre), BRouter (phase 6), sensors, BLE and MQTT transports (phases 3 and 5).
 
 ## 1. What changes on iOS
 

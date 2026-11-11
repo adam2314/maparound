@@ -41,13 +41,19 @@ Requirements: Android Studio (Ladybug or newer) **or** JDK 17 + Android SDK 35.
 
 ```bash
 ./gradlew :app:assembleDebug        # APK in app/build/outputs/apk/debug/
-./gradlew :app:testDebugUnitTest    # catalog, contours, elevation, GPX, routing, trails, party, links,
-                                    # map tools & coordinates, tilt & trip stats, places, 3D tiles & buildings
+./gradlew :shared:testDebugUnitTest # shared logic on the JVM: catalog, contours, elevation, GPX, routing
+                                    # geometry, trails, party, links, map tools & coordinates, tilt & trip
+                                    # stats, places, search, RMAP, 3D tiles & buildings, mapsforge reader
+./gradlew :app:testDebugUnitTest    # Android-side: map layers & theme, trail rendering, BRouter, MQTT
 # optional live tests: MQTT_LIVE=1 (public broker), BROUTER_SEGMENTS=<dir with E35_N30.rd5>,
 # VIEWSHED_DEM=<dir with N47E009.hgt> (viewshed on real terrain; PNGs to VIEWSHED_OUT),
-# MAP_FILE=<a mapsforge .map> (offline name search on a real map)
+# MAP_FILE=<a mapsforge .map> (reader vs mapsforge, offline name search on a real map)
 ./gradlew :app:installDebug         # install on a connected phone
 ```
+
+The shared tests also run on the iOS simulator in GitHub Actions (`.github/workflows/ios.yml`,
+macOS runners); its latest log is on the `ci-ios-shared` branch and a simulator screenshot of the
+iOS app on `ci-screenshots`.
 
 minSdk 26 (Android 8.0), targetSdk 35. Uses Kotlin, Jetpack Compose (Material 3) and
 [mapsforge](https://github.com/mapsforge/mapsforge) 0.25 for map rendering. It has no Google Play
@@ -300,7 +306,27 @@ phone locked depends on how the Android Auto host keeps the app running.
 
 ## Code layout
 
+The logic that doesn't need Android lives in `shared/` (Kotlin Multiplatform, Android + iOS) under
+the same package names, so the app uses it as if it were its own; `docs/IOS_PLAN.md` describes the
+iOS version it is for.
+
 ```
+shared/src/
+  commonMain/kotlin/app/maparound/
+    tools/ sensors/ three/ search/ routing/ terrain/ raster/ places/ tracks/ trails/ share/ party/ data/
+                           the pure parts of the app packages below: geodesy, sight & viewshed,
+                           coordinates, tilt & trip, 3D tiles & meshes, search engine, routing
+                           geometry, contours, elevation tiles (memory-mapped), HGT processing,
+                           RMAP, places & GPX, trail cells, links, party protocol & engine,
+                           Meshtastic codec, map catalog & names
+    shared/mapsforge/      a Kotlin port of the mapsforge map reader (no rendering)
+    shared/mvt/            mapsforge data → vector tiles (for MapLibre on iOS)
+    shared/util/           what Java has and iOS doesn't: number formatting, ISO times, URL coding,
+                           byte buffers, a streaming XML reader, Unicode NFD, a bit set
+    shared/crypto/         HMAC-SHA-256, AES-GCM, secure random (javax.crypto / CommonCrypto)
+  androidMain/, iosMain/   the platform halves (files, memory mapping, crypto, NFD)
+  commonTest/              tests that run on the JVM and the iOS simulator
+iosApp/                    the iOS app (Swift, XcodeGen project; MapLibre map), built in CI
 app/src/main/java/app/maparound/
   MapAroundApp.kt          app init + tiny service locator (AppGraph)
   data/                    prefs, installed maps, remote catalog, map/terrain/trail downloaders
@@ -385,8 +411,8 @@ Online tiles are cached in the app's cache folder, one cache per source.
   pictures, so a label can be cut at a tile edge.
 - **The Speed tab's trip counts only while MapAround is open.** Record a track for a full log.
 - **Contours start at zoom 11**, and the Topo style is needed to see them (Classic only shows hill shading).
-- **Satellite reception data is Android-only.** iOS doesn't expose it, which is why this is a native
-  Android app.
+- **Satellite reception data is Android-only.** iOS doesn't expose it, so the iOS version (in
+  progress, see `docs/IOS_PLAN.md`) will have no Satellites tab.
 
 ## Data sources & licences
 
