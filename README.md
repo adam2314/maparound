@@ -94,6 +94,7 @@ dependencies):
 `tools/topo-preview` renders PNGs with the same engine, theme and contour code, with no phone needed:
 
 ```bash
+./gradlew :shared:compileDebugKotlinAndroid   # the shared code it uses (again after changing it)
 ./gradlew -p tools/topo-preview run --args="prep raw-hgt/ dem/ high maps/"
 ./gradlew -p tools/topo-preview run --args="app/src/main/assets/themes/topo.xml maps/ dem/ out/ alps:47.13:9.58:15"
 # marked trails: convert an Overpass XML download, then add trails=<dir> when rendering

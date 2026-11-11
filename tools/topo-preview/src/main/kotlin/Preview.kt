@@ -1,5 +1,7 @@
 import app.maparound.terrain.ContourDataStore
 import app.maparound.terrain.DemIndex
+import okio.buffer
+import okio.source
 import org.mapsforge.core.model.Tile
 import org.mapsforge.core.util.MercatorProjection
 import org.mapsforge.map.awt.graphics.AwtGraphicFactory
@@ -45,8 +47,8 @@ class FileTheme(private val file: File) : XmlRenderTheme {
 fun main(args: Array<String>) {
     if (args[0] == "trailprep") { // trailprep overpass.xml out.trails
         val t0 = System.nanoTime()
-        val cell = File(args[1]).inputStream().use { app.maparound.trails.TrailCellIO.parseOverpass(it) }
-        app.maparound.trails.TrailCellIO.write(cell, File(args[2]))
+        val cell = File(args[1]).source().buffer().use { app.maparound.trails.TrailCellIO.parseOverpass(it) }
+        app.maparound.trails.TrailCellIO.write(cell, args[2])
         println("trailprep: ${cell.routes.size} routes, ${cell.ways.size} ways -> ${File(args[2]).length()} bytes in ${(System.nanoTime() - t0) / 1_000_000} ms")
         System.exit(0)
     }
@@ -65,9 +67,9 @@ fun main(args: Array<String>) {
             val outSize = app.maparound.terrain.HgtProcessor.outputSize(size, high)
             val mask = maps?.let { app.maparound.terrain.CoastMask.build(it, lat, lon, outSize) }
             val t1 = System.nanoTime()
-            f.inputStream().use {
+            f.source().use {
                 app.maparound.terrain.HgtProcessor.convert(
-                    it, size, File(outDir, f.name), high,
+                    it, size, File(outDir, f.name).path, high,
                     app.maparound.terrain.HgtProcessor.keepsNegativeHeights(lat, lon), mask,
                 )
             }
@@ -98,7 +100,7 @@ fun main(args: Array<String>) {
     store.addMapDataStore(vector, false, false)
     var hills: HillsRenderConfig? = null
     if (withTerrain) {
-        val dem = DemIndex(demDir)
+        val dem = DemIndex(demDir.path)
         store.addMapDataStore(ContourDataStore(dem, vector), false, false)
         hills = HillsRenderConfig(
             MemoryCachingHgtReaderTileSource(DemFolderFS(demDir), AdaptiveClasyHillShading(true), gf),
