@@ -102,7 +102,7 @@ class PartyService : Service() {
         super.onDestroy()
     }
 
-    private fun summary(s: PartySession.State): String {
+    private fun summary(s: PartyState): String {
         val links = listOfNotNull(
             "online".takeIf { s.online.state == TransportStatus.State.CONNECTED },
             "radio".takeIf { s.radio.state == TransportStatus.State.CONNECTED },

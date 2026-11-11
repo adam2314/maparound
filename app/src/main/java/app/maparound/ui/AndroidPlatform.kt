@@ -2,6 +2,7 @@ package app.maparound.ui
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -16,6 +17,10 @@ import java.io.File
 
 /** The shared screens' [PlatformActions] on Android (share sheet and chooser through [Sharing]). */
 class AndroidPlatform(private val context: Context) : PlatformActions {
+    override fun shareText(text: String, title: String) {
+        context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), title))
+    }
+
     override fun sharePointText(lat: Double, lon: Double, label: String?) = Sharing.sharePointText(context, lat, lon, label)
     override fun sharePointGpx(lat: Double, lon: Double, label: String?) = Sharing.sharePointGpx(context, lat, lon, label)
     override fun openPointElsewhere(lat: Double, lon: Double, label: String?) = Sharing.openPointElsewhere(context, lat, lon, label)

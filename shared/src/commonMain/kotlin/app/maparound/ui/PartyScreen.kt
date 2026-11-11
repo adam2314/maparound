@@ -1,20 +1,5 @@
 package app.maparound.ui
 
-import android.Manifest
-import android.annotation.SuppressLint
-import android.bluetooth.BluetoothManager
-import android.bluetooth.le.ScanCallback
-import android.bluetooth.le.ScanFilter
-import android.bluetooth.le.ScanResult
-import android.bluetooth.le.ScanSettings
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.location.Location
-import android.os.Build
-import android.os.ParcelUuid
-import android.text.format.DateUtils
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -79,28 +64,26 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
-import app.maparound.party.MeshtasticTransport
+import app.maparound.party.LocalParty
+import app.maparound.party.LocalPartyPlatform
 import app.maparound.party.Member
 import app.maparound.party.PartyKey
-import app.maparound.party.PartySession
+import app.maparound.party.PartyState
 import app.maparound.party.TransportStatus
 import app.maparound.party.Via
+import app.maparound.routing.Geo
 import app.maparound.routing.GeoPoint
 import app.maparound.routing.MapFocus
 import app.maparound.routing.PlannerSession
-import com.google.zxing.BarcodeFormat
-import com.journeyapps.barcodescanner.BarcodeEncoder
-import com.journeyapps.barcodescanner.ScanContract
-import com.journeyapps.barcodescanner.ScanOptions
+import app.maparound.sensors.GeoFix
+import app.maparound.shared.util.nowMillis
+import app.maparound.tools.Geodesy
+import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 /** Colours members can pick; also used for their map markers. */
 object PartyColors {
@@ -109,7 +92,7 @@ object PartyColors {
         Color(0xFF8E24AA), Color(0xFF00897B), Color(0xFFD81B60), Color(0xFF6D4C41),
     )
 
-    fun of(index: Int): Color = all[Math.floorMod(index, all.size)]
+    fun of(index: Int): Color = all[(index % all.size + all.size) % all.size]
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -120,10 +103,11 @@ fun PartyScreen(
     snackbar: SnackbarHostState,
     onShowMap: () -> Unit,
 ) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val s by PartySession.state.collectAsState()
-    val pending by PartySession.pendingInvite.collectAsState()
+    val party = LocalParty.current
+    val partyPlatform = LocalPartyPlatform.current
+    val s by party.state.collectAsState()
+    val pending by party.pendingInvite.collectAsState()
     var showQr by remember { mutableStateOf(false) }
     var radioPicker by remember { mutableStateOf(false) }
     var confirmSos by remember { mutableStateOf(false) }
@@ -131,22 +115,12 @@ fun PartyScreen(
     var editMe by remember { mutableStateOf(false) }
 
     // Notifications show SOS alerts; sharing works without them.
-    val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
-    fun ensureNotifications() {
-        if (Build.VERSION.SDK_INT >= 33 &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-    }
-
-    val scanner = rememberLauncherForActivityResult(ScanContract()) { result ->
-        val text = result.contents ?: return@rememberLauncherForActivityResult
+    val ensureNotifications = partyPlatform.rememberNotificationPermission()
+    val scan = partyPlatform.rememberQrScanner { text ->
         val key = PartyKey.parse(text)
         if (key == null) scope.launch { snackbar.showSnackbar("That QR code isn't a MapAround party") }
-        else PartySession.pendingInvite.value = key
+        else party.pendingInvite.value = key
     }
-    fun scan() = scanner.launch(
-        ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt("Scan the party QR code").setBeepEnabled(false).setOrientationLocked(false),
-    )
 
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
@@ -159,15 +133,15 @@ fun PartyScreen(
             windowInsets = WindowInsets(0, 0, 0, 0),
         )
         if (s.party == null) {
-            NoParty(onCreate = { party, me ->
+            NoParty(onCreate = { partyName, me ->
                 if (!hasLocation) requestLocation()
                 ensureNotifications()
-                PartySession.create(party, me)
+                party.create(partyName, me)
                 showQr = true
-            }, onScan = ::scan, onLink = { text ->
+            }, onScan = scan, onLink = { text ->
                 val key = PartyKey.parse(text)
                 if (key == null) scope.launch { snackbar.showSnackbar("That isn't a valid party link") }
-                else PartySession.pendingInvite.value = key
+                else party.pendingInvite.value = key
             })
         } else {
             InParty(
@@ -177,10 +151,10 @@ fun PartyScreen(
                         if (!hasLocation) requestLocation()
                         ensureNotifications()
                     }
-                    PartySession.setActive(it)
+                    party.setActive(it)
                 },
                 onRadio = { radioPicker = true },
-                onSos = { if (s.mySos) PartySession.sos(false) else confirmSos = true },
+                onSos = { if (s.mySos) party.sos(false) else confirmSos = true },
                 onEditMe = { editMe = true },
                 onLeave = { confirmLeave = true },
                 onShowMember = { p ->
@@ -191,9 +165,9 @@ fun PartyScreen(
                     val me = s.myPosition
                     PlannerSession.close()
                     PlannerSession.open()
-                    if (me != null) PlannerSession.add(GeoPoint(me.latitude, me.longitude))
+                    if (me != null) PlannerSession.add(GeoPoint(me.lat, me.lon))
                     PlannerSession.add(p)
-                    MapFocus.show(listOfNotNull(me?.let { GeoPoint(it.latitude, it.longitude) }, p))
+                    MapFocus.show(listOfNotNull(me?.let { GeoPoint(it.lat, it.lon) }, p))
                     onShowMap()
                 },
             )
@@ -203,7 +177,7 @@ fun PartyScreen(
     pending?.let { key ->
         var name by remember(key) { mutableStateOf(s.me?.name.orEmpty()) }
         AlertDialog(
-            onDismissRequest = { PartySession.pendingInvite.value = null },
+            onDismissRequest = { party.pendingInvite.value = null },
             title = { Text("Join “${key.name}”?") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -214,19 +188,19 @@ fun PartyScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    PartySession.pendingInvite.value = null
+                    party.pendingInvite.value = null
                     if (!hasLocation) requestLocation()
                     ensureNotifications()
-                    PartySession.join(key, name)
+                    party.join(key, name)
                 }) { Text("Join") }
             },
-            dismissButton = { TextButton(onClick = { PartySession.pendingInvite.value = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { party.pendingInvite.value = null }) { Text("Cancel") } },
         )
     }
 
     if (showQr) s.party?.let { InviteDialog(it, onDismiss = { showQr = false }) }
-    if (radioPicker) RadioPicker(onPick = { addr, name -> radioPicker = false; PartySession.setRadio(addr, name) }, onDismiss = { radioPicker = false })
-    if (editMe) s.me?.let { me -> EditMeDialog(me.name, me.color, onDismiss = { editMe = false }, onSave = { n, c -> editMe = false; PartySession.setProfile(n, c) }) }
+    if (radioPicker) partyPlatform.RadioPicker(onPick = { addr, name -> radioPicker = false; party.setRadio(addr, name) }, onDismiss = { radioPicker = false })
+    if (editMe) s.me?.let { me -> EditMeDialog(me.name, me.color, onDismiss = { editMe = false }, onSave = { n, c -> editMe = false; party.setProfile(n, c) }) }
 
     if (confirmSos) {
         var text by remember { mutableStateOf("") }
@@ -241,7 +215,7 @@ fun PartyScreen(
             },
             confirmButton = {
                 Button(
-                    onClick = { confirmSos = false; PartySession.sos(true, text) },
+                    onClick = { confirmSos = false; party.sos(true, text) },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                 ) { Text("Send SOS") }
             },
@@ -253,7 +227,7 @@ fun PartyScreen(
             onDismissRequest = { confirmLeave = false },
             title = { Text("Leave the party?") },
             text = { Text("Your position is removed for the others. You can rejoin with the invite.") },
-            confirmButton = { TextButton(onClick = { confirmLeave = false; PartySession.leave() }) { Text("Leave") } },
+            confirmButton = { TextButton(onClick = { confirmLeave = false; party.leave() }) { Text("Leave") } },
             dismissButton = { TextButton(onClick = { confirmLeave = false }) { Text("Cancel") } },
         )
     }
@@ -301,7 +275,7 @@ private fun NoParty(onCreate: (String, String) -> Unit, onScan: () -> Unit, onLi
 
 @Composable
 private fun InParty(
-    s: PartySession.State,
+    s: PartyState,
     onToggleActive: (Boolean) -> Unit,
     onRadio: () -> Unit,
     onSos: () -> Unit,
@@ -310,11 +284,12 @@ private fun InParty(
     onShowMember: (GeoPoint) -> Unit,
     onRouteTo: (GeoPoint) -> Unit,
 ) {
+    val party = LocalParty.current
     // Re-render every 10 s so "x min ago" stays current.
-    val now by produceState(System.currentTimeMillis()) {
+    val now by produceState(nowMillis()) {
         while (true) {
             delay(10_000)
-            value = System.currentTimeMillis()
+            value = nowMillis()
         }
     }
     LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -322,7 +297,7 @@ private fun InParty(
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     SwitchLine("Party on", if (s.active) "Sending and receiving, also with the screen off" else "Off: not sending or receiving", s.active, onToggleActive)
-                    SwitchLine("Share my location", if (s.sharing) "Others see you" else "Hidden: you see them, they don't see you", s.sharing) { PartySession.setSharing(it) }
+                    SwitchLine("Share my location", if (s.sharing) "Others see you" else "Hidden: you see them, they don't see you", s.sharing) { party.setSharing(it) }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         s.me?.let { me ->
                             Box(Modifier.size(14.dp).background(PartyColors.of(me.color), CircleShape))
@@ -364,7 +339,7 @@ private fun InParty(
                     trailingContent = {
                         Row {
                             IconButton(onClick = { onRouteTo(GeoPoint(meet.lat, meet.lon)) }) { Icon(Icons.Filled.Route, contentDescription = "Route to meeting point") }
-                            TextButton(onClick = { PartySession.clearMeeting() }) { Text("Clear") }
+                            TextButton(onClick = { party.clearMeeting() }) { Text("Clear") }
                         }
                     },
                 )
@@ -408,12 +383,13 @@ private fun SwitchLine(title: String, subtitle: String, checked: Boolean, onChan
 }
 
 @Composable
-private fun Connections(s: PartySession.State, onRadio: () -> Unit) {
+private fun Connections(s: PartyState, onRadio: () -> Unit) {
+    val party = LocalParty.current
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Connections", style = MaterialTheme.typography.titleSmall)
             StatusLine(Icons.Filled.Cloud, "Online", if (s.onlineEnabled) s.online else TransportStatus(TransportStatus.State.OFF, "Off")) {
-                Switch(checked = s.onlineEnabled, onCheckedChange = { PartySession.setOnlineEnabled(it) })
+                Switch(checked = s.onlineEnabled, onCheckedChange = { party.setOnlineEnabled(it) })
             }
             StatusLine(
                 Icons.Filled.Bluetooth, "LoRa radio",
@@ -422,7 +398,7 @@ private fun Connections(s: PartySession.State, onRadio: () -> Unit) {
                 if (s.radioName == null) {
                     OutlinedButton(onClick = onRadio) { Text("Pair") }
                 } else {
-                    TextButton(onClick = { PartySession.forgetRadio() }) { Text("Forget") }
+                    TextButton(onClick = { party.forgetRadio() }) { Text("Forget") }
                 }
             }
             if (s.radioName != null) {
@@ -430,7 +406,7 @@ private fun Connections(s: PartySession.State, onRadio: () -> Unit) {
                     "Gateway",
                     "Relay between radio and online, so off-grid and online members see each other",
                     s.gateway,
-                ) { PartySession.setGateway(it) }
+                ) { party.setGateway(it) }
             }
             if (!s.active) {
                 Text("Turn the party on to connect.", style = MaterialTheme.typography.bodySmall)
@@ -469,7 +445,7 @@ private fun StatusLine(icon: androidx.compose.ui.graphics.vector.ImageVector, ti
 }
 
 @Composable
-private fun MemberRow(m: Member, me: Location?, now: Long, onShow: (GeoPoint) -> Unit, onRoute: (GeoPoint) -> Unit) {
+private fun MemberRow(m: Member, me: GeoFix?, now: Long, onShow: (GeoPoint) -> Unit, onRoute: (GeoPoint) -> Unit) {
     val p = m.position
     ListItem(
         modifier = Modifier.clickable(enabled = p != null) { p?.let { onShow(GeoPoint(it.lat, it.lon)) } },
@@ -508,7 +484,8 @@ private fun MemberRow(m: Member, me: Location?, now: Long, onShow: (GeoPoint) ->
 }
 
 @Composable
-private fun Chat(s: PartySession.State) {
+private fun Chat(s: PartyState) {
+    val party = LocalParty.current
     var text by remember { mutableStateOf("") }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -521,7 +498,7 @@ private fun Chat(s: PartySession.State) {
             HorizontalDivider(Modifier.padding(vertical = 4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(text, { text = it.take(120) }, placeholder = { Text("Message") }, singleLine = true, modifier = Modifier.weight(1f))
-                IconButton(onClick = { PartySession.sendText(text); text = "" }, enabled = text.isNotBlank() && s.active) {
+                IconButton(onClick = { party.sendText(text); text = "" }, enabled = text.isNotBlank() && s.active) {
                     Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
                 }
             }
@@ -531,15 +508,15 @@ private fun Chat(s: PartySession.State) {
 
 @Composable
 private fun InviteDialog(key: PartyKey, onDismiss: () -> Unit) {
-    val context = LocalContext.current
+    val platform = LocalPlatform.current
+    val partyPlatform = LocalPartyPlatform.current
     val link = remember(key) { key.toLink() }
-    val qr = remember(link) { runCatching { BarcodeEncoder().encodeBitmap(link, BarcodeFormat.QR_CODE, 720, 720) }.getOrNull() }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Invite to “${key.name}”") },
         text = {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                qr?.let { Image(it.asImageBitmap(), contentDescription = "Party QR code", modifier = Modifier.size(240.dp)) }
+                partyPlatform.QrImage(link, Modifier.size(240.dp))
                 Text(
                     "Others scan this in MapAround's Party tab, or open the link. Anyone with it can see the party's positions, " +
                         "so share it only with your group.",
@@ -549,12 +526,7 @@ private fun InviteDialog(key: PartyKey, onDismiss: () -> Unit) {
         },
         confirmButton = {
             TextButton(onClick = {
-                context.startActivity(
-                    Intent.createChooser(
-                        Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "Join my MapAround party “${key.name}”: $link"),
-                        "Share invite",
-                    ),
-                )
+                platform.shareText("Join my MapAround party “${key.name}”: $link", "Share invite")
             }) {
                 Icon(Icons.Filled.Share, contentDescription = null)
                 Spacer(Modifier.width(6.dp))
@@ -591,100 +563,11 @@ private fun EditMeDialog(name: String, color: Int, onDismiss: () -> Unit, onSave
     )
 }
 
-/** Scans for Meshtastic radios over Bluetooth LE and lets the user pick one. */
-@SuppressLint("MissingPermission")
-@Composable
-private fun RadioPicker(onPick: (String, String) -> Unit, onDismiss: () -> Unit) {
-    val context = LocalContext.current
-    val needed = if (Build.VERSION.SDK_INT >= 31) {
-        arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
-    } else {
-        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
-    }
-    fun granted() = needed.all { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
-    var permitted by remember { mutableStateOf(granted()) }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permitted = granted() }
-    val found = remember { mutableStateListOf<Pair<String, String>>() } // address, name
-    var error by remember { mutableStateOf<String?>(null) }
-
-    if (!permitted) {
-        AlertDialog(
-            onDismissRequest = onDismiss,
-            title = { Text("Bluetooth permission") },
-            text = { Text("MapAround needs Bluetooth access to find and talk to your Meshtastic radio.") },
-            confirmButton = { TextButton(onClick = { launcher.launch(needed) }) { Text("Allow") } },
-            dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-        )
-        return
-    }
-
-    DisposableEffect(Unit) {
-        val adapter = context.getSystemService(BluetoothManager::class.java)?.adapter
-        val scanner = adapter?.takeIf { it.isEnabled }?.bluetoothLeScanner
-        val callback = object : ScanCallback() {
-            override fun onScanResult(callbackType: Int, result: ScanResult) {
-                val addr = result.device.address
-                if (found.none { it.first == addr }) found += addr to (result.scanRecord?.deviceName ?: result.device.name ?: addr)
-            }
-
-            override fun onScanFailed(errorCode: Int) {
-                error = "Scan failed ($errorCode)"
-            }
-        }
-        if (scanner == null) {
-            error = "Turn on Bluetooth first"
-        } else {
-            // Already-paired radios may not advertise while connected elsewhere; list them too.
-            adapter.bondedDevices.orEmpty()
-                .filter { d -> d.uuids?.any { it.uuid == MeshtasticTransport.SERVICE } == true || (d.name ?: "").contains("Meshtastic", true) }
-                .forEach { d -> found += d.address to (d.name ?: d.address) }
-            scanner.startScan(
-                listOf(ScanFilter.Builder().setServiceUuid(ParcelUuid(MeshtasticTransport.SERVICE)).build()),
-                ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build(),
-                callback,
-            )
-        }
-        onDispose { runCatching { scanner?.stopScan(callback) } }
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Pair a Meshtastic radio") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    "Switch the radio on. All radios in the party must use the same Meshtastic region and channel (the default one works; " +
-                        "party messages are encrypted separately). Close the official Meshtastic app if it is connected to the radio.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                if (found.isEmpty() && error == null) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Searching…")
-                    }
-                }
-                found.forEach { (addr, name) ->
-                    ListItem(
-                        modifier = Modifier.clickable { onPick(addr, name) },
-                        leadingContent = { Icon(Icons.Filled.Router, contentDescription = null) },
-                        headlineContent = { Text(name) },
-                        supportingContent = { Text(addr) },
-                    )
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
-}
-
-private fun distanceText(me: Location?, lat: Double, lon: Double): String? {
+private fun distanceText(me: GeoFix?, lat: Double, lon: Double): String? {
     me ?: return null
-    val r = FloatArray(2)
-    Location.distanceBetween(me.latitude, me.longitude, lat, lon, r)
-    val bearing = (r[1] + 360f) % 360f
-    return "${Fmt.distance(r[0])} ${Fmt.cardinal(bearing)}"
+    val from = GeoPoint(me.lat, me.lon)
+    val to = GeoPoint(lat, lon)
+    return "${Fmt.distance(Geo.distance(from, to).toFloat())} ${Fmt.cardinal(Geodesy.bearing(from, to).toFloat())}"
 }
 
 private fun ago(now: Long, at: Long): String? {
@@ -693,7 +576,7 @@ private fun ago(now: Long, at: Long): String? {
     return when {
         s < 45 -> "now"
         s < 3600 -> "${(s / 60.0).roundToInt().coerceAtLeast(1)} min ago"
-        else -> DateUtils.getRelativeTimeSpanString(at, now, DateUtils.MINUTE_IN_MILLIS).toString()
+        else -> Fmt.relativeTime(at, now)
     }
 }
 

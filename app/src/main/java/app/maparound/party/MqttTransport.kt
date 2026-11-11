@@ -10,9 +10,6 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 /** State of one transport, for the UI. */
-data class TransportStatus(val state: State, val detail: String = "") {
-    enum class State { OFF, CONNECTING, CONNECTED, ERROR }
-}
 
 /**
  * Party packets over MQTT (TLS). Topics: `maparound/v1/<party tag>/<sender>/<kind>`.

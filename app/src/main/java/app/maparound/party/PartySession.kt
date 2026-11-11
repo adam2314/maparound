@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
+import app.maparound.sensors.toGeoFix
 import android.os.BatteryManager
 import android.os.Handler
 import android.os.Looper
@@ -31,37 +32,18 @@ import java.security.SecureRandom
  * screen off. All state changes happen on the main thread.
  */
 @SuppressLint("StaticFieldLeak") // holds the application context only
-object PartySession {
+object PartySession : PartyController {
 
-    data class Me(val id: Int, val name: String, val color: Int)
+    private val _state = MutableStateFlow(PartyState())
 
-    data class State(
-        val party: PartyKey? = null,
-        val me: Me? = null,
-        /** The service is running: sending and receiving. */
-        val active: Boolean = false,
-        /** Share my position (off = "ghost": see others, stay hidden). */
-        val sharing: Boolean = true,
-        val members: List<Member> = emptyList(),
-        val meshNodes: List<MeshNode> = emptyList(),
-        val meeting: Meeting? = null,
-        val chat: List<ChatLine> = emptyList(),
-        val mySos: Boolean = false,
-        val online: TransportStatus = TransportStatus(TransportStatus.State.OFF),
-        val onlineEnabled: Boolean = true,
-        val radio: TransportStatus = TransportStatus(TransportStatus.State.OFF),
-        val radioName: String? = null,
-        val gateway: Boolean = true,
-        val myPosition: Location? = null,
-    )
-
-    private val _state = MutableStateFlow(State())
-    val state: StateFlow<State> = _state.asStateFlow()
+    /** The last fix from the service, as Android gives it (speed, bearing… for sending). */
+    private var lastLocation: Location? = null
+    override val state: StateFlow<PartyState> = _state.asStateFlow()
     private val _events = MutableSharedFlow<PartyEvent>(extraBufferCapacity = 16)
     val events: SharedFlow<PartyEvent> = _events.asSharedFlow()
 
     /** A party link opened from outside the app, waiting for the user to confirm joining. */
-    val pendingInvite = MutableStateFlow<PartyKey?>(null)
+    override val pendingInvite = MutableStateFlow<PartyKey?>(null)
 
     private val main = Handler(Looper.getMainLooper())
     private lateinit var app: Context
@@ -80,11 +62,11 @@ object PartySession {
         app = context.applicationContext
         val key = prefs.getString("link", null)?.let(PartyKey::parse)
         if (key != null) {
-            val me = Me(prefs.getInt("my_id", 0), prefs.getString("my_name", "")!!, prefs.getInt("my_color", 0))
+            val me = PartyMe(prefs.getInt("my_id", 0), prefs.getString("my_name", "")!!, prefs.getInt("my_color", 0))
             engine = PartyEngine(key, me.id)
             seq = prefs.getLong("seq", 0)
             reserveSeq()
-            _state.value = State(
+            _state.value = PartyState(
                 party = key, me = me,
                 sharing = prefs.getBoolean("sharing", true),
                 onlineEnabled = prefs.getBoolean("online", true),
@@ -103,11 +85,11 @@ object PartySession {
         if (engine != null && prefs.getBoolean("active", false) && !_state.value.active) setActive(true)
     }
 
-    fun create(partyName: String, myName: String) = join(PartyKey.create(partyName), myName)
+    override fun create(partyName: String, myName: String) = join(PartyKey.create(partyName), myName)
 
-    fun join(key: PartyKey, myName: String) {
+    override fun join(key: PartyKey, myName: String) {
         leaveSilently()
-        val me = Me(SecureRandom().nextInt().let { if (it == 0) 1 else it }, myName.trim().ifEmpty { "Me" }, SecureRandom().nextInt(PALETTE_SIZE))
+        val me = PartyMe(SecureRandom().nextInt().let { if (it == 0) 1 else it }, myName.trim().ifEmpty { "Me" }, SecureRandom().nextInt(PALETTE_SIZE))
         prefs.edit {
             putString("link", key.toLink())
             putInt("my_id", me.id)
@@ -125,7 +107,7 @@ object PartySession {
     }
 
     /** Tells the others, clears our retained state on the broker, stops sharing. */
-    fun leave() {
+    override fun leave() {
         val e = engine ?: return
         sendNow(PartyMessage.Leave, transports())
         // Empty retained messages delete our last position/name/alerts from the broker.
@@ -138,24 +120,24 @@ object PartySession {
         setActive(false)
         engine = null
         prefs.edit { remove("link"); putBoolean("active", false) }
-        _state.value = State(onlineEnabled = _state.value.onlineEnabled, radioName = _state.value.radioName, gateway = _state.value.gateway)
+        _state.value = PartyState(onlineEnabled = _state.value.onlineEnabled, radioName = _state.value.radioName, gateway = _state.value.gateway)
     }
 
     /** Starts/stops [PartyService] (sending and receiving). */
-    fun setActive(on: Boolean) {
+    override fun setActive(on: Boolean) {
         if (on && engine == null) return
         prefs.edit { putBoolean("active", on) }
         val intent = Intent(app, PartyService::class.java)
         runCatching { if (on) ContextCompat.startForegroundService(app, intent) else app.stopService(intent) }
     }
 
-    fun setSharing(on: Boolean) {
+    override fun setSharing(on: Boolean) {
         prefs.edit { putBoolean("sharing", on) }
         update { it.copy(sharing = on) }
         if (on) lastSent.clear() // send soon
     }
 
-    fun setProfile(name: String, color: Int) {
+    override fun setProfile(name: String, color: Int) {
         val me = _state.value.me ?: return
         val updated = me.copy(name = name.trim().ifEmpty { me.name }, color = color)
         prefs.edit { putString("my_name", updated.name); putInt("my_color", updated.color) }
@@ -163,24 +145,24 @@ object PartySession {
         sendHello(force = true)
     }
 
-    fun setOnlineEnabled(on: Boolean) {
+    override fun setOnlineEnabled(on: Boolean) {
         prefs.edit { putBoolean("online", on) }
         update { it.copy(onlineEnabled = on) }
         if (_state.value.active) restartTransports()
     }
 
-    fun setGateway(on: Boolean) {
+    override fun setGateway(on: Boolean) {
         prefs.edit { putBoolean("gateway", on) }
         update { it.copy(gateway = on) }
     }
 
-    fun setRadio(address: String, name: String) {
+    override fun setRadio(address: String, name: String) {
         prefs.edit { putString("radio_address", address); putString("radio_name", name) }
         update { it.copy(radioName = name) }
         if (_state.value.active) restartTransports()
     }
 
-    fun forgetRadio() {
+    override fun forgetRadio() {
         prefs.edit { remove("radio_address"); remove("radio_name") }
         radio?.stop()
         radio = null
@@ -189,18 +171,18 @@ object PartySession {
 
     // ---- actions --------------------------------------------------------------------------------
 
-    fun sos(active: Boolean, text: String = "") {
+    override fun sos(active: Boolean, text: String) {
         update { it.copy(mySos = active) }
         sendNow(PartyMessage.Sos(active, text), transports())
         lastSent.clear() // positions with the SOS flag go out right away
-        _state.value.myPosition?.let { onLocation(it) }
+        lastLocation?.let { onLocation(it) }
     }
 
-    fun setMeeting(lat: Double, lon: Double, label: String) = sendNow(PartyMessage.Meet(lat, lon, label), transports())
+    override fun setMeeting(lat: Double, lon: Double, label: String) = sendNow(PartyMessage.Meet(lat, lon, label), transports())
 
-    fun clearMeeting() = sendNow(PartyMessage.Meet(0.0, 0.0, ""), transports())
+    override fun clearMeeting() = sendNow(PartyMessage.Meet(0.0, 0.0, ""), transports())
 
-    fun sendText(text: String) {
+    override fun sendText(text: String) {
         if (text.isBlank()) return
         sendNow(PartyMessage.Text(text.trim()), transports())
     }
@@ -224,7 +206,8 @@ object PartySession {
 
     /** Our own position (from the service). Sends it on each transport when due. */
     internal fun onLocation(location: Location) {
-        update { it.copy(myPosition = location) }
+        lastLocation = location
+        update { it.copy(myPosition = location.toGeoFix()) }
         if (engine == null) return
         val s = _state.value
         if (!s.sharing && !s.mySos) return
@@ -252,7 +235,7 @@ object PartySession {
     /** Every few seconds from the service: hellos, and positions when standing still. */
     internal fun tick() {
         sendHello(force = false)
-        _state.value.myPosition?.let { onLocation(it) }
+        lastLocation?.let { onLocation(it) }
         refresh()
     }
 
@@ -410,7 +393,7 @@ object PartySession {
         }
     }
 
-    private inline fun update(f: (State) -> State) {
+    private inline fun update(f: (PartyState) -> PartyState) {
         _state.value = f(_state.value)
     }
 

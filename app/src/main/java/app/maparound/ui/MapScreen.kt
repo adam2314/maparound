@@ -51,6 +51,7 @@ import app.maparound.share.IncomingShare
 import app.maparound.share.Sharing
 import androidx.compose.material.icons.filled.Share
 import app.maparound.party.PartySession
+import app.maparound.party.PartyState
 import app.maparound.tools.Geodesy
 import app.maparound.tools.ToolsSession
 import androidx.compose.material.icons.filled.Straighten
@@ -695,7 +696,7 @@ fun MapScreen(
 }
 
 /** Party members, the meeting point and other radios as map markers (phone and car screens). */
-fun partyMapMarkers(party: PartySession.State, now: Long): List<MapController.PartyMarker> = buildList {
+fun partyMapMarkers(party: PartyState, now: Long): List<MapController.PartyMarker> = buildList {
     party.members.forEach { m ->
         m.position?.let { p ->
             add(MapController.PartyMarker(
@@ -721,7 +722,7 @@ fun partyMapMarkers(party: PartySession.State, now: Long): List<MapController.Pa
 @Composable
 private fun PartyMarkerCard(
     key: String,
-    party: PartySession.State,
+    party: PartyState,
     myLocation: Location?,
     onClose: () -> Unit,
     onShare: (Double, Double, String) -> Unit,

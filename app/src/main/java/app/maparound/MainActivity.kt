@@ -12,7 +12,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import app.maparound.data.LocalOfflineData
 import app.maparound.data.LocalPrefs
 import app.maparound.data.OfflineData
+import app.maparound.party.LocalParty
+import app.maparound.party.LocalPartyPlatform
 import app.maparound.raster.LocalRasters
+import app.maparound.ui.AndroidPartyPlatform
 import app.maparound.sensors.AndroidSensors
 import app.maparound.sensors.LocalDeviceSensors
 import app.maparound.places.LocalPlaces
@@ -44,6 +47,8 @@ class MainActivity : ComponentActivity() {
                 LocalTracks provides AppGraph.tracks,
                 LocalRecordingControl provides recording,
                 LocalRasters provides AppGraph.rasters,
+                LocalParty provides PartySession,
+                LocalPartyPlatform provides AndroidPartyPlatform,
                 LocalOfflineData provides OfflineData(
                     maps = AppGraph.mapFiles,
                     downloads = AppGraph.downloader,

@@ -9,6 +9,9 @@ import app.maparound.tracks.Track
 
 /** What the shared screens ask of the platform besides data: sharing to and opening other apps. */
 interface PlatformActions {
+    /** Any text, through the platform's share sheet. */
+    fun shareText(text: String, title: String)
+
     /** Name, coordinates and map links as text. */
     fun sharePointText(lat: Double, lon: Double, label: String?)
 
