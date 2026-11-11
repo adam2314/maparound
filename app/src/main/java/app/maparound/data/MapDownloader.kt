@@ -1,0 +1,164 @@
+package app.maparound.data
+
+import android.app.DownloadManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.database.Cursor
+import android.net.Uri
+import android.text.format.Formatter
+import app.maparound.AppGraph
+import app.maparound.USER_AGENT
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import java.io.File
+
+data class DownloadInfo(
+    val id: Long,
+    val fileName: String,
+    val status: Int,
+    val downloadedBytes: Long,
+    val totalBytes: Long,
+    val reason: Int,
+) {
+    val title: String get() = MapNames.title(fileName)
+    val progress: Float? get() = if (totalBytes > 0) downloadedBytes.toFloat() / totalBytes else null
+    val statusText: String
+        get() = when (status) {
+            DownloadManager.STATUS_PENDING -> "Queued"
+            DownloadManager.STATUS_PAUSED -> when (reason) {
+                DownloadManager.PAUSED_QUEUED_FOR_WIFI -> "Waiting for Wi‑Fi"
+                DownloadManager.PAUSED_WAITING_FOR_NETWORK -> "Waiting for network"
+                DownloadManager.PAUSED_WAITING_TO_RETRY -> "Retrying soon"
+                else -> "Paused"
+            }
+            else -> "Downloading"
+        }
+}
+
+/**
+ * Downloads country maps with the system DownloadManager (survives app exit, resumes, shows a
+ * notification). Files land as `<name>.map.part` and are renamed to `.map` once complete and
+ * verified, so a half-written file is never opened by the map renderer.
+ */
+class MapDownloader(
+    private val context: Context,
+    private val prefs: Prefs,
+    private val repo: MapFilesRepository,
+) {
+    private val dm = context.getSystemService(DownloadManager::class.java)
+
+    private val _events = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    /** Human-readable "installed" / "failed" messages for snackbars. */
+    val events: SharedFlow<String> = _events.asSharedFlow()
+
+    /** Returns an error message, or null if the download was queued. */
+    fun enqueue(entry: CatalogEntry, url: String, wifiOnly: Boolean): String? {
+        val fileName = entry.localFileName
+        if (prefs.downloads().containsValue(fileName)) return "${entry.title} is already downloading"
+        val needed = entry.sizeBytes ?: 0L
+        val free = repo.dir.usableSpace
+        if (needed > 0 && free < needed + (64L shl 20)) {
+            return "Not enough storage: ${Formatter.formatShortFileSize(context, needed)} needed, " +
+                "${Formatter.formatShortFileSize(context, free)} free"
+        }
+        File(repo.dir, "$fileName.part").delete()
+        val request = DownloadManager.Request(Uri.parse(url))
+            .setTitle("${entry.title} map")
+            .setDescription("MapAround offline map")
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setDestinationInExternalFilesDir(context, "maps", "$fileName.part")
+            .setAllowedOverMetered(!wifiOnly)
+            .setAllowedOverRoaming(false)
+            .addRequestHeader("User-Agent", USER_AGENT)
+        return try {
+            val id = dm.enqueue(request)
+            prefs.putDownload(id, fileName)
+            null
+        } catch (e: Exception) {
+            "Could not start download: ${e.message}"
+        }
+    }
+
+    fun cancel(id: Long) {
+        dm.remove(id)
+        prefs.removeDownload(id)
+    }
+
+    /** Current state of all in-flight downloads. Also finalizes any that have finished. */
+    @Synchronized
+    fun poll(): List<DownloadInfo> {
+        val result = mutableListOf<DownloadInfo>()
+        for ((id, fileName) in prefs.downloads()) {
+            dm.query(DownloadManager.Query().setFilterById(id)).use { c ->
+                if (c == null || !c.moveToFirst()) {
+                    prefs.removeDownload(id) // cancelled from the notification shade
+                    return@use
+                }
+                val status = c.int(DownloadManager.COLUMN_STATUS)
+                if (status == DownloadManager.STATUS_SUCCESSFUL || status == DownloadManager.STATUS_FAILED) {
+                    finish(id, fileName, c)
+                } else {
+                    result += DownloadInfo(
+                        id = id,
+                        fileName = fileName,
+                        status = status,
+                        downloadedBytes = c.long(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR),
+                        totalBytes = c.long(DownloadManager.COLUMN_TOTAL_SIZE_BYTES),
+                        reason = c.int(DownloadManager.COLUMN_REASON),
+                    )
+                }
+            }
+        }
+        return result
+    }
+
+    @Synchronized
+    fun onDownloadComplete(id: Long) {
+        val fileName = prefs.downloads()[id] ?: return
+        dm.query(DownloadManager.Query().setFilterById(id)).use { c ->
+            if (c != null && c.moveToFirst()) finish(id, fileName, c) else prefs.removeDownload(id)
+        }
+    }
+
+    private fun finish(id: Long, fileName: String, c: Cursor) {
+        val title = MapNames.title(fileName)
+        val part = c.string(DownloadManager.COLUMN_LOCAL_URI)?.let { Uri.parse(it).path }?.let(::File)
+            ?: File(repo.dir, "$fileName.part")
+        prefs.removeDownload(id)
+        if (c.int(DownloadManager.COLUMN_STATUS) == DownloadManager.STATUS_SUCCESSFUL) {
+            val target = File(repo.dir, fileName)
+            val ok = part.exists() && isValidMapFile(part) && part.renameTo(target)
+            if (ok) {
+                dm.remove(id) // drop the system record; the file has already been moved away
+                repo.refresh()
+                _events.tryEmit("$title map installed")
+            } else {
+                part.delete()
+                dm.remove(id)
+                _events.tryEmit("$title: downloaded file is not a valid map")
+            }
+        } else {
+            part.delete()
+            dm.remove(id)
+            _events.tryEmit("$title download failed (code ${c.int(DownloadManager.COLUMN_REASON)})")
+        }
+    }
+
+    private fun Cursor.int(col: String) = getInt(getColumnIndexOrThrow(col))
+    private fun Cursor.long(col: String) = getLong(getColumnIndexOrThrow(col))
+    private fun Cursor.string(col: String): String? = getString(getColumnIndexOrThrow(col))
+}
+
+/** DownloadManager delivers this broadcast explicitly to our package, so a manifest receiver works. */
+class DownloadCompleteReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != DownloadManager.ACTION_DOWNLOAD_COMPLETE) return
+        val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L)
+        if (id == -1L) return
+        // Both downloaders share the broadcast; each ignores ids that aren't its own.
+        AppGraph.downloader.onDownloadComplete(id)
+        AppGraph.routing.onDownloadComplete(id)
+    }
+}

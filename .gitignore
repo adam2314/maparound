@@ -1,0 +1,20 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.DS_Store
+captures/
+.externalNativeBuild/
+.cxx/
+tools/topo-preview/build/
+tools/topo-preview/.gradle/
+tools/topo-preview/.kotlin/
+.kotlin/
+*.apk
+*.aab
+*.jks
+*.keystore
+# Xcode (iOS app, later)
+xcuserdata/
+DerivedData/
