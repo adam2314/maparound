@@ -32,6 +32,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.maparound
         GENERATE_INFOPLIST_FILE: NO
         ENABLE_USER_SCRIPT_SANDBOXING: NO
+        # The shared Kotlin framework is built for Apple-silicon simulators only (no Intel slice).
+        "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
         # The shared Kotlin code, built by Gradle for the current platform and configuration.
         FRAMEWORK_SEARCH_PATHS: "$(inherited) $(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
         OTHER_LDFLAGS: "$(inherited) -framework MapAroundShared"
