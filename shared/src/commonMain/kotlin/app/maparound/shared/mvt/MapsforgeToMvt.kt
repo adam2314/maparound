@@ -47,10 +47,11 @@ object MapsforgeToMvt {
             if (isArea(w)) {
                 t.layer("area").polygon(w.rings, props)
                 // Labels and symbols of areas (names, a parking's P, a hut…) go in the point
-                // layer, at mapsforge's label position or else the middle of the outline.
+                // layer, at mapsforge's label position or else the middle of the outline; only in
+                // the tile that holds that point (the area itself is in every tile it crosses).
                 if (props.containsKey("name") || props.keys.any { it in POI_KEYS }) {
                     val (lat, lon) = if (w.labelLat != null && w.labelLon != null) w.labelLat to w.labelLon else middle(w.rings[0])
-                    poi.point(lat, lon, props + ("label_of" to "area"))
+                    if (inside(t, lat, lon)) poi.point(lat, lon, props + ("label_of" to "area"))
                 }
             } else {
                 for (ring in w.rings) t.layer("line").line(ring, props)
@@ -81,6 +82,10 @@ object MapsforgeToMvt {
 
     /** Areas that get a point for their symbol even without a name. */
     private val POI_KEYS = setOf("amenity", "tourism", "shop", "historic", "leisure", "sport", "man_made")
+
+    private fun inside(t: MvtTile, lat: Double, lon: Double): Boolean =
+        lat <= MapsforgeFile.tileLat(t.y, t.z) && lat > MapsforgeFile.tileLat(t.y + 1, t.z) &&
+            lon >= MapsforgeFile.tileLon(t.x, t.z) && lon < MapsforgeFile.tileLon(t.x + 1, t.z)
 
     /** Middle of a ring's bounding box ([lat0, lon0, …]). */
     private fun middle(ring: DoubleArray): Pair<Double, Double> {
