@@ -100,7 +100,7 @@ jobs:
           cd iosApp
           xcodebuild -project MapAround.xcodeproj -scheme MapAround -configuration Debug \
             -sdk iphonesimulator -destination "generic/platform=iOS Simulator" \
-            -derivedDataPath build CODE_SIGNING_ALLOWED=NO build 2>&1 | tail -60
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO build 2>&1 | tee ../build-log.txt | tail -60
 
       - name: Run in the simulator
         run: |
@@ -132,10 +132,13 @@ jobs:
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          [ -f screenshot.png ] || exit 0
           mkdir -p /tmp/shots
-          cp screenshot.png /tmp/shots/
+          [ -f screenshot.png ] && cp screenshot.png /tmp/shots/
           [ -f app-log.txt ] && cp app-log.txt /tmp/shots/
+          # The build log's errors and last lines, to see why a build failed.
+          if [ -f build-log.txt ]; then
+            { grep -nE "error:|fatal|BUILD FAILED" build-log.txt | head -200; echo ----; tail -300 build-log.txt; } > /tmp/shots/build-log.txt
+          fi
           echo "${GITHUB_SHA}" > /tmp/shots/commit.txt
           cd /tmp/shots
           git init -q -b ci-screenshots
