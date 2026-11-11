@@ -58,6 +58,8 @@ jobs:
     needs: shared
     runs-on: macos-15
     timeout-minutes: 60
+    permissions:
+      contents: write # to publish the latest screenshot on the ci-screenshots branch
     steps:
       - uses: actions/checkout@v4
 
@@ -122,3 +124,23 @@ jobs:
             screenshot.png
             app-log.txt
           if-no-files-found: ignore
+
+      # The latest screenshot, readable without signing in:
+      # https://raw.githubusercontent.com/<owner>/<repo>/ci-screenshots/screenshot.png
+      - name: Publish the screenshot (branch ci-screenshots)
+        if: always() && github.event_name == 'push'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          [ -f screenshot.png ] || exit 0
+          mkdir -p /tmp/shots
+          cp screenshot.png /tmp/shots/
+          [ -f app-log.txt ] && cp app-log.txt /tmp/shots/
+          echo "${GITHUB_SHA}" > /tmp/shots/commit.txt
+          cd /tmp/shots
+          git init -q -b ci-screenshots
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Simulator screenshot for ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" ci-screenshots
