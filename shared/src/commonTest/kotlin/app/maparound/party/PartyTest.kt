@@ -43,9 +43,9 @@ class PartyTest {
     fun otherPartiesAndTamperingAreRejected() {
         val bytes = Envelope.encode(key, 1, 1, 0, PartyMessage.Text("hi"))
         assertNull(Envelope.decode(PartyKey.create("other"), bytes))
-        val forged = bytes.clone().also { it[it.size - 1] = (it[it.size - 1] + 1).toByte() }
+        val forged = bytes.copyOf().also { it[it.size - 1] = (it[it.size - 1] + 1).toByte() }
         assertNull(Envelope.decode(key, forged))
-        val reSent = bytes.clone().also { it[10] = 9 } // changed sequence number (authenticated header)
+        val reSent = bytes.copyOf().also { it[10] = 9 } // changed sequence number (authenticated header)
         assertNull(Envelope.decode(key, reSent))
     }
 

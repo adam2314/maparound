@@ -32,7 +32,7 @@ class TilesTest {
         val eyeY = -d * cos(pitch)
         val eyeZ = d * sin(pitch)
         val sel = TileSelector.select(frame, eyeX, eyeY, eyeZ, 0.0, 0.0, 0.0, rangeM = 25_000.0, maxZoom = 17)
-        println("roots=${sel.roots.size} z${sel.roots.first().z} leaves=${sel.leaves.size} nodes=${sel.nodes.size} zooms=${sel.leaves.groupingBy { it.z }.eachCount().toSortedMap()}")
+        println("roots=${sel.roots.size} z${sel.roots.first().z} leaves=${sel.leaves.size} nodes=${sel.nodes.size} zooms=${sel.leaves.groupingBy { it.z }.eachCount().toList().sortedBy { it.first }}")
         assertTrue("bounded: ${sel.leaves.size}", sel.leaves.size in 10..140)
         // Leaves never overlap: no leaf contains another.
         for (a in sel.leaves) for (b in sel.leaves) if (a != b) assertFalse("$a overlaps $b", a.contains(b))
