@@ -10,7 +10,6 @@ import app.maparound.AppGraph
 import app.maparound.USER_AGENT
 import app.maparound.party.PartyKey
 import app.maparound.party.PartySession
-import app.maparound.tracks.Gpx
 import app.maparound.tracks.SavedTrack
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -74,15 +73,9 @@ object IncomingShare {
             PartyKey.parse(text.substring(text.indexOf("maparound://party/")).substringBefore(' ').substringBefore('\n'))
                 ?.let { PartySession.pendingInvite.value = it; return }
         }
-        SharedLinks.parse(text)?.let { deliver(it); return }
-        // Grid references and codes (UTM, MGRS, ITM, Plus Code, Maidenhead, deg-min-sec…) sent on their own.
-        if (text.trim().length <= 60) {
-            val near = AppGraph.prefs.lastPosition()?.let { app.maparound.routing.GeoPoint(it.lat, it.lon) }
-            app.maparound.tools.Coords.parse(text, reference = near)?.let {
-                deliver(Shared.Point(it.point.lat, it.point.lon, null, null))
-                return
-            }
-        }
+        // Map links, and grid references or codes (UTM, MGRS, ITM, Plus Code, deg-min-sec…) sent on their own.
+        val near = AppGraph.prefs.lastPosition()?.let { app.maparound.routing.GeoPoint(it.lat, it.lon) }
+        Incoming.fromText(text, near)?.let { Incoming.pending.value = it; return }
         val short = SharedLinks.shortLink(text)
         if (short == null) {
             Incoming.pending.value = Item.Message("No location found in what was shared")
@@ -96,17 +89,10 @@ object IncomingShare {
             val shared = resolved?.let { SharedLinks.parse(it) }?.let { s ->
                 if (s is Shared.Point && s.label == null && label != null) s.copy(label = label) else s
             }
-            if (shared != null) deliver(shared)
+            if (shared != null) Incoming.pending.value = Incoming.of(shared)
             else Incoming.pending.value = Item.Message(
                 if (resolved == null) "Couldn't open the link (no internet?)" else "That link has an address but no coordinates",
             )
-        }
-    }
-
-    private fun deliver(shared: Shared) {
-        Incoming.pending.value = when (shared) {
-            is Shared.Point -> Item.Point(shared)
-            is Shared.Route -> Item.Route(shared)
         }
     }
 
@@ -126,21 +112,7 @@ object IncomingShare {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
                     val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Can't open the file")
-                    val content = Gpx.parse(bytes)
-                    val base = name?.substringBeforeLast('.') ?: "Imported"
-                    val hasLine = content.trackPoints.isNotEmpty() || content.routePoints.isNotEmpty()
-                    val waypoints = if (hasLine || content.waypoints.size >= 2) app.maparound.places.Places.readGpx(bytes) else emptyList()
-                    when {
-                        hasLine -> Item.Track(
-                            AppGraph.tracks.save(Gpx.toTrack(content, base, System.currentTimeMillis())),
-                            placesAdded = AppGraph.places.addAll(waypoints),
-                        )
-                        waypoints.isNotEmpty() -> Item.Places(AppGraph.places.addAll(waypoints), waypoints.map { it.point })
-                        else -> {
-                            val w = content.waypoints.firstOrNull() ?: error("No track, route or waypoint in this GPX file")
-                            Item.Point(Shared.Point(w.lat, w.lon, w.name ?: base, null))
-                        }
-                    }
+                    Incoming.importGpx(bytes, name?.substringBeforeLast('.') ?: "Imported", AppGraph.tracks, AppGraph.places)
                 }
             }
             Incoming.pending.value = result.getOrElse {

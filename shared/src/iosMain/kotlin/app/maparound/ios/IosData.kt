@@ -4,9 +4,14 @@ package app.maparound.ios
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import app.maparound.data.InstalledMaps
 import app.maparound.data.LocalMap
+import app.maparound.data.mapBounds
+import app.maparound.shared.ioDispatcher
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import app.maparound.data.RoutingData
 import app.maparound.data.RoutingDataState
 import app.maparound.data.TrailData
@@ -68,8 +73,44 @@ class IosInstalledMaps(val dir: String) : InstalledMaps {
 
     @Composable
     override fun rememberImporter(onStart: () -> Unit, onResult: (Result<LocalMap>) -> Unit): () -> Unit {
+        val start = rememberUpdatedState(onStart)
         val done = rememberUpdatedState(onResult)
-        return remember { { done.value(Result.failure(Exception(LATER))) } }
+        val scope = rememberCoroutineScope()
+        return remember {
+            {
+                pickDocument { url ->
+                    val path = url?.path
+                    if (path != null) {
+                        start.value()
+                        scope.launch { done.value(withContext(ioDispatcher) { import(path, url?.lastPathComponent, move = true) }) }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Adds a mapsforge .map file (e.g. from OpenAndroMaps) to the map folder: moved when it's a
+     * copy made for us, otherwise copied. Blocking.
+     */
+    fun import(path: String, displayName: String?, move: Boolean): Result<LocalMap> = runCatching {
+        var name = (displayName ?: "imported.map").replace(Regex("[^A-Za-z0-9._-]"), "_")
+        if (!name.endsWith(".map")) name += ".map"
+        if (mapBounds(path) == null) error("Not a mapsforge .map file")
+        val source = path.toPath()
+        val target = "$dir/$name".toPath()
+        fileSystem.delete(target, mustExist = false)
+        if (move) {
+            runCatching { fileSystem.atomicMove(source, target) }.getOrElse {
+                fileSystem.copy(source, target)
+                fileSystem.delete(source, mustExist = false)
+            }
+        } else {
+            fileSystem.copy(source, target)
+        }
+        refresh()
+        val m = fileSystem.metadata(target)
+        LocalMap(target.toString(), m.size ?: 0, m.lastModifiedAtMillis ?: 0)
     }
 }
 

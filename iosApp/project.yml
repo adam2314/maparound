@@ -28,6 +28,35 @@ targets:
         NSLocationWhenInUseUsageDescription: "MapAround shows where you are on the map and measures your speed and altitude."
         NSMotionUsageDescription: "MapAround shows the air pressure and motion sensors on the Sensors tab."
         UILaunchScreen: {}
+        # The app's Documents (maps, tracks, places) in the Files app; files from Files open in place.
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        # maparound:// links (shared routes and places, party invites later).
+        CFBundleURLTypes:
+          - CFBundleURLName: app.maparound
+            CFBundleURLSchemes: [maparound]
+        # GPX files and mapsforge maps open with MapAround.
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: GPX file
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [com.topografix.gpx]
+          - CFBundleTypeName: Mapsforge map
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+            LSItemContentTypes: [org.mapsforge.map]
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: com.topografix.gpx
+            UTTypeDescription: GPX file
+            UTTypeConformsTo: [public.xml]
+            UTTypeTagSpecification:
+              public.filename-extension: [gpx]
+              public.mime-type: [application/gpx+xml]
+          - UTTypeIdentifier: org.mapsforge.map
+            UTTypeDescription: Mapsforge map
+            UTTypeConformsTo: [public.data]
+            UTTypeTagSpecification:
+              public.filename-extension: [map]
         # Compose Multiplatform draws at the display's full refresh rate (and checks for this key).
         CADisableMinimumFrameDurationOnPhone: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]

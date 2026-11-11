@@ -9,11 +9,15 @@ struct MapAroundApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if model.ready {
-                SharedRoot().ignoresSafeArea()
-            } else {
-                ProgressView()
+            Group {
+                if model.ready {
+                    SharedRoot().ignoresSafeArea()
+                } else {
+                    ProgressView()
+                }
             }
+            // GPX and .map files from Files or other apps, maparound:// links.
+            .onOpenURL { url in IosApp.shared.open(url: url.absoluteString) }
         }
     }
 }
