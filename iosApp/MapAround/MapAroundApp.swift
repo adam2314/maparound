@@ -72,8 +72,8 @@ struct SharedScreen: UIViewControllerRepresentable {
     func updateUIViewController(_ controller: UIViewController, context: Context) {}
 }
 
-/// The MapLibre map as the shared screens' MapSurface; reports the camera to MapEvents.
-final class MapLibreSurface: NSObject, MapSurface, MLNMapViewDelegate {
+/// The MapLibre map as the phase 0 screen's SpikeMapSurface; reports the camera to MapEvents.
+final class MapLibreSurface: NSObject, SpikeMapSurface, MLNMapViewDelegate {
     let view: MLNMapView
     let events = MapEvents()
 

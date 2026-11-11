@@ -47,7 +47,7 @@ private val Green = Color(0xFF2E7D32)
  */
 @Composable
 fun SharedMapScreen(
-    map: MapSurface,
+    map: SpikeMapSurface,
     events: MapEvents,
     subtitle: String,
     demo: Boolean,

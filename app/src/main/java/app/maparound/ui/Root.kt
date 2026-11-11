@@ -15,7 +15,7 @@ import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Groups
 import app.maparound.party.PartyEvent
 import app.maparound.party.PartySession
-import app.maparound.share.IncomingShare
+import app.maparound.share.Incoming
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -37,6 +37,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import app.maparound.AppGraph
+import app.maparound.map.AndroidMapSurface
+import androidx.compose.ui.viewinterop.AndroidView
 import app.maparound.sensors.hasLocationPermission
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -91,12 +93,12 @@ fun MapAroundRoot() {
     }
     // Party: carry on sharing after a restart, open invites, announce joins and alerts.
     LaunchedEffect(Unit) { PartySession.resumeIfWasActive() }
-    val incoming by IncomingShare.pending.collectAsState()
+    val incoming by Incoming.pending.collectAsState()
     LaunchedEffect(incoming) {
         when (val i = incoming) {
             null -> Unit
-            is IncomingShare.Item.Message -> {
-                IncomingShare.consume()
+            is Incoming.Item.Message -> {
+                Incoming.consume()
                 snackbar.showSnackbar(i.text)
             }
             else -> tab = Tab.Map // the map screen shows it
@@ -147,6 +149,9 @@ fun MapAroundRoot() {
                     requestLocation = requestLocation,
                     onOpenOffline = { tab = Tab.Offline },
                     snackbar = snackbar,
+                    createMap = { AndroidMapSurface(context) },
+                    mapView = { map, modifier -> AndroidView(factory = { (map as AndroidMapSurface).controller.mapView }, modifier = modifier) },
+                    view3d = { Scene3DAndroidView(it) },
                 )
                 Tab.Routes -> LibraryScreen(hasLocation, requestLocation, snackbar, onShowMap = { tab = Tab.Map })
                 Tab.Party -> PartyScreen(hasLocation, requestLocation, snackbar, onShowMap = { tab = Tab.Map })

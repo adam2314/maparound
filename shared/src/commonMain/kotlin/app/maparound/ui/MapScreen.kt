@@ -1,18 +1,16 @@
 package app.maparound.ui
 
-import android.content.ActivityNotFoundException
-import android.content.Intent
-import android.location.Location
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -21,52 +19,31 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DownloadForOffline
+import androidx.compose.material.icons.filled.FiberManualRecord
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.LocationSearching
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.SatelliteAlt
-import androidx.compose.material.icons.filled.Terrain
 import androidx.compose.material.icons.filled.Route
-import androidx.compose.material.icons.filled.FiberManualRecord
-import androidx.compose.material.icons.filled.SwapVert
-import androidx.compose.material.icons.automirrored.filled.Undo
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.Surface
-import androidx.compose.foundation.layout.height
-import androidx.compose.ui.graphics.Color
-import app.maparound.routing.GeoPoint
-import app.maparound.routing.MapFocus
-import app.maparound.routing.PlannerSession
-import app.maparound.routing.RouteProfile
-import app.maparound.routing.RouteResult
-import app.maparound.tracks.Recorder
-import app.maparound.tracks.TrackRecorder
-import app.maparound.share.IncomingShare
-import app.maparound.share.Sharing
-import androidx.compose.material.icons.filled.Share
-import app.maparound.party.PartySession
-import app.maparound.party.PartyState
-import app.maparound.tools.Geodesy
-import app.maparound.tools.ToolsSession
-import androidx.compose.material.icons.filled.Straighten
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.BookmarkAdd
-import androidx.compose.material.icons.filled.ViewInAr
+import androidx.compose.material.icons.filled.SatelliteAlt
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Map
-import android.text.format.DateUtils
-import androidx.compose.runtime.produceState
-import androidx.compose.ui.graphics.toArgb
-import kotlinx.coroutines.delay
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Straighten
+import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.filled.Terrain
+import androidx.compose.material.icons.filled.ViewInAr
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -76,6 +53,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -86,9 +64,9 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SmallFloatingActionButton
-import androidx.compose.material3.Switch
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -98,37 +76,60 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.maparound.AppGraph
+import app.maparound.data.LocalOfflineData
+import app.maparound.data.LocalPrefs
 import app.maparound.data.MapPos
-import app.maparound.map.MapController
+import app.maparound.map.BaseMap
+import app.maparound.map.MapListener
+import app.maparound.map.MapSurface
 import app.maparound.map.OnlineSource
+import app.maparound.map.PartyMarker
+import app.maparound.map.PlaceMarker
 import app.maparound.map.TileSources
-import app.maparound.sensors.LocationSource
-import app.maparound.sensors.toGeoFix
+import app.maparound.map.ToolLine
+import app.maparound.map.backgroundAttribution
+import app.maparound.party.LocalParty
+import app.maparound.party.PartyState
+import app.maparound.places.LocalPlaces
+import app.maparound.raster.LocalRasters
+import app.maparound.routing.Geo
+import app.maparound.routing.GeoPoint
+import app.maparound.routing.MapFocus
+import app.maparound.routing.PlannerSession
+import app.maparound.routing.RouteProfile
+import app.maparound.routing.RouteResult
+import app.maparound.sensors.GeoFix
+import app.maparound.sensors.LocalDeviceSensors
+import app.maparound.share.Incoming
+import app.maparound.shared.util.nowMillis
+import app.maparound.tools.Geodesy
+import app.maparound.tools.ToolsSession
+import app.maparound.tracks.LocalTracks
+import app.maparound.tracks.TrackRecorder
+import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
-import org.mapsforge.core.model.LatLong
-import kotlin.math.roundToInt
-import app.maparound.data.file
 
 @Composable
 fun MapScreen(
@@ -136,14 +137,25 @@ fun MapScreen(
     requestLocation: () -> Unit,
     onOpenOffline: () -> Unit,
     snackbar: SnackbarHostState,
+    /** Makes the platform's map (Android: mapsforge; iOS: MapLibre). */
+    createMap: () -> MapSurface,
+    /** Shows the map made by [createMap]. */
+    mapView: @Composable (MapSurface, Modifier) -> Unit,
+    /** The platform's 3D view, for the 3D button. */
+    view3d: @Composable (Scene3DViewArgs) -> Unit,
 ) {
-    val context = LocalContext.current
-    val prefs = AppGraph.prefs
+    val prefs = LocalPrefs.current
+    val offline = LocalOfflineData.current
+    val platform = LocalPlatform.current
+    val recording = LocalRecordingControl.current
+    val partyControl = LocalParty.current
+    val placesRepo = LocalPlaces.current
+    val tracksRepo = LocalTracks.current
+    val rastersLib = LocalRasters.current
+    val sensors = LocalDeviceSensors.current
     val scope = rememberCoroutineScope()
 
-    val controller = remember {
-        MapController(context).apply { moveTo(prefs.lastPosition() ?: MapPos(30.0, 10.0, 3)) }
-    }
+    val controller = remember { createMap().apply { moveTo(prefs.lastPosition() ?: MapPos(30.0, 10.0, 3)) } }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -167,39 +179,32 @@ fun MapScreen(
     // ---- base layer --------------------------------------------------------------------------
     val baseLayerId by prefs.baseLayer.collectAsState()
     val customSources by prefs.customSources.collectAsState()
-    val localMaps by AppGraph.mapFiles.files.collectAsState()
+    val localMaps by offline.maps.files.collectAsState()
     val onlineSource = TileSources.find(baseLayerId, customSources)
     // "offline" (or an id that no longer exists) resolves to no online source -> render offline maps.
     val showingOffline = onlineSource == null
     val topo by prefs.topoStyle.collectAsState()
     val contours by prefs.contours.collectAsState()
     val hillshade by prefs.hillshade.collectAsState()
-    val terrain by AppGraph.terrain.state.collectAsState()
+    val terrain by offline.terrain.state.collectAsState()
     val trailsOn by prefs.trails.collectAsState()
-    val trailData by AppGraph.trails.state.collectAsState()
-    val offlineStyle = MapController.OfflineStyle(
+    val trailData by offline.trails.state.collectAsState()
+    val background by prefs.mapBackground.collectAsState()
+    val vectorOnBackground by prefs.vectorOnBackground.collectAsState()
+    val rasterMaps by rastersLib.maps.collectAsState()
+    val baseMap: BaseMap = onlineSource?.let { BaseMap.Online(it) } ?: BaseMap.Offline(
+        maps = localMaps,
         topo = topo,
         contours = contours,
         hillshade = hillshade,
-        demDir = AppGraph.terrain.demDir,
         terrainVersion = terrain.version,
         trails = trailsOn,
-        trailsDir = AppGraph.trails.dir,
         trailsVersion = trailData.version,
+        background = background,
+        vectorOnTop = vectorOnBackground,
+        rasterMaps = rasterMaps,
     )
-    val background by prefs.mapBackground.collectAsState()
-    val vectorOnBackground by prefs.vectorOnBackground.collectAsState()
-    val rasterMaps by AppGraph.rasters.maps.collectAsState()
-    LaunchedEffect(onlineSource, localMaps, offlineStyle, background, vectorOnBackground, rasterMaps) {
-        val src = onlineSource
-        if (src != null) {
-            controller.showOnline(src)
-        } else {
-            // Opening a raster map reads its tables: off the main thread.
-            val bg = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { app.maparound.map.resolveBackground(background) }
-            controller.showOffline(localMaps.map { it.file }, offlineStyle, bg, vectorOnBackground)
-        }
-    }
+    LaunchedEffect(baseMap) { controller.setBaseMap(baseMap) }
     val terrainShown = showingOffline && terrain.tiles > 0 && (contours || hillshade)
     // Marked trails: drawn from downloaded data in the Topo style, otherwise the online overlay.
     val localTrails = trailsOn && showingOffline && topo && trailData.cells > 0
@@ -209,8 +214,8 @@ fun MapScreen(
     // ---- routes & tracks ------------------------------------------------------------------------
     val planner by PlannerSession.state.collectAsState()
     val recorder by TrackRecorder.state.collectAsState()
-    val savedTracks by AppGraph.tracks.tracks.collectAsState()
-    val visibleTracks by AppGraph.tracks.visible.collectAsState()
+    val savedTracks by tracksRepo.tracks.collectAsState()
+    val visibleTracks by tracksRepo.visible.collectAsState()
     LaunchedEffect(planner.active, planner.route, planner.waypoints) {
         val line = when {
             !planner.active -> emptyList()
@@ -231,7 +236,7 @@ fun MapScreen(
             MapFocus.consumed()
         }
     }
-    val startRecording = LocalRecordingControl.current.rememberStarter(hasLocation, requestLocation)
+    val startRecording = recording.rememberStarter(hasLocation, requestLocation)
     var saveDialog by remember { mutableStateOf(false) }
 
     // ---- map tools (azimuth, line of sight, viewshed, coordinates) --------------------------------
@@ -247,51 +252,51 @@ fun MapScreen(
             a == null || b == null -> emptyList()
             tools.mode == ToolsSession.Mode.SIGHT && tools.los != null -> {
                 // Runs of ground that A can / can't see.
-                val out = ArrayList<MapController.ToolLine>()
+                val out = ArrayList<ToolLine>()
                 var run = ArrayList<GeoPoint>()
                 var vis: Boolean? = null
                 for (s in tools.los!!.samples) {
                     val p = GeoPoint(s.lat, s.lon)
                     if (vis != null && s.visible != vis) {
                         run += p
-                        out += MapController.ToolLine(run, vis)
+                        out += ToolLine(run, vis)
                         run = arrayListOf(p)
                     } else {
                         run += p
                     }
                     vis = s.visible
                 }
-                if (run.size >= 2) out += MapController.ToolLine(run, vis)
+                if (run.size >= 2) out += ToolLine(run, vis)
                 out
             }
-            else -> listOf(MapController.ToolLine(Geodesy.greatCircle(a, b), null))
+            else -> listOf(ToolLine(Geodesy.greatCircle(a, b), null))
         }
         val ring = if (tools.mode == ToolsSession.Mode.VIEW && a != null) a to (tools.viewshed?.radiusM ?: tools.radiusM) else null
         controller.setTools(a, b, lines, ring, tools.viewshed?.takeIf { tools.mode == ToolsSession.Mode.VIEW })
     }
 
     // ---- party ------------------------------------------------------------------------------------
-    val party by PartySession.state.collectAsState()
-    val partyClock by produceState(System.currentTimeMillis()) {
+    val party by partyControl.state.collectAsState()
+    val partyClock by produceState(nowMillis()) {
         while (true) {
             delay(30_000)
-            value = System.currentTimeMillis()
+            value = nowMillis()
         }
     }
     var selectedParty by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(party, partyClock) { controller.setPartyMarkers(partyMapMarkers(party, partyClock)) }
 
     // ---- saved places --------------------------------------------------------------------------------
-    val places by AppGraph.places.places.collectAsState()
+    val places by placesRepo.places.collectAsState()
     val placesOn by prefs.placesOnMap.collectAsState()
     var selectedPlace by remember { mutableStateOf<String?>(null) }
     var editPlace by remember { mutableStateOf<Pair<app.maparound.places.Place, Boolean>?>(null) } // place, isNew
     LaunchedEffect(places, placesOn) { controller.setPlaces(if (placesOn) placeMapMarkers(places) else emptyList()) }
-    val placeFocus by AppGraph.places.focus.collectAsState()
+    val placeFocus by placesRepo.focus.collectAsState()
     LaunchedEffect(placeFocus) {
         placeFocus?.let {
             selectedPlace = it
-            AppGraph.places.focus.value = null
+            placesRepo.focus.value = null
         }
     }
     fun newPlace(lat: Double, lon: Double, name: String?) {
@@ -302,64 +307,81 @@ fun MapScreen(
     }
 
     // ---- my location ---------------------------------------------------------------------------
-    val locationFlow: Flow<Location?> = remember(hasLocation) {
-        if (hasLocation) LocationSource.updates(context) else flowOf(null)
+    val locationFlow: Flow<GeoFix?> = remember(hasLocation) {
+        if (hasLocation) sensors.locations() else flowOf(null)
     }
     val location by locationFlow.collectAsStateWithLifecycle(initialValue = null)
     var follow by rememberSaveable { mutableStateOf(false) }
-    var pin by remember { mutableStateOf<LatLong?>(null) }
+    var pin by remember { mutableStateOf<GeoPoint?>(null) }
     var pinLabel by remember { mutableStateOf<String?>(null) }
     var showMe by remember { mutableStateOf(false) }
     // (lat, lon, label) for the share sheet
     var shareTarget by remember { mutableStateOf<Triple<Double, Double, String?>?>(null) }
     SideEffect {
-        controller.onUserGesture = { follow = false }
-        controller.onLongPress = { pin = it; pinLabel = null }
-        controller.onMyLocationTap = { showMe = true }
-        controller.onTap = { ll ->
-            when {
+        controller.listener = object : MapListener {
+            override fun onUserGesture() {
+                follow = false
+            }
+
+            override fun onLongPress(point: GeoPoint) {
+                pin = point
+                pinLabel = null
+            }
+
+            override fun onMyLocationTap() {
+                showMe = true
+            }
+
+            override fun onTap(point: GeoPoint): Boolean = when {
                 ToolsSession.state.value.active -> {
-                    ToolsSession.tap(GeoPoint(ll.latitude, ll.longitude))
+                    ToolsSession.tap(point)
                     true
                 }
                 PlannerSession.state.value.active -> {
-                    PlannerSession.add(GeoPoint(ll.latitude, ll.longitude))
+                    PlannerSession.add(point)
                     true
                 }
                 else -> false
             }
+
+            override fun onWaypointTap(index: Int) = PlannerSession.removeAt(index)
+
+            override fun onPartyMarkerTap(key: String) {
+                selectedParty = key
+            }
+
+            override fun onPlaceTap(id: String) {
+                selectedPlace = id
+            }
         }
-        controller.onWaypointTap = { PlannerSession.removeAt(it) }
-        controller.onPartyMarkerTap = { selectedParty = it }
-        controller.onPlaceTap = { selectedPlace = it }
     }
     LaunchedEffect(location) {
         val loc = location
         controller.updateLocation(loc)
-        if (follow && loc != null) controller.animateTo(loc.latitude, loc.longitude)
+        if (follow && loc != null) controller.animateTo(loc.lat, loc.lon)
     }
     LaunchedEffect(pin) { controller.setPin(pin) }
 
     // ---- things other apps shared with us ---------------------------------------------------------
-    val incoming by IncomingShare.pending.collectAsState()
+    val incoming by Incoming.pending.collectAsState()
     LaunchedEffect(incoming) {
         when (val i = incoming) {
-            is IncomingShare.Item.Point -> {
-                IncomingShare.consume()
+            is Incoming.Item.Point -> {
+                Incoming.consume()
                 val p = i.point
                 follow = false
-                pin = LatLong(p.lat, p.lon)
+                pin = GeoPoint(p.lat, p.lon)
                 pinLabel = p.label
                 controller.moveTo(MapPos(p.lat, p.lon, p.zoom ?: maxOf(controller.position().zoom, 15)))
             }
-            is IncomingShare.Item.Route -> {
-                IncomingShare.consume()
+            is Incoming.Item.Route -> {
+                Incoming.consume()
                 follow = false
                 PlannerSession.load(i.route.points, i.route.profile)
                 controller.showPoints(i.route.points)
             }
-            is IncomingShare.Item.Track -> {
-                IncomingShare.consume()
+            is Incoming.Item.Track -> {
+                Incoming.consume()
                 follow = false
                 controller.showPoints(i.saved.track.points)
                 snackbar.showSnackbar(
@@ -367,8 +389,8 @@ fun MapScreen(
                         if (i.placesAdded > 0) " and ${i.placesAdded} waypoint${if (i.placesAdded == 1) "" else "s"} into Places" else "",
                 )
             }
-            is IncomingShare.Item.Places -> {
-                IncomingShare.consume()
+            is Incoming.Item.Places -> {
+                Incoming.consume()
                 follow = false
                 prefs.setPlacesOnMap(true)
                 controller.showPoints(i.points)
@@ -384,7 +406,7 @@ fun MapScreen(
     var searching by remember { mutableStateOf(false) }
 
     Box(Modifier.fillMaxSize()) {
-        AndroidView(factory = { controller.mapView }, modifier = Modifier.fillMaxSize())
+        mapView(controller, Modifier.fillMaxSize())
 
         if (showingOffline && localMaps.isEmpty() && !planner.active && !tools.active) {
             ElevatedCard(
@@ -450,7 +472,7 @@ fun MapScreen(
         if (recorder.recording) {
             RecordingBar(
                 recorder,
-                onStop = { Recorder.stop(context) },
+                onStop = { recording.stop() },
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
             )
         }
@@ -461,34 +483,34 @@ fun MapScreen(
             if (showMe) {
                 location?.let { me ->
                     PinCard(
-                        LatLong(me.latitude, me.longitude), "My location" + if (me.hasAccuracy()) " (±${me.accuracy.roundToInt()} m)" else "",
+                        GeoPoint(me.lat, me.lon), "My location" + (me.accuracyM?.let { " (±${it.roundToInt()} m)" } ?: ""),
                         null, onClose = { showMe = false },
                         onRoute = null,
-                        onShare = { shareTarget = Triple(me.latitude, me.longitude, "My location") },
-                        onSavePlace = { newPlace(me.latitude, me.longitude, null) },
+                        onShare = { shareTarget = Triple(me.lat, me.lon, "My location") },
+                        onSavePlace = { newPlace(me.lat, me.lon, null) },
                         onTool = { mode ->
                             showMe = false
                             PlannerSession.close()
-                            ToolsSession.open(mode, GeoPoint(me.latitude, me.longitude))
+                            ToolsSession.open(mode, GeoPoint(me.lat, me.lon))
                         },
                     )
                 } ?: run { showMe = false }
             }
-            selectedPlace?.let { id -> AppGraph.places.get(id) }?.let { pl ->
+            selectedPlace?.let { id -> placesRepo.get(id) }?.let { pl ->
                 PlaceCard(
-                    pl, location?.toGeoFix(),
+                    pl, location,
                     onClose = { selectedPlace = null },
                     onRoute = {
                         selectedPlace = null
                         ToolsSession.close()
                         PlannerSession.close()
                         PlannerSession.open()
-                        location?.let { PlannerSession.add(GeoPoint(it.latitude, it.longitude)) }
+                        location?.let { PlannerSession.add(GeoPoint(it.lat, it.lon)) }
                         PlannerSession.add(pl.point)
                     },
-                    onShare = { app.maparound.share.Sharing.sharePlaces(context, listOf(pl), pl.name) },
+                    onShare = { platform.sharePlaces(listOf(pl), pl.name) },
                     onEdit = { editPlace = pl to false },
-                    onDelete = { AppGraph.places.delete(pl.id); selectedPlace = null },
+                    onDelete = { placesRepo.delete(pl.id); selectedPlace = null },
                     onViewshed = {
                         selectedPlace = null
                         PlannerSession.close()
@@ -502,7 +524,7 @@ fun MapScreen(
                     ToolsSession.close()
                     PlannerSession.close()
                     PlannerSession.open()
-                    location?.let { PlannerSession.add(GeoPoint(it.latitude, it.longitude)) }
+                    location?.let { PlannerSession.add(GeoPoint(it.lat, it.lon)) }
                     PlannerSession.add(target)
                 })
             }
@@ -514,18 +536,18 @@ fun MapScreen(
                         ToolsSession.close()
                         PlannerSession.close()
                         PlannerSession.open()
-                        location?.let { PlannerSession.add(GeoPoint(it.latitude, it.longitude)) }
-                        PlannerSession.add(GeoPoint(p.latitude, p.longitude))
+                        location?.let { PlannerSession.add(GeoPoint(it.lat, it.lon)) }
+                        PlannerSession.add(p)
                     },
-                    onShare = { shareTarget = Triple(p.latitude, p.longitude, pinLabel) },
-                    onSavePlace = { newPlace(p.latitude, p.longitude, pinLabel) },
+                    onShare = { shareTarget = Triple(p.lat, p.lon, pinLabel) },
+                    onSavePlace = { newPlace(p.lat, p.lon, pinLabel) },
                     onTool = { mode ->
                         pin = null
                         PlannerSession.close()
-                        ToolsSession.open(mode, GeoPoint(p.latitude, p.longitude))
+                        ToolsSession.open(mode, p)
                     },
                     onMeetHere = if (party.active) ({
-                        PartySession.setMeeting(p.latitude, p.longitude, pinLabel ?: "Meeting point")
+                        partyControl.setMeeting(p.lat, p.lon, pinLabel ?: "Meeting point")
                         pin = null
                     }) else null,
                 )
@@ -534,7 +556,7 @@ fun MapScreen(
             Text(
                 text = listOfNotNull(
                     if (!showingOffline) onlineSource?.attribution else "© OpenStreetMap contributors · mapsforge",
-                    if (showingOffline) app.maparound.map.backgroundAttribution(background) else null,
+                    if (showingOffline) backgroundAttribution(background, rasterMaps) else null,
                     if (terrainShown) "terrain: Mapzen, AWS Terrain Tiles" else null,
                     if (trailOverlay) TileSources.trailsOverlay.attribution else null,
                 ).joinToString(" · "),
@@ -564,7 +586,7 @@ fun MapScreen(
                         follow = true
                         val loc = location
                         if (loc != null) {
-                            controller.animateTo(loc.latitude, loc.longitude, minZoom = 15)
+                            controller.animateTo(loc.lat, loc.lon, minZoom = 15)
                         } else {
                             scope.launch { snackbar.showSnackbar("Waiting for a location fix…") }
                         }
@@ -585,9 +607,7 @@ fun MapScreen(
                 planner,
                 onSave = { saveDialog = true },
                 onShare = {
-                    PlannerSession.currentTrack(
-                        "Route " + java.text.SimpleDateFormat("d MMM", java.util.Locale.getDefault()).format(java.util.Date()),
-                    )?.let { Sharing.shareRoute(context, it) }
+                    PlannerSession.currentTrack("Route " + Fmt.dayMonth(nowMillis()))?.let { platform.shareRoute(it, null) }
                 },
                 onClose = { PlannerSession.close() },
             )
@@ -595,7 +615,7 @@ fun MapScreen(
         if (tools.active) {
             ToolsPanel(
                 tools,
-                myLocation = location?.toGeoFix(),
+                myLocation = location,
                 mapCenter = { controller.position().let { GeoPoint(it.lat, it.lon) } },
                 onShowPoint = { p ->
                     follow = false
@@ -610,12 +630,12 @@ fun MapScreen(
 
     shareTarget?.let { (la, lo, label) -> PointShareSheet(la, lo, label, onDismiss = { shareTarget = null }) }
 
-    scene3d?.let { req -> Scene3DScreen(req, onClose = { scene3d = null }) { Scene3DAndroidView(it) } }
+    scene3d?.let { req -> Scene3DScreen(req, onClose = { scene3d = null }) { view3d(it) } }
 
     if (searching) {
         SearchOverlay(
             mapCenter = controller.position().let { GeoPoint(it.lat, it.lon) },
-            myLocation = location?.toGeoFix(),
+            myLocation = location,
             onPick = { r ->
                 searching = false
                 follow = false
@@ -624,7 +644,7 @@ fun MapScreen(
                     selectedPlace = r.placeId
                     pin = null
                 } else {
-                    pin = LatLong(r.lat, r.lon)
+                    pin = GeoPoint(r.lat, r.lon)
                     pinLabel = r.name
                 }
                 controller.moveTo(MapPos(r.lat, r.lon, maxOf(controller.position().zoom, 14)))
@@ -635,7 +655,7 @@ fun MapScreen(
 
     editPlace?.let { (pl, isNew) ->
         PlaceEditDialog(pl, isNew, onDismiss = { editPlace = null }, onSave = {
-            AppGraph.places.save(it)
+            placesRepo.save(it)
             editPlace = null
             if (isNew) {
                 pin = null
@@ -649,7 +669,7 @@ fun MapScreen(
     if (saveDialog) {
         SaveRouteDialog(
             suggested = (if (planner.profile == RouteProfile.LINE) "Drawn route " else "Route ") +
-                java.text.SimpleDateFormat("d MMM HH:mm", java.util.Locale.getDefault()).format(java.util.Date()),
+                Fmt.dayMonthTime(nowMillis()),
             onDismiss = { saveDialog = false },
             onSave = { name ->
                 saveDialog = false
@@ -695,24 +715,28 @@ fun MapScreen(
     }
 }
 
+/** Saved places as map markers. */
+fun placeMapMarkers(places: List<app.maparound.places.Place>): List<PlaceMarker> =
+    places.map { PlaceMarker(it.id, it.lat, it.lon, it.name, it.category.emoji, it.category.argb.toInt()) }
+
 /** Party members, the meeting point and other radios as map markers (phone and car screens). */
-fun partyMapMarkers(party: PartyState, now: Long): List<MapController.PartyMarker> = buildList {
+fun partyMapMarkers(party: PartyState, now: Long): List<PartyMarker> = buildList {
     party.members.forEach { m ->
         m.position?.let { p ->
-            add(MapController.PartyMarker(
+            add(PartyMarker(
                 "m${m.id}", p.lat, p.lon, m.displayName, PartyColors.of(m.color).toArgb(),
-                if (m.sos) MapController.PartyMarker.Kind.SOS else MapController.PartyMarker.Kind.MEMBER,
+                if (m.sos) PartyMarker.Kind.SOS else PartyMarker.Kind.MEMBER,
                 stale = now - m.positionAt > 10 * 60_000,
             ))
         }
     }
     party.meeting?.let {
-        add(MapController.PartyMarker("meet", it.lat, it.lon, it.label.ifBlank { "Meet" }, 0, MapController.PartyMarker.Kind.MEET, false))
+        add(PartyMarker("meet", it.lat, it.lon, it.label.ifBlank { "Meet" }, 0, PartyMarker.Kind.MEET, false))
     }
     party.meshNodes.forEach { n ->
         n.position?.let {
-            add(MapController.PartyMarker(
-                "r${n.num}", it.lat, it.lon, n.shortName.ifBlank { n.name }, 0, MapController.PartyMarker.Kind.RADIO,
+            add(PartyMarker(
+                "r${n.num}", it.lat, it.lon, n.shortName.ifBlank { n.name }, 0, PartyMarker.Kind.RADIO,
                 stale = now - n.heardAt > 30 * 60_000,
             ))
         }
@@ -723,7 +747,7 @@ fun partyMapMarkers(party: PartyState, now: Long): List<MapController.PartyMarke
 private fun PartyMarkerCard(
     key: String,
     party: PartyState,
-    myLocation: Location?,
+    myLocation: GeoFix?,
     onClose: () -> Unit,
     onShare: (Double, Double, String) -> Unit,
     onRoute: (GeoPoint) -> Unit,
@@ -747,11 +771,11 @@ private fun PartyMarkerCard(
             }
             val parts = mutableListOf<String>()
             myLocation?.let { me ->
-                val r = FloatArray(2)
-                Location.distanceBetween(me.latitude, me.longitude, lat, lon, r)
-                parts += "${Fmt.distance(r[0])} ${Fmt.cardinal((r[1] + 360f) % 360f)}"
+                val from = GeoPoint(me.lat, me.lon)
+                val to = GeoPoint(lat, lon)
+                parts += "${Fmt.distance(Geo.distance(from, to).toFloat())} ${Fmt.cardinal(Geodesy.bearing(from, to).toFloat())}"
             }
-            if (at > 0) parts += DateUtils.getRelativeTimeSpanString(at).toString()
+            if (at > 0) parts += Fmt.relativeTime(at)
             member?.position?.speedKmh?.takeIf { it >= 3 }?.let { parts += "$it km/h" }
             member?.position?.batteryPct?.let { parts += "battery $it%" }
             member?.let { parts += "via " + it.heard.keys.joinToString(" + ") { v -> v.label } }
@@ -777,9 +801,9 @@ private data class Quad(val a: String, val b: Double, val c: Double, val d: Long
 
 @Composable
 private fun PinCard(
-    pin: LatLong,
+    pin: GeoPoint,
     label: String?,
-    myLocation: Location?,
+    myLocation: GeoFix?,
     onClose: () -> Unit,
     onRoute: (() -> Unit)?,
     onShare: () -> Unit,
@@ -788,10 +812,9 @@ private fun PinCard(
     onTool: ((ToolsSession.Mode) -> Unit)? = null,
 ) {
     val clipboard = LocalClipboardManager.current
-    val format by AppGraph.prefs.coordFormat.collectAsState()
-    val point = GeoPoint(pin.latitude, pin.longitude)
-    val primary = app.maparound.tools.Coords.format(point, format) ?: Fmt.latLon(pin.latitude, pin.longitude)
-    val secondary = if (format == app.maparound.tools.CoordFormat.DD) Fmt.dms(pin.latitude, pin.longitude) else Fmt.latLon(pin.latitude, pin.longitude)
+    val format by LocalPrefs.current.coordFormat.collectAsState()
+    val primary = app.maparound.tools.Coords.format(pin, format) ?: Fmt.latLon(pin.lat, pin.lon)
+    val secondary = if (format == app.maparound.tools.CoordFormat.DD) Fmt.dms(pin.lat, pin.lon) else Fmt.latLon(pin.lat, pin.lon)
     Card(Modifier.widthIn(max = 360.dp).padding(bottom = 6.dp)) {
         Column(Modifier.padding(start = 16.dp, top = 8.dp, end = 4.dp, bottom = 4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -807,11 +830,10 @@ private fun PinCard(
                 IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = "Close") }
             }
             if (myLocation != null) {
-                val result = FloatArray(2)
-                Location.distanceBetween(myLocation.latitude, myLocation.longitude, pin.latitude, pin.longitude, result)
-                val bearing = (result[1] + 360f) % 360f
+                val from = GeoPoint(myLocation.lat, myLocation.lon)
+                val bearing = Geodesy.bearing(from, pin).toFloat()
                 Text(
-                    "${Fmt.distance(result[0])} from you · ${bearing.roundToInt()}° ${Fmt.cardinal(bearing)}",
+                    "${Fmt.distance(Geo.distance(from, pin).toFloat())} from you · ${bearing.roundToInt()}° ${Fmt.cardinal(bearing)}",
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
@@ -862,7 +884,8 @@ private fun LayersSheet(
     onRemoveCustom: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val prefs = AppGraph.prefs
+    val prefs = LocalPrefs.current
+    val rasters = LocalRasters.current
     var showAdd by remember { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
@@ -901,7 +924,7 @@ private fun LayersSheet(
                 }
             }
             SheetHeader("Background of the offline map")
-            val addRaster = AppGraph.rasters.rememberPicker { r -> r.fold({ showRasterOnMap(AppGraph.prefs, it); onDismiss() }, onRasterError) }
+            val addRaster = rasters.rememberPicker { r -> r.fold({ showRasterOnMap(prefs, it); onDismiss() }, onRasterError) }
             fun pick(bg: String) {
                 prefs.setBaseLayer(TileSources.OFFLINE_ID)
                 if (bg == app.maparound.data.Prefs.BACKGROUND_SATELLITE && background != bg) prefs.setVectorOnBackground(true)
@@ -930,7 +953,7 @@ private fun LayersSheet(
                     subtitle = "Raster map · ${m.projection}",
                     icon = Icons.Filled.Image,
                     onClick = { pick(app.maparound.data.Prefs.BACKGROUND_RASTER + m.id) },
-                    onRemove = { removeRaster(AppGraph.prefs, AppGraph.rasters, m) },
+                    onRemove = { removeRaster(prefs, rasters, m) },
                 )
             }
             TextButton(onClick = addRaster, modifier = Modifier.padding(horizontal = 12.dp)) {
@@ -1085,7 +1108,7 @@ private fun AddSourceDialog(onDismiss: () -> Unit, onAdd: (OnlineSource) -> Unit
                 onClick = {
                     onAdd(
                         OnlineSource(
-                            id = "custom_${System.currentTimeMillis()}",
+                            id = "custom_${nowMillis()}",
                             name = name.trim(),
                             urlTemplate = url.trim(),
                             maxZoom = zoom ?: 19,

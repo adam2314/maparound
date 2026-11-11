@@ -155,6 +155,18 @@ object Fmt {
         return "${MONTHS[d.monthNumber - 1]} ${d.dayOfMonth}" + if (d.year != thisYear) ", ${d.year}" else ""
     }
 
+    /** "11 Nov" (local time), as route names use. */
+    fun dayMonth(timeMs: Long): String {
+        val d = Instant.fromEpochMilliseconds(timeMs).toLocalDateTime(TimeZone.currentSystemDefault())
+        return "${d.dayOfMonth} ${MONTHS[d.monthNumber - 1]}"
+    }
+
+    /** "11 Nov 14:05" (local time). */
+    fun dayMonthTime(timeMs: Long): String {
+        val d = Instant.fromEpochMilliseconds(timeMs).toLocalDateTime(TimeZone.currentSystemDefault())
+        return "${d.dayOfMonth} ${MONTHS[d.monthNumber - 1]} ${padded(d.hour, 2)}:${padded(d.minute, 2)}"
+    }
+
     private val MONTHS = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
     /** Running clock for recordings: "1:05:09". */

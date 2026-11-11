@@ -11,7 +11,7 @@ data class MapCamera(val lat: Double, val lon: Double, val zoom: Double, val bea
  * The map as the shared screens see it. Implemented by the platform's map: mapsforge on Android
  * (phase 2), MapLibre on iOS (Swift). Called on the main thread.
  */
-interface MapSurface {
+interface SpikeMapSurface {
     fun moveTo(lat: Double, lon: Double, zoom: Double)
     fun zoomBy(delta: Double)
     fun resetNorth()

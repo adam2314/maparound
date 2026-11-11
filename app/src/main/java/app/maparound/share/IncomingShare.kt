@@ -1,6 +1,7 @@
 package app.maparound.share
 
 import android.content.Context
+import app.maparound.share.Incoming.Item
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -29,22 +30,7 @@ import java.net.URLDecoder
  * until the UI shows it.
  */
 object IncomingShare {
-    sealed class Item {
-        data class Point(val point: Shared.Point) : Item()
-        data class Route(val route: Shared.Route) : Item()
-        data class Track(val saved: SavedTrack, val placesAdded: Int = 0) : Item()
-        /** Waypoints from a GPX file, added to the saved places. */
-        data class Places(val added: Int, val points: List<app.maparound.routing.GeoPoint>) : Item()
-        data class Message(val text: String) : Item()
-    }
-
-    private val _pending = MutableStateFlow<Item?>(null)
-    val pending: StateFlow<Item?> = _pending.asStateFlow()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-
-    fun consume() {
-        _pending.value = null
-    }
 
     /** Returns true if the intent carried something for us. */
     fun handle(context: Context, intent: Intent?): Boolean {
@@ -99,10 +85,10 @@ object IncomingShare {
         }
         val short = SharedLinks.shortLink(text)
         if (short == null) {
-            _pending.value = Item.Message("No location found in what was shared")
+            Incoming.pending.value = Item.Message("No location found in what was shared")
             return
         }
-        _pending.value = Item.Message("Opening the shared link…")
+        Incoming.pending.value = Item.Message("Opening the shared link…")
         scope.launch {
             val resolved = withContext(Dispatchers.IO) { runCatching { resolve(short) }.getOrNull() }
             // Keep a label from the original text (e.g. the place name above the link).
@@ -111,14 +97,14 @@ object IncomingShare {
                 if (s is Shared.Point && s.label == null && label != null) s.copy(label = label) else s
             }
             if (shared != null) deliver(shared)
-            else _pending.value = Item.Message(
+            else Incoming.pending.value = Item.Message(
                 if (resolved == null) "Couldn't open the link (no internet?)" else "That link has an address but no coordinates",
             )
         }
     }
 
     private fun deliver(shared: Shared) {
-        _pending.value = when (shared) {
+        Incoming.pending.value = when (shared) {
             is Shared.Point -> Item.Point(shared)
             is Shared.Route -> Item.Route(shared)
         }
@@ -132,9 +118,9 @@ object IncomingShare {
         scope.launch {
             val name = withContext(Dispatchers.IO) { displayName(context, uri) }
             if (name?.endsWith(".map", ignoreCase = true) == true) {
-                _pending.value = Item.Message("Importing map ${name}…")
+                Incoming.pending.value = Item.Message("Importing map ${name}…")
                 val r = AppGraph.mapFiles.import(uri)
-                _pending.value = Item.Message(r.fold({ "Offline map ${it.title} added" }, { "Couldn't add the map: ${it.message}" }))
+                Incoming.pending.value = Item.Message(r.fold({ "Offline map ${it.title} added" }, { "Couldn't add the map: ${it.message}" }))
                 return@launch
             }
             val result = withContext(Dispatchers.IO) {
@@ -157,7 +143,7 @@ object IncomingShare {
                     }
                 }
             }
-            _pending.value = result.getOrElse {
+            Incoming.pending.value = result.getOrElse {
                 Item.Message(if (mime?.contains("gpx") == true || name?.endsWith(".gpx", true) == true) "Couldn't read the GPX: ${it.message}" else "That file isn't a GPX file")
             }
         }

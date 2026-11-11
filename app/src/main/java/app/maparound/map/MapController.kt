@@ -319,18 +319,6 @@ class MapController(
     // ---- party ------------------------------------------------------------------------------
 
     /** Something to show for the party: a member, an SOS, the meeting point or another radio. */
-    data class PartyMarker(
-        val key: String,
-        val lat: Double,
-        val lon: Double,
-        val label: String,
-        val color: Int,
-        val kind: Kind,
-        val stale: Boolean,
-    ) {
-        enum class Kind { MEMBER, SOS, MEET, RADIO }
-    }
-
     fun setPartyMarkers(markers: List<PartyMarker>) {
         val layers = mapView.layerManager.layers
         val keys = markers.map { it.key }.toSet()
@@ -436,7 +424,6 @@ class MapController(
 
     // ---- saved places -------------------------------------------------------------------------
 
-    data class PlaceMarker(val id: String, val lat: Double, val lon: Double, val label: String, val emoji: String, val color: Int)
 
     /** Tap on a saved place (its id). */
     var onPlaceTap: ((String) -> Unit)? = null
@@ -624,7 +611,6 @@ class MapController(
     // ---- map tools ------------------------------------------------------------------------------
 
     /** A piece of the A–B line: plain (measuring), or coloured by whether the ground is in sight. */
-    data class ToolLine(val points: List<GeoPoint>, val visible: Boolean?)
 
     private val toolLayers = ArrayList<Layer>()
     private var viewshedLayer: ViewshedLayer? = null

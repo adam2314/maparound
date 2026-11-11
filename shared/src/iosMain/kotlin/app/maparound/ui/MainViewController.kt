@@ -13,7 +13,7 @@ import platform.UIKit.UIViewController
  * [makeTerrainView], if given, makes the Metal 3D view the screen can switch to.
  */
 fun MainViewController(
-    map: MapSurface,
+    map: SpikeMapSurface,
     events: MapEvents,
     subtitle: String,
     demo: Boolean,
