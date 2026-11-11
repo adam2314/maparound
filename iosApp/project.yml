@@ -18,6 +18,10 @@ targets:
       # The Android map's theme: the iOS map style is made from it (ThemeStyle.kt).
       - path: ../app/src/main/assets/themes/topo.xml
         buildPhase: resources
+      # Label fonts (run fetch-fonts.sh first), kept as a folder: Fonts/<font>/<range>.pbf
+      - path: Fonts
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: MapLibre
     info:

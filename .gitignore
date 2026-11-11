@@ -15,7 +15,8 @@ tools/topo-preview/.kotlin/
 *.aab
 *.jks
 *.keystore
-# Xcode (iOS app, later)
+# Xcode (iOS app)
+iosApp/Fonts/
 xcuserdata/
 DerivedData/
 testdata/

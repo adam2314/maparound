@@ -129,6 +129,13 @@ jobs:
           # Elevation around Liechtenstein (the 1° tile, same source as the app).
           [ -f testdata/N47E009.hgt ] || curl -fsSL https://elevation-tiles-prod.s3.amazonaws.com/skadi/N47/N47E009.hgt.gz | gunzip > testdata/N47E009.hgt
 
+      - uses: actions/cache@v4
+        with:
+          path: fontcache
+          key: openmaptiles-fonts-v2.0
+      - name: Label fonts
+        run: iosApp/fetch-fonts.sh "$PWD/fontcache"
+
       - name: Generate the Xcode project
         run: |
           brew install xcodegen

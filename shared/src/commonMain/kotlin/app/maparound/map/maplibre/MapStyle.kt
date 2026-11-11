@@ -21,7 +21,8 @@ import kotlinx.serialization.json.putJsonObject
  * position, pin) as GeoJSON sources that [MapLibreSurface] fills.
  *
  * [vectorLayers] draw the offline maps' vector tiles (source [OSM_SOURCE], layers poi, line,
- * area and sea); [glyphs] is the font URL template for their labels.
+ * area and sea); [glyphs] is the font URL template for their labels when the tile server has
+ * no fonts of its own.
  */
 class MapStyle(
     private val vectorLayers: List<JsonObject>,
@@ -35,7 +36,7 @@ class MapStyle(
         val tilesBaseUrl = tiles.baseUrl
         put("version", 8)
         put("name", "MapAround")
-        put("glyphs", glyphs)
+        put("glyphs", tiles.glyphsUrl ?: glyphs)
         val sources = LinkedHashMap<String, JsonElement>()
         val layers = ArrayList<JsonElement>()
         layers += layer("canvas", "background") { put("paint", obj("background-color" to OUTSIDE)) }

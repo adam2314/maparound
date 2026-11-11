@@ -181,6 +181,30 @@ class MapLibreSurfaceTest {
     }
 
     @Test
+    fun fontsComeFromTheAppWhenItHasThem() {
+        val dir = "${app.maparound.shared.tempDir.trimEnd('/', '\\')}/maparound-fonts-test-${kotlin.random.Random.nextInt(1_000_000)}"
+        val fs = app.maparound.shared.fileSystem
+        try {
+            fs.createDirectories(okio.Path.Companion.run { "$dir/Noto Sans Regular".toPath() })
+            fs.write(okio.Path.Companion.run { "$dir/Noto Sans Regular/0-255.pbf".toPath() }) { writeUtf8("glyphs") }
+            val t = TileService(fontsDir = dir).apply { baseUrl = "http://127.0.0.1:7" }
+            assertEquals("http://127.0.0.1:7/fonts/{fontstack}/{range}.pbf", t.glyphsUrl)
+            assertEquals("glyphs", t.respond("/fonts/Noto%20Sans%20Regular/0-255.pbf")!!.bytes.decodeToString())
+            // A stack: the first font; a range the app leaves out: empty, not an error.
+            assertEquals(6, t.respond("/fonts/Noto%20Sans%20Regular,Other/0-255.pbf")!!.bytes.size)
+            assertEquals(0, t.respond("/fonts/Noto%20Sans%20Regular/19968-20223.pbf")!!.bytes.size)
+            assertNull(t.respond("/fonts/..%2F..%2Fsecret/0-255.pbf"))
+            assertNull(t.respond("/fonts/Noto%20Sans%20Regular/passwd"))
+            // Without fonts in the app the style keeps its online fonts.
+            assertNull(TileService().glyphsUrl)
+            val json = style.build(null, t)
+            assertTrue("\"http://127.0.0.1:7/fonts/{fontstack}/{range}.pbf\"" in json)
+        } finally {
+            runCatching { fs.deleteRecursively(okio.Path.Companion.run { dir.toPath() }) }
+        }
+    }
+
+    @Test
     fun tileServiceAnswersOnlyTilePaths() {
         val t = TileService()
         assertNotNull(t.respond("/osm/0/3/4/2.pbf"))

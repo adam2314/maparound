@@ -48,7 +48,9 @@ object IosApp {
     val version: String = NSBundle.mainBundle.objectForInfoDictionaryKey("CFBundleShortVersionString") as? String ?: "0"
 
     val prefs = Prefs(UserDefaultsStore("maparound"))
-    val tiles = TileService("$documents/dem")
+    /** Label fonts in the app bundle (iosApp/fetch-fonts.sh); online fonts when they're missing. */
+    private val fonts: String? = NSBundle.mainBundle.resourcePath?.let { "$it/Fonts" }?.takeIf { fileSystem.exists(it.toPath()) }
+    val tiles = TileService("$documents/dem", fonts)
     /** The map style, made from the Android map's theme (topo.xml in the app bundle). */
     val style = theme()?.let { MapStyle(it.layers, BasicLayers.GLYPHS, it.hillshade) } ?: MapStyle(BasicLayers.layers, BasicLayers.GLYPHS)
     val maps = IosInstalledMaps("$documents/maps")
