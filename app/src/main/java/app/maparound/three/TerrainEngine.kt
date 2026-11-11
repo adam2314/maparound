@@ -24,7 +24,7 @@ class TerrainEngine(val frame: LocalFrame, val textures: TileTextures, private v
     val readyTiles = ConcurrentLinkedQueue<LoadedTile>()
     val readyBuildings = ConcurrentLinkedQueue<LoadedBuildings>()
 
-    private val dem: DemIndex? = DemIndex(AppGraph.terrain.demDir).takeUnless { it.isEmpty }
+    private val dem: DemIndex? = DemIndex(AppGraph.terrain.demDir.path).takeUnless { it.isEmpty }
     val hasTerrain: Boolean get() = dem != null
     val elevation = Elevation { lat, lon -> dem?.elevation(lat, lon) ?: Float.NaN }
 

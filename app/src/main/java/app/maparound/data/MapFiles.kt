@@ -11,47 +11,12 @@ import kotlinx.coroutines.withContext
 import org.mapsforge.core.model.BoundingBox
 import org.mapsforge.map.reader.MapFile
 import java.io.File
-import java.util.Locale
 
 /** A mapsforge vector map installed on the device. */
 data class LocalMap(val file: File, val sizeBytes: Long, val modified: Long) {
     val title: String get() = MapNames.title(file.name)
     val region: String? get() = MapNames.region(file.name)
     val isWorld: Boolean get() = MapNames.isWorld(file.name)
-}
-
-/**
- * Downloaded maps are stored flat as `<continent>__<country>[__<region>].map`
- * so equal names in different folders (europe/georgia vs. us/georgia) never clash.
- */
-object MapNames {
-    private const val SEP = "__"
-    private val upper = setOf("us", "uk", "usa", "dc", "dach")
-    private val lower = setOf("and", "of", "the", "de", "del", "la", "le", "da", "do")
-
-    fun localFileName(remotePath: String): String =
-        remotePath.removeSuffix(".map").split('/').filter { it.isNotEmpty() }.joinToString(SEP) + ".map"
-
-    fun title(fileName: String): String = pretty(fileName.removeSuffix(".map").substringAfterLast(SEP))
-
-    fun region(fileName: String): String? {
-        val base = fileName.removeSuffix(".map")
-        if (!base.contains(SEP)) return null
-        return base.substringBeforeLast(SEP).split(SEP).joinToString(" › ") { pretty(it) }
-    }
-
-    fun isWorld(fileName: String) = fileName.startsWith("world$SEP")
-
-    fun pretty(slug: String): String = slug.removeSuffix("/").removeSuffix(".map")
-        .split('-', '_').filter { it.isNotEmpty() }
-        .mapIndexed { i, w ->
-            when {
-                w in upper -> w.uppercase(Locale.ROOT)
-                i > 0 && w in lower -> w
-                else -> w.replaceFirstChar { it.titlecase(Locale.ROOT) }
-            }
-        }
-        .joinToString(" ")
 }
 
 fun isValidMapFile(file: File): Boolean = try {

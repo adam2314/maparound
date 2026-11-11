@@ -154,7 +154,7 @@ object ToolsSession {
     private fun terrain(): DemIndex? {
         val version = AppGraph.terrain.state.value.version
         if (version != demVersion || dem == null) {
-            dem = DemIndex(AppGraph.terrain.demDir).takeUnless { it.isEmpty }
+            dem = DemIndex(AppGraph.terrain.demDir.path).takeUnless { it.isEmpty }
             demVersion = version
         }
         return dem

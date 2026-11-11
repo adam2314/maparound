@@ -34,6 +34,7 @@ import java.net.URL
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.zip.GZIPInputStream
 import kotlin.math.floor
+import okio.source
 
 /**
  * Elevation data (1°×1° .hgt tiles) for contour lines and hill shading.
@@ -202,8 +203,8 @@ class TerrainRepository(
             val mask = coast?.let {
                 runCatching { CoastMask.build(it, lat, lon, HgtProcessor.outputSize(size, highDetail)) }.getOrNull()
             }
-            raw.inputStream().use {
-                HgtProcessor.convert(it, size, prepared, highDetail, HgtProcessor.keepsNegativeHeights(lat, lon), mask)
+            raw.source().use {
+                HgtProcessor.convert(it, size, prepared.path, highDetail, HgtProcessor.keepsNegativeHeights(lat, lon), mask)
             }
             return prepared.renameTo(File(demDir, "$name.hgt"))
         } catch (e: CancellationException) {

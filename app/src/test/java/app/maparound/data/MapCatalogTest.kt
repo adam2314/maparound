@@ -12,7 +12,7 @@ class MapCatalogTest {
 
     @Test
     fun parsesFilesAndFoldersFromApacheListing() {
-        val entries = MapCatalog.parseListing(html, "europe/")
+        val entries = Catalog.parseListing(html, "europe/")
         assertEquals(49, entries.count { !it.isDirectory })
         assertEquals(6, entries.count { it.isDirectory })
         assertTrue("parent directory link must be skipped", entries.none { it.path.contains("maps/v5") })
@@ -30,10 +30,10 @@ class MapCatalogTest {
 
     @Test
     fun parsesSizes() {
-        assertEquals(43L shl 20, MapCatalog.parseSize("43M"))
-        assertEquals((2.4 * (1 shl 20)).toLong(), MapCatalog.parseSize("2.4M"))
-        assertEquals((3.0 * (1L shl 30)).toLong(), MapCatalog.parseSize("3.0G"))
-        assertEquals(980L, MapCatalog.parseSize("980"))
+        assertEquals(43L shl 20, Catalog.parseSize("43M"))
+        assertEquals((2.4 * (1 shl 20)).toLong(), Catalog.parseSize("2.4M"))
+        assertEquals((3.0 * (1L shl 30)).toLong(), Catalog.parseSize("3.0G"))
+        assertEquals(980L, Catalog.parseSize("980"))
     }
 
     @Test

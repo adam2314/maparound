@@ -19,7 +19,8 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation("com.squareup.okio:okio:3.9.1")
+            // In the shared API (file handles, sources), so the Android app gets it too.
+            api("com.squareup.okio:okio:3.9.1")
             implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
         }
         commonTest.dependencies {

@@ -54,7 +54,7 @@ class OfflineMapData(val store: MapDataStore, val hills: HillsRenderConfig?, val
             }
             // Contour lines are generated from the elevation tiles as extra map data (only the
             // topo theme styles them); hill shading is done by mapsforge itself.
-            val dem = style.demDir?.takeIf { style.contours || style.hillshade }?.let { DemIndex(it) }?.takeUnless { it.isEmpty }
+            val dem = style.demDir?.takeIf { style.contours || style.hillshade }?.let { DemIndex(it.path) }?.takeUnless { it.isEmpty }
             val trailIndex = style.trailsDir?.takeIf { style.trails && style.topo }?.let { TrailIndex(it) }?.takeUnless { it.isEmpty }
             val withContours = dem != null && style.contours && style.topo
             val store: MapDataStore = if (withContours || trailIndex != null) {
@@ -68,7 +68,7 @@ class OfflineMapData(val store: MapDataStore, val hills: HillsRenderConfig?, val
             }
             val hills = if (dem != null && style.hillshade) {
                 HillsRenderConfig(
-                    MemoryCachingHgtReaderTileSource(DemFolderFS(dem.dir), AdaptiveClasyHillShading(true), AndroidGraphicFactory.INSTANCE),
+                    MemoryCachingHgtReaderTileSource(DemFolderFS(java.io.File(dem.dir)), AdaptiveClasyHillShading(true), AndroidGraphicFactory.INSTANCE),
                 ).also { it.indexOnThread() }
             } else {
                 null

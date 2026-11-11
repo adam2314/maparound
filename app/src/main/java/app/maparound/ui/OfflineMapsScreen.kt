@@ -78,6 +78,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.maparound.AppGraph
+import app.maparound.data.Catalog
 import app.maparound.data.CatalogEntry
 import app.maparound.data.DownloadInfo
 import app.maparound.data.LocalMap
@@ -108,7 +109,7 @@ private val WORLD_ENTRY = CatalogEntry(
     path = "world/world.map",
     isDirectory = false,
     sizeLabel = "3.1M",
-    sizeBytes = MapCatalog.parseSize("3.1M"),
+    sizeBytes = Catalog.parseSize("3.1M"),
     modified = null,
 )
 
@@ -710,7 +711,7 @@ private fun DownloadRow(d: DownloadInfo, onCancel: () -> Unit) {
 @Composable
 private fun CatalogMapRow(entry: CatalogEntry, local: LocalMap?, download: DownloadInfo?, onDownload: () -> Unit) {
     val context = LocalContext.current
-    val updateAvailable = local != null && entry.modified != null && entry.modified > local.modified
+    val updateAvailable = local != null && entry.modified.let { it != null && it > local.modified }
     ListItem(
         headlineContent = { Text(entry.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = {

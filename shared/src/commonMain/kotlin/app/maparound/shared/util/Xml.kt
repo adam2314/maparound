@@ -1,9 +1,14 @@
 package app.maparound.shared.util
 
-// A small, forgiving XML reader with SAX-style callbacks, for GPX and similar files (Java's SAX
-// parser isn't available on iOS). Handles the XML declaration, comments, CDATA, processing
-// instructions, a DOCTYPE without an internal subset, the five named entities and numeric
-// character references. Namespace prefixes are kept in names (callers strip them if they wish).
+import okio.Buffer
+import okio.BufferedSource
+import okio.ByteString
+import okio.ByteString.Companion.encodeUtf8
+
+// A small, forgiving, streaming XML reader with SAX-style callbacks, for GPX and Overpass files
+// (Java's SAX parser isn't available on iOS). Handles the XML declaration, comments, CDATA,
+// processing instructions, a DOCTYPE (internal subset skipped), the five named entities and
+// numeric character references. Namespace prefixes are kept in names (callers strip them).
 
 class XmlException(message: String) : Exception(message)
 
@@ -14,6 +19,19 @@ interface XmlHandler {
 }
 
 object Xml {
+    private val COMMENT = "<!--".encodeUtf8()
+    private val COMMENT_END = "-->".encodeUtf8()
+    private val CDATA = "<![CDATA[".encodeUtf8()
+    private val CDATA_END = "]]>".encodeUtf8()
+    private val PROC = "<?".encodeUtf8()
+    private val PI_END = "?>".encodeUtf8()
+    private val DECL = "<!".encodeUtf8()
+    private val END_TAG = "</".encodeUtf8()
+    private val BOM = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte())
+    private val UTF8_BOM = ByteString.of(*BOM)
+    private const val LT = '<'.code.toByte()
+    private const val GT = '>'.code.toByte()
+
     /** Text from raw file bytes: UTF-8 (with or without BOM), UTF-16 with a BOM, or Latin-1 / Windows-1252 if declared. */
     fun decode(bytes: ByteArray): String {
         if (bytes.size >= 2) {
@@ -22,7 +40,7 @@ object Xml {
             if (b0 == 0xFE && b1 == 0xFF) return utf16(bytes, 2, bigEndian = true)
             if (b0 == 0xFF && b1 == 0xFE) return utf16(bytes, 2, bigEndian = false)
         }
-        if (bytes.size >= 3 && bytes[0] == 0xEF.toByte() && bytes[1] == 0xBB.toByte() && bytes[2] == 0xBF.toByte()) {
+        if (bytes.size >= 3 && bytes[0] == BOM[0] && bytes[1] == BOM[1] && bytes[2] == BOM[2]) {
             return bytes.decodeToString(3, bytes.size)
         }
         val head = latin1(bytes.copyOf(minOf(bytes.size, 200)))
@@ -43,77 +61,68 @@ object Xml {
         return chars.concatToString()
     }
 
+    /** Whole files: any of the encodings [decode] knows. */
     fun parse(bytes: ByteArray, handler: XmlHandler) = parse(decode(bytes), handler)
 
-    /** @throws XmlException when the text isn't well-formed enough to read. */
-    fun parse(xml: String, handler: XmlHandler) {
-        val s = xml
-        var i = 0
-        val n = s.length
+    fun parse(xml: String, handler: XmlHandler) = parse(Buffer().writeUtf8(xml), handler)
+
+    /**
+     * Streams UTF-8 XML from [source] (large downloads never sit in memory whole).
+     * @throws XmlException when the text isn't well-formed enough to read.
+     */
+    fun parse(source: BufferedSource, handler: XmlHandler) {
         val open = ArrayList<String>()
         var sawRoot = false
         // Text between tags, merged across entities and CDATA, delivered before the next tag.
         val text = StringBuilder()
 
         fun flushText() {
-            if (text.isNotEmpty()) {
-                if (open.isNotEmpty()) handler.text(text.toString())
-                else if (text.isNotBlank()) throw XmlException("Text outside the root element")
-                text.setLength(0)
-            }
+            if (text.isEmpty()) return
+            if (open.isNotEmpty()) handler.text(text.toString())
+            else if (text.isNotBlank()) throw XmlException("Text outside the root element")
+            text.setLength(0)
         }
 
-        if (n > 0 && s[0] == '﻿') i = 1
-        while (i < n) {
-            val c = s[i]
-            if (c != '<') {
-                val next = s.indexOf('<', i).let { if (it < 0) n else it }
-                appendDecoded(s, i, next, text)
-                i = next
+        if (source.rangeEquals(0, UTF8_BOM)) source.skip(3)
+        while (!source.exhausted()) {
+            val lt = source.indexOf(LT)
+            if (lt != 0L) {
+                val raw = if (lt < 0) source.readUtf8() else source.readUtf8(lt)
+                appendDecoded(raw, 0, raw.length, text)
                 continue
             }
             when {
-                s.startsWith("<!--", i) -> {
-                    val e = s.indexOf("-->", i + 4)
+                source.rangeEquals(0, COMMENT) -> {
+                    val e = source.indexOf(COMMENT_END, 4)
                     if (e < 0) throw XmlException("Unclosed comment")
-                    i = e + 3
+                    source.skip(e + 3)
                 }
-                s.startsWith("<![CDATA[", i) -> {
-                    val e = s.indexOf("]]>", i + 9)
+                source.rangeEquals(0, CDATA) -> {
+                    val e = source.indexOf(CDATA_END, 9)
                     if (e < 0) throw XmlException("Unclosed CDATA")
-                    text.append(s, i + 9, e)
-                    i = e + 3
+                    source.skip(9)
+                    text.append(source.readUtf8(e - 9))
+                    source.skip(3)
                 }
-                s.startsWith("<?", i) -> {
-                    val e = s.indexOf("?>", i + 2)
+                source.rangeEquals(0, PROC) -> {
+                    val e = source.indexOf(PI_END, 2)
                     if (e < 0) throw XmlException("Unclosed processing instruction")
-                    i = e + 2
+                    source.skip(e + 2)
                 }
-                s.startsWith("<!", i) -> {
-                    // DOCTYPE (with an internal subset in brackets, skipped whole).
-                    var j = i + 2
-                    var depth = 0
-                    while (j < n) {
-                        val ch = s[j]
-                        if (ch == '[') depth++ else if (ch == ']') depth-- else if (ch == '>' && depth <= 0) break
-                        j++
-                    }
-                    if (j >= n) throw XmlException("Unclosed declaration")
-                    i = j + 1
-                }
-                s.startsWith("</", i) -> {
+                source.rangeEquals(0, DECL) -> skipDeclaration(source)
+                source.rangeEquals(0, END_TAG) -> {
                     flushText()
-                    val e = s.indexOf('>', i + 2)
+                    val e = source.indexOf(GT)
                     if (e < 0) throw XmlException("Unclosed end tag")
-                    val name = s.substring(i + 2, e).trim()
+                    val name = source.readUtf8(e).substring(2).trim()
+                    source.skip(1)
                     if (open.isEmpty() || open.last() != name) throw XmlException("Unexpected </$name>")
                     open.removeAt(open.size - 1)
                     handler.end(name)
-                    i = e + 1
                 }
                 else -> {
                     flushText()
-                    i = startTag(s, i + 1, handler, open)
+                    startTag(readTag(source), handler, open)
                     sawRoot = true
                 }
             }
@@ -123,30 +132,66 @@ object Xml {
         if (!sawRoot) throw XmlException("No XML element")
     }
 
-    /** Reads a start tag from its name at [from]; returns the index after it. */
-    private fun startTag(s: String, from: Int, handler: XmlHandler, open: MutableList<String>): Int {
+    /** DOCTYPE and other `<!…>` declarations, with an internal subset in brackets. */
+    private fun skipDeclaration(source: BufferedSource) {
+        var depth = 0
+        source.skip(2)
+        while (true) {
+            if (source.exhausted()) throw XmlException("Unclosed declaration")
+            when (source.readByte().toInt().toChar()) {
+                '[' -> depth++
+                ']' -> depth--
+                '>' -> if (depth <= 0) return
+                else -> Unit
+            }
+        }
+    }
+
+    /** The text between `<` and the `>` that ends the tag (a `>` inside quotes doesn't). */
+    private fun readTag(source: BufferedSource): String {
+        var end = source.indexOf(GT)
+        while (true) {
+            if (end < 0) throw XmlException("Unclosed tag")
+            val candidate = source.peek().readUtf8(end)
+            var quote = 0.toChar()
+            for (c in candidate) {
+                if (quote.code == 0) {
+                    if (c == '"' || c == '\'') quote = c
+                } else if (c == quote) {
+                    quote = 0.toChar()
+                }
+            }
+            if (quote.code == 0) {
+                source.skip(end + 1)
+                return candidate.substring(1)
+            }
+            end = source.indexOf(GT, end + 1)
+        }
+    }
+
+    /** A start tag's text (after `<`): name, attributes, maybe `/` at the end. */
+    private fun startTag(s: String, handler: XmlHandler, open: MutableList<String>) {
         val n = s.length
-        var i = from
-        while (i < n && !s[i].isWhitespace() && s[i] != '>' && s[i] != '/') i++
-        val name = s.substring(from, i)
+        var i = 0
+        while (i < n && !s[i].isWhitespace() && s[i] != '/') i++
+        val name = s.substring(0, i)
         if (name.isEmpty()) throw XmlException("Bad tag")
         val attrs = LinkedHashMap<String, String>()
         while (true) {
             while (i < n && s[i].isWhitespace()) i++
-            if (i >= n) throw XmlException("Unclosed <$name>")
-            if (s[i] == '>') {
+            if (i >= n) {
                 handler.start(name, attrs)
                 open += name
-                return i + 1
+                return
             }
             if (s[i] == '/') {
-                if (i + 1 >= n || s[i + 1] != '>') throw XmlException("Bad <$name>")
+                if (s.substring(i + 1).isNotBlank()) throw XmlException("Bad <$name>")
                 handler.start(name, attrs)
                 handler.end(name)
-                return i + 2
+                return
             }
             val a = i
-            while (i < n && s[i] != '=' && !s[i].isWhitespace() && s[i] != '>' && s[i] != '/') i++
+            while (i < n && s[i] != '=' && !s[i].isWhitespace() && s[i] != '/') i++
             val key = s.substring(a, i)
             while (i < n && s[i].isWhitespace()) i++
             if (i >= n || s[i] != '=') throw XmlException("Attribute without value in <$name>")

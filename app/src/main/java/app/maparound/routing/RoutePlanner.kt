@@ -45,7 +45,7 @@ class RoutePlanner(
     }
 
     private fun straight(points: List<GeoPoint>): RouteResult {
-        val dem = DemIndex(demDir).takeUnless { it.isEmpty }
+        val dem = DemIndex(demDir.path).takeUnless { it.isEmpty }
         val line = if (dem == null) {
             points
         } else {

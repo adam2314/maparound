@@ -4,7 +4,7 @@ import org.mapsforge.core.model.LatLong
 import org.mapsforge.core.model.Tile
 import org.mapsforge.core.util.MercatorProjection
 import org.mapsforge.map.datastore.MapDataStore
-import java.util.BitSet
+import app.maparound.shared.util.Bits
 import kotlin.math.ceil
 import kotlin.math.floor
 
@@ -25,7 +25,7 @@ object CoastMask {
      * @return a bit per grid sample (row-major, row 0 = north edge) set where the maps say sea,
      *   or null when the maps have no sea in this 1° cell (or don't cover it at all).
      */
-    fun build(maps: MapDataStore, south: Int, west: Int, size: Int): BitSet? {
+    fun build(maps: MapDataStore, south: Int, west: Int, size: Int): Bits? {
         val sea = ArrayList<Array<LatLong>>()
         val land = ArrayList<Array<LatLong>>()
         var anyWaterTile = false
@@ -49,7 +49,7 @@ object CoastMask {
         }
         if (sea.isEmpty() && !anyWaterTile) return null
 
-        val mask = BitSet(size * size)
+        val mask = Bits(size * size)
         val n = size - 1
         fun rowOf(lat: Double) = (south + 1 - lat) * n
         fun colOf(lon: Double) = (lon - west) * n
@@ -63,7 +63,7 @@ object CoastMask {
         return if (mask.isEmpty) null else mask
     }
 
-    private fun fillRect(mask: BitSet, size: Int, r0: Double, r1: Double, c0: Double, c1: Double, value: Boolean) {
+    private fun fillRect(mask: Bits, size: Int, r0: Double, r1: Double, c0: Double, c1: Double, value: Boolean) {
         val ra = ceil(r0).toInt().coerceAtLeast(0)
         val rb = floor(r1).toInt().coerceAtMost(size - 1)
         val ca = ceil(c0).toInt().coerceAtLeast(0)
@@ -74,7 +74,7 @@ object CoastMask {
 
     /** Scanline fill of one ring; rings are filled one by one so overlaps form a union. */
     private fun fillRing(
-        mask: BitSet, size: Int, ring: Array<LatLong>,
+        mask: Bits, size: Int, ring: Array<LatLong>,
         rowOf: (Double) -> Double, colOf: (Double) -> Double, value: Boolean,
     ) {
         if (ring.size < 3) return

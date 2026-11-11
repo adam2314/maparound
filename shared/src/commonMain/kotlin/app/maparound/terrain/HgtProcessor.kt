@@ -1,10 +1,11 @@
 package app.maparound.terrain
 
-import java.io.BufferedInputStream
-import java.io.BufferedOutputStream
-import java.io.DataInputStream
-import java.io.File
-import java.io.InputStream
+import app.maparound.shared.fileSystem
+import app.maparound.shared.util.Bits
+import okio.Path.Companion.toPath
+import okio.Source
+import okio.buffer
+import okio.use
 
 /**
  * Prepares downloaded elevation tiles for on-device use:
@@ -34,22 +35,22 @@ object HgtProcessor {
         if (!highDetail && srcSize == SIZE_1_ARCSEC) SIZE_3_ARCSEC else srcSize
 
     /**
-     * Converts a raw (uncompressed) big-endian .hgt stream into [out].
+     * Converts a raw (uncompressed) big-endian .hgt stream into the file at [out].
      * @param srcSize samples per side of the input (3601 or 1201)
      * @param highDetail keep 1" resolution; otherwise a 3601 input is reduced to 1201.
-     * @param seaMask optional [CoastMask] over the *output* grid; masked samples become 0 m.
+     * @param seaMask optional sea mask over the *output* grid; masked samples become 0 m.
      */
     fun convert(
-        input: InputStream, srcSize: Int, out: File, highDetail: Boolean, keepNegative: Boolean,
-        seaMask: java.util.BitSet? = null,
+        input: Source, srcSize: Int, out: String, highDetail: Boolean, keepNegative: Boolean,
+        seaMask: Bits? = null,
     ) {
         require(srcSize == SIZE_1_ARCSEC || srcSize == SIZE_3_ARCSEC) { "Unexpected tile size $srcSize" }
         val step = if (!highDetail && srcSize == SIZE_1_ARCSEC) 3 else 1
         val outSize = outputSize(srcSize, highDetail)
         val row = ByteArray(srcSize * 2)
         val outRow = ByteArray(((srcSize - 1) / step + 1) * 2)
-        val data = DataInputStream(BufferedInputStream(input, 1 shl 16))
-        BufferedOutputStream(out.outputStream(), 1 shl 16).use { sink ->
+        val data = input.buffer()
+        fileSystem.sink(out.toPath()).buffer().use { sink ->
             for (r in 0 until srcSize) {
                 data.readFully(row)
                 if (r % step != 0) continue
@@ -60,9 +61,10 @@ object HgtProcessor {
                     var hi = row[2 * c].toInt()
                     var lo = row[2 * c + 1].toInt()
                     val v = (hi shl 8) or (lo and 0xFF)
-                    val isSea = seaMask != null && seaMask.get(maskRow + c / step)
+                    val isSea = seaMask != null && seaMask[maskRow + c / step]
                     if (isSea || (!keepNegative && v < 0 && v != HgtTile.VOID)) {
-                        hi = 0; lo = 0
+                        hi = 0
+                        lo = 0
                     }
                     outRow[o++] = hi.toByte()
                     outRow[o++] = lo.toByte()

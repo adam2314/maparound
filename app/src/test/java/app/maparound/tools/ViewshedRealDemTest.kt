@@ -22,7 +22,7 @@ class ViewshedRealDemTest {
     fun saentis() {
         val dir = System.getenv("VIEWSHED_DEM")?.let(::File)
         assumeTrue(dir != null && File(dir, "N47E009.hgt").exists())
-        val dem = DemIndex(dir!!)
+        val dem = DemIndex(dir!!.path)
         val elevation = Elevation { lat, lon -> dem.elevation(lat, lon) }
         val out = File(System.getenv("VIEWSHED_OUT") ?: "build").apply { mkdirs() }
 

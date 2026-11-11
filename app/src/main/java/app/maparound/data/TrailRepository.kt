@@ -30,6 +30,8 @@ import java.net.URL
 import java.net.URLEncoder
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.floor
+import okio.source
+import okio.buffer
 
 /**
  * Marked hiking routes (OSM route relations) for offline use, fetched from the Overpass API
@@ -138,9 +140,9 @@ class TrailRepository(private val context: Context, private val prefs: Prefs) {
                     when (conn.responseCode) {
                         200 -> {
                             val ctx = kotlin.coroutines.coroutineContext
-                            val cell = Cancellable(conn.inputStream.buffered(1 shl 16), ctx).use { TrailCellIO.parseOverpass(it) }
+                            val cell = Cancellable(conn.inputStream.buffered(1 shl 16), ctx).source().buffer().use { TrailCellIO.parseOverpass(it) }
                             val tmp = File(dir, DemIndex.nameFor(lat, lon) + ".tmp")
-                            TrailCellIO.write(cell, tmp)
+                            TrailCellIO.write(cell, tmp.path)
                             return tmp.renameTo(file(lat, lon))
                         }
                         429, 503, 504 -> Unit // busy: try the next server / wait

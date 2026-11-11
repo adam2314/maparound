@@ -24,7 +24,7 @@ class TrailIndex(dir: File) {
     init {
         val seen = HashSet<Long>()
         dir.listFiles { f -> f.name.endsWith(".trails") }.orEmpty().sortedBy { it.name }.forEach { f ->
-            val cell = runCatching { TrailCellIO.read(f) }.getOrNull() ?: return@forEach
+            val cell = runCatching { TrailCellIO.read(f.path) }.getOrNull() ?: return@forEach
             for (w in cell.ways) {
                 if (!seen.add(w.id)) continue
                 var a = Int.MAX_VALUE; var b = Int.MAX_VALUE; var c = Int.MIN_VALUE; var d = Int.MIN_VALUE

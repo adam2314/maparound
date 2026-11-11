@@ -28,7 +28,7 @@ class ContourDataStore(
     }
 
     // MultiMapDataStore merges this into its own box, so it must never be null.
-    override fun boundingBox(): BoundingBox = dem.boundingBox() ?: BoundingBox(0.0, 0.0, 0.0, 0.0)
+    override fun boundingBox(): BoundingBox = dem.bounds()?.toBoundingBox() ?: BoundingBox(0.0, 0.0, 0.0, 0.0)
 
     override fun close() {
         synchronized(cache) { cache.clear() }
@@ -45,7 +45,7 @@ class ContourDataStore(
         return result
     }
 
-    override fun startPosition(): LatLong? = dem.boundingBox()?.centerPoint
+    override fun startPosition(): LatLong? = dem.bounds()?.let { LatLong(it.centerLat, it.centerLon) }
     override fun startZoomLevel(): Byte? = null
 
     override fun supportsTile(tile: Tile): Boolean {

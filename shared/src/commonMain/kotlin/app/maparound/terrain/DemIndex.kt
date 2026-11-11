@@ -1,32 +1,29 @@
 package app.maparound.terrain
 
-import org.mapsforge.core.model.BoundingBox
-import java.io.File
-import java.io.RandomAccessFile
-import java.nio.ShortBuffer
-import java.nio.channels.FileChannel
-import java.util.concurrent.ConcurrentHashMap
+import app.maparound.shared.MappedFile
+import app.maparound.shared.fileSystem
+import app.maparound.shared.mapFile
+import app.maparound.shared.util.padded
+import okio.Path.Companion.toPath
+import kotlin.concurrent.Volatile
+import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.sqrt
 
-// NOTE: no Android imports in this package's core files – they also run in the desktop
-// render-preview tool and in JVM unit tests.
+// Plain Kotlin (Android and iOS); files through Okio, tiles memory-mapped.
 
 /** One SRTM-style .hgt file: a square grid of big-endian 16-bit heights covering 1°×1°. */
-class HgtTile(file: File, val south: Int, val west: Int) {
+class HgtTile(path: String, val south: Int, val west: Int) {
+    private val heights: MappedFile = mapFile(path)
+
     /** Samples per side: 3601 (1 arc-second, ~30 m) or 1201 (3 arc-second, ~90 m). */
-    val size: Int = sqrt((file.length() / 2).toDouble()).toInt()
-    private val heights: ShortBuffer
+    val size: Int = sqrt((heights.size / 2).toDouble()).toInt()
 
     init {
-        require(size.toLong() * size * 2 == file.length() && size >= 2) { "Not an HGT file: ${file.name}" }
-        // Memory-mapped: no heap cost, and absolute reads are safe from several render threads.
-        heights = RandomAccessFile(file, "r").use { raf ->
-            raf.channel.map(FileChannel.MapMode.READ_ONLY, 0, file.length()).asShortBuffer()
-        }
+        require(size.toLong() * size * 2 == heights.size && size >= 2) { "Not an HGT file: $path" }
     }
 
-    private fun raw(row: Int, col: Int): Int = heights.get(row * size + col).toInt()
+    private fun raw(row: Int, col: Int): Int = heights.shortBE(2L * (row * size + col)).toInt()
 
     /** Bilinearly interpolated height in metres, or NaN over data voids. */
     fun elevation(lat: Double, lon: Double): Float {
@@ -56,24 +53,40 @@ class HgtTile(file: File, val south: Int, val west: Int) {
     }
 }
 
+/** South-west and north-east corners of an area, in degrees. */
+data class GeoBounds(val minLat: Double, val minLon: Double, val maxLat: Double, val maxLon: Double) {
+    val centerLat: Double get() = (minLat + maxLat) / 2
+    val centerLon: Double get() = (minLon + maxLon) / 2
+}
+
 /**
- * All .hgt tiles in a folder (named like N46E007.hgt). Files are opened lazily on first use.
+ * All .hgt tiles in a folder (named like N46E007.hgt). Files are opened lazily on first use;
+ * safe to use from several threads.
  */
-class DemIndex(val dir: File) {
-    private val files: Map<Long, File>
-    private val open = ConcurrentHashMap<Long, HgtTile>()
-    private val broken = ConcurrentHashMap.newKeySet<Long>()
+class DemIndex(val dir: String) {
+    private class Entry(val path: String, val name: String, val bytes: Long)
+
+    private val files: Map<Long, Entry>
+
+    /** Opened tiles; replaced whole (copy on write) so readers never lock. */
+    @Volatile
+    private var open: Map<Long, HgtTile> = emptyMap()
+
+    @Volatile
+    private var broken: Set<Long> = emptySet()
 
     /** Finest sample spacing among the files, in degrees. */
     val finestStep: Double
 
     init {
-        val found = HashMap<Long, File>()
+        val found = HashMap<Long, Entry>()
         var finest = 1.0 / 1200
-        dir.listFiles().orEmpty().forEach { f ->
-            val (lat, lon) = parseName(f.name) ?: return@forEach
-            found[key(lat, lon)] = f
-            if (f.length() > 3_000_000L) finest = 1.0 / 3600 // a 1" file is ~25 MB, a 3" one ~2.9 MB
+        val listed = runCatching { fileSystem.list(dir.toPath()) }.getOrDefault(emptyList())
+        for (p in listed) {
+            val (lat, lon) = parseName(p.name) ?: continue
+            val bytes = runCatching { fileSystem.metadata(p).size }.getOrNull() ?: continue
+            found[key(lat, lon)] = Entry(p.toString(), p.name, bytes)
+            if (bytes > 3_000_000L) finest = 1.0 / 3600 // a 1" file is ~25 MB, a 3" one ~2.9 MB
         }
         files = found
         finestStep = finest
@@ -83,13 +96,13 @@ class DemIndex(val dir: File) {
     val tileCount: Int get() = files.size
 
     /** Changes whenever the set of files changes; used to know when to rebuild map layers. */
-    val fingerprint: String = files.values.sortedBy { it.name }.joinToString("|") { "${it.name}:${it.length()}" }
+    val fingerprint: String = files.values.sortedBy { it.name }.joinToString("|") { "${it.name}:${it.bytes}" }
 
-    fun boundingBox(): BoundingBox? {
+    fun bounds(): GeoBounds? {
         if (files.isEmpty()) return null
         val lats = files.keys.map { (it shr 32).toInt() }
         val lons = files.keys.map { it.toInt() }
-        return BoundingBox(
+        return GeoBounds(
             lats.min().toDouble().coerceAtLeast(-85.0),
             lons.min().toDouble(),
             (lats.max() + 1).toDouble().coerceAtMost(85.0),
@@ -118,10 +131,13 @@ class DemIndex(val dir: File) {
     private fun load(k: Long): HgtTile? {
         if (k in broken) return null
         val file = files[k] ?: return null
+        // Two threads may map the same file at once; both mappings are valid and one is kept.
         return try {
-            open.computeIfAbsent(k) { HgtTile(file, (k shr 32).toInt(), k.toInt()) }
+            val tile = HgtTile(file.path, (k shr 32).toInt(), k.toInt())
+            open = open + (k to tile)
+            tile
         } catch (e: Exception) {
-            broken += k
+            broken = broken + k
             null
         }
     }
@@ -140,10 +156,6 @@ class DemIndex(val dir: File) {
         }
 
         fun nameFor(lat: Int, lon: Int): String =
-            String.format(
-                java.util.Locale.ROOT, "%s%02d%s%03d",
-                if (lat >= 0) "N" else "S", kotlin.math.abs(lat),
-                if (lon >= 0) "E" else "W", kotlin.math.abs(lon),
-            )
+            (if (lat >= 0) "N" else "S") + padded(abs(lat), 2) + (if (lon >= 0) "E" else "W") + padded(abs(lon), 3)
     }
 }

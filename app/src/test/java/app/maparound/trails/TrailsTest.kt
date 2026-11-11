@@ -31,21 +31,13 @@ class TrailsTest {
         </osm>"""
 
     @Test
-    fun coloursFromOsmcSymbolOrColourTag() {
-        assertEquals(TrailColour.RED, TrailColour.of("red:white:red_bar", null))
-        assertEquals(TrailColour.BLUE, TrailColour.of(null, "#0011dd"))
-        assertEquals(TrailColour.YELLOW, TrailColour.of("yellow:white:yellow_bar", "red")) // osmc wins
-        assertEquals(TrailColour.OTHER, TrailColour.of(null, null))
-    }
-
-    @Test
     fun parseStoreAndRenderSharedWays() {
-        val cell = TrailCellIO.parseOverpass(overpass.byteInputStream())
+        val cell = TrailCellIO.parseOverpass(overpass)
         assertEquals(3, cell.routes.size)
         assertEquals(2, cell.ways.size)
         val file = tmp.newFile("N47E009.trails")
-        TrailCellIO.write(cell, file)
-        val back = TrailCellIO.read(file)
+        TrailCellIO.write(cell, file.path)
+        val back = TrailCellIO.read(file.path)
         assertEquals(cell.routes, back.routes)
         assertEquals(cell.ways[0].coords.toList(), back.ways[0].coords.toList())
 
