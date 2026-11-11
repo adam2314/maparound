@@ -1,21 +1,15 @@
 package app.maparound.ui
 
-import android.Manifest
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.DownloadForOffline
 import androidx.compose.material.icons.filled.Explore
-import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.Bookmarks
-import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Groups
-import app.maparound.party.PartyEvent
-import app.maparound.party.PartySession
-import app.maparound.share.Incoming
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Route
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -33,16 +27,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.lifecycle.compose.LifecycleResumeEffect
-import app.maparound.AppGraph
-import app.maparound.map.AndroidMapSurface
-import androidx.compose.ui.viewinterop.AndroidView
-import app.maparound.sensors.hasLocationPermission
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
+import app.maparound.map.MapSurface
+import app.maparound.party.LocalParty
+import app.maparound.party.PartyEvent
+import app.maparound.share.Incoming
+import kotlinx.coroutines.flow.Flow
 
 enum class Tab(val label: String, val icon: ImageVector) {
     Map("Map", Icons.Filled.Map),
@@ -52,47 +42,32 @@ enum class Tab(val label: String, val icon: ImageVector) {
     Sensors("Sensors", Icons.Filled.Explore),
 }
 
+/**
+ * The app: tabs for the map, library, party, offline maps and sensors. The platform gives the
+ * location permission state, its background messages, start-up work and its own views.
+ */
 @Composable
-fun MapAroundRoot() {
-    val context = LocalContext.current
+fun MapAroundRoot(
+    hasLocation: Boolean,
+    requestLocation: () -> Unit,
+    /** Messages for the snackbar (downloads finished or failed…). */
+    messages: Flow<String>,
+    /** Runs once at start: finish downloads, recover an interrupted recording, resume sharing. */
+    onStart: suspend () -> Unit,
+    createMap: () -> MapSurface,
+    mapView: @Composable (MapSurface, Modifier) -> Unit,
+    view3d: @Composable (Scene3DViewArgs) -> Unit,
+    /** The Satellites tab (Android only). */
+    satellites: (@Composable (hasLocation: Boolean, requestLocation: () -> Unit) -> Unit)?,
+) {
     var tab by rememberSaveable { mutableStateOf(Tab.Map) }
 
-    var hasLocation by remember { mutableStateOf(context.hasLocationPermission()) }
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions(),
-    ) { hasLocation = context.hasLocationPermission() }
-    val requestLocation: () -> Unit = {
-        permissionLauncher.launch(
-            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
-        )
-    }
-    var askedOnce by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        if (!hasLocation && !askedOnce) {
-            askedOnce = true
-            requestLocation()
-        }
-    }
-    // Permission may be changed from system settings while we're in the background.
-    LifecycleResumeEffect(Unit) {
-        hasLocation = context.hasLocationPermission()
-        onPauseOrDispose { }
-    }
-
     val snackbar = remember { SnackbarHostState() }
-    LaunchedEffect(Unit) {
-        // Finish downloads that completed while the app was closed.
-        withContext(Dispatchers.IO) { AppGraph.downloader.poll() }
-        AppGraph.downloader.events.collect { snackbar.showSnackbar(it) }
-    }
-    LaunchedEffect(Unit) {
-        AppGraph.terrain.events.collect { snackbar.showSnackbar(it) }
-    }
-    LaunchedEffect(Unit) {
-        AppGraph.trails.events.collect { snackbar.showSnackbar(it) }
-    }
-    // Party: carry on sharing after a restart, open invites, announce joins and alerts.
-    LaunchedEffect(Unit) { PartySession.resumeIfWasActive() }
+    val party = LocalParty.current
+    // Messages from downloads and other background work.
+    LaunchedEffect(Unit) { messages.collect { snackbar.showSnackbar(it) } }
+    // Finish what was going on before the app was closed (downloads, recordings, party sharing).
+    LaunchedEffect(Unit) { onStart() }
     val incoming by Incoming.pending.collectAsState()
     LaunchedEffect(incoming) {
         when (val i = incoming) {
@@ -104,10 +79,11 @@ fun MapAroundRoot() {
             else -> tab = Tab.Map // the map screen shows it
         }
     }
-    val invite by PartySession.pendingInvite.collectAsState()
+    // Party: open invites, announce joins and alerts.
+    val invite by party.pendingInvite.collectAsState()
     LaunchedEffect(invite) { if (invite != null) tab = Tab.Party }
     LaunchedEffect(Unit) {
-        PartySession.events.collect { ev ->
+        party.events.collect { ev ->
             when (ev) {
                 is PartyEvent.Joined -> snackbar.showSnackbar("${ev.member.displayName} joined the party")
                 is PartyEvent.SosRaised -> snackbar.showSnackbar("SOS from ${ev.member.displayName}! ${ev.text}")
@@ -116,15 +92,6 @@ fun MapAroundRoot() {
                 else -> Unit
             }
         }
-    }
-    LaunchedEffect(Unit) {
-        // Give a recording service that the system is restarting a moment to come up first.
-        delay(3000)
-        withContext(Dispatchers.IO) { AppGraph.tracks.recoverInterruptedRecording() }
-    }
-    LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) { AppGraph.routing.poll() }
-        AppGraph.routing.events.collect { snackbar.showSnackbar(it) }
     }
 
     Scaffold(
@@ -149,14 +116,14 @@ fun MapAroundRoot() {
                     requestLocation = requestLocation,
                     onOpenOffline = { tab = Tab.Offline },
                     snackbar = snackbar,
-                    createMap = { AndroidMapSurface(context) },
-                    mapView = { map, modifier -> AndroidView(factory = { (map as AndroidMapSurface).controller.mapView }, modifier = modifier) },
-                    view3d = { Scene3DAndroidView(it) },
+                    createMap = createMap,
+                    mapView = mapView,
+                    view3d = view3d,
                 )
                 Tab.Routes -> LibraryScreen(hasLocation, requestLocation, snackbar, onShowMap = { tab = Tab.Map })
                 Tab.Party -> PartyScreen(hasLocation, requestLocation, snackbar, onShowMap = { tab = Tab.Map })
                 Tab.Offline -> OfflineMapsScreen(snackbar = snackbar, onShowOnMap = { tab = Tab.Map })
-                Tab.Sensors -> SensorsScreen(hasLocation, requestLocation, satellites = { GnssScreen(hasLocation, requestLocation) })
+                Tab.Sensors -> SensorsScreen(hasLocation, requestLocation, satellites = satellites?.let { s -> { s(hasLocation, requestLocation) } })
             }
         }
     }

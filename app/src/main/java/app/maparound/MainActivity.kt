@@ -26,7 +26,7 @@ import app.maparound.ui.AndroidRecordingControl
 import app.maparound.ui.LocalRecordingControl
 import app.maparound.ui.LocalPlatform
 import app.maparound.ui.LocalSearcher
-import app.maparound.ui.MapAroundRoot
+import app.maparound.ui.AndroidRoot
 import app.maparound.ui.theme.MapAroundTheme
 
 class MainActivity : ComponentActivity() {
@@ -59,7 +59,7 @@ class MainActivity : ComponentActivity() {
                 ),
             ) {
                 MapAroundTheme {
-                    MapAroundRoot()
+                    AndroidRoot()
                 }
             }
         }

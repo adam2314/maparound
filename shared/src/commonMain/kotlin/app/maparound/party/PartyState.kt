@@ -5,6 +5,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import app.maparound.sensors.GeoFix
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /** How a transport (online MQTT, LoRa radio) is doing. */
@@ -39,6 +40,9 @@ data class PartyState(
 /** The party session as the shared screens drive it (Android: PartySession with MQTT and BLE). */
 interface PartyController {
     val state: StateFlow<PartyState>
+
+    /** Joins, leaves and SOS alerts, for the UI to announce. */
+    val events: SharedFlow<PartyEvent>
 
     /** An invite opened from a link or QR code, waiting for the user to confirm. */
     val pendingInvite: MutableStateFlow<PartyKey?>

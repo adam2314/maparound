@@ -40,7 +40,7 @@ object PartySession : PartyController {
     private var lastLocation: Location? = null
     override val state: StateFlow<PartyState> = _state.asStateFlow()
     private val _events = MutableSharedFlow<PartyEvent>(extraBufferCapacity = 16)
-    val events: SharedFlow<PartyEvent> = _events.asSharedFlow()
+    override val events: SharedFlow<PartyEvent> = _events.asSharedFlow()
 
     /** A party link opened from outside the app, waiting for the user to confirm joining. */
     override val pendingInvite = MutableStateFlow<PartyKey?>(null)
