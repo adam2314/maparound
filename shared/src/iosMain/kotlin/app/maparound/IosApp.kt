@@ -77,6 +77,8 @@ object IosApp {
         if (demo) {
             prefs.saveLastPosition(MapPos(47.141, 9.521, 14))
             prefs.setBaseLayer(TileSources.OFFLINE_ID) // the offline map, drawn with the Topo style
+            prefs.setContours(true)
+            prefs.setHillshade(true)
         }
     }
 
