@@ -61,8 +61,8 @@ final class TerrainRenderer: NSObject, MTKViewDelegate {
               mesh.minHeight, mesh.maxHeight, mesh.indexCount)
         guard let queue = device.makeCommandQueue(),
               let library = device.makeDefaultLibrary(),
-              let vb = device.makeBuffer(bytes: mesh.vertexData.bytes, length: Int(mesh.vertexData.length)),
-              let ib = device.makeBuffer(bytes: mesh.indexData.bytes, length: Int(mesh.indexData.length))
+              let vb = Self.buffer(device, mesh.vertexData),
+              let ib = Self.buffer(device, mesh.indexData)
         else { return nil }
         self.queue = queue
         vertices = vb
@@ -134,6 +134,13 @@ final class TerrainRenderer: NSObject, MTKViewDelegate {
             } catch {
                 NSLog("MapAround 3D: texture failed: %@", "\(error)")
             }
+        }
+    }
+
+    /// Kotlin's NSData arrives in Swift as Data.
+    private static func buffer(_ device: MTLDevice, _ data: Data) -> MTLBuffer? {
+        data.withUnsafeBytes { raw in
+            raw.baseAddress.flatMap { device.makeBuffer(bytes: $0, length: raw.count) }
         }
     }
 
