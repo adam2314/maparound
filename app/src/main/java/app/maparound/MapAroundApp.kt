@@ -7,6 +7,7 @@ import app.maparound.data.MapCatalog
 import app.maparound.data.MapDownloader
 import app.maparound.data.MapFilesRepository
 import app.maparound.data.Prefs
+import app.maparound.data.SharedPrefsStore
 import app.maparound.data.TerrainRepository
 import app.maparound.routing.RoutePlanner
 import app.maparound.routing.RoutingDataRepository
@@ -48,9 +49,9 @@ object AppGraph {
     val catalog = MapCatalog()
 
     fun init(app: Application) {
-        prefs = Prefs(app)
+        prefs = Prefs(SharedPrefsStore(app, "maparound"))
         mapFiles = MapFilesRepository(app)
-        downloader = MapDownloader(app, prefs, mapFiles)
+        downloader = MapDownloader(app, mapFiles)
         terrain = TerrainRepository(app, prefs, mapFiles)
         routing = RoutingDataRepository(app)
         planner = RoutePlanner(app, routing, terrain.demDir)

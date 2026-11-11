@@ -1,9 +1,6 @@
 package app.maparound.map
 
-import app.maparound.USER_AGENT
-import org.mapsforge.core.model.Tile
-import org.mapsforge.map.layer.download.tilesource.OnlineTileSource
-import java.net.URL
+// Plain Kotlin (Android and iOS): the online map tile services.
 
 /** An online XYZ raster tile service. `{s}` `{z}` `{x}` `{y}` and `{-y}` (TMS) are substituted. */
 data class OnlineSource(
@@ -93,7 +90,7 @@ object TileSources {
     /** The URL of one XYZ tile ({s} rotates through the subdomains, {-y} is the TMS row). */
     fun tileUrl(source: OnlineSource, z: Int, x: Int, y: Int): String {
         val subs = source.subdomains
-        val s = if (subs.isEmpty()) "" else subs[Math.floorMod(x + y, subs.size)]
+        val s = if (subs.isEmpty()) "" else subs[((x + y) % subs.size + subs.size) % subs.size]
         return source.urlTemplate
             .replace("{s}", s)
             .replace("{z}", z.toString())
@@ -105,21 +102,4 @@ object TileSources {
     fun hostOf(template: String, subdomains: List<String>): String =
         Regex("^https?://([^/:]+)").find(template.replace("{s}", subdomains.firstOrNull() ?: "a"))
             ?.groupValues?.get(1) ?: "localhost"
-}
-
-/** Lets mapsforge's TileDownloadLayer fetch from any XYZ URL template. */
-class UrlTemplateTileSource(private val source: OnlineSource) :
-    OnlineTileSource(arrayOf(TileSources.hostOf(source.urlTemplate, source.subdomains)), 443) {
-
-    init {
-        setName(source.id)
-        setAlpha(source.transparent)
-        setZoomLevelMin(0)
-        setZoomLevelMax(source.maxZoom.coerceIn(1, 22).toByte())
-        setParallelRequestsLimit(4)
-        setTileSize(256)
-        setUserAgent(USER_AGENT)
-    }
-
-    override fun getTileUrl(tile: Tile): URL = URL(TileSources.tileUrl(source, tile.zoomLevel.toInt(), tile.tileX, tile.tileY))
 }

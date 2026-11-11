@@ -12,6 +12,7 @@ import app.maparound.USER_AGENT
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import org.json.JSONObject
 import java.io.File
 
 data class DownloadInfo(
@@ -44,9 +45,9 @@ data class DownloadInfo(
  */
 class MapDownloader(
     private val context: Context,
-    private val prefs: Prefs,
     private val repo: MapFilesRepository,
 ) {
+    private val prefs = DownloadIds(context)
     private val dm = context.getSystemService(DownloadManager::class.java)
 
     private val _events = MutableSharedFlow<String>(extraBufferCapacity = 8)
@@ -160,5 +161,36 @@ class DownloadCompleteReceiver : BroadcastReceiver() {
         // Both downloaders share the broadcast; each ignores ids that aren't its own.
         AppGraph.downloader.onDownloadComplete(id)
         AppGraph.routing.onDownloadComplete(id)
+    }
+}
+
+/**
+ * DownloadManager id -> target local file name, for downloads still in flight. Kept where the
+ * settings always kept it (preference file "maparound", key "downloads"), so downloads that were
+ * running during an app update are still recognised.
+ */
+private class DownloadIds(context: Context) {
+    private val sp = context.getSharedPreferences("maparound", Context.MODE_PRIVATE)
+
+    @Synchronized
+    fun downloads(): Map<Long, String> {
+        val json = JSONObject(sp.getString(KEY, "{}")!!)
+        return json.keys().asSequence().associate { it.toLong() to json.getString(it) }
+    }
+
+    @Synchronized
+    fun putDownload(id: Long, fileName: String) = write(downloads() + (id to fileName))
+
+    @Synchronized
+    fun removeDownload(id: Long) = write(downloads() - id)
+
+    private fun write(map: Map<Long, String>) {
+        val json = JSONObject()
+        map.forEach { (k, v) -> json.put(k.toString(), v) }
+        sp.edit().putString(KEY, json.toString()).apply()
+    }
+
+    private companion object {
+        const val KEY = "downloads"
     }
 }
