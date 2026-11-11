@@ -23,6 +23,8 @@ targets:
         CFBundleDisplayName: MapAround
         CFBundleShortVersionString: "0.1.0"
         UILaunchScreen: {}
+        # Compose Multiplatform draws at the display's full refresh rate (and checks for this key).
+        CADisableMinimumFrameDurationOnPhone: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         # MapLibre reads our vector tiles from a server inside the app (127.0.0.1).
         NSAppTransportSecurity:

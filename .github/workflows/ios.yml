@@ -150,6 +150,12 @@ jobs:
           xcrun simctl launch "$UDID" app.maparound
           sleep 30
           xcrun simctl io "$UDID" screenshot screenshot.png
+          # Again with the demo switch: the shared Compose screen moves the map to Malbun and zooms in,
+          # and the map reports its camera back to the screen's top card.
+          xcrun simctl terminate "$UDID" app.maparound || true
+          SIMCTL_CHILD_MAPAROUND_DEMO=1 xcrun simctl launch "$UDID" app.maparound
+          sleep 30
+          xcrun simctl io "$UDID" screenshot screenshot-demo.png
           xcrun simctl spawn "$UDID" log show --last 3m --style compact --predicate 'process == "MapAround"' > app-log.txt || true
           tail -40 app-log.txt || true
 
@@ -160,6 +166,7 @@ jobs:
           name: ios-simulator-screenshot
           path: |
             screenshot.png
+            screenshot-demo.png
             app-log.txt
           if-no-files-found: ignore
 
@@ -172,6 +179,7 @@ jobs:
         run: |
           mkdir -p /tmp/shots
           [ -f screenshot.png ] && cp screenshot.png /tmp/shots/
+          [ -f screenshot-demo.png ] && cp screenshot-demo.png /tmp/shots/
           [ -f app-log.txt ] && cp app-log.txt /tmp/shots/
           # The build log's errors and last lines, to see why a build failed.
           if [ -f build-log.txt ]; then

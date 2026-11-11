@@ -3,6 +3,9 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     id("org.jetbrains.kotlin.multiplatform")
     id("com.android.library")
+    // Shared Compose screens (Compose Multiplatform; Jetpack Compose on Android)
+    id("org.jetbrains.compose")
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 kotlin {
@@ -23,6 +26,12 @@ kotlin {
             api("com.squareup.okio:okio:3.9.1")
             implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+            implementation(compose.runtime)
+            implementation(compose.foundation)
+            implementation(compose.material3)
+            implementation(compose.ui)
+            implementation("org.jetbrains.compose.material:material-icons-core:1.7.3")
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
