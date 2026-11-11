@@ -46,9 +46,11 @@ object MapsforgeToMvt {
             val props = props(w.tags, w.layer)
             if (isArea(w)) {
                 t.layer("area").polygon(w.rings, props)
-                // Name labels of areas go in the point layer, at mapsforge's label position.
-                if (w.labelLat != null && w.labelLon != null && props.containsKey("name")) {
-                    poi.point(w.labelLat, w.labelLon, props + ("label_of" to "area"))
+                // Labels and symbols of areas (names, a parking's P, a hut…) go in the point
+                // layer, at mapsforge's label position or else the middle of the outline.
+                if (props.containsKey("name") || props.keys.any { it in POI_KEYS }) {
+                    val (lat, lon) = if (w.labelLat != null && w.labelLon != null) w.labelLat to w.labelLon else middle(w.rings[0])
+                    poi.point(lat, lon, props + ("label_of" to "area"))
                 }
             } else {
                 for (ring in w.rings) t.layer("line").line(ring, props)
@@ -75,6 +77,22 @@ object MapsforgeToMvt {
             return true
         }
         return tags["highway"] == "pedestrian" || tags["natural"] == "issea" || tags["natural"] == "nosea"
+    }
+
+    /** Areas that get a point for their symbol even without a name. */
+    private val POI_KEYS = setOf("amenity", "tourism", "shop", "historic", "leisure", "sport", "man_made")
+
+    /** Middle of a ring's bounding box ([lat0, lon0, …]). */
+    private fun middle(ring: DoubleArray): Pair<Double, Double> {
+        var minLat = 90.0
+        var maxLat = -90.0
+        var minLon = 180.0
+        var maxLon = -180.0
+        for (i in 0 until ring.size / 2) {
+            minLat = minOf(minLat, ring[2 * i]); maxLat = maxOf(maxLat, ring[2 * i])
+            minLon = minOf(minLon, ring[2 * i + 1]); maxLon = maxOf(maxLon, ring[2 * i + 1])
+        }
+        return (minLat + maxLat) / 2 to (minLon + maxLon) / 2
     }
 
     private val AREA_KEYS = setOf(

@@ -133,8 +133,10 @@ jobs:
         with:
           path: fontcache
           key: openmaptiles-fonts-v2.0
-      - name: Label fonts
-        run: iosApp/fetch-fonts.sh "$PWD/fontcache"
+      - name: Label fonts and map symbols
+        run: |
+          iosApp/fetch-fonts.sh "$PWD/fontcache"
+          iosApp/fetch-symbols.sh "$PWD/fontcache"
 
       - name: Generate the Xcode project
         run: |

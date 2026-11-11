@@ -9,6 +9,7 @@ enum MarkerImages {
     private static let red = rgb(213, 0, 0)
 
     static func image(named name: String) -> UIImage? {
+        if name.hasPrefix("sym:") { return symbol(String(name.dropFirst(4))) }
         let f = name.components(separatedBy: sep)
         switch f[0] {
         case "me":
@@ -35,6 +36,14 @@ enum MarkerImages {
         default:
             return nil
         }
+    }
+
+    /// A symbol of the map theme ("symbols/peak.svg"), from the PNGs made by fetch-symbols.sh (3x).
+    private static func symbol(_ path: String) -> UIImage? {
+        let file = path.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: ".svg", with: "")
+        guard let url = Bundle.main.url(forResource: file, withExtension: "png", subdirectory: "Symbols"),
+              let data = try? Data(contentsOf: url) else { return nil }
+        return UIImage(data: data, scale: 3)
     }
 
     /// A round marker with an optional label tag below; the circle's centre is the image's centre.

@@ -19,11 +19,15 @@ import kotlin.math.roundToLong
  *
  * Sources: the offline map's vector tiles ([MapStyle.OSM_SOURCE]: poi, line, area, sea), and
  * for rules on `contour…` and `trail…` keys the contour and marked-trail tiles ([CONTOURS],
- * [TRAILS]). Not drawn yet: symbol icons and patterns (they need a sprite), line symbols.
+ * [TRAILS]). Symbols are images named [SYMBOL_PREFIX] + their theme path (the platform draws
+ * them: iOS from PNGs made of the theme's SVGs). Not drawn yet: area patterns, line symbols.
  */
 object ThemeStyle {
     const val CONTOURS = "contours"
     const val TRAILS = "trails"
+
+    /** Image names of theme symbols: "sym:" + the path in the theme, e.g. `sym:symbols/peak.svg`. */
+    const val SYMBOL_PREFIX = "sym:"
 
     /** Layer metadata key marking land cover (fills and their outlines), dropped over imagery. */
     const val AREA_FLAG = "maparound:area"
@@ -169,7 +173,8 @@ object ThemeStyle {
                 "caption" -> caption(a, ctx)
                 "pathText" -> if (ctx.element != "node") pathText(a, ctx)
                 "circle" -> if (ctx.element != "way") circle(a, ctx)
-                // symbol, lineSymbol: icons need a sprite (later).
+                "symbol" -> symbol(a, ctx)
+                // lineSymbol (one-way arrows) and area patterns: later.
             }
         }
 
@@ -266,6 +271,21 @@ object ThemeStyle {
             }
         }
 
+        private fun symbol(a: Map<String, String>, ctx: Ctx) {
+            if (a["display"] == "never") return
+            val src = a["src"]?.substringAfter(':')?.takeIf { it.endsWith(".svg") } ?: return
+            val layout = LinkedHashMap<String, Any>()
+            layout["icon-image"] = SYMBOL_PREFIX + src
+            // The images are drawn SYMBOL_SIZE points high; the theme may ask for another size.
+            (a["symbol-width"] ?: a["symbol-height"])?.toDoubleOrNull()?.let { layout["icon-size"] = round(it / SYMBOL_SIZE) }
+            a["priority"]?.toDoubleOrNull()?.let { layout["symbol-sort-key"] = -it }
+            if (a["display"] == "always") layout["icon-allow-overlap"] = true
+            val (source, _) = sourceFor(ctx, "poi")
+            add(ctx, "symbol", source, "poi", labelFilter = labelFilter(ctx)) {
+                put("layout", JsonObject(layout.mapValues { (_, v) -> json(v) }))
+            }
+        }
+
         private fun circle(a: Map<String, String>, ctx: Ctx) {
             val radius = a["radius"]?.toDoubleOrNull() ?: return
             val paint = LinkedHashMap<String, Any>()
@@ -346,6 +366,9 @@ object ThemeStyle {
         "building", "landuse", "natural", "leisure", "amenity", "tourism", "man_made", "military",
         "aeroway", "water", "wetland", "boundary", "area", "area:highway", "historic", "sport",
     )
+
+    /** Height of symbol images, points (mapsforge's default size of SVG symbols). */
+    const val SYMBOL_SIZE = 20.0
 
     /** Captions above or below a symbol sit this far (ems) from the point. */
     private const val SYMBOL_GAP_EM = 0.9

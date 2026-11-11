@@ -151,6 +151,13 @@ class ThemeStyleTest {
         assertTrue(drawn(mapOf("place" to "town", "name" to "Vaduz"), "symbol", "poi").isNotEmpty())
         val peak = drawn(mapOf("natural" to "peak", "name" to "Naafkopf"), "symbol", "poi")
         assertTrue(peak.any { it["layout"]!!.jsonObject.str("text-anchor") == "bottom" })
+        // The peak's triangle, smaller than the default symbol size.
+        val icon = peak.first { it["layout"]!!.jsonObject.containsKey("icon-image") }["layout"]!!.jsonObject
+        assertEquals("sym:symbols/peak.svg", icon.str("icon-image"))
+        assertEquals(0.55, icon["icon-size"]!!.jsonPrimitive.doubleOrNull)
+        // Every symbol image the theme uses has an SVG path.
+        val images = layers.mapNotNull { it["layout"]?.jsonObject?.str("icon-image") }.toSet()
+        assertTrue(images.size > 50 && images.all { it.startsWith(ThemeStyle.SYMBOL_PREFIX) && it.endsWith(".svg") }, images.toString())
     }
 
     @Test

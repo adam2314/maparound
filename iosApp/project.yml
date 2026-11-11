@@ -22,6 +22,10 @@ targets:
       - path: Fonts
         type: folder
         buildPhase: resources
+      # The theme's symbols as PNGs (run fetch-symbols.sh first): Symbols/symbols_peak.png
+      - path: Symbols
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: MapLibre
     info:
