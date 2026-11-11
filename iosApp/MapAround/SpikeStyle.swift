@@ -50,16 +50,16 @@ enum SpikeStyle {
                 "line-width": ["interpolate", ["linear"], ["zoom"], 10, 0.6, 16, 7] } },
             { "id": "road-names", "type": "symbol", "source": "osm", "source-layer": "line", "minzoom": 14,
               "filter": ["all", ["has", "highway"], ["has", "name"]],
-              "layout": { "symbol-placement": "line", "text-field": ["get", "name"], "text-font": ["Open Sans Regular"], "text-size": 11 },
+              "layout": { "symbol-placement": "line", "text-field": ["get", "name"], "text-font": ["Noto Sans Regular"], "text-size": 11 },
               "paint": { "text-color": "#333333", "text-halo-color": "#FFFFFF", "text-halo-width": 1.2 } },
             { "id": "places", "type": "symbol", "source": "osm", "source-layer": "poi",
               "filter": ["all", ["has", "place"], ["has", "name"]],
-              "layout": { "text-field": ["get", "name"], "text-font": ["Open Sans Bold"],
+              "layout": { "text-field": ["get", "name"], "text-font": ["Noto Sans Bold"],
                           "text-size": ["match", ["get", "place"], ["city", "town"], 16, 13] },
               "paint": { "text-color": "#222222", "text-halo-color": "#FFFFFF", "text-halo-width": 1.5 } },
             { "id": "peaks", "type": "symbol", "source": "osm", "source-layer": "poi", "minzoom": 12,
               "filter": ["==", ["get", "natural"], "peak"],
-              "layout": { "text-field": ["concat", "▲ ", ["coalesce", ["get", "name"], ""]], "text-font": ["Open Sans Regular"], "text-size": 11 },
+              "layout": { "text-field": ["concat", "▲ ", ["coalesce", ["get", "name"], ""]], "text-font": ["Noto Sans Regular"], "text-size": 11 },
               "paint": { "text-color": "#6B4A2B", "text-halo-color": "#FFFFFF", "text-halo-width": 1.2 } }
           ]
         }

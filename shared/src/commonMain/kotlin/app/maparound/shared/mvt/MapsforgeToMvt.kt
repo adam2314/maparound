@@ -60,7 +60,8 @@ object MapsforgeToMvt {
     fun isArea(w: MfWay): Boolean {
         val outer = w.rings.firstOrNull() ?: return false
         val n = outer.size / 2
-        val closed = n >= 4 && outer[0] == outer[2 * n - 2] && outer[1] == outer[2 * n - 1]
+        // Like mapsforge: closed if the ends meet within ~1 cm (decoded coordinates carry rounding).
+        val closed = n >= 4 && kotlin.math.abs(outer[0] - outer[2 * n - 2]) < 1e-7 && kotlin.math.abs(outer[1] - outer[2 * n - 1]) < 1e-7
         if (!closed && w.rings.size == 1) return false
         val tags = w.tags.associate { it.key to it.value }
         if (tags["area"] == "no") return false
