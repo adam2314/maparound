@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/store/icon-512.png" width="128" alt="MapAround icon"></p>
+
 # MapAround
 
 An Android map browser built around OpenStreetMap data. You can download maps per country and use
@@ -106,7 +108,7 @@ on Windows, prefix the commands with `MSYS_NO_PATHCONV=1`.
 
 - **Route planner** (`routing/`): `PlannerSession` holds the waypoints and recalculates shortly after
   each change. `RoutePlanner` uses the embedded **BRouter** engine (`OfflineRouter`, vendored in
-  [`brouter/`](brouter/README.md), MIT) when the routing data for every point is downloaded,
+  [`brouter/`](brouter/README.md), MIT) when the routisong data for every point is downloaded,
   otherwise the public brouter.de server; if an offline route runs off the downloaded area, it
   falls back to the server when online. Profiles: `hiking-mountain`, `trekking` (bike), `car-vario`.
   Hiking times use the DIN 33466 rule (4 km/h, 300 m/h up, 500 m/h down); bike and car times come
@@ -361,6 +363,8 @@ app/src/main/java/app/maparound/
   sensors/                 location, GNSS status, compass, motion (tilt, accelerometer, gyro), speed & trip, barometer
   ui/                      Android root (permissions, start-up), platform actions, Satellites tab, 3D view host
 brouter/                   vendored BRouter routing engine (Java, MIT)
+tools/topo-preview/        renders map previews on a PC (see Topo style, above)
+tools/icon/                draws the app icon for the stores and iOS (docs/store/, the iOS assets)
 ```
 
 Maps are stored in the app's external files folder (`Android/data/app.maparound/files/maps`) as

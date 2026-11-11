@@ -74,6 +74,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.maparound
+        # MapAround/Assets.xcassets (the 1024 px icon is drawn by tools/icon/Icon.java).
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: NO
         ENABLE_USER_SCRIPT_SANDBOXING: NO
         # The shared Kotlin framework is built for Apple-silicon simulators only (no Intel slice).

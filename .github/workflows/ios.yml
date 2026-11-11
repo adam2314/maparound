@@ -150,6 +150,8 @@ jobs:
           xcodebuild -project MapAround.xcodeproj -scheme MapAround -configuration Debug \
             -sdk iphonesimulator -destination "generic/platform=iOS Simulator" \
             -derivedDataPath build CODE_SIGNING_ALLOWED=NO build 2>&1 | tee ../build-log.txt | tail -60
+          # The app icon made it into the app (actool names it in Info.plist).
+          plutil -p build/Build/Products/Debug-iphonesimulator/MapAround.app/Info.plist | grep -A4 CFBundleIcons | grep -q AppIcon
 
       - name: Run in the simulator
         run: |
