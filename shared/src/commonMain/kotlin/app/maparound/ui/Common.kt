@@ -22,6 +22,11 @@ import androidx.compose.ui.unit.dp
 import app.maparound.shared.util.fixed
 import app.maparound.shared.util.localFixed
 import app.maparound.shared.util.padded
+import kotlinx.datetime.toLocalDateTime
+import kotlinx.datetime.daysUntil
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.Instant
+import app.maparound.shared.util.nowMillis
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -109,6 +114,27 @@ object Fmt {
         val minutes = (seconds + 30) / 60
         return if (minutes < 60) "$minutes min" else "${minutes / 60} h ${minutes % 60} min"
     }
+
+    /** "Just now", "5 min ago", "3 hours ago", "Yesterday", "4 days ago", "Nov 3", "Nov 3, 2024" (local time). */
+    fun relativeTime(timeMs: Long, nowMs: Long = nowMillis()): String {
+        val ago = nowMs - timeMs
+        val zone = TimeZone.currentSystemDefault()
+        val then = Instant.fromEpochMilliseconds(timeMs).toLocalDateTime(zone)
+        val today = Instant.fromEpochMilliseconds(nowMs).toLocalDateTime(zone).date
+        val days = then.date.daysUntil(today)
+        return when {
+            ago < 0 -> "${MONTHS[then.monthNumber - 1]} ${then.dayOfMonth}, ${then.year}"
+            ago < 60_000 -> "Just now"
+            ago < 3_600_000 -> "${ago / 60_000} min ago"
+            days == 0 -> (ago / 3_600_000).let { if (it == 1L) "1 hour ago" else "$it hours ago" }
+            days == 1 -> "Yesterday"
+            days < 7 -> "$days days ago"
+            then.year == today.year -> "${MONTHS[then.monthNumber - 1]} ${then.dayOfMonth}"
+            else -> "${MONTHS[then.monthNumber - 1]} ${then.dayOfMonth}, ${then.year}"
+        }
+    }
+
+    private val MONTHS = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
     /** Running clock for recordings: "1:05:09". */
     fun clock(seconds: Long): String = "${seconds / 3600}:${padded((seconds / 60) % 60, 2)}:${padded(seconds % 60, 2)}"

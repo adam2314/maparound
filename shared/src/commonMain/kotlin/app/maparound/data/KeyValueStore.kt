@@ -11,5 +11,7 @@ interface KeyValueStore {
     fun putBoolean(key: String, value: Boolean)
     fun putFloat(key: String, value: Float)
     fun putInt(key: String, value: Int)
+    fun getStringSet(key: String): Set<String>?
+    fun putStringSet(key: String, value: Set<String>)
     fun remove(key: String)
 }

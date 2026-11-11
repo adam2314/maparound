@@ -1,5 +1,6 @@
 package app.maparound.ui
 
+import android.provider.OpenableColumns
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -12,7 +13,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-actual fun rememberFilePicker(mimeTypes: List<String>, onPicked: (ByteArray?) -> Unit): () -> Unit {
+actual fun rememberFilePicker(mimeTypes: List<String>, onPicked: (PickedFile?) -> Unit): () -> Unit {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val callback = rememberUpdatedState(onPicked)
@@ -21,10 +22,16 @@ actual fun rememberFilePicker(mimeTypes: List<String>, onPicked: (ByteArray?) ->
             callback.value(null)
         } else {
             scope.launch {
-                val bytes = withContext(Dispatchers.IO) {
-                    runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()
+                val file = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val resolver = context.contentResolver
+                        val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                            if (c.moveToFirst()) c.getString(0) else null
+                        }
+                        resolver.openInputStream(uri)?.use { PickedFile(name, it.readBytes()) }
+                    }.getOrNull()
                 }
-                callback.value(bytes)
+                callback.value(file)
             }
         }
     }

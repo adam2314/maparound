@@ -12,6 +12,7 @@ import app.maparound.data.TerrainRepository
 import app.maparound.routing.RoutePlanner
 import app.maparound.routing.RoutingDataRepository
 import app.maparound.party.PartySession
+import app.maparound.routing.PlannerSession
 import app.maparound.tools.ToolsSession
 import app.maparound.tracks.TrackRepository
 import app.maparound.data.TrailRepository
@@ -58,8 +59,10 @@ object AppGraph {
         routing = RoutingDataRepository(app)
         planner = RoutePlanner(app, routing, terrain.demDir)
         trails = TrailRepository(app, prefs)
-        tracks = TrackRepository(app)
+        tracks = TrackRepository((app.getExternalFilesDir(null) ?: app.filesDir).path, SharedPrefsStore(app, "tracks"))
         places = PlaceRepository((app.getExternalFilesDir(null) ?: app.filesDir).path)
+        PlannerSession.router = { points, profile -> planner.plan(points, profile) }
+        PlannerSession.library = tracks
         rasters = RasterMapRepository(app)
         PartySession.init(app)
     }

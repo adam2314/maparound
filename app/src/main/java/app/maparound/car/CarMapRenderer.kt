@@ -221,7 +221,7 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
             PlannerSession.state.collect { planner ->
                 val line = when {
                     !planner.active -> emptyList()
-                    planner.route != null -> planner.route.points
+                    planner.route != null -> planner.route!!.points
                     planner.profile == RouteProfile.LINE -> planner.waypoints
                     else -> emptyList()
                 }

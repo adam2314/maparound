@@ -1,9 +1,10 @@
 package app.maparound.routing
 
-import app.maparound.AppGraph
 import app.maparound.tracks.SavedTrack
 import app.maparound.tracks.Track
 import app.maparound.tracks.TrackKind
+import app.maparound.tracks.TrackRepository
+import app.maparound.shared.util.nowMillis
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,6 +33,12 @@ object PlannerSession {
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
 
+    /** Calculates a route; set by the platform at start-up (Android: offline BRouter, else online). */
+    var router: suspend (List<GeoPoint>, RouteProfile) -> RouteResult = { _, _ -> throw RoutingException("No router on this device") }
+
+    /** Where saved routes go; set by the platform at start-up. */
+    var library: TrackRepository? = null
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var job: Job? = null
     private val undo = ArrayList<List<GeoPoint>>()
@@ -59,7 +66,7 @@ object PlannerSession {
         val s = _state.value
         val route = s.route ?: return null
         val kind = if (s.profile == RouteProfile.LINE) TrackKind.DRAWN else TrackKind.PLANNED
-        return Track(name, kind, route.points, System.currentTimeMillis(), s.profile, s.waypoints)
+        return Track(name, kind, route.points, nowMillis(), s.profile, s.waypoints)
     }
 
     fun setProfile(profile: RouteProfile) {
@@ -85,7 +92,7 @@ object PlannerSession {
     val canUndo: Boolean get() = undo.isNotEmpty()
 
     /** Saves the planned route to the library (and shows it on the map). */
-    fun save(name: String): SavedTrack? = currentTrack(name)?.let { AppGraph.tracks.save(it) }
+    fun save(name: String): SavedTrack? = currentTrack(name)?.let { library?.save(it) }
 
     private fun edit(waypoints: List<GeoPoint>) {
         undo += _state.value.waypoints
@@ -105,7 +112,7 @@ object PlannerSession {
         job = scope.launch {
             delay(200) // let quick successive taps settle
             try {
-                val route = AppGraph.planner.plan(s.waypoints, s.profile)
+                val route = router(s.waypoints, s.profile)
                 _state.value = _state.value.copy(route = route, busy = false, error = null)
             } catch (e: CancellationException) {
                 throw e

@@ -182,6 +182,25 @@ fun PlaceCard(
     }
 }
 
+// ---- library: routes or places --------------------------------------------------------------------------------
+
+/** The Library tab: routes & tracks, or saved places. */
+@Composable
+fun LibraryScreen(hasLocation: Boolean, requestLocation: () -> Unit, snackbar: SnackbarHostState, onShowMap: () -> Unit) {
+    var places by rememberSaveable { mutableStateOf(false) }
+    val header: @Composable () -> Unit = {
+        SingleChoiceSegmentedButtonRow {
+            SegmentedButton(selected = !places, onClick = { places = false }, shape = SegmentedButtonDefaults.itemShape(0, 2), icon = {}) { Text("Routes") }
+            SegmentedButton(selected = places, onClick = { places = true }, shape = SegmentedButtonDefaults.itemShape(1, 2), icon = {}) { Text("Places") }
+        }
+    }
+    if (places) {
+        PlacesScreen(hasLocation, snackbar, onShowMap, header)
+    } else {
+        RoutesScreen(hasLocation, requestLocation, snackbar, onShowMap, header)
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlacesScreen(hasLocation: Boolean, snackbar: SnackbarHostState, onShowMap: () -> Unit, header: @Composable () -> Unit) {
@@ -201,10 +220,10 @@ fun PlacesScreen(hasLocation: Boolean, snackbar: SnackbarHostState, onShowMap: (
     var editing by remember { mutableStateOf<Place?>(null) }
     var deleting by remember { mutableStateOf<Place?>(null) }
 
-    val importer = rememberFilePicker(listOf("*/*")) { bytes ->
-        if (bytes != null) {
+    val importer = rememberFilePicker(listOf("*/*")) { file ->
+        if (file != null) {
             scope.launch {
-                val result = withContext(Dispatchers.Default) { runCatching { repo.importGpx(bytes) } }
+                val result = withContext(Dispatchers.Default) { runCatching { repo.importGpx(file.bytes) } }
                 snackbar.showSnackbar(
                     result.fold(
                         { n -> if (n == 0) "No new places in that file" else "Imported $n place${if (n == 1) "" else "s"}" },

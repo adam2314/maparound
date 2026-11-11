@@ -35,47 +35,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.io.FileWriter
 import java.util.Locale
 
-/** Live state of the GPS recorder, observed by the map and the Routes screen. */
-object TrackRecorder {
-    data class State(
-        val recording: Boolean = false,
-        val points: List<GeoPoint> = emptyList(),
-        val startedAt: Long? = null,
-        val stats: TrackStats = TrackStats.EMPTY,
-        /** Latest fix accuracy in metres, for the "waiting for GPS" hint. */
-        val accuracyM: Float? = null,
-    )
-
-    private val _state = MutableStateFlow(State())
-    val state: StateFlow<State> = _state.asStateFlow()
-
+/** Starts and stops the recording service (state in the shared [TrackRecorder]). */
+object Recorder {
     fun start(context: Context) {
         ContextCompat.startForegroundService(context, Intent(context, RecordingService::class.java).setAction(RecordingService.ACTION_START))
     }
 
     fun stop(context: Context) {
         context.startService(Intent(context, RecordingService::class.java).setAction(RecordingService.ACTION_STOP))
-    }
-
-    internal fun begin(startedAt: Long, restored: List<GeoPoint>) {
-        _state.value = State(recording = true, points = restored, startedAt = startedAt, stats = TrackStats.of(restored))
-    }
-
-    internal fun append(p: GeoPoint, accuracy: Float?) {
-        val s = _state.value
-        val pts = s.points + p
-        // Incremental stats would be cheaper, but a few thousand points recompute in well under 1 ms.
-        _state.value = s.copy(points = pts, stats = TrackStats.of(pts), accuracyM = accuracy)
-    }
-
-    internal fun accuracy(accuracy: Float?) {
-        _state.value = _state.value.copy(accuracyM = accuracy)
-    }
-
-    internal fun end(): State {
-        val s = _state.value
-        _state.value = State()
-        return s
     }
 }
 
@@ -122,7 +89,7 @@ class RecordingService : Service() {
         if (!resume) repo.recoverInterruptedRecording()
         val restored = if (resume) repo.readJournal() else emptyList()
         TrackRecorder.begin(restored.firstOrNull()?.time ?: System.currentTimeMillis(), restored)
-        journal = FileWriter(repo.journal, true)
+        journal = FileWriter(repo.journalPath, true)
 
         val lm = getSystemService(LocationManager::class.java)
         val l = object : LocationListener {
@@ -175,7 +142,7 @@ class RecordingService : Service() {
             val start = state.startedAt ?: state.points.first().time ?: System.currentTimeMillis()
             repo.save(Track(TrackRepository.defaultName(start), TrackKind.RECORDED, state.points, start))
         }
-        repo.journal.delete()
+        java.io.File(repo.journalPath).delete()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
     }

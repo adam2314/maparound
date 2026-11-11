@@ -6,7 +6,7 @@ import androidx.compose.runtime.rememberUpdatedState
 
 /** Phase 3 shows UIDocumentPickerViewController here; until then nothing is picked. */
 @Composable
-actual fun rememberFilePicker(mimeTypes: List<String>, onPicked: (ByteArray?) -> Unit): () -> Unit {
+actual fun rememberFilePicker(mimeTypes: List<String>, onPicked: (PickedFile?) -> Unit): () -> Unit {
     val callback = rememberUpdatedState(onPicked)
     return remember { { callback.value(null) } }
 }

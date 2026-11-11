@@ -16,4 +16,6 @@ class UserDefaultsStore(suiteName: String) : KeyValueStore {
     override fun putFloat(key: String, value: Float) = d.setFloat(value, key)
     override fun putInt(key: String, value: Int) = d.setInteger(value.toLong(), key)
     override fun remove(key: String) = d.removeObjectForKey(key)
+    override fun getStringSet(key: String): Set<String>? = d.stringArrayForKey(key)?.mapNotNull { it as? String }?.toSet()
+    override fun putStringSet(key: String, value: Set<String>) = d.setObject(value.toList(), key)
 }

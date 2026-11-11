@@ -21,6 +21,9 @@ class PrefsTest {
         override fun putFloat(key: String, value: Float) { m[key] = value }
         override fun putInt(key: String, value: Int) { m[key] = value }
         override fun remove(key: String) { m.remove(key) }
+        @Suppress("UNCHECKED_CAST")
+        override fun getStringSet(key: String) = m[key] as Set<String>?
+        override fun putStringSet(key: String, value: Set<String>) { m[key] = value }
     }
 
     @Test

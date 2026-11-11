@@ -70,21 +70,9 @@ object Sharing {
         start(context, Intent.createChooser(send, "Share route link"))
     }
 
-    fun hasRouteLink(track: Track): Boolean = track.waypoints.size >= 2 && track.kind != TrackKind.DRAWN
+    fun hasRouteLink(track: Track): Boolean = RouteText.hasRouteLink(track)
 
-    fun routeText(track: Track): String = buildString {
-        val s = track.stats
-        append(track.name).append(" · ").append(Fmt.distance(s.distanceM.toFloat()))
-        s.ascentM?.let { append(" · ↑ ").append(it.roundToInt()).append(" m") }
-        appendLine()
-        if (hasRouteLink(track)) {
-            SharedLinks.brouterWebLink(track.waypoints, track.profile)?.let { appendLine("Open the route: $it") }
-            SharedLinks.googleDirectionsLink(track.waypoints, track.profile ?: RouteProfile.HIKE)?.let { appendLine("Google Maps: $it") }
-        } else {
-            track.points.firstOrNull()?.let { appendLine("Start: ${SharedLinks.googleLink(it.lat, it.lon)}") }
-        }
-        append("(GPX file attached, if your app received it)")
-    }
+    fun routeText(track: Track): String = RouteText.of(track)
 
     private fun shareFile(context: Context, file: File, mime: String, text: String, subject: String) {
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)

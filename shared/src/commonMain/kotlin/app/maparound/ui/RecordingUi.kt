@@ -1,10 +1,5 @@
 package app.maparound.ui
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,40 +18,20 @@ import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
+import app.maparound.shared.util.nowMillis
 import app.maparound.tracks.TrackRecorder
-import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
-
-/** Returns an action that starts GPS recording, asking for the needed permissions first. */
-@Composable
-fun rememberRecordingStarter(hasLocation: Boolean, requestLocation: () -> Unit): () -> Unit {
-    val context = LocalContext.current
-    // The recording notification needs this on Android 13+; recording works either way.
-    val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        TrackRecorder.start(context)
-    }
-    return {
-        when {
-            !hasLocation -> requestLocation()
-            Build.VERSION.SDK_INT >= 33 &&
-                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED ->
-                notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
-            else -> TrackRecorder.start(context)
-        }
-    }
-}
+import kotlinx.coroutines.delay
 
 /** "● 0:42:10 · 3.2 km · ↑ 210 m   Stop" */
 @Composable
 fun RecordingBar(state: TrackRecorder.State, onStop: () -> Unit, modifier: Modifier = Modifier) {
-    val now by produceState(System.currentTimeMillis()) {
+    val now by produceState(nowMillis()) {
         while (true) {
             delay(1000)
-            value = System.currentTimeMillis()
+            value = nowMillis()
         }
     }
     val elapsed = state.startedAt?.let { (now - it) / 1000 } ?: 0

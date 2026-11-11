@@ -14,7 +14,10 @@ import app.maparound.sensors.AndroidSensors
 import app.maparound.sensors.LocalDeviceSensors
 import app.maparound.places.LocalPlaces
 import app.maparound.search.SearchService
+import app.maparound.tracks.LocalTracks
 import app.maparound.ui.AndroidPlatform
+import app.maparound.ui.AndroidRecordingControl
+import app.maparound.ui.LocalRecordingControl
 import app.maparound.ui.LocalPlatform
 import app.maparound.ui.LocalSearcher
 import app.maparound.ui.MapAroundRoot
@@ -26,6 +29,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val sensors = AndroidSensors(this)
         val platform = AndroidPlatform(this)
+        val recording = AndroidRecordingControl(this)
         setContent {
             // What the shared screens get from the platform.
             CompositionLocalProvider(
@@ -34,6 +38,8 @@ class MainActivity : ComponentActivity() {
                 LocalPlaces provides AppGraph.places,
                 LocalPlatform provides platform,
                 LocalSearcher provides SearchService,
+                LocalTracks provides AppGraph.tracks,
+                LocalRecordingControl provides recording,
             ) {
                 MapAroundTheme {
                     MapAroundRoot()

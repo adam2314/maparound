@@ -1,10 +1,5 @@
 package app.maparound.ui
 
-import android.content.ActivityNotFoundException
-import android.content.Intent
-import android.text.format.DateUtils
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,15 +16,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FiberManualRecord
 import androidx.compose.material.icons.filled.FileOpen
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
@@ -61,21 +57,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import app.maparound.AppGraph
 import app.maparound.routing.Geo
 import app.maparound.routing.MapFocus
 import app.maparound.routing.PlannerSession
 import app.maparound.routing.RouteProfile
+import app.maparound.share.RouteText
+import app.maparound.tracks.LocalTracks
 import app.maparound.tracks.SavedTrack
 import app.maparound.tracks.TrackKind
 import app.maparound.tracks.TrackRecorder
-import app.maparound.share.Sharing
-import androidx.compose.material.icons.filled.Link
-import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -86,21 +82,22 @@ fun RoutesScreen(
     onShowMap: () -> Unit,
     header: @Composable () -> Unit = { Text("Routes & tracks") },
 ) {
-    val context = LocalContext.current
+    val platform = LocalPlatform.current
+    val recording = LocalRecordingControl.current
     val scope = rememberCoroutineScope()
-    val repo = AppGraph.tracks
+    val repo = LocalTracks.current
     val tracks by repo.tracks.collectAsState()
     val visible by repo.visible.collectAsState()
     val recorder by TrackRecorder.state.collectAsState()
-    val startRecording = rememberRecordingStarter(hasLocation, requestLocation)
+    val startRecording = recording.rememberStarter(hasLocation, requestLocation)
     var detail by remember { mutableStateOf<SavedTrack?>(null) }
     var renaming by remember { mutableStateOf<SavedTrack?>(null) }
     var deleting by remember { mutableStateOf<SavedTrack?>(null) }
 
-    val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
+    val importer = rememberFilePicker(listOf("*/*")) { file ->
+        if (file != null) {
             scope.launch {
-                val result = repo.import(uri)
+                val result = withContext(Dispatchers.Default) { repo.importGpx(file.bytes, file.name) }
                 snackbar.showSnackbar(result.fold({ "Imported ${it.track.name}" }, { "Import failed: ${it.message}" }))
             }
         }
@@ -112,13 +109,13 @@ fun RoutesScreen(
         onShowMap()
     }
 
-    fun share(t: SavedTrack) = Sharing.shareRoute(context, t.track, java.io.File(repo.dir, t.id))
+    fun share(t: SavedTrack) = platform.shareRoute(t.track, repo.pathOf(t.id))
 
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
             title = header,
             actions = {
-                IconButton(onClick = { importer.launch(arrayOf("*/*")) }) {
+                IconButton(onClick = { importer() }) {
                     Icon(Icons.Filled.FileOpen, contentDescription = "Import a GPX file")
                 }
             },
@@ -130,7 +127,7 @@ fun RoutesScreen(
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         if (recorder.recording) {
                             Text("Recording your track", style = MaterialTheme.typography.titleMedium)
-                            RecordingBar(recorder, onStop = { TrackRecorder.stop(context) })
+                            RecordingBar(recorder, onStop = { recording.stop() })
                             Text(
                                 "Keeps recording with the screen off. Stop to save it here.",
                                 style = MaterialTheme.typography.bodySmall,
@@ -261,7 +258,7 @@ private fun TrackRow(
     onDelete: () -> Unit,
 ) {
     var menu by remember { mutableStateOf(false) }
-    val context = LocalContext.current
+    val platform = LocalPlatform.current
     ListItem(
         modifier = Modifier.clickable(onClick = onClick),
         leadingContent = { Icon(iconFor(t.track.kind), contentDescription = t.track.kind.label) },
@@ -281,8 +278,8 @@ private fun TrackRow(
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(text = { Text("Show on map") }, leadingIcon = { Icon(Icons.Filled.Map, null) }, onClick = { menu = false; onShowOnMap() })
                         DropdownMenuItem(text = { Text("Share (GPX + links)") }, leadingIcon = { Icon(Icons.Filled.Share, null) }, onClick = { menu = false; onShare() })
-                        if (Sharing.hasRouteLink(t.track)) {
-                            DropdownMenuItem(text = { Text("Share link only") }, leadingIcon = { Icon(Icons.Filled.Link, null) }, onClick = { menu = false; Sharing.shareRouteLink(context, t.track) })
+                        if (RouteText.hasRouteLink(t.track)) {
+                            DropdownMenuItem(text = { Text("Share link only") }, leadingIcon = { Icon(Icons.Filled.Link, null) }, onClick = { menu = false; platform.shareRouteLink(t.track) })
                         }
                         DropdownMenuItem(text = { Text("Rename") }, leadingIcon = { Icon(Icons.Filled.Edit, null) }, onClick = { menu = false; onRename() })
                         DropdownMenuItem(text = { Text("Delete") }, leadingIcon = { Icon(Icons.Filled.Delete, null) }, onClick = { menu = false; onDelete() })
@@ -317,7 +314,7 @@ private fun subtitle(t: SavedTrack): String {
     s.ascentM?.let { parts += "↑ ${it.roundToInt()} m" }
     durationOf(t)?.let { parts += Fmt.duration(it) }
     t.track.profile?.takeIf { it != RouteProfile.LINE }?.let { parts += it.label.lowercase() }
-    parts += DateUtils.getRelativeTimeSpanString(t.track.created).toString()
+    parts += Fmt.relativeTime(t.track.created)
     return parts.joinToString(" · ")
 }
 

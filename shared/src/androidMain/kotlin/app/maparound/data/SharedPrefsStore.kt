@@ -17,4 +17,6 @@ class SharedPrefsStore(context: Context, name: String) : KeyValueStore {
     override fun putFloat(key: String, value: Float) = sp.edit().putFloat(key, value).apply()
     override fun putInt(key: String, value: Int) = sp.edit().putInt(key, value).apply()
     override fun remove(key: String) = sp.edit().remove(key).apply()
+    override fun getStringSet(key: String): Set<String>? = sp.getStringSet(key, null)?.toSet()
+    override fun putStringSet(key: String, value: Set<String>) = sp.edit().putStringSet(key, value).apply()
 }

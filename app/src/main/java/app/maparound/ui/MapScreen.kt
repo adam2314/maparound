@@ -45,6 +45,7 @@ import app.maparound.routing.MapFocus
 import app.maparound.routing.PlannerSession
 import app.maparound.routing.RouteProfile
 import app.maparound.routing.RouteResult
+import app.maparound.tracks.Recorder
 import app.maparound.tracks.TrackRecorder
 import app.maparound.share.IncomingShare
 import app.maparound.share.Sharing
@@ -228,7 +229,7 @@ fun MapScreen(
             MapFocus.consumed()
         }
     }
-    val startRecording = rememberRecordingStarter(hasLocation, requestLocation)
+    val startRecording = LocalRecordingControl.current.rememberStarter(hasLocation, requestLocation)
     var saveDialog by remember { mutableStateOf(false) }
 
     // ---- map tools (azimuth, line of sight, viewshed, coordinates) --------------------------------
@@ -447,7 +448,7 @@ fun MapScreen(
         if (recorder.recording) {
             RecordingBar(
                 recorder,
-                onStop = { TrackRecorder.stop(context) },
+                onStop = { Recorder.stop(context) },
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
             )
         }
@@ -1130,7 +1131,7 @@ private fun PlannerPanel(state: PlannerSession.State, onSave: () -> Unit, onShar
                     "Now tap the destination. Keep tapping to add stops along the way.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                state.error != null -> Text(state.error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                state.error != null -> Text(state.error.orEmpty(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
                 route != null -> {
                     StatsLine(route.stats, route.durationS)
                     Text(
