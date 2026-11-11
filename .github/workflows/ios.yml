@@ -11,6 +11,8 @@ jobs:
     # Apple-silicon macOS: builds the shared Kotlin code for iOS and tests it on the simulator.
     runs-on: macos-15
     timeout-minutes: 45
+    permissions:
+      contents: write # to publish the test log on the ci-ios-shared branch
     steps:
       - uses: actions/checkout@v4
 
@@ -43,7 +45,9 @@ jobs:
         env:
           # Environment variables reach the simulator process with this prefix.
           SIMCTL_CHILD_MAP_FILE: ${{ github.workspace }}/testdata/liechtenstein.map
-        run: ./gradlew :shared:iosSimulatorArm64Test --console=plain
+        run: |
+          set -o pipefail
+          ./gradlew :shared:iosSimulatorArm64Test --console=plain 2>&1 | tee shared-log.txt
 
       - name: Test report
         if: always()
@@ -52,6 +56,40 @@ jobs:
           name: ios-shared-test-results
           path: shared/build/test-results/
           if-no-files-found: ignore
+
+      # Compiler errors and failed tests, readable without signing in:
+      # https://raw.githubusercontent.com/<owner>/<repo>/ci-ios-shared/shared-log.txt
+      - name: Publish the test log (branch ci-ios-shared)
+        if: always() && github.event_name == 'push'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p /tmp/out
+          if [ -f shared-log.txt ]; then
+            { grep -nE "^e: |^w: .*(error|unresolved)|FAILED|BUILD|What went wrong" shared-log.txt | head -300; echo ----; tail -150 shared-log.txt; } > /tmp/out/shared-log.txt
+          fi
+          python3 - > /tmp/out/failures.txt <<'PY'
+          import glob, xml.etree.ElementTree as ET
+          total = failed = 0
+          for x in sorted(glob.glob("shared/build/test-results/iosSimulatorArm64Test/*.xml")):
+              r = ET.parse(x).getroot()
+              total += int(r.get("tests", 0))
+              for tc in r.iter("testcase"):
+                  for f in tc.findall("failure") + tc.findall("error"):
+                      failed += 1
+                      print(f"{tc.get('classname')}.{tc.get('name')}: {(f.get('message') or '')[:500]}")
+                      print((f.text or "")[:1500])
+                      print("----")
+          print(f"{total} tests, {failed} failed")
+          PY
+          echo "${GITHUB_SHA}" > /tmp/out/commit.txt
+          cd /tmp/out
+          git init -q -b ci-ios-shared
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "iOS shared test log for ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" ci-ios-shared
 
   app:
     # Builds the iOS app, runs it in the simulator and keeps a screenshot.
