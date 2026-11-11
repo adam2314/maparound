@@ -52,3 +52,73 @@ jobs:
           name: ios-shared-test-results
           path: shared/build/test-results/
           if-no-files-found: ignore
+
+  app:
+    # Builds the iOS app, runs it in the simulator and keeps a screenshot.
+    needs: shared
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Kotlin/Native toolchain cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('build.gradle.kts', 'shared/build.gradle.kts') }}
+
+      - name: Test map
+        id: month
+        run: echo "month=$(date +%Y-%m)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: testdata
+          key: testmap-${{ steps.month.outputs.month }}
+      - run: |
+          mkdir -p testdata
+          [ -f testdata/liechtenstein.map ] || curl -fsSL -A "MapAround-CI (github.com/adam2314/maparound)" \
+            -o testdata/liechtenstein.map https://download.mapsforge.org/maps/v5/europe/liechtenstein.map
+          cp testdata/liechtenstein.map iosApp/MapAround/liechtenstein.map
+
+      - name: Generate the Xcode project
+        run: |
+          brew install xcodegen
+          cd iosApp && xcodegen generate
+
+      - name: Build for the simulator
+        run: |
+          set -o pipefail
+          cd iosApp
+          xcodebuild -project MapAround.xcodeproj -scheme MapAround -configuration Debug \
+            -sdk iphonesimulator -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO build 2>&1 | tail -60
+
+      - name: Run in the simulator
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone')))")
+          echo "simulator $UDID"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" iosApp/build/Build/Products/Debug-iphonesimulator/MapAround.app
+          xcrun simctl launch "$UDID" app.maparound
+          sleep 30
+          xcrun simctl io "$UDID" screenshot screenshot.png
+          xcrun simctl spawn "$UDID" log show --last 3m --style compact --predicate 'process == "MapAround"' > app-log.txt || true
+          tail -40 app-log.txt || true
+
+      - name: Screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-screenshot
+          path: |
+            screenshot.png
+            app-log.txt
+          if-no-files-found: ignore

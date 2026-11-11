@@ -1,0 +1,43 @@
+# XcodeGen spec: `xcodegen generate` makes MapAround.xcodeproj (not checked in).
+name: MapAround
+options:
+  bundleIdPrefix: app.maparound
+  deploymentTarget:
+    iOS: "16.0"
+packages:
+  MapLibre:
+    url: https://github.com/maplibre/maplibre-gl-native-distribution
+    from: "6.0.0"
+targets:
+  MapAround:
+    type: application
+    platform: iOS
+    scheme: {}
+    sources:
+      - path: MapAround
+    dependencies:
+      - package: MapLibre
+    info:
+      path: MapAround/Info.plist
+      properties:
+        CFBundleDisplayName: MapAround
+        CFBundleShortVersionString: "0.1.0"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        # MapLibre reads our vector tiles from a server inside the app (127.0.0.1).
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.maparound
+        GENERATE_INFOPLIST_FILE: NO
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        # The shared Kotlin code, built by Gradle for the current platform and configuration.
+        FRAMEWORK_SEARCH_PATHS: "$(inherited) $(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
+        OTHER_LDFLAGS: "$(inherited) -framework MapAroundShared"
+    preBuildScripts:
+      - name: Build shared Kotlin framework
+        basedOnDependencyAnalysis: false
+        script: |
+          cd "$SRCROOT/.."
+          ./gradlew :shared:embedAndSignAppleFrameworkForXcode --console=plain
