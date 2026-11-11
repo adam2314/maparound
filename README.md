@@ -318,6 +318,9 @@ shared/src/
   commonMain/kotlin/app/maparound/
     ui/                    all Compose screens and the app frame (MapAroundRoot), theme, formatting
     map/                   MapSurface (the map as the screens drive it), BaseMap, markers, tile sources
+    map/maplibre/          the map on MapLibre (iOS): MapLibreSurface, the style made from topo.xml
+                           (ThemeStyle), GeoJSON overlays, the in-app tile service (vector tiles,
+                           contours, Terrarium elevation, fonts)
     tools/ sensors/ three/ search/ routing/ terrain/ raster/ places/ tracks/ trails/ share/ party/ data/
                            the shared parts of the app packages below: geodesy, sight & viewshed,
                            coordinates, tilt & trip, sensor interfaces, 3D tiles & meshes, search
@@ -330,9 +333,15 @@ shared/src/
     shared/util/           what Java has and iOS doesn't: number formatting, ISO times, URL coding,
                            byte buffers, a streaming XML reader, Unicode NFD, a bit set
     shared/crypto/         HMAC-SHA-256, AES-GCM, secure random (javax.crypto / CommonCrypto)
-  androidMain/, iosMain/   the platform halves (files, memory mapping, crypto, NFD)
+    shared/net/            HTTP GET and downloads (HttpURLConnection / NSURLSession)
+  androidMain/             the Android halves (files, memory mapping, crypto, NFD, HTTP)
+  iosMain/                 the iOS halves, and the iOS app's services: IosApp (its objects), Core
+                           Location & Core Motion sensors, URLSession map downloads, share sheet,
+                           Files picker, MainViewController (the Compose app for Swift)
   commonTest/              tests that run on the JVM and the iOS simulator
-iosApp/                    the iOS app (Swift, XcodeGen project; MapLibre map), built in CI
+iosApp/                    the iOS app shell (Swift, XcodeGen project): MLNMapView wrapper, marker
+                           images, the local tile server; fetch-fonts.sh / fetch-symbols.sh get the
+                           label fonts and map symbols before a build. Built and run in CI
 app/src/main/java/app/maparound/
   MapAroundApp.kt          app init + tiny service locator (AppGraph)
   data/                    prefs, installed maps, remote catalog, map/terrain/trail downloaders

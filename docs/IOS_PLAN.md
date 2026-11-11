@@ -44,9 +44,26 @@ and iOS see each other.
     `KeyValueStore` (SharedPreferences / NSUserDefaults), `PlatformBackHandler`, `KeepScreenOn`.
   Android keeps only these adapters, its services and the Satellites tab. iOS implements the
   same interfaces in phase 3.
-- **Still Android-only, by design until later phases**: the implementations behind those
-  interfaces — downloads and HTTP, map rendering (mapsforge; iOS uses MapLibre), BRouter
-  (phase 6), sensors, BLE and MQTT transports (phases 3 and 5).
+- **Phase 3 (iOS MVP)**: the iPhone app runs the shared app (`MapAroundRoot`) with iOS
+  implementations of the interfaces (Map, Library, Offline and Sensors tabs; Party comes in
+  phase 5):
+  - the map: shared `MapLibreSurface` (style JSON, overlays as GeoJSON, taps; tested on the JVM)
+    on a thin Swift `MLNMapView` wrapper; marker images drawn in Swift from their names;
+  - the in-app tile server (`TileService`): vector tiles from the `.map` files, contour tiles
+    and Terrarium elevation PNGs (hill shading) from the `.hgt` files, label fonts;
+  - the style is made at start from the Android theme itself (`ThemeStyle`: `topo.xml` rules →
+    MapLibre filters, zoom ranges, widths, labels, symbols), so both apps share one theme;
+  - fonts (Noto Sans: Latin, Greek, Cyrillic, Hebrew, Arabic) and the theme's symbols as PNGs
+    are fetched at build time (`iosApp/fetch-fonts.sh`, `fetch-symbols.sh`): the map works offline;
+  - Core Location (position, compass, declination) and Core Motion (motion, barometer);
+  - map downloads with a background URLSession; terrain downloads shared with Android
+    (`TerrainStore`; Android still cuts terrain at the coast, iOS not yet);
+  - search (offline and online), share sheet, Apple Maps, the Files picker (GPX, places, `.map`),
+    GPX/`.map` files and `maparound://` links opened from other apps; Documents in Files.
+  - Not yet on iOS: track recording, route planning (no online router yet), marked trails,
+    raster maps, the 3D view, map tool viewshed (phase 4); party (5); offline routing (6).
+- **Still Android-only, by design until later phases**: BRouter (phase 6), BLE and MQTT
+  transports (phase 5), background recording (phase 4).
 
 ## 1. What changes on iOS
 
