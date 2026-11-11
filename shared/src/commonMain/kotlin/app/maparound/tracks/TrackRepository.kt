@@ -105,7 +105,8 @@ class TrackRepository(baseDir: String, private val store: KeyValueStore) {
     }
 
     private fun uniqueFile(name: String): Path {
-        val slug = name.replace(Regex("[^\\p{L}\\p{N} _-]"), "").trim().replace(' ', '_').take(60).ifEmpty { "track" }
+        // Letters, numbers, space, '_' and '-' (as the regex [^\p{L}\p{N} _-] did; Kotlin/Native has no \p{N}).
+        val slug = name.filter { keepInFileName(it) }.trim().replace(' ', '_').take(60).ifEmpty { "track" }
         var f = dirPath / "$slug.gpx"
         var n = 2
         while (fileSystem.exists(f)) f = dirPath / "${slug}_${n++}.gpx"
@@ -148,6 +149,10 @@ class TrackRepository(baseDir: String, private val store: KeyValueStore) {
 
     companion object {
         private const val KEY_VISIBLE = "visible"
+
+        private val NUMBERS = setOf(CharCategory.DECIMAL_DIGIT_NUMBER, CharCategory.LETTER_NUMBER, CharCategory.OTHER_NUMBER)
+
+        private fun keepInFileName(c: Char) = c.isLetter() || c.category in NUMBERS || c == ' ' || c == '_' || c == '-'
 
         /** "Track 2026-11-11 14:05" in local time. */
         fun defaultName(time: Long): String {
