@@ -57,11 +57,15 @@ struct SharedScreen: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> UIViewController {
         let surface = MapLibreSurface(styleURL: styleURL)
-        // CI launches the app once with MAPAROUND_DEMO=1: the screen then moves the map by itself.
-        let demo = ProcessInfo.processInfo.environment["MAPAROUND_DEMO"] == "1"
+        // CI also launches the app with MAPAROUND_DEMO=1 (the screen moves the map by itself)
+        // and MAPAROUND_DEMO=3d (it opens in the 3D view).
+        let demo = ProcessInfo.processInfo.environment["MAPAROUND_DEMO"]
+        let style = styleURL
         return MainViewControllerKt.MainViewController(
-            map: surface, events: surface.events, subtitle: subtitle, demo: demo,
-            makeMapView: { surface.view }
+            map: surface, events: surface.events, subtitle: subtitle,
+            demo: demo == "1", start3d: demo == "3d",
+            makeMapView: { surface.view },
+            makeTerrainView: { TerrainView(styleURL: style) }
         )
     }
 
