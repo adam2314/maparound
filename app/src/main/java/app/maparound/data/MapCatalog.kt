@@ -12,12 +12,12 @@ import java.util.concurrent.ConcurrentHashMap
  * (https://download.mapsforge.org/maps/v5/), by reading the server's directory listings
  * (parsed by the shared [Catalog]).
  */
-class MapCatalog(val baseUrl: String = Catalog.BASE_URL) {
+class MapCatalog(val baseUrl: String = Catalog.BASE_URL) : CatalogSource {
     private val cache = ConcurrentHashMap<String, List<CatalogEntry>>()
 
-    fun urlFor(entry: CatalogEntry): String = baseUrl + entry.path
+    override fun urlFor(entry: CatalogEntry): String = baseUrl + entry.path
 
-    suspend fun list(path: String, forceRefresh: Boolean = false): List<CatalogEntry> {
+    override suspend fun list(path: String, forceRefresh: Boolean): List<CatalogEntry> {
         if (!forceRefresh) cache[path]?.let { return it }
         val html = withContext(Dispatchers.IO) { fetch(baseUrl + path) }
         return Catalog.parseListing(html, path).also { cache[path] = it }

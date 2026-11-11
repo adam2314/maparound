@@ -147,6 +147,14 @@ object Fmt {
         }
     }
 
+    /** "Nov 3" this year, "Nov 3, 2025" otherwise (local time). */
+    fun date(timeMs: Long, nowMs: Long = nowMillis()): String {
+        val zone = TimeZone.currentSystemDefault()
+        val d = Instant.fromEpochMilliseconds(timeMs).toLocalDateTime(zone).date
+        val thisYear = Instant.fromEpochMilliseconds(nowMs).toLocalDateTime(zone).year
+        return "${MONTHS[d.monthNumber - 1]} ${d.dayOfMonth}" + if (d.year != thisYear) ", ${d.year}" else ""
+    }
+
     private val MONTHS = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
     /** Running clock for recordings: "1:05:09". */

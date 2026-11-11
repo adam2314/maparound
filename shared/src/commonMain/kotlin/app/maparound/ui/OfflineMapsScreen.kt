@@ -1,10 +1,5 @@
 package app.maparound.ui
 
-import android.text.format.DateUtils
-import android.text.format.Formatter
-import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -24,38 +19,37 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FileOpen
-import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Hiking
 import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Terrain
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Hiking
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Route
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import app.maparound.routing.Segments
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -74,28 +68,29 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import app.maparound.AppGraph
 import app.maparound.data.Catalog
 import app.maparound.data.CatalogEntry
 import app.maparound.data.DownloadInfo
 import app.maparound.data.LocalMap
-import app.maparound.data.MapCatalog
+import app.maparound.data.LocalOfflineData
+import app.maparound.data.LocalPrefs
 import app.maparound.data.MapNames
 import app.maparound.data.MapPos
-import app.maparound.data.readBoundingBox
+import app.maparound.data.mapBounds
 import app.maparound.map.TileSources
+import app.maparound.raster.LocalRasters
+import app.maparound.routing.Segments
+import app.maparound.terrain.GeoBounds
+import kotlin.math.floor
+import kotlin.math.log2
+import kotlin.math.max
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.mapsforge.core.model.BoundingBox
-import kotlin.math.floor
-import kotlin.math.log2
-import kotlin.math.max
 
 private sealed interface Listing {
     data object Loading : Listing
@@ -116,19 +111,20 @@ private val WORLD_ENTRY = CatalogEntry(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val repo = AppGraph.mapFiles
-    val downloader = AppGraph.downloader
-    val catalog = AppGraph.catalog
-    val prefs = AppGraph.prefs
+    val offline = LocalOfflineData.current
+    val repo = offline.maps
+    val downloader = offline.downloads
+    val catalog = offline.catalog
+    val prefs = LocalPrefs.current
+    val rasters = LocalRasters.current
 
     val installed by repo.files.collectAsState()
     val wifiOnly by prefs.wifiOnly.collectAsState()
     val downloads by produceState(initialValue = emptyList<DownloadInfo>()) {
         while (true) {
-            value = withContext(Dispatchers.IO) {
-                AppGraph.routing.poll()
+            value = withContext(Dispatchers.Default) {
+                offline.routing.poll()
                 downloader.poll()
             }
             delay(1000)
@@ -158,37 +154,33 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
     var confirmDeleteTrails by remember { mutableStateOf(false) }
     var importing by remember { mutableStateOf(false) }
 
-    val terrainState by AppGraph.terrain.state.collectAsState()
-    val routingState by AppGraph.routing.state.collectAsState()
-    val trailState by AppGraph.trails.state.collectAsState()
+    val terrainState by offline.terrain.state.collectAsState()
+    val routingState by offline.routing.state.collectAsState()
+    val trailState by offline.trails.state.collectAsState()
     // Map file name -> which extras are fully installed for it.
     val extras by produceState(emptyMap<String, Extras>(), installed, terrainState.version, routingState.installed, trailState.version) {
-        value = withContext(Dispatchers.IO) {
+        value = withContext(Dispatchers.Default) {
             installed.filterNot { it.isWorld }.mapNotNull { m ->
-                readBoundingBox(m.file)?.let { bb ->
-                    m.file.name to Extras(
-                        terrain = AppGraph.terrain.missingCells(bb).isEmpty(),
+                mapBounds(m.path)?.let { bb ->
+                    m.fileName to Extras(
+                        terrain = offline.terrain.missingCells(bb).isEmpty(),
                         // The block with the map's centre is enough to route most trips there.
-                        routing = AppGraph.routing.isInstalled(Segments.nameFor(bb.centerPoint.latitude, bb.centerPoint.longitude)),
-                        trails = AppGraph.trails.missingCells(bb).isEmpty(),
+                        routing = offline.routing.isInstalled(Segments.nameFor(bb.centerLat, bb.centerLon)),
+                        trails = offline.trails.missingCells(bb).isEmpty(),
                     )
                 }
             }.toMap()
         }
     }
 
-    BackHandler(enabled = path.isNotEmpty()) { path = parentPath(path) }
+    PlatformBackHandler(enabled = path.isNotEmpty()) { path = parentPath(path) }
 
-    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            scope.launch {
-                importing = true
-                val result = repo.import(uri)
-                importing = false
-                snackbar.showSnackbar(
-                    result.fold({ "Imported ${it.title}" }, { "Import failed: ${it.message}" }),
-                )
-            }
+    val importLauncher = repo.rememberImporter(onStart = { importing = true }) { result ->
+        importing = false
+        scope.launch {
+            snackbar.showSnackbar(
+                result.fold({ "Imported ${it.title}" }, { "Import failed: ${it.message}" }),
+            )
         }
     }
 
@@ -203,20 +195,17 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
 
     fun showOnMap(map: LocalMap) {
         scope.launch {
-            val bbox = withContext(Dispatchers.IO) { readBoundingBox(map.file) }
-            if (bbox != null) {
-                val c = bbox.centerPoint
-                prefs.saveLastPosition(MapPos(c.latitude, c.longitude, zoomToFit(bbox)))
-            }
+            val bbox = withContext(Dispatchers.Default) { mapBounds(map.path) }
+            if (bbox != null) prefs.saveLastPosition(MapPos(bbox.centerLat, bbox.centerLon, zoomToFit(bbox)))
             prefs.setBaseLayer(TileSources.OFFLINE_ID)
             onShowOnMap()
         }
     }
 
-    val rasterMaps by AppGraph.rasters.maps.collectAsState()
-    val addRaster = AppGraph.rasters.rememberPicker { r ->
+    val rasterMaps by rasters.maps.collectAsState()
+    val addRaster = rasters.rememberPicker { r ->
         r.fold(
-            { showRasterOnMap(AppGraph.prefs, it); onShowOnMap() },
+            { showRasterOnMap(prefs, it); onShowOnMap() },
             { e -> scope.launch { snackbar.showSnackbar(rasterError(e)) } },
         )
     }
@@ -225,7 +214,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
         TopAppBar(
             title = { Text("Offline maps") },
             actions = {
-                IconButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) {
+                IconButton(onClick = { importLauncher() }) {
                     Icon(Icons.Filled.FileOpen, contentDescription = "Import a .map file")
                 }
                 IconButton(onClick = addRaster) {
@@ -260,7 +249,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
             item {
                 SectionHeader(
                     "On this device",
-                    if (installed.isEmpty()) null else Formatter.formatShortFileSize(context, installed.sumOf { it.sizeBytes }),
+                    if (installed.isEmpty()) null else Fmt.fileSize(installed.sumOf { it.sizeBytes }),
                 )
             }
             if (installed.isEmpty()) {
@@ -273,8 +262,8 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                     )
                 }
             }
-            items(installed, key = { it.file.name }) { map ->
-                val ex = extras[map.file.name]
+            items(installed, key = { it.fileName }) { map ->
+                val ex = extras[map.fileName]
                 var menu by remember { mutableStateOf(false) }
                 ListItem(
                     modifier = Modifier.clickable { showOnMap(map) },
@@ -284,7 +273,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                         Text(
                             listOfNotNull(
                                 map.region,
-                                Formatter.formatShortFileSize(context, map.sizeBytes),
+                                Fmt.fileSize(map.sizeBytes),
                                 "terrain ✓".takeIf { ex?.terrain == true },
                                 "routing ✓".takeIf { ex?.routing == true },
                                 "trails ✓".takeIf { ex?.trails == true },
@@ -329,8 +318,8 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
             }
 
             // ---- raster maps (RMAP), read in place ----
-            rasterMapsSection(rasterMaps, addRaster, { showRasterOnMap(AppGraph.prefs, it); onShowOnMap() }, { removeRaster(AppGraph.prefs, AppGraph.rasters, it) }) {
-                SectionHeader("Raster maps", if (rasterMaps.isEmpty()) null else Formatter.formatShortFileSize(context, rasterMaps.sumOf { it.sizeBytes }))
+            rasterMapsSection(rasterMaps, addRaster, { showRasterOnMap(prefs, it); onShowOnMap() }, { removeRaster(prefs, rasters, it) }) {
+                SectionHeader("Raster maps", if (rasterMaps.isEmpty()) null else Fmt.fileSize(rasterMaps.sumOf { it.sizeBytes }))
             }
 
             // ---- terrain (elevation data for contours & hill shading) ----
@@ -339,7 +328,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                 item {
                     SectionHeader(
                         "Terrain",
-                        if (terrainState.tiles > 0) Formatter.formatShortFileSize(context, terrainState.bytes) else null,
+                        if (terrainState.tiles > 0) Fmt.fileSize(terrainState.bytes) else null,
                     )
                 }
                 if (progress != null) {
@@ -358,7 +347,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                                 }
                             },
                             trailingContent = {
-                                IconButton(onClick = { AppGraph.terrain.cancel() }) {
+                                IconButton(onClick = { offline.terrain.cancel() }) {
                                     Icon(Icons.Filled.Close, contentDescription = "Stop terrain download")
                                 }
                             },
@@ -395,7 +384,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                 item {
                     SectionHeader(
                         "Offline routing",
-                        Formatter.formatShortFileSize(context, routingState.installed.sumOf { it.bytes }).takeIf { routingState.installed.isNotEmpty() },
+                        Fmt.fileSize(routingState.installed.sumOf { it.bytes }).takeIf { routingState.installed.isNotEmpty() },
                     )
                 }
                 items(routingState.downloads, key = { "rd-${it.id}" }) { d ->
@@ -407,7 +396,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                             else LinearProgressIndicator(Modifier.fillMaxWidth())
                         },
                         trailingContent = {
-                            IconButton(onClick = { AppGraph.routing.cancel(d.id) }) {
+                            IconButton(onClick = { offline.routing.cancel(d.id) }) {
                                 Icon(Icons.Filled.Close, contentDescription = "Cancel download")
                             }
                         },
@@ -417,9 +406,9 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                     ListItem(
                         leadingContent = { Icon(Icons.Filled.Route, contentDescription = null) },
                         headlineContent = { Text("Routing data ${s.name}") },
-                        supportingContent = { Text("5°×5° block · ${Formatter.formatShortFileSize(context, s.bytes)}") },
+                        supportingContent = { Text("5°×5° block · ${Fmt.fileSize(s.bytes)}") },
                         trailingContent = {
-                            IconButton(onClick = { AppGraph.routing.delete(s.name) }) {
+                            IconButton(onClick = { offline.routing.delete(s.name) }) {
                                 Icon(Icons.Filled.Delete, contentDescription = "Delete routing data ${s.name}")
                             }
                         },
@@ -433,7 +422,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                 item {
                     SectionHeader(
                         "Marked trails",
-                        Formatter.formatShortFileSize(context, trailState.bytes).takeIf { trailState.cells > 0 },
+                        Fmt.fileSize(trailState.bytes).takeIf { trailState.cells > 0 },
                     )
                 }
                 if (trailProgress != null) {
@@ -452,7 +441,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                                 }
                             },
                             trailingContent = {
-                                IconButton(onClick = { AppGraph.trails.cancel() }) {
+                                IconButton(onClick = { offline.trails.cancel() }) {
                                     Icon(Icons.Filled.Close, contentDescription = "Stop trail download")
                                 }
                             },
@@ -531,7 +520,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                         } else {
                             CatalogMapRow(
                                 entry = entry,
-                                local = installed.firstOrNull { it.file.name == entry.localFileName },
+                                local = installed.firstOrNull { it.fileName == entry.localFileName },
                                 download = downloads.firstOrNull { it.fileName == entry.localFileName },
                                 onDownload = { requestDownload(entry) },
                             )
@@ -543,7 +532,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
     }
 
     confirmEntry?.let { entry ->
-        val free = Formatter.formatShortFileSize(context, repo.dir.usableSpace)
+        val free = Fmt.fileSize(repo.freeBytes())
         AlertDialog(
             onDismissRequest = { confirmEntry = null },
             title = { Text("Download ${entry.title}?") },
@@ -569,7 +558,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
             onDismiss = { routingTarget = null },
             onStart = { names ->
                 routingTarget = null
-                val error = AppGraph.routing.download(names, wifiOnly)
+                val error = offline.routing.download(names, wifiOnly)
                 scope.launch { snackbar.showSnackbar(error ?: "Downloading routing data for ${map.title}…") }
             },
         )
@@ -581,7 +570,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
             onDismiss = { trailsTarget = null },
             onStart = { bbox ->
                 trailsTarget = null
-                val error = AppGraph.trails.download(map.title, bbox)
+                val error = offline.trails.download(map.title, bbox)
                 scope.launch { snackbar.showSnackbar(error ?: "Downloading marked trails for ${map.title}…") }
             },
         )
@@ -594,7 +583,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
             text = { Text("Marked trails are then shown only online, as an overlay.") },
             confirmButton = {
                 TextButton(onClick = {
-                    AppGraph.trails.deleteAll()
+                    offline.trails.deleteAll()
                     confirmDeleteTrails = false
                 }) { Text("Delete") }
             },
@@ -608,7 +597,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
             onDismiss = { terrainTarget = null },
             onStart = { bbox, high ->
                 terrainTarget = null
-                val error = AppGraph.terrain.download(map.title, bbox, high)
+                val error = offline.terrain.download(map.title, bbox, high)
                 scope.launch { snackbar.showSnackbar(error ?: "Downloading terrain for ${map.title}…") }
             },
         )
@@ -621,12 +610,12 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
             text = {
                 Text(
                     "Removes contour lines and hill shading for all maps and frees " +
-                        "${Formatter.formatShortFileSize(context, terrainState.bytes)}.",
+                        "${Fmt.fileSize(terrainState.bytes)}.",
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
-                    AppGraph.terrain.deleteAll()
+                    offline.terrain.deleteAll()
                     confirmDeleteTerrain = false
                 }) { Text("Delete") }
             },
@@ -638,7 +627,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
             title = { Text("Delete ${map.title}?") },
-            text = { Text("Frees ${Formatter.formatShortFileSize(context, map.sizeBytes)}. You can download it again later.") },
+            text = { Text("Frees ${Fmt.fileSize(map.sizeBytes)}. You can download it again later.") },
             confirmButton = {
                 TextButton(onClick = {
                     repo.delete(map)
@@ -683,7 +672,6 @@ private fun Breadcrumbs(path: String, onNavigate: (String) -> Unit) {
 
 @Composable
 private fun DownloadRow(d: DownloadInfo, onCancel: () -> Unit) {
-    val context = LocalContext.current
     ListItem(
         headlineContent = { Text(d.title) },
         supportingContent = {
@@ -695,9 +683,9 @@ private fun DownloadRow(d: DownloadInfo, onCancel: () -> Unit) {
                     LinearProgressIndicator(Modifier.fillMaxWidth())
                 }
                 val amount = if (d.totalBytes > 0) {
-                    "${Formatter.formatShortFileSize(context, d.downloadedBytes)} / ${Formatter.formatShortFileSize(context, d.totalBytes)}"
+                    "${Fmt.fileSize(d.downloadedBytes)} / ${Fmt.fileSize(d.totalBytes)}"
                 } else {
-                    Formatter.formatShortFileSize(context, d.downloadedBytes)
+                    Fmt.fileSize(d.downloadedBytes)
                 }
                 Text("${d.statusText} · $amount", style = MaterialTheme.typography.bodySmall)
             }
@@ -710,13 +698,12 @@ private fun DownloadRow(d: DownloadInfo, onCancel: () -> Unit) {
 
 @Composable
 private fun CatalogMapRow(entry: CatalogEntry, local: LocalMap?, download: DownloadInfo?, onDownload: () -> Unit) {
-    val context = LocalContext.current
     val updateAvailable = local != null && entry.modified.let { it != null && it > local.modified }
     ListItem(
         headlineContent = { Text(entry.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = {
             val date = entry.modified?.let {
-                DateUtils.formatDateTime(context, it, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH)
+                Fmt.date(it)
             }
             Text(listOfNotNull(entry.sizeLabel?.let { "${it}B" }, date?.let { "updated $it" }).joinToString(" · "))
         },
@@ -746,16 +733,16 @@ private fun CatalogMapRow(entry: CatalogEntry, local: LocalMap?, download: Downl
 }
 
 @Composable
-private fun TerrainDialog(map: LocalMap, onDismiss: () -> Unit, onStart: (BoundingBox, Boolean) -> Unit) {
-    val context = LocalContext.current
-    val terrain = AppGraph.terrain
+private fun TerrainDialog(map: LocalMap, onDismiss: () -> Unit, onStart: (GeoBounds, Boolean) -> Unit) {
+    val terrain = LocalOfflineData.current.terrain
     // bbox, total cells, missing cells
-    val info by produceState<Triple<BoundingBox, Int, Int>?>(null, map) {
-        value = withContext(Dispatchers.IO) {
-            readBoundingBox(map.file)?.let { bb -> Triple(bb, terrain.cellsFor(bb).size, terrain.missingCells(bb).size) }
+    val info by produceState<Triple<GeoBounds, Int, Int>?>(null, map) {
+        value = withContext(Dispatchers.Default) {
+            mapBounds(map.path)?.let { bb -> Triple(bb, terrain.cellsFor(bb).size, terrain.missingCells(bb).size) }
         }
     }
-    var high by remember { mutableStateOf(AppGraph.prefs.terrainHighDetail) }
+    val prefs = LocalPrefs.current
+    var high by remember { mutableStateOf(prefs.terrainHighDetail) }
     val current = info
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -782,13 +769,13 @@ private fun TerrainDialog(map: LocalMap, onDismiss: () -> Unit, onStart: (Boundi
                         DetailOption(
                             selected = high,
                             title = "High detail (30 m)",
-                            subtitle = "Up to ${Formatter.formatShortFileSize(context, terrain.estimateBytes(current.third, true))}",
+                            subtitle = "Up to ${Fmt.fileSize(terrain.estimateBytes(current.third, true))}",
                             onClick = { high = true },
                         )
                         DetailOption(
                             selected = !high,
                             title = "Standard (90 m)",
-                            subtitle = "Up to ${Formatter.formatShortFileSize(context, terrain.estimateBytes(current.third, false))} · 9× smaller, less detail",
+                            subtitle = "Up to ${Fmt.fileSize(terrain.estimateBytes(current.third, false))} · 9× smaller, less detail",
                             onClick = { high = false },
                         )
                     }
@@ -827,11 +814,10 @@ private data class Extras(val terrain: Boolean, val routing: Boolean, val trails
 
 @Composable
 private fun RoutingDialog(map: LocalMap, onDismiss: () -> Unit, onStart: (List<String>) -> Unit) {
-    val context = LocalContext.current
-    val routing = AppGraph.routing
+    val routing = LocalOfflineData.current.routing
     // (missing block names, their sizes or null when the server could not be reached)
     val info by produceState<Pair<List<String>, Map<String, Long>?>?>(null, map) {
-        val bb = withContext(Dispatchers.IO) { readBoundingBox(map.file) }
+        val bb = withContext(Dispatchers.Default) { mapBounds(map.path) }
         if (bb == null) {
             value = emptyList<String>() to null
             return@produceState
@@ -860,13 +846,13 @@ private fun RoutingDialog(map: LocalMap, onDismiss: () -> Unit, onStart: (List<S
                         val sizes = current.second
                         current.first.forEach { name ->
                             Text(
-                                "$name" + (sizes?.get(name)?.let { " · " + Formatter.formatShortFileSize(context, it) } ?: ""),
+                                "$name" + (sizes?.get(name)?.let { " · " + Fmt.fileSize(it) } ?: ""),
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                         }
                         if (sizes != null) {
                             Text(
-                                "Total ${Formatter.formatShortFileSize(context, current.first.sumOf { sizes[it] ?: 0L })}",
+                                "Total ${Fmt.fileSize(current.first.sumOf { sizes[it] ?: 0L })}",
                                 style = MaterialTheme.typography.titleSmall,
                             )
                         } else {
@@ -890,12 +876,12 @@ private fun RoutingDialog(map: LocalMap, onDismiss: () -> Unit, onStart: (List<S
 }
 
 @Composable
-private fun TrailsDialog(map: LocalMap, onDismiss: () -> Unit, onStart: (BoundingBox) -> Unit) {
-    val trails = AppGraph.trails
+private fun TrailsDialog(map: LocalMap, onDismiss: () -> Unit, onStart: (GeoBounds) -> Unit) {
+    val trails = LocalOfflineData.current.trails
     // bbox, total cells, missing cells
-    val info by produceState<Triple<BoundingBox, Int, Int>?>(null, map) {
-        value = withContext(Dispatchers.IO) {
-            readBoundingBox(map.file)?.let { bb -> Triple(bb, trails.cellsFor(bb).size, trails.missingCells(bb).size) }
+    val info by produceState<Triple<GeoBounds, Int, Int>?>(null, map) {
+        value = withContext(Dispatchers.Default) {
+            mapBounds(map.path)?.let { bb -> Triple(bb, trails.cellsFor(bb).size, trails.missingCells(bb).size) }
         }
     }
     val current = info
@@ -946,7 +932,7 @@ private fun parentPath(path: String): String {
 }
 
 /** Rough zoom level that shows the whole bounding box on a phone screen. */
-private fun zoomToFit(bb: BoundingBox): Int {
-    val span = max(bb.maxLongitude - bb.minLongitude, (bb.maxLatitude - bb.minLatitude) * 1.4).coerceAtLeast(0.005)
+private fun zoomToFit(bb: GeoBounds): Int {
+    val span = max(bb.maxLon - bb.minLon, (bb.maxLat - bb.minLat) * 1.4).coerceAtLeast(0.005)
     return floor(log2(360.0 * 1.5 / span)).toInt().coerceIn(2, 16)
 }

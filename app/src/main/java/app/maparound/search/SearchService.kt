@@ -9,6 +9,7 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
+import app.maparound.data.file
 
 /** The shared [SearchEngine] with this phone's places, offline maps and internet connection. */
 object SearchService : Searcher {

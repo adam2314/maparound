@@ -15,29 +15,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import org.json.JSONObject
 import java.io.File
 
-data class DownloadInfo(
-    val id: Long,
-    val fileName: String,
-    val status: Int,
-    val downloadedBytes: Long,
-    val totalBytes: Long,
-    val reason: Int,
-) {
-    val title: String get() = MapNames.title(fileName)
-    val progress: Float? get() = if (totalBytes > 0) downloadedBytes.toFloat() / totalBytes else null
-    val statusText: String
-        get() = when (status) {
-            DownloadManager.STATUS_PENDING -> "Queued"
-            DownloadManager.STATUS_PAUSED -> when (reason) {
-                DownloadManager.PAUSED_QUEUED_FOR_WIFI -> "Waiting for Wi‑Fi"
-                DownloadManager.PAUSED_WAITING_FOR_NETWORK -> "Waiting for network"
-                DownloadManager.PAUSED_WAITING_TO_RETRY -> "Retrying soon"
-                else -> "Paused"
-            }
-            else -> "Downloading"
-        }
-}
-
 /**
  * Downloads country maps with the system DownloadManager (survives app exit, resumes, shows a
  * notification). Files land as `<name>.map.part` and are renamed to `.map` once complete and
@@ -46,7 +23,7 @@ data class DownloadInfo(
 class MapDownloader(
     private val context: Context,
     private val repo: MapFilesRepository,
-) {
+) : MapDownloads {
     private val prefs = DownloadIds(context)
     private val dm = context.getSystemService(DownloadManager::class.java)
 
@@ -55,7 +32,7 @@ class MapDownloader(
     val events: SharedFlow<String> = _events.asSharedFlow()
 
     /** Returns an error message, or null if the download was queued. */
-    fun enqueue(entry: CatalogEntry, url: String, wifiOnly: Boolean): String? {
+    override fun enqueue(entry: CatalogEntry, url: String, wifiOnly: Boolean): String? {
         val fileName = entry.localFileName
         if (prefs.downloads().containsValue(fileName)) return "${entry.title} is already downloading"
         val needed = entry.sizeBytes ?: 0L
@@ -82,14 +59,14 @@ class MapDownloader(
         }
     }
 
-    fun cancel(id: Long) {
+    override fun cancel(id: Long) {
         dm.remove(id)
         prefs.removeDownload(id)
     }
 
     /** Current state of all in-flight downloads. Also finalizes any that have finished. */
     @Synchronized
-    fun poll(): List<DownloadInfo> {
+    override fun poll(): List<DownloadInfo> {
         val result = mutableListOf<DownloadInfo>()
         for ((id, fileName) in prefs.downloads()) {
             dm.query(DownloadManager.Query().setFilterById(id)).use { c ->
@@ -104,15 +81,25 @@ class MapDownloader(
                     result += DownloadInfo(
                         id = id,
                         fileName = fileName,
-                        status = status,
                         downloadedBytes = c.long(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR),
                         totalBytes = c.long(DownloadManager.COLUMN_TOTAL_SIZE_BYTES),
-                        reason = c.int(DownloadManager.COLUMN_REASON),
+                        statusText = statusText(status, c.int(DownloadManager.COLUMN_REASON)),
                     )
                 }
             }
         }
         return result
+    }
+
+    private fun statusText(status: Int, reason: Int): String = when (status) {
+        DownloadManager.STATUS_PENDING -> "Queued"
+        DownloadManager.STATUS_PAUSED -> when (reason) {
+            DownloadManager.PAUSED_QUEUED_FOR_WIFI -> "Waiting for Wi‑Fi"
+            DownloadManager.PAUSED_WAITING_FOR_NETWORK -> "Waiting for network"
+            DownloadManager.PAUSED_WAITING_TO_RETRY -> "Retrying soon"
+            else -> "Paused"
+        }
+        else -> "Downloading"
     }
 
     @Synchronized

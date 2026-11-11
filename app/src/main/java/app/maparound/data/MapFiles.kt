@@ -11,13 +11,16 @@ import kotlinx.coroutines.withContext
 import org.mapsforge.core.model.BoundingBox
 import org.mapsforge.map.reader.MapFile
 import java.io.File
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import kotlinx.coroutines.launch
+import app.maparound.data.InstalledMaps
 
-/** A mapsforge vector map installed on the device. */
-data class LocalMap(val file: File, val sizeBytes: Long, val modified: Long) {
-    val title: String get() = MapNames.title(file.name)
-    val region: String? get() = MapNames.region(file.name)
-    val isWorld: Boolean get() = MapNames.isWorld(file.name)
-}
+/** The map's file (Android code works with files). */
+val LocalMap.file: File get() = File(path)
 
 fun isValidMapFile(file: File): Boolean = try {
     MapFile(file).close()
@@ -37,11 +40,11 @@ fun readBoundingBox(file: File): BoundingBox? = try {
     null
 }
 
-class MapFilesRepository(private val context: Context) {
+class MapFilesRepository(private val context: Context) : InstalledMaps {
     val dir: File = (context.getExternalFilesDir("maps") ?: File(context.filesDir, "maps")).apply { mkdirs() }
 
     private val _files = MutableStateFlow<List<LocalMap>>(emptyList())
-    val files: StateFlow<List<LocalMap>> = _files.asStateFlow()
+    override val files: StateFlow<List<LocalMap>> = _files.asStateFlow()
 
     init {
         refresh()
@@ -50,11 +53,29 @@ class MapFilesRepository(private val context: Context) {
     fun refresh() {
         _files.value = dir.listFiles { f -> f.isFile && f.name.endsWith(".map") }
             .orEmpty()
-            .map { LocalMap(it, it.length(), it.lastModified()) }
+            .map { LocalMap(it.path, it.length(), it.lastModified()) }
             .sortedWith(compareBy<LocalMap> { !it.isWorld }.thenBy { it.title })
     }
 
-    fun delete(map: LocalMap) {
+    override fun freeBytes(): Long = dir.usableSpace
+
+    @Composable
+    override fun rememberImporter(onStart: () -> Unit, onResult: (Result<LocalMap>) -> Unit): () -> Unit {
+        val scope = rememberCoroutineScope()
+        val start = rememberUpdatedState(onStart)
+        val done = rememberUpdatedState(onResult)
+        val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) {
+                scope.launch {
+                    start.value()
+                    done.value(import(uri))
+                }
+            }
+        }
+        return { launcher.launch(arrayOf("*/*")) }
+    }
+
+    override fun delete(map: LocalMap) {
         map.file.delete()
         refresh()
     }
@@ -79,7 +100,7 @@ class MapFilesRepository(private val context: Context) {
             target.delete()
             if (!tmp.renameTo(target)) error("Could not store file")
             refresh()
-            LocalMap(target, target.length(), target.lastModified())
+            LocalMap(target.path, target.length(), target.lastModified())
         }
     }
 }

@@ -3,6 +3,7 @@ package app.maparound.ui
 import app.maparound.shared.util.localDecimalSeparator
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class FmtTest {
     @Test
@@ -20,5 +21,14 @@ class FmtTest {
         assertEquals("1:05:09", Fmt.clock(3909))
         assertEquals("NNE", Fmt.cardinal(20f))
         assertEquals("N", Fmt.cardinal(355f))
+        assertEquals("830 B", Fmt.fileSize(830))
+        assertEquals("4${d}2 kB", Fmt.fileSize(4_200))
+        assertEquals("530 MB", Fmt.fileSize(530_000_000))
+        assertEquals("1${d}2 GB", Fmt.fileSize(1_234_000_000))
+        assertEquals("1${d}0 MB", Fmt.fileSize(999_999)) // rounds up into the next unit
+        val now = 1_790_000_000_000 // Sep 2026
+        assertEquals("Just now", Fmt.relativeTime(now - 20_000, now))
+        assertEquals("5 min ago", Fmt.relativeTime(now - 5 * 60_000, now))
+        assertTrue(Fmt.date(1_700_000_000_000, now).endsWith(", 2023")) // another year shows it
     }
 }

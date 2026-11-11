@@ -22,6 +22,7 @@ import app.maparound.three.OnlineTileTextures
 import app.maparound.three.RasterTileTextures
 import app.maparound.three.Scene3DView
 import app.maparound.three.TerrainEngine
+import app.maparound.data.file
 
 /** The shared 3D screen's view on Android: OpenGL ES, textures from the same map as in 2D. */
 @Composable

@@ -21,7 +21,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import org.mapsforge.core.model.BoundingBox
 import java.io.File
 import java.io.FilterInputStream
 import java.io.InputStream
@@ -32,23 +31,19 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.math.floor
 import okio.source
 import okio.buffer
+import app.maparound.terrain.GeoBounds
 
 /**
  * Marked hiking routes (OSM route relations) for offline use, fetched from the Overpass API
  * one 1°×1° cell at a time and stored as compact `files/trails/N47E009.trails` files.
  */
-class TrailRepository(private val context: Context, private val prefs: Prefs) {
+class TrailRepository(private val context: Context, private val prefs: Prefs) : TrailData {
     private val base: File = context.getExternalFilesDir(null) ?: context.filesDir
     val dir: File = File(base, "trails").apply { mkdirs() }
 
-    data class Progress(val label: String, val done: Int, val total: Int, val failed: Int) {
-        val fraction: Float get() = if (total == 0) 0f else done.toFloat() / total
-    }
 
-    data class State(val cells: Int = 0, val bytes: Long = 0, val version: Int = 0, val progress: Progress? = null)
-
-    private val _state = MutableStateFlow(State())
-    val state: StateFlow<State> = _state.asStateFlow()
+    private val _state = MutableStateFlow(TrailState())
+    override val state: StateFlow<TrailState> = _state.asStateFlow()
     private val _events = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val events: SharedFlow<String> = _events.asSharedFlow()
 
@@ -65,34 +60,34 @@ class TrailRepository(private val context: Context, private val prefs: Prefs) {
         _state.update { it.copy(cells = files.size, bytes = files.sumOf { f -> f.length() }, version = it.version + 1) }
     }
 
-    fun cellsFor(bbox: BoundingBox): List<Pair<Int, Int>> {
+    override fun cellsFor(bounds: GeoBounds): List<Pair<Int, Int>> {
         val out = ArrayList<Pair<Int, Int>>()
-        for (lat in floor(bbox.minLatitude).toInt()..floor(bbox.maxLatitude - 1e-9).toInt()) {
-            for (lon in floor(bbox.minLongitude).toInt()..floor(bbox.maxLongitude - 1e-9).toInt()) out += lat to lon
+        for (lat in floor(bounds.minLat).toInt()..floor(bounds.maxLat - 1e-9).toInt()) {
+            for (lon in floor(bounds.minLon).toInt()..floor(bounds.maxLon - 1e-9).toInt()) out += lat to lon
         }
         return out
     }
 
-    fun missingCells(bbox: BoundingBox): List<Pair<Int, Int>> =
-        cellsFor(bbox).filterNot { (lat, lon) -> file(lat, lon).exists() }
+    override fun missingCells(bounds: GeoBounds): List<Pair<Int, Int>> =
+        cellsFor(bounds).filterNot { (lat, lon) -> file(lat, lon).exists() }
 
     private fun file(lat: Int, lon: Int) = File(dir, DemIndex.nameFor(lat, lon) + ".trails")
 
     /** Returns an error message, or null when the download started. */
-    fun download(label: String, bbox: BoundingBox): String? {
+    override fun download(label: String, bounds: GeoBounds): String? {
         if (job?.isActive == true) return "A trail download is already running"
-        val cells = missingCells(bbox)
+        val cells = missingCells(bounds)
         if (cells.isEmpty()) return "Trails for $label are already installed"
         if (cells.size > MAX_CELLS) return "That area is too large for one trail download (${cells.size} cells)"
         if (prefs.wifiOnly.value && isMetered()) return "Wi‑Fi only is on and you're on mobile data"
 
         job = scope.launch {
             var failed = 0
-            _state.update { it.copy(progress = Progress(label, 0, cells.size, 0)) }
+            _state.update { it.copy(progress = DownloadProgress(label, 0, cells.size, 0)) }
             try {
                 cells.forEachIndexed { i, (lat, lon) ->
                     if (!fetchCell(lat, lon)) failed++
-                    _state.update { it.copy(progress = Progress(label, i + 1, cells.size, failed)) }
+                    _state.update { it.copy(progress = DownloadProgress(label, i + 1, cells.size, failed)) }
                 }
                 _events.tryEmit(
                     if (failed == 0) "Marked trails ready for $label"
@@ -109,11 +104,11 @@ class TrailRepository(private val context: Context, private val prefs: Prefs) {
         return null
     }
 
-    fun cancel() {
+    override fun cancel() {
         job?.cancel()
     }
 
-    fun deleteAll() {
+    override fun deleteAll() {
         cancel()
         dir.listFiles()?.forEach { it.delete() }
         refresh()

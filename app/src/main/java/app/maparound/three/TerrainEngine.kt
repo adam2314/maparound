@@ -11,6 +11,7 @@ import org.mapsforge.map.reader.MapFile
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+import app.maparound.data.file
 
 /**
  * Loads 3D tiles in the background, most important first: the map picture and terrain mesh for

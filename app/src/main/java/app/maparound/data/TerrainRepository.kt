@@ -25,7 +25,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import org.mapsforge.core.model.BoundingBox
 import org.mapsforge.map.datastore.MultiMapDataStore
 import org.mapsforge.map.reader.MapFile
 import java.io.File
@@ -35,6 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.zip.GZIPInputStream
 import kotlin.math.floor
 import okio.source
+import app.maparound.terrain.GeoBounds
 
 /**
  * Elevation data (1°×1° .hgt tiles) for contour lines and hill shading.
@@ -47,25 +47,13 @@ class TerrainRepository(
     private val context: Context,
     private val prefs: Prefs,
     private val maps: MapFilesRepository,
-) {
+) : TerrainData {
     private val base: File = context.getExternalFilesDir(null) ?: context.filesDir
     val demDir: File = File(base, "dem").apply { mkdirs() }
     private val tmpDir: File = File(base, "dem-tmp").apply { mkdirs() }
 
-    data class Progress(val label: String, val done: Int, val total: Int, val failed: Int) {
-        val fraction: Float get() = if (total == 0) 0f else done.toFloat() / total
-    }
-
-    data class State(
-        val tiles: Int = 0,
-        val bytes: Long = 0,
-        /** Bumped whenever the set of tiles changes, so map layers know to rebuild. */
-        val version: Int = 0,
-        val progress: Progress? = null,
-    )
-
-    private val _state = MutableStateFlow(State())
-    val state: StateFlow<State> = _state.asStateFlow()
+    private val _state = MutableStateFlow(TerrainState())
+    override val state: StateFlow<TerrainState> = _state.asStateFlow()
 
     private val _events = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val events: SharedFlow<String> = _events.asSharedFlow()
@@ -84,26 +72,26 @@ class TerrainRepository(
     }
 
     /** All 1° cells overlapping a map's bounding box. */
-    fun cellsFor(bbox: BoundingBox): List<Pair<Int, Int>> {
+    override fun cellsFor(bounds: GeoBounds): List<Pair<Int, Int>> {
         val cells = ArrayList<Pair<Int, Int>>()
-        for (lat in floor(bbox.minLatitude).toInt()..floor(bbox.maxLatitude - 1e-9).toInt()) {
-            for (lon in floor(bbox.minLongitude).toInt()..floor(bbox.maxLongitude - 1e-9).toInt()) {
+        for (lat in floor(bounds.minLat).toInt()..floor(bounds.maxLat - 1e-9).toInt()) {
+            for (lon in floor(bounds.minLon).toInt()..floor(bounds.maxLon - 1e-9).toInt()) {
                 if (lat in -85..84) cells += lat to lon
             }
         }
         return cells
     }
 
-    fun missingCells(bbox: BoundingBox): List<Pair<Int, Int>> =
-        cellsFor(bbox).filterNot { (lat, lon) -> File(demDir, DemIndex.nameFor(lat, lon) + ".hgt").exists() }
+    override fun missingCells(bounds: GeoBounds): List<Pair<Int, Int>> =
+        cellsFor(bounds).filterNot { (lat, lon) -> File(demDir, DemIndex.nameFor(lat, lon) + ".hgt").exists() }
 
-    fun estimateBytes(cells: Int, highDetail: Boolean): Long =
+    override fun estimateBytes(cells: Int, highDetail: Boolean): Long =
         cells * if (highDetail) BYTES_1_ARCSEC else BYTES_3_ARCSEC
 
-    /** Starts downloading the missing tiles for [bbox]. Returns an error message, or null. */
-    fun download(label: String, bbox: BoundingBox, highDetail: Boolean): String? {
+    /** Starts downloading the missing tiles for [bounds]. Returns an error message, or null. */
+    override fun download(label: String, bounds: GeoBounds, highDetail: Boolean): String? {
         if (job?.isActive == true) return "A terrain download is already running"
-        val cells = missingCells(bbox)
+        val cells = missingCells(bounds)
         if (cells.isEmpty()) return "Terrain for $label is already installed"
         val needed = estimateBytes(cells.size, highDetail)
         if (needed > MAX_DOWNLOAD_BYTES) {
@@ -118,7 +106,7 @@ class TerrainRepository(
         job = scope.launch {
             val done = AtomicInteger()
             val failed = AtomicInteger()
-            _state.update { it.copy(progress = Progress(label, 0, cells.size, 0)) }
+            _state.update { it.copy(progress = DownloadProgress(label, 0, cells.size, 0)) }
             val coast = openCoastSource()
             try {
                 val limit = Semaphore(PARALLEL)
@@ -128,7 +116,7 @@ class TerrainRepository(
                             limit.withPermit {
                                 if (!fetchCell(lat, lon, highDetail, coast)) failed.incrementAndGet()
                                 val d = done.incrementAndGet()
-                                _state.update { it.copy(progress = Progress(label, d, cells.size, failed.get())) }
+                                _state.update { it.copy(progress = DownloadProgress(label, d, cells.size, failed.get())) }
                             }
                         }
                     }
@@ -150,11 +138,11 @@ class TerrainRepository(
         return null
     }
 
-    fun cancel() {
+    override fun cancel() {
         job?.cancel()
     }
 
-    fun deleteAll() {
+    override fun deleteAll() {
         cancel()
         demDir.listFiles()?.forEach { it.delete() }
         refresh()

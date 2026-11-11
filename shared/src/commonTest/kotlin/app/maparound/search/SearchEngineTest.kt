@@ -106,5 +106,8 @@ class SearchEngineTest {
         assertEquals("Vaduz", SearchEngine.offline("Vaduz", vaduz, listOf(map), "en").first().name)
         assertTrue(SearchEngine.offline("Vaduz", GeoPoint(31.7, 35.2), listOf(map), "en").isEmpty()) // far away
         assertTrue(SearchEngine.offline("Vaduz", vaduz, listOf("/no/such.map"), "en").isEmpty())
+        val bounds = app.maparound.data.mapBounds(map)!!
+        assertTrue(vaduz.lat in bounds.minLat..bounds.maxLat && vaduz.lon in bounds.minLon..bounds.maxLon)
+        assertEquals(null, app.maparound.data.mapBounds("/no/such.map"))
     }
 }

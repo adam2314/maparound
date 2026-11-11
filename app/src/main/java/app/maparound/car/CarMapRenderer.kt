@@ -43,6 +43,7 @@ import org.mapsforge.core.model.LatLong
 import org.mapsforge.core.util.MercatorProjection
 import org.mapsforge.map.model.DisplayModel
 import kotlin.math.roundToInt
+import app.maparound.data.file
 
 /**
  * Draws the map on the car screen. Android Auto hands us a Surface; a private virtual display on

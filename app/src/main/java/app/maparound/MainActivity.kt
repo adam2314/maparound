@@ -9,7 +9,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.CompositionLocalProvider
+import app.maparound.data.LocalOfflineData
 import app.maparound.data.LocalPrefs
+import app.maparound.data.OfflineData
+import app.maparound.raster.LocalRasters
 import app.maparound.sensors.AndroidSensors
 import app.maparound.sensors.LocalDeviceSensors
 import app.maparound.places.LocalPlaces
@@ -40,6 +43,15 @@ class MainActivity : ComponentActivity() {
                 LocalSearcher provides SearchService,
                 LocalTracks provides AppGraph.tracks,
                 LocalRecordingControl provides recording,
+                LocalRasters provides AppGraph.rasters,
+                LocalOfflineData provides OfflineData(
+                    maps = AppGraph.mapFiles,
+                    downloads = AppGraph.downloader,
+                    catalog = AppGraph.catalog,
+                    terrain = AppGraph.terrain,
+                    trails = AppGraph.trails,
+                    routing = AppGraph.routing,
+                ),
             ) {
                 MapAroundTheme {
                     MapAroundRoot()
