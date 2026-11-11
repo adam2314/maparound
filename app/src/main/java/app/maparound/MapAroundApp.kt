@@ -12,6 +12,7 @@ import app.maparound.data.TerrainRepository
 import app.maparound.routing.RoutePlanner
 import app.maparound.routing.RoutingDataRepository
 import app.maparound.party.PartySession
+import app.maparound.tools.ToolsSession
 import app.maparound.tracks.TrackRepository
 import app.maparound.data.TrailRepository
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory
@@ -53,11 +54,12 @@ object AppGraph {
         mapFiles = MapFilesRepository(app)
         downloader = MapDownloader(app, mapFiles)
         terrain = TerrainRepository(app, prefs, mapFiles)
+        ToolsSession.terrainSource = { terrain.demDir.path to terrain.state.value.version }
         routing = RoutingDataRepository(app)
         planner = RoutePlanner(app, routing, terrain.demDir)
         trails = TrailRepository(app, prefs)
         tracks = TrackRepository(app)
-        places = PlaceRepository(app)
+        places = PlaceRepository((app.getExternalFilesDir(null) ?: app.filesDir).path)
         rasters = RasterMapRepository(app)
         PartySession.init(app)
     }

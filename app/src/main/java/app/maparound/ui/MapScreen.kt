@@ -120,6 +120,7 @@ import app.maparound.map.MapController
 import app.maparound.map.OnlineSource
 import app.maparound.map.TileSources
 import app.maparound.sensors.LocationSource
+import app.maparound.sensors.toGeoFix
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -472,7 +473,7 @@ fun MapScreen(
             }
             selectedPlace?.let { id -> AppGraph.places.get(id) }?.let { pl ->
                 PlaceCard(
-                    pl, location,
+                    pl, location?.toGeoFix(),
                     onClose = { selectedPlace = null },
                     onRoute = {
                         selectedPlace = null
@@ -591,7 +592,7 @@ fun MapScreen(
         if (tools.active) {
             ToolsPanel(
                 tools,
-                myLocation = location,
+                myLocation = location?.toGeoFix(),
                 mapCenter = { controller.position().let { GeoPoint(it.lat, it.lon) } },
                 onShowPoint = { p ->
                     follow = false
@@ -611,7 +612,7 @@ fun MapScreen(
     if (searching) {
         SearchOverlay(
             mapCenter = controller.position().let { GeoPoint(it.lat, it.lon) },
-            myLocation = location,
+            myLocation = location?.toGeoFix(),
             onPick = { r ->
                 searching = false
                 follow = false

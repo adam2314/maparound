@@ -34,6 +34,10 @@ kotlin {
             implementation(compose.materialIconsExtended)
             implementation("org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
         }
+        androidMain.dependencies {
+            // Back button and file picker for the shared screens.
+            implementation("androidx.activity:activity-compose:1.9.3")
+        }
         commonTest.dependencies {
             implementation(kotlin("test"))
         }

@@ -1,7 +1,5 @@
 package app.maparound.ui
 
-import android.hardware.GeomagneticField
-import android.location.Location
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -76,11 +74,19 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
-import app.maparound.AppGraph
+import app.maparound.data.LocalPrefs
 import app.maparound.routing.Geo
 import app.maparound.routing.GeoPoint
+import app.maparound.sensors.DeviceSensors
+import app.maparound.sensors.GeoFix
+import app.maparound.sensors.LocalDeviceSensors
 import app.maparound.share.Shared
 import app.maparound.share.SharedLinks
+import app.maparound.shared.util.fixed
+import app.maparound.shared.util.localFixed
+import app.maparound.shared.util.localSigned
+import app.maparound.shared.util.nowMillis
+import app.maparound.shared.util.toDegrees
 import app.maparound.tools.CoordFormat
 import app.maparound.tools.Coords
 import app.maparound.tools.Geodesy
@@ -88,7 +94,6 @@ import app.maparound.tools.LineOfSight
 import app.maparound.tools.ToolsSession
 import app.maparound.tools.ToolsSession.Mode
 import app.maparound.tools.ToolsSession.Slot
-import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.ln
@@ -100,14 +105,13 @@ private val Visible = Color(0xFF2E7D32)
 private val Hidden = Color(0xFFC62828)
 
 /** Magnetic declination (degrees east) at a point, from the World Magnetic Model built into Android. */
-fun declinationAt(p: GeoPoint): Float =
-    GeomagneticField(p.lat.toFloat(), p.lon.toFloat(), 0f, System.currentTimeMillis()).declination
+fun declinationAt(sensors: DeviceSensors, p: GeoPoint): Float = sensors.declination(p.lat, p.lon, 0.0, nowMillis())
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ToolsPanel(
     state: ToolsSession.State,
-    myLocation: Location?,
+    myLocation: GeoFix?,
     mapCenter: () -> GeoPoint,
     onShowPoint: (GeoPoint) -> Unit,
     onShare: (GeoPoint) -> Unit,
@@ -149,13 +153,13 @@ fun ToolsPanel(
 // ---- A / B points ------------------------------------------------------------------------------------
 
 @Composable
-private fun PointsRow(state: ToolsSession.State, myLocation: Location?, onProject: (() -> Unit)? = null) {
+private fun PointsRow(state: ToolsSession.State, myLocation: GeoFix?, onProject: (() -> Unit)? = null) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         PointChip("A", state.a, state.aGround, state.next == Slot.A) { ToolsSession.select(Slot.A) }
         PointChip("B", state.b, state.bGround, state.next == Slot.B) { ToolsSession.select(Slot.B) }
         Spacer(Modifier.weight(1f))
         IconButton(
-            onClick = { myLocation?.let { val p = GeoPoint(it.latitude, it.longitude); if (state.next == Slot.A) ToolsSession.setA(p) else ToolsSession.setB(p) } },
+            onClick = { myLocation?.let { val p = GeoPoint(it.lat, it.lon); if (state.next == Slot.A) ToolsSession.setA(p) else ToolsSession.setB(p) } },
             enabled = myLocation != null,
         ) { Icon(Icons.Filled.MyLocation, contentDescription = "Put ${state.next} at my location") }
         IconButton(onClick = { ToolsSession.swap() }, enabled = state.a != null || state.b != null) {
@@ -195,7 +199,8 @@ private fun Hint(text: String) {
 // ---- azimuth & range ----------------------------------------------------------------------------------
 
 @Composable
-private fun MeasureBody(state: ToolsSession.State, myLocation: Location?) {
+private fun MeasureBody(state: ToolsSession.State, myLocation: GeoFix?) {
+    val sensors = LocalDeviceSensors.current
     var project by remember { mutableStateOf(false) }
     PointsRow(state, myLocation, onProject = { project = true })
     val a = state.a
@@ -206,7 +211,7 @@ private fun MeasureBody(state: ToolsSession.State, myLocation: Location?) {
         val dist = Geo.distance(a, b)
         val az = Geodesy.bearing(a, b)
         val back = Geodesy.bearing(b, a)
-        val mag = (az - declinationAt(a) + 360) % 360
+        val mag = (az - declinationAt(sensors, a) + 360) % 360
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(Fmt.distance(dist.toFloat()), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Text("${deg(az)} ${Fmt.cardinal(az.toFloat())}", style = MaterialTheme.typography.headlineSmall)
@@ -219,16 +224,16 @@ private fun MeasureBody(state: ToolsSession.State, myLocation: Location?) {
         val gb = state.bGround
         if (ga != null && gb != null && dist > 1) {
             val dh = gb - ga
-            val angle = Math.toDegrees(atan2(dh, dist))
+            val angle = toDegrees(atan2(dh, dist))
             Text(
                 "Height ${ga.roundToInt()} → ${gb.roundToInt()} m · Δ ${signed(dh.roundToInt())} m · " +
-                    String.format(Locale.getDefault(), "%+.1f°", angle) +
+                    "${localSigned(angle, 1)}°" +
                     if (abs(dh) > dist * 0.05) " · slant ${Fmt.distance(sqrt(dist * dist + dh * dh).toFloat())}" else "",
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
         Text(
-            "True north bearing along the great circle; magnetic from the WMM declination at A (${String.format(Locale.getDefault(), "%+.1f°", declinationAt(a))}).",
+            "True north bearing along the great circle; magnetic from the WMM declination at A (${localSigned(declinationAt(sensors, a).toDouble(), 1)}°).",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -243,6 +248,7 @@ private fun signed(v: Int) = if (v > 0) "+$v" else "$v"
 
 @Composable
 private fun ProjectDialog(from: GeoPoint, onDismiss: () -> Unit, onPlace: (GeoPoint) -> Unit) {
+    val sensors = LocalDeviceSensors.current
     var bearing by remember { mutableStateOf("") }
     var distance by remember { mutableStateOf("") }
     var mils by remember { mutableStateOf(false) }
@@ -281,7 +287,7 @@ private fun ProjectDialog(from: GeoPoint, onDismiss: () -> Unit, onPlace: (GeoPo
         confirmButton = {
             TextButton(enabled = valid, onClick = {
                 var trueBearing = if (mils) b!! * 360 / 6400 else b!!
-                if (magnetic) trueBearing += declinationAt(from)
+                if (magnetic) trueBearing += declinationAt(sensors, from)
                 onPlace(Geodesy.destination(from, (trueBearing + 360) % 360, d!!))
             }) { Text("Place B") }
         },
@@ -303,7 +309,7 @@ private fun parseDistance(text: String): Double? {
 // ---- line of sight -------------------------------------------------------------------------------------
 
 @Composable
-private fun SightBody(state: ToolsSession.State, myLocation: Location?, onGetTerrain: () -> Unit) {
+private fun SightBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTerrain: () -> Unit) {
     PointsRow(state, myLocation)
     HeightsRow(state, "Eye at A (m)", "Target at B (m)")
     HigherGroundHint(state)
@@ -363,7 +369,7 @@ private fun HeightsRow(state: ToolsSession.State, observerLabel: String, targetL
 
 @Composable
 private fun HeightField(label: String, value: Double, modifier: Modifier, onChange: (Double) -> Unit) {
-    fun show(v: Double) = if (v == v.roundToInt().toDouble()) v.roundToInt().toString() else String.format(Locale.US, "%.1f", v)
+    fun show(v: Double) = if (v == v.roundToInt().toDouble()) v.roundToInt().toString() else fixed(v, 1)
     var text by remember { mutableStateOf(show(value)) }
     // Follow outside changes (swap, mode switch) unless the field already says the same.
     LaunchedEffect(value) { if (text.replace(',', '.').toDoubleOrNull() != value) text = show(value) }
@@ -472,11 +478,11 @@ private fun SightProfile(los: LineOfSight, modifier: Modifier = Modifier) {
 // ---- viewshed ----------------------------------------------------------------------------------------------
 
 @Composable
-private fun ViewshedBody(state: ToolsSession.State, myLocation: Location?, onGetTerrain: () -> Unit) {
+private fun ViewshedBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTerrain: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         PointChip("Observer", state.a, state.aGround, true) {}
         Spacer(Modifier.weight(1f))
-        IconButton(onClick = { myLocation?.let { ToolsSession.setA(GeoPoint(it.latitude, it.longitude)) } }, enabled = myLocation != null) {
+        IconButton(onClick = { myLocation?.let { ToolsSession.setA(GeoPoint(it.lat, it.lon)) } }, enabled = myLocation != null) {
             Icon(Icons.Filled.MyLocation, contentDescription = "Observe from my location")
         }
     }
@@ -527,7 +533,7 @@ private fun ViewshedBody(state: ToolsSession.State, myLocation: Location?, onGet
     if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
 }
 
-private fun heightText(m: Double) = if (m == m.roundToInt().toDouble()) "${m.roundToInt()} m" else String.format(Locale.getDefault(), "%.1f m", m)
+private fun heightText(m: Double) = if (m == m.roundToInt().toDouble()) "${m.roundToInt()} m" else "${localFixed(m, 1)} m"
 
 @Composable
 private fun Legend(color: Color, text: String) {
@@ -543,14 +549,15 @@ private fun Legend(color: Color, text: String) {
 @Composable
 private fun CoordsBody(
     state: ToolsSession.State,
-    myLocation: Location?,
+    myLocation: GeoFix?,
     mapCenter: () -> GeoPoint,
     onShowPoint: (GeoPoint) -> Unit,
     onShare: (GeoPoint) -> Unit,
 ) {
     val clipboard = LocalClipboardManager.current
     val focus = LocalFocusManager.current
-    val preferred by AppGraph.prefs.coordFormat.collectAsState()
+    val prefs = LocalPrefs.current
+    val preferred by prefs.coordFormat.collectAsState()
     var input by remember { mutableStateOf("") }
     var message by remember { mutableStateOf<String?>(null) }
     // The format the typed text was read as, for the point it produced.
@@ -587,7 +594,7 @@ private fun CoordsBody(
     message?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
 
     Row(verticalAlignment = Alignment.CenterVertically) {
-        TextButton(onClick = { myLocation?.let { ToolsSession.setA(GeoPoint(it.latitude, it.longitude)) } }, enabled = myLocation != null) {
+        TextButton(onClick = { myLocation?.let { ToolsSession.setA(GeoPoint(it.lat, it.lon)) } }, enabled = myLocation != null) {
             Icon(Icons.Filled.MyLocation, contentDescription = null)
             Spacer(Modifier.width(6.dp))
             Text("My location")
@@ -616,10 +623,10 @@ private fun CoordsBody(
     for (f in CoordFormat.entries) {
         val value = Coords.format(a, f) ?: continue
         Row(
-            Modifier.fillMaxWidth().clickable { AppGraph.prefs.setCoordFormat(f) },
+            Modifier.fillMaxWidth().clickable { prefs.setCoordFormat(f) },
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            RadioButton(selected = preferred == f, onClick = { AppGraph.prefs.setCoordFormat(f) })
+            RadioButton(selected = preferred == f, onClick = { prefs.setCoordFormat(f) })
             Column(Modifier.weight(1f)) {
                 Text(f.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(value, style = MaterialTheme.typography.bodyLarge, fontFamily = FontFamily.Monospace)
@@ -636,6 +643,6 @@ private fun CoordsBody(
     )
 }
 
-/** A point in the user's chosen format, with decimal degrees as the fallback. */
-fun formatPoint(lat: Double, lon: Double): String =
-    Coords.format(GeoPoint(lat, lon), AppGraph.prefs.coordFormat.value) ?: Fmt.latLon(lat, lon)
+/** A point in [format], with decimal degrees as the fallback. */
+fun formatPoint(lat: Double, lon: Double, format: CoordFormat): String =
+    Coords.format(GeoPoint(lat, lon), format) ?: Fmt.latLon(lat, lon)

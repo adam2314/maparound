@@ -1,8 +1,5 @@
 package app.maparound.ui
 
-import android.location.Location
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -63,27 +60,25 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.maparound.AppGraph
-import app.maparound.map.MapController
+import app.maparound.data.LocalPrefs
+import app.maparound.places.LocalPlaces
 import app.maparound.places.Place
 import app.maparound.places.PlaceCategory
 import app.maparound.places.Places
+import app.maparound.routing.Geo
 import app.maparound.routing.GeoPoint
 import app.maparound.routing.MapFocus
-import app.maparound.sensors.LocationSource
-import app.maparound.share.Sharing
+import app.maparound.sensors.GeoFix
+import app.maparound.sensors.LocalDeviceSensors
+import app.maparound.tools.Geodesy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
-fun placeMapMarkers(places: List<Place>): List<MapController.PlaceMarker> =
-    places.map { MapController.PlaceMarker(it.id, it.lat, it.lon, it.name, it.category.emoji, it.category.argb.toInt()) }
 
 /** The category emoji in a tinted circle. */
 @Composable
@@ -95,10 +90,9 @@ fun PlaceBadge(category: PlaceCategory, size: Int = 36) {
 }
 
 /** "1.2 km NE" from the user's position, or null without one. */
-private fun distanceFrom(me: Location?, p: Place): String? = me?.let {
-    val r = FloatArray(2)
-    Location.distanceBetween(it.latitude, it.longitude, p.lat, p.lon, r)
-    "${Fmt.distance(r[0])} ${Fmt.cardinal((r[1] + 360f) % 360f)}"
+private fun distanceFrom(me: GeoFix?, p: Place): String? = me?.let {
+    val from = GeoPoint(it.lat, it.lon)
+    "${Fmt.distance(Geo.distance(from, p.point).toFloat())} ${Fmt.cardinal(Geodesy.bearing(from, p.point).toFloat())}"
 }
 
 // ---- add / edit -------------------------------------------------------------------------------------------
@@ -125,7 +119,7 @@ fun PlaceEditDialog(place: Place, isNew: Boolean, onDismiss: () -> Unit, onSave:
                     }
                 }
                 OutlinedTextField(note, { note = it.take(1000) }, label = { Text("Note") }, minLines = 2, maxLines = 5, modifier = Modifier.fillMaxWidth())
-                Text(formatPoint(place.lat, place.lon), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(formatPoint(place.lat, place.lon, LocalPrefs.current.coordFormat.value), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         confirmButton = {
@@ -142,7 +136,7 @@ fun PlaceEditDialog(place: Place, isNew: Boolean, onDismiss: () -> Unit, onSave:
 @Composable
 fun PlaceCard(
     place: Place,
-    myLocation: Location?,
+    myLocation: GeoFix?,
     onClose: () -> Unit,
     onRoute: () -> Unit,
     onShare: () -> Unit,
@@ -168,7 +162,7 @@ fun PlaceCard(
             if (place.note.isNotBlank()) {
                 Text(place.note, style = MaterialTheme.typography.bodyMedium, maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp, end = 8.dp))
             }
-            Text(formatPoint(place.lat, place.lon), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(formatPoint(place.lat, place.lon, LocalPrefs.current.coordFormat.value), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row {
                 IconButton(onClick = onRoute) { Icon(Icons.Filled.Route, contentDescription = "Route here") }
                 IconButton(onClick = onShare) { Icon(Icons.Filled.Share, contentDescription = "Share place") }
@@ -188,46 +182,29 @@ fun PlaceCard(
     }
 }
 
-// ---- library: routes or places --------------------------------------------------------------------------------
-
-/** The Library tab: routes & tracks, or saved places. */
-@Composable
-fun LibraryScreen(hasLocation: Boolean, requestLocation: () -> Unit, snackbar: SnackbarHostState, onShowMap: () -> Unit) {
-    var places by rememberSaveable { mutableStateOf(false) }
-    val header: @Composable () -> Unit = {
-        SingleChoiceSegmentedButtonRow {
-            SegmentedButton(selected = !places, onClick = { places = false }, shape = SegmentedButtonDefaults.itemShape(0, 2), icon = {}) { Text("Routes") }
-            SegmentedButton(selected = places, onClick = { places = true }, shape = SegmentedButtonDefaults.itemShape(1, 2), icon = {}) { Text("Places") }
-        }
-    }
-    if (places) {
-        PlacesScreen(hasLocation, snackbar, onShowMap, header)
-    } else {
-        RoutesScreen(hasLocation, requestLocation, snackbar, onShowMap, header)
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlacesScreen(hasLocation: Boolean, snackbar: SnackbarHostState, onShowMap: () -> Unit, header: @Composable () -> Unit) {
-    val context = LocalContext.current
+    val platform = LocalPlatform.current
+    val sensors = LocalDeviceSensors.current
+    val prefs = LocalPrefs.current
     val scope = rememberCoroutineScope()
-    val repo = AppGraph.places
+    val repo = LocalPlaces.current
     val all by repo.places.collectAsState()
     var query by rememberSaveable { mutableStateOf("") }
     var category by rememberSaveable { mutableStateOf<PlaceCategory?>(null) }
     var sort by rememberSaveable { mutableStateOf(Places.Sort.NEAREST) }
-    val locations = remember(hasLocation) { if (hasLocation) LocationSource.updates(context, 5_000) else flowOf(null) }
+    val locations = remember(hasLocation) { if (hasLocation) sensors.locations(5_000) else flowOf(null) }
     val location by locations.collectAsStateWithLifecycle(initialValue = null)
-    val me = location?.let { GeoPoint(it.latitude, it.longitude) }
+    val me = location?.let { GeoPoint(it.lat, it.lon) }
     val shown = Places.filter(all, query, category, if (sort == Places.Sort.NEAREST && me == null) Places.Sort.NEWEST else sort, me)
     var editing by remember { mutableStateOf<Place?>(null) }
     var deleting by remember { mutableStateOf<Place?>(null) }
 
-    val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
+    val importer = rememberFilePicker(listOf("*/*")) { bytes ->
+        if (bytes != null) {
             scope.launch {
-                val result = withContext(Dispatchers.IO) { runCatching { repo.importGpx(uri) } }
+                val result = withContext(Dispatchers.Default) { runCatching { repo.importGpx(bytes) } }
                 snackbar.showSnackbar(
                     result.fold(
                         { n -> if (n == 0) "No new places in that file" else "Imported $n place${if (n == 1) "" else "s"}" },
@@ -239,7 +216,7 @@ fun PlacesScreen(hasLocation: Boolean, snackbar: SnackbarHostState, onShowMap: (
     }
 
     fun show(p: Place) {
-        AppGraph.prefs.setPlacesOnMap(true)
+        prefs.setPlacesOnMap(true)
         repo.focus.value = p.id
         MapFocus.show(listOf(p.point))
         onShowMap()
@@ -249,8 +226,8 @@ fun PlacesScreen(hasLocation: Boolean, snackbar: SnackbarHostState, onShowMap: (
         TopAppBar(
             title = header,
             actions = {
-                IconButton(onClick = { importer.launch(arrayOf("*/*")) }) { Icon(Icons.Filled.FileOpen, contentDescription = "Import places from a GPX file") }
-                IconButton(onClick = { Sharing.sharePlaces(context, shown, "MapAround places") }, enabled = shown.isNotEmpty()) {
+                IconButton(onClick = { importer() }) { Icon(Icons.Filled.FileOpen, contentDescription = "Import places from a GPX file") }
+                IconButton(onClick = { platform.sharePlaces(shown, "MapAround places") }, enabled = shown.isNotEmpty()) {
                     Icon(Icons.Filled.Share, contentDescription = "Share the listed places as GPX")
                 }
             },
@@ -298,7 +275,7 @@ fun PlacesScreen(hasLocation: Boolean, snackbar: SnackbarHostState, onShowMap: (
                     p, location,
                     onClick = { show(p) },
                     onEdit = { editing = p },
-                    onShare = { Sharing.sharePlaces(context, listOf(p), p.name) },
+                    onShare = { platform.sharePlaces(listOf(p), p.name) },
                     onDelete = { deleting = p },
                 )
             }
@@ -317,7 +294,7 @@ fun PlacesScreen(hasLocation: Boolean, snackbar: SnackbarHostState, onShowMap: (
 }
 
 @Composable
-private fun PlaceRow(p: Place, me: Location?, onClick: () -> Unit, onEdit: () -> Unit, onShare: () -> Unit, onDelete: () -> Unit) {
+private fun PlaceRow(p: Place, me: GeoFix?, onClick: () -> Unit, onEdit: () -> Unit, onShare: () -> Unit, onDelete: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     ListItem(
         modifier = Modifier.clickable(onClick = onClick),

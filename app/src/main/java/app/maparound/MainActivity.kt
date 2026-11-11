@@ -12,6 +12,11 @@ import androidx.compose.runtime.CompositionLocalProvider
 import app.maparound.data.LocalPrefs
 import app.maparound.sensors.AndroidSensors
 import app.maparound.sensors.LocalDeviceSensors
+import app.maparound.places.LocalPlaces
+import app.maparound.search.SearchService
+import app.maparound.ui.AndroidPlatform
+import app.maparound.ui.LocalPlatform
+import app.maparound.ui.LocalSearcher
 import app.maparound.ui.MapAroundRoot
 import app.maparound.ui.theme.MapAroundTheme
 
@@ -20,9 +25,16 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val sensors = AndroidSensors(this)
+        val platform = AndroidPlatform(this)
         setContent {
             // What the shared screens get from the platform.
-            CompositionLocalProvider(LocalPrefs provides AppGraph.prefs, LocalDeviceSensors provides sensors) {
+            CompositionLocalProvider(
+                LocalPrefs provides AppGraph.prefs,
+                LocalDeviceSensors provides sensors,
+                LocalPlaces provides AppGraph.places,
+                LocalPlatform provides platform,
+                LocalSearcher provides SearchService,
+            ) {
                 MapAroundTheme {
                     MapAroundRoot()
                 }

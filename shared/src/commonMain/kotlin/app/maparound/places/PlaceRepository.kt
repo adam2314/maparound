@@ -1,20 +1,21 @@
 package app.maparound.places
 
-import android.content.Context
-import android.net.Uri
-import android.util.Log
+import androidx.compose.runtime.staticCompositionLocalOf
+import app.maparound.shared.fileSystem
+import app.maparound.shared.util.nowMillis
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.io.File
+import okio.Path.Companion.toPath
 
 /**
- * Your saved places, kept in one GPX file (`files/places.gpx`) that other apps can read too.
+ * Your saved places, kept in one GPX file (`places.gpx` in [dir]) that other apps can read too.
  * Every change is written straight away (via a temp file, so a crash never leaves half a file).
  */
-class PlaceRepository(private val context: Context) {
-    private val base: File = context.getExternalFilesDir(null) ?: context.filesDir
-    val file: File = File(base, "places.gpx")
+class PlaceRepository(dir: String) {
+    private val base = dir.toPath()
+    private val file = base / "places.gpx"
+    val path: String get() = file.toString()
 
     private val _places = MutableStateFlow(load())
     val places: StateFlow<List<Place>> = _places.asStateFlow()
@@ -35,12 +36,8 @@ class PlaceRepository(private val context: Context) {
         persist()
     }
 
-    /** Adds the waypoints of a GPX file; returns how many were new. */
-    fun importGpx(uri: Uri): Int {
-        val incoming = context.contentResolver.openInputStream(uri)?.use { Places.readGpx(it.readBytes()) }
-            ?: throw IllegalArgumentException("Can't open the file")
-        return addAll(incoming)
-    }
+    /** Adds the waypoints of a GPX file's bytes; returns how many were new. */
+    fun importGpx(bytes: ByteArray): Int = addAll(Places.readGpx(bytes))
 
     fun addAll(incoming: List<Place>): Int {
         // Imported places get fresh ids unless they are our own (round trip of an export).
@@ -55,23 +52,20 @@ class PlaceRepository(private val context: Context) {
     }
 
     private fun load(): List<Place> = try {
-        if (file.isFile) Places.readGpx(file.readBytes()) else emptyList()
+        if (fileSystem.exists(file)) Places.readGpx(fileSystem.read(file) { readByteArray() }) else emptyList()
     } catch (e: Exception) {
-        Log.w(TAG, "Couldn't read ${file.name}; keeping a copy", e)
-        file.copyTo(File(base, "places-unreadable-${System.currentTimeMillis()}.gpx"), overwrite = true)
+        // Unreadable: keep a copy for the user and start empty.
+        runCatching { fileSystem.copy(file, base / "places-unreadable-${nowMillis()}.gpx") }
         emptyList()
     }
 
     private fun persist() {
-        val tmp = File(base, "places.gpx.tmp")
-        tmp.bufferedWriter(Charsets.UTF_8).use { Places.writeGpx(_places.value, it) }
-        if (!tmp.renameTo(file)) {
-            file.delete()
-            tmp.renameTo(file)
-        }
-    }
-
-    companion object {
-        private const val TAG = "PlaceRepository"
+        val tmp = base / "places.gpx.tmp"
+        val text = StringBuilder().also { Places.writeGpx(_places.value, it) }.toString()
+        fileSystem.write(tmp) { writeUtf8(text) }
+        fileSystem.atomicMove(tmp, file)
     }
 }
+
+/** The saved places, provided at the root of the shared UI. */
+val LocalPlaces = staticCompositionLocalOf<PlaceRepository> { error("No PlaceRepository provided") }

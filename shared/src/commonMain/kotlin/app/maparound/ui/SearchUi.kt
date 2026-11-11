@@ -1,7 +1,5 @@
 package app.maparound.ui
 
-import android.location.Location
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -17,9 +15,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,23 +44,24 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.maparound.routing.Geo
 import app.maparound.routing.GeoPoint
-import app.maparound.search.SearchService
 import app.maparound.search.SearchResult
+import app.maparound.sensors.GeoFix
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.coroutines.coroutineContext
 
 /**
  * Search over the map: your places, coordinates and the offline maps as you type; OpenStreetMap
  * online when you press search (the free servers ask not to be queried on every keystroke).
  */
 @Composable
-fun SearchOverlay(mapCenter: GeoPoint, myLocation: Location?, onPick: (SearchResult) -> Unit, onClose: () -> Unit) {
-    BackHandler(onBack = onClose)
+fun SearchOverlay(mapCenter: GeoPoint, myLocation: GeoFix?, onPick: (SearchResult) -> Unit, onClose: () -> Unit) {
+    PlatformBackHandler(onBack = onClose)
+    val searcher = LocalSearcher.current
     var query by rememberSaveable { mutableStateOf("") }
     var quick by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
     var offline by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
@@ -73,20 +72,20 @@ fun SearchOverlay(mapCenter: GeoPoint, myLocation: Location?, onPick: (SearchRes
     val scope = rememberCoroutineScope()
     var onlineJob by remember { mutableStateOf<Job?>(null) }
     val focus = remember { FocusRequester() }
-    val me = myLocation?.let { GeoPoint(it.latitude, it.longitude) }
+    val me = myLocation?.let { GeoPoint(it.lat, it.lon) }
 
     LaunchedEffect(Unit) { focus.requestFocus() }
     LaunchedEffect(query) {
         online = null
         onlineError = null
         onlineJob?.cancel()
-        quick = if (query.isBlank()) emptyList() else SearchService.quick(query, mapCenter)
+        quick = if (query.isBlank()) emptyList() else searcher.quick(query, mapCenter)
         offline = emptyList()
         if (query.trim().length < 2) return@LaunchedEffect
         delay(350) // wait for typing to pause
         offlineBusy = true
         val ctx = coroutineContext
-        offline = withContext(Dispatchers.IO) { SearchService.offline(query, mapCenter, isActive = { ctx.isActive }) }
+        offline = withContext(Dispatchers.Default) { searcher.offline(query, mapCenter, isActive = { ctx.isActive }) }
         offlineBusy = false
     }
 
@@ -96,7 +95,7 @@ fun SearchOverlay(mapCenter: GeoPoint, myLocation: Location?, onPick: (SearchRes
         onlineJob = scope.launch {
             onlineBusy = true
             onlineError = null
-            val r = withContext(Dispatchers.IO) { runCatching { SearchService.online(query, mapCenter) } }
+            val r = withContext(Dispatchers.Default) { runCatching { searcher.online(query, mapCenter) } }
             online = r.getOrNull()
             onlineError = r.exceptionOrNull()?.let { "Online search failed (no internet?)" }
             onlineBusy = false

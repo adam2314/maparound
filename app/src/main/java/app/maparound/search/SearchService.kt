@@ -4,15 +4,19 @@ import app.maparound.AppGraph
 import app.maparound.USER_AGENT
 import app.maparound.data.MapNames
 import app.maparound.routing.GeoPoint
+import app.maparound.ui.Searcher
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
 
 /** The shared [SearchEngine] with this phone's places, offline maps and internet connection. */
-object SearchService {
-    fun quick(query: String, near: GeoPoint?): List<SearchResult> =
+object SearchService : Searcher {
+    override fun quick(query: String, near: GeoPoint?): List<SearchResult> =
         SearchEngine.quick(query, near, AppGraph.places.places.value)
+
+    override fun offline(query: String, center: GeoPoint, isActive: () -> Boolean): List<SearchResult> =
+        offline(query, center, 25.0, isActive = isActive)
 
     /** Blocking. */
     fun offline(
@@ -25,7 +29,7 @@ object SearchService {
         SearchEngine.offline(query, center, files.map { it.path }, Locale.getDefault().language, radiusKm, isActive)
 
     /** Blocking. */
-    fun online(query: String, near: GeoPoint?): List<SearchResult> = SearchEngine.online(query, near, ::get)
+    override fun online(query: String, near: GeoPoint?): List<SearchResult> = SearchEngine.online(query, near, ::get)
 
     private fun get(url: String): String {
         val conn = URL(url).openConnection() as HttpURLConnection

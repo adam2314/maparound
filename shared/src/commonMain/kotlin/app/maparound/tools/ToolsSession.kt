@@ -1,6 +1,5 @@
 package app.maparound.tools
 
-import app.maparound.AppGraph
 import app.maparound.routing.GeoPoint
 import app.maparound.terrain.DemIndex
 import kotlinx.coroutines.CancellationException
@@ -58,6 +57,12 @@ object ToolsSession {
 
     private var dem: DemIndex? = null
     private var demVersion = -1
+
+    /**
+     * Where the elevation tiles are, and a number that changes whenever they change. Set by the
+     * platform at start-up (Android: the terrain repository).
+     */
+    var terrainSource: () -> Pair<String, Int>? = { null }
 
     fun open(mode: Mode? = null, a: GeoPoint? = null) {
         val s = _state.value
@@ -152,9 +157,9 @@ object ToolsSession {
     }
 
     private fun terrain(): DemIndex? {
-        val version = AppGraph.terrain.state.value.version
+        val (dir, version) = terrainSource() ?: return null
         if (version != demVersion || dem == null) {
-            dem = DemIndex(AppGraph.terrain.demDir.path).takeUnless { it.isEmpty }
+            dem = DemIndex(dir).takeUnless { it.isEmpty }
             demVersion = version
         }
         return dem
