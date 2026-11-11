@@ -113,6 +113,49 @@ class MapsforgeFile(private val file: FileHandle) {
         return MfData(pois, ways, anyBlock && allWater && pois.isEmpty() && ways.isEmpty())
     }
 
+    /**
+     * Everything stored for [queryZoom] in an area, like mapsforge's readMapData / readNamedItems
+     * over a tile range: POIs inside the area, ways whose outline touches it.
+     */
+    fun readArea(
+        queryZoom: Int, minLat: Double, minLon: Double, maxLat: Double, maxLon: Double,
+        selector: MfSelector = MfSelector.ALL,
+    ): MfData {
+        val qz = queryZoom.coerceIn(header.minZoom, header.maxZoom)
+        val sub = header.subFileFor(qz)
+        val bz = sub.baseZoom
+        val pois = ArrayList<MfPoi>()
+        val ways = ArrayList<MfWay>()
+        val area = doubleArrayOf(minLat, minLon, maxLat, maxLon)
+        for (by in maxOf(latToTileY(maxLat, bz), sub.top)..minOf(latToTileY(minLat, bz), sub.bottom)) {
+            for (bx in maxOf(lonToTileX(minLon, bz), sub.left)..minOf(lonToTileX(maxLon, bz), sub.right)) {
+                val (offset, _, next) = blockEntry(sub, bx - sub.left, by - sub.top)
+                val size = next - offset
+                if (size <= 0) continue
+                if (size > MAX_BLOCK) throw MapsforgeException("Block too large: $size bytes")
+                val from = ways.size
+                processBlock(Reader(readAt(sub.start + offset, size.toInt())), sub, qz, bx, by, null, selector, pois, ways, area)
+                // Like mapsforge's way filter: drop ways of edge blocks that lie wholly outside.
+                val kept = ways.subList(from, ways.size).filter { touches(it, area) }
+                while (ways.size > from) ways.removeAt(ways.size - 1)
+                ways += kept
+            }
+        }
+        return MfData(pois, ways, false)
+    }
+
+    private fun touches(w: MfWay, a: DoubleArray): Boolean {
+        for (ring in w.rings) {
+            var s = 90.0; var n = -90.0; var we = 180.0; var e = -180.0
+            for (i in ring.indices step 2) {
+                s = minOf(s, ring[i]); n = maxOf(n, ring[i])
+                we = minOf(we, ring[i + 1]); e = maxOf(e, ring[i + 1])
+            }
+            if (s <= a[2] && n >= a[0] && we <= a[3] && e >= a[1]) return true
+        }
+        return false
+    }
+
     // ---- header ----------------------------------------------------------------------------------
 
     private fun readHeader(): MfHeader {

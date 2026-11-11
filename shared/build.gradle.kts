@@ -22,6 +22,7 @@ kotlin {
             // In the shared API (file handles, sources), so the Android app gets it too.
             api("com.squareup.okio:okio:3.9.1")
             implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

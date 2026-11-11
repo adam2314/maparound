@@ -53,8 +53,13 @@ class PartyEngine(val key: PartyKey, val myId: Int, private val clock: () -> Lon
     val chat = ArrayDeque<ChatLine>()
     var myMeshNode: Long = 0
 
-    private val seen = object : LinkedHashMap<Long, Unit>(1024, 0.75f, false) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, Unit>?) = size > 20_000
+    /** Packets already handled (sender | sequence), oldest first; the oldest go beyond 20 000. */
+    private val seen = LinkedHashSet<Long>(1024)
+
+    private fun firstTime(key: Long): Boolean {
+        if (!seen.add(key)) return false
+        if (seen.size > 20_000) seen.iterator().let { it.next(); it.remove() }
+        return true
     }
     private val forwardedAt = HashMap<String, Long>()
 
@@ -68,7 +73,7 @@ class PartyEngine(val key: PartyKey, val myId: Int, private val clock: () -> Lon
         val known = members[rec.sender]
         var m = (known ?: Member(rec.sender)).let { it.copy(heard = it.heard + (via to now)) }
         val dupKey = (rec.sender.toLong() shl 32) or rec.seq
-        if (seen.put(dupKey, Unit) != null) {
+        if (!firstTime(dupKey)) {
             members[rec.sender] = m // still worth knowing it also reached us this way
             return null
         }

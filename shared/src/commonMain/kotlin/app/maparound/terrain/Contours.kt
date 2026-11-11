@@ -131,7 +131,7 @@ object Contours {
         val first = HashMap<Int, Int>(n * 2)
         val second = HashMap<Int, Int>(n / 2)
         fun link(edge: Int, s: Int) {
-            if (first.putIfAbsent(edge, s) != null) second[edge] = s
+            if (edge in first) second[edge] = s else first[edge] = s
         }
         for (s in 0 until n) {
             link(buf.ea[s], s); link(buf.eb[s], s)

@@ -46,7 +46,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.maparound.routing.Geo
 import app.maparound.routing.GeoPoint
-import app.maparound.search.SearchEngine
+import app.maparound.search.SearchService
 import app.maparound.search.SearchResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -80,13 +80,13 @@ fun SearchOverlay(mapCenter: GeoPoint, myLocation: Location?, onPick: (SearchRes
         online = null
         onlineError = null
         onlineJob?.cancel()
-        quick = if (query.isBlank()) emptyList() else SearchEngine.quick(query, mapCenter)
+        quick = if (query.isBlank()) emptyList() else SearchService.quick(query, mapCenter)
         offline = emptyList()
         if (query.trim().length < 2) return@LaunchedEffect
         delay(350) // wait for typing to pause
         offlineBusy = true
         val ctx = coroutineContext
-        offline = withContext(Dispatchers.IO) { SearchEngine.offline(query, mapCenter, isActive = { ctx.isActive }) }
+        offline = withContext(Dispatchers.IO) { SearchService.offline(query, mapCenter, isActive = { ctx.isActive }) }
         offlineBusy = false
     }
 
@@ -96,7 +96,7 @@ fun SearchOverlay(mapCenter: GeoPoint, myLocation: Location?, onPick: (SearchRes
         onlineJob = scope.launch {
             onlineBusy = true
             onlineError = null
-            val r = withContext(Dispatchers.IO) { runCatching { SearchEngine.online(query, mapCenter) } }
+            val r = withContext(Dispatchers.IO) { runCatching { SearchService.online(query, mapCenter) } }
             online = r.getOrNull()
             onlineError = r.exceptionOrNull()?.let { "Online search failed (no internet?)" }
             onlineBusy = false
