@@ -55,7 +55,7 @@ class MapStyle(private val vectorLayers: List<JsonObject>, private val glyphs: S
                 // Over imagery only lines, symbols and labels stay ("hybrid"), or nothing at all.
                 layers += when {
                     !satellite -> vectorLayers
-                    base.vectorOnTop -> vectorLayers.filter { it.type() !in AREA_TYPES }
+                    base.vectorOnTop -> vectorLayers.filter { !it.isLandCover() }
                     else -> emptyList()
                 }
             }
@@ -68,7 +68,8 @@ class MapStyle(private val vectorLayers: List<JsonObject>, private val glyphs: S
         }
         layers += overlayLayers()
         put("sources", JsonObject(sources))
-        put("layers", JsonArray(layers))
+        // Theme layers for tiles this map doesn't have (contours, trails) stay out.
+        put("layers", JsonArray(layers.filter { l -> (l as JsonObject).source().let { it == null || it in sources } }))
     }.toString()
 
     private fun overlayLayers(): List<JsonObject> = listOf(
@@ -147,6 +148,11 @@ class MapStyle(private val vectorLayers: List<JsonObject>, private val glyphs: S
         private val ROUND = obj("line-join" to "round", "line-cap" to "round")
 
         private fun JsonObject.type(): String? = (this["type"] as? JsonPrimitive)?.content
+        private fun JsonObject.source(): String? = (this["source"] as? JsonPrimitive)?.content
+
+        /** Fills and their outlines: dropped over imagery. */
+        private fun JsonObject.isLandCover(): Boolean =
+            type() in AREA_TYPES || (this["metadata"] as? JsonObject)?.containsKey(ThemeStyle.AREA_FLAG) == true
 
         private fun rasterSource(src: OnlineSource) = buildJsonObject {
             put("type", "raster")

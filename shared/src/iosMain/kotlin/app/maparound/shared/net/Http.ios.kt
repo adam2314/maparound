@@ -17,7 +17,7 @@ import platform.darwin.dispatch_semaphore_wait
 actual fun httpGet(url: String, headers: Map<String, String>, timeoutMs: Int): ByteArray {
     val nsUrl = NSURL(string = url)
     val request = NSMutableURLRequest(uRL = nsUrl)
-    request.timeoutInterval = timeoutMs / 1000.0
+    request.setTimeoutInterval(timeoutMs / 1000.0)
     request.setValue(userAgent, forHTTPHeaderField = "User-Agent")
     for ((k, v) in headers) request.setValue(v, forHTTPHeaderField = k)
     val done = dispatch_semaphore_create(0)

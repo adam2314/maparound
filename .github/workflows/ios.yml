@@ -45,6 +45,7 @@ jobs:
         env:
           # Environment variables reach the simulator process with this prefix.
           SIMCTL_CHILD_MAP_FILE: ${{ github.workspace }}/testdata/liechtenstein.map
+          SIMCTL_CHILD_THEME_FILE: ${{ github.workspace }}/app/src/main/assets/themes/topo.xml
         run: |
           set -o pipefail
           ./gradlew :shared:iosSimulatorArm64Test --console=plain 2>&1 | tee shared-log.txt

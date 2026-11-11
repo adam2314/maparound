@@ -15,6 +15,9 @@ targets:
     scheme: {}
     sources:
       - path: MapAround
+      # The Android map's theme: the iOS map style is made from it (ThemeStyle.kt).
+      - path: ../app/src/main/assets/themes/topo.xml
+        buildPhase: resources
     dependencies:
       - package: MapLibre
     info:
