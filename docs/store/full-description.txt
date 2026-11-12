@@ -1,0 +1,49 @@
+MapAround is an offline map for hiking, biking and off-road driving. Download maps of any country, plan a route and follow it with no phone signal, and see where everyone in your group is, even beyond mobile coverage over LoRa radios.
+
+NO SIGNAL NEEDED
+• Offline maps of any country, from OpenStreetMap, in a detailed topo style
+• Contour lines and hill shading
+• Marked hiking trails and cliffs
+• Offline search: towns, peaks, springs, streets and paths
+• Offline routing for hiking, cycling and driving
+
+PLAN AND NAVIGATE
+• Tap points to plan a route, then drag to change it
+• Distance, climb, estimated time and elevation profile
+• Turn-by-turn navigation with voice prompts. It keeps going with the screen off and finds a new route if you leave it
+• Android Auto: the map, your route and navigation on the car screen
+
+RECORD AND SAVE
+• Record your tracks with GPS, also with the screen off
+• Save places with a category and a note: camp, water, viewpoint, parking, danger…
+• Import and export GPX files, and share points and routes as links
+
+TRAVEL AS A GROUP
+• Create a party and invite others with a QR code or a link
+• See everyone on the map with their own icon and colour
+• SOS alerts, a meeting point and short messages
+• Works over the internet, and off-grid through Meshtastic LoRa radios paired by Bluetooth. A phone with both passes messages between them
+• End-to-end encrypted: only your party can read it
+
+MAPS YOUR WAY
+• Topo, Classic and other styles, or import your own mapsforge theme
+• Satellite imagery under the offline map's trails and labels
+• Online maps: OpenTopoMap, CyclOSM, satellite imagery, national maps (swisstopo, basemap.at, Kartverket, IGN, USGS) and your own tile servers
+• Raster maps such as scanned topo sheets: MBTiles, SQLiteDB and TwoNav/CompeGPS .rmap
+• 3D view with terrain relief and buildings
+
+TOOLS FOR THE FIELD
+• Bearing and distance between two points, true and magnetic
+• Line of sight and viewshed: what can be seen from a point
+• Radio link planner: Fresnel zone clearance and path loss for LoRa, VHF, PMR446 and more
+• Coordinates in decimal degrees, DMS, UTM, MGRS, Israeli ITM, Plus Codes and Maidenhead
+• Compass with true north
+• Speedometer and trip counter
+• Inclinometer for 4x4s (pitch and roll) and a G-meter
+• Barometer with altitude and pressure trend
+• GPS satellite view with sky plot and signal strength
+
+PRIVATE
+No account, no ads, no tracking. Your maps, tracks and places stay on your phone. MapAround is open source under the GPL-3.0 licence.
+
+Map data © OpenStreetMap contributors.
