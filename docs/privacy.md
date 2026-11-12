@@ -43,6 +43,9 @@ policy.
 
 - Only people who have the party's invite link or QR code can read the party's positions. Share
   it only with your group.
+- An invite link opens a page on this website (hosted by GitHub Pages), which opens MapAround.
+  The party's code is in the part of the link after `#`, which browsers keep on the phone and
+  never send to the website, so neither the developer nor GitHub can see it.
 - **Share my location** off hides your position from the others, and **Party on** off stops
   sending and receiving.
 - Relay servers keep the latest encrypted position, name, SOS and meeting point of each member, so

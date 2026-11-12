@@ -69,9 +69,8 @@ object IncomingShare {
 
     /** Text or a link: a party invite, a route, a place, or a short link to resolve first. */
     fun handleText(context: Context, text: String) {
-        if (text.contains("maparound://party/")) {
-            PartyKey.parse(text.substring(text.indexOf("maparound://party/")).substringBefore(' ').substringBefore('\n'))
-                ?.let { PartySession.pendingInvite.value = it; return }
+        if (PartyKey.hasLink(text)) {
+            PartyKey.parse(text)?.let { PartySession.pendingInvite.value = it; return }
         }
         // Map links, and grid references or codes (UTM, MGRS, ITM, Plus Code, deg-min-sec…) sent on their own.
         val near = AppGraph.prefs.lastPosition()?.let { app.maparound.routing.GeoPoint(it.lat, it.lon) }

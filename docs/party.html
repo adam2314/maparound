@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Join a MapAround party</title>
+  <!-- Party invite page: https://adam2314.github.io/maparound/party#<code>?n=<name>
+       The code is in the part after #, which browsers never send to the website. This page only
+       reads it to open MapAround with maparound://party/<code>?n=<name>. No scripts or files from
+       other sites. -->
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <meta name="description" content="You're invited to a MapAround party: see your group live on the map, online and off-grid.">
+  <meta name="theme-color" content="#1b6b4a">
+  <link rel="icon" href="assets/icon-64.png" sizes="64x64" type="image/png">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Join my MapAround party">
+  <meta property="og:description" content="Tap to see the group live on the map in MapAround, online and off-grid.">
+  <meta property="og:image" content="https://adam2314.github.io/maparound/store/feature-graphic.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="assets/site.css">
+  <style>
+    .invite { position: relative; padding: 16px 0 72px; }
+    .invite .contours { inset: -80px 0 0 0; }
+    .invite-card {
+      position: relative; z-index: 1; max-width: 520px; margin: 0 auto; background: var(--surface);
+      border: 1px solid var(--line); border-radius: 28px; padding: 36px 32px 30px; box-shadow: var(--shadow);
+      text-align: center;
+    }
+    .invite-card .badge { width: 76px; height: 76px; border-radius: 20px; margin: 0 auto 18px; display: block; }
+    .invite-card .eyebrow { margin-bottom: 8px; }
+    .invite-card h1 { font-size: clamp(1.8rem, 6vw, 2.4rem); margin: 0 0 12px; overflow-wrap: anywhere; }
+    .invite-card .lede { font-size: 1.05rem; margin: 0 auto 26px; }
+    .actions { display: grid; gap: 12px; }
+    .actions .btn { justify-content: center; }
+    .steps { text-align: left; margin: 26px 0 0; padding: 18px 20px 18px 40px; background: var(--brand-soft); border-radius: 16px; color: var(--ink); font-size: 0.97rem; }
+    .steps li + li { margin-top: 6px; }
+    .note { margin: 22px 0 0; color: var(--muted); font-size: 0.9rem; }
+    .copy-row { margin-top: 18px; }
+    .linkbtn { background: none; border: 0; padding: 4px; font: inherit; font-weight: 650; color: var(--brand); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+    .linkbtn:hover { color: var(--brand-strong); }
+    [hidden] { display: none !important; }
+    @media (max-width: 880px) {
+      .invite-card { padding: 28px 20px 24px; border-radius: 22px; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="assets/icon-192.png" alt="" width="36" height="36">MapAround</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="./">About the app</a>
+      <a href="privacy">Privacy</a>
+    </nav>
+  </div>
+</header>
+
+<main class="invite">
+  <div class="contours" aria-hidden="true"></div>
+  <div class="wrap">
+    <div class="invite-card">
+      <img class="badge" src="assets/icon-192.png" alt="" width="76" height="76">
+
+      <div id="ok">
+        <span class="eyebrow">Party invite</span>
+        <h1>Join <span id="name">the party</span></h1>
+        <p class="lede">See where everyone in the group is, live on the map in MapAround, online and off-grid over LoRa radios.</p>
+
+        <div class="actions">
+          <a class="btn btn-primary" id="open" href="#">Open in MapAround</a>
+          <a class="btn btn-ghost" id="get" href="https://play.google.com/store/apps/details?id=app.maparound">Get MapAround on Google Play</a>
+        </div>
+
+        <ol class="steps" id="steps">
+          <li>No MapAround yet? Install it from Google Play.</li>
+          <li>Come back to this page and tap <strong>Open in MapAround</strong>.</li>
+          <li>Tap <strong>Join</strong> in the app.</li>
+        </ol>
+
+        <p class="note" id="desktop" hidden>Open this invite on your Android phone, or copy it and send it to yourself.</p>
+
+        <div class="copy-row">
+          <button class="linkbtn" id="copy" type="button">Copy invite link</button>
+          <span class="note" id="copied" role="status"></span>
+        </div>
+        <p class="note">You can also paste the link in MapAround's Party tab. Only people with this link can see the party, so share it only with your group.</p>
+      </div>
+
+      <div id="bad" hidden>
+        <span class="eyebrow">Party invite</span>
+        <h1>This invite link is incomplete</h1>
+        <p class="lede">Some apps cut links short. Ask for the invite again, or scan the invite QR code in MapAround's Party tab.</p>
+        <div class="actions">
+          <a class="btn btn-ghost" href="https://play.google.com/store/apps/details?id=app.maparound">Get MapAround on Google Play</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>MapAround · Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a></span>
+    <nav aria-label="Footer">
+      <a href="privacy">Privacy policy</a>
+      <a href="https://github.com/adam2314/maparound">Source code</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var PLAY = "https://play.google.com/store/apps/details?id=app.maparound";
+  // #<code>?n=<name>: code = 48 bytes in URL-safe Base64 without padding (party/Protocol.kt).
+  var hash = location.hash.replace(/^#/, "");
+  var code = hash.split("?")[0].split("&")[0];
+  if (!/^[A-Za-z0-9_-]{64}$/.test(code)) {
+    document.getElementById("ok").hidden = true;
+    document.getElementById("bad").hidden = false;
+    return;
+  }
+  var name = "";
+  var m = /[?&]n=([^&]*)/.exec(hash);
+  if (m) {
+    try { name = decodeURIComponent(m[1].replace(/\+/g, " ")).trim().slice(0, 60); } catch (e) { name = ""; }
+  }
+  if (name) {
+    document.getElementById("name").textContent = "“" + name + "”";
+    document.title = "Join “" + name + "” on MapAround";
+  }
+
+  var appLink = "party/" + code + (name ? "?n=" + encodeURIComponent(name) : "");
+  var open = document.getElementById("open");
+  if (/Android/i.test(navigator.userAgent)) {
+    // Chrome and most Android browsers: opens MapAround, or Google Play when it isn't installed.
+    open.href = "intent://" + appLink + "#Intent;scheme=maparound;package=app.maparound;S.browser_fallback_url=" +
+      encodeURIComponent(PLAY) + ";end";
+  } else {
+    open.href = "maparound://" + appLink;
+    open.hidden = true;
+    document.getElementById("steps").hidden = true;
+    document.getElementById("desktop").hidden = false;
+  }
+
+  var copied = document.getElementById("copied");
+  document.getElementById("copy").addEventListener("click", function () {
+    var link = location.href;
+    function done(ok) { copied.textContent = ok ? " Copied" : " Copy it from the address bar"; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(link).then(function () { done(true); }, function () { done(false); });
+    } else {
+      done(false);
+    }
+  });
+})();
+</script>
+</body>
+</html>

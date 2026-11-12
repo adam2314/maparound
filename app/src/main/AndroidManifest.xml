@@ -118,12 +118,25 @@
                 <data android:mimeType="text/xml" />
                 <data android:mimeType="application/octet-stream" />
             </intent-filter>
-            <!-- Party invite links: maparound://party/<code>?n=<name> -->
+            <!-- Party invites: the app link maparound://party/<code>?n=<name>, which the invite
+                 page opens, -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="maparound" android:host="party" />
+            </intent-filter>
+            <!-- and the invite web link https://adam2314.github.io/maparound/party#<code>?n=<name>.
+                 It opens MapAround directly once Android verifies it, which needs
+                 https://adam2314.github.io/.well-known/assetlinks.json; until then the browser
+                 shows the invite page. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="adam2314.github.io" />
+                <data android:path="/maparound/party" />
             </intent-filter>
         </activity>
 

@@ -13,12 +13,34 @@ class PartyTest {
     @Test
     fun linkRoundTrip() {
         val link = key.toLink()
-        assertTrue(link.startsWith("maparound://party/"))
+        assertTrue(link.startsWith("https://adam2314.github.io/maparound/party#"))
         val back = PartyKey.parse(link)!!
         assertTrue(back.secret.contentEquals(key.secret))
+        assertTrue(back.id.contentEquals(key.id))
         assertEquals("Desert run", back.name)
         assertEquals(key.tag, back.tag)
         assertNull(PartyKey.parse("maparound://party/nonsense"))
+        assertNull(PartyKey.parse("https://adam2314.github.io/maparound/party#nonsense"))
+        assertNull(PartyKey.parse("https://adam2314.github.io/maparound/party"))
+    }
+
+    @Test
+    fun linkForms() {
+        val code = key.toLink().substringAfter('#').substringBefore('?')
+        // The app link the invite page opens, which the first app versions also shared.
+        val app = PartyKey.parse("maparound://party/$code?n=Desert+run")!!
+        assertEquals(key, app)
+        assertEquals("Desert run", app.name)
+        // A shared message with the link in it, and a name with non-ASCII letters.
+        val other = PartyKey.create("Wadi Rum ‘24”")
+        val msg = PartyKey.parse("Join my MapAround party “Wadi Rum ‘24””: ${other.toLink()}\nSee you there")!!
+        assertEquals(other, msg)
+        assertEquals("Wadi Rum ‘24”", msg.name)
+        assertTrue(PartyKey.hasLink("Join: ${other.toLink()}"))
+        assertFalse(PartyKey.hasLink("party/club"))
+        // Just the code, and a link without a name.
+        assertEquals(key, PartyKey.parse(code))
+        assertEquals("Party", PartyKey.parse("https://adam2314.github.io/maparound/party#$code")!!.name)
     }
 
     @Test

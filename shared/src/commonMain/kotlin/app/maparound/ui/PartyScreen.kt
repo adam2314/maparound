@@ -512,8 +512,8 @@ private fun InviteDialog(key: PartyKey, onDismiss: () -> Unit) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 partyPlatform.QrImage(link, Modifier.size(240.dp))
                 Text(
-                    "Others scan this in MapAround's Party tab, or open the link. Anyone with it can see the party's positions, " +
-                        "so share it only with your group.",
+                    "Others scan this with their phone's camera or in MapAround's Party tab, or open the link. " +
+                        "Anyone with it can see the party's positions, so share it only with your group.",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }

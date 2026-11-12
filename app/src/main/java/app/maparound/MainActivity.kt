@@ -74,12 +74,14 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Party invites (maparound://party/…), locations (geo:, map links, shared text) and files
-     * (GPX, mapsforge .map) from other apps.
+     * Party invites (maparound://party/… from the invite page, or the invite web link itself),
+     * locations (geo:, map links, shared text) and files (GPX, mapsforge .map) from other apps.
      */
     private fun handleIntent(intent: Intent?) {
         val data = intent?.data
-        if (intent?.action == Intent.ACTION_VIEW && data?.scheme == "maparound" && data.host == "party") {
+        val invite = data != null &&
+            (data.scheme == "maparound" && data.host == "party" || data.host == PartyKey.INVITE_HOST)
+        if (intent?.action == Intent.ACTION_VIEW && invite) {
             PartyKey.parse(data.toString())?.let { PartySession.pendingInvite.value = it }
             return
         }

@@ -33,9 +33,15 @@ class PartyKey(val id: ByteArray, val secret: ByteArray, val name: String) {
     /** Hex form of [tag], used in MQTT topics. */
     val tagHex: String get() = hex(tag).padStart(8, '0')
 
-    /** Invite link; also what the QR code contains. Anyone with it can join and read positions. */
-    fun toLink(): String =
-        "maparound://party/" + B64.encode(id + secret) + "?n=" + urlEncode(name)
+    /**
+     * Invite link; also what the QR code contains. Anyone with it can join and read positions.
+     *
+     * A web link, so messaging apps make it tappable and a phone camera can open the QR code: the
+     * page ([INVITE_PAGE]) opens MapAround with the app link `maparound://party/<code>?n=<name>`,
+     * or offers the app on Google Play. The code is in the part after `#`, which browsers keep on
+     * the phone: the website never receives it.
+     */
+    fun toLink(): String = "$INVITE_PAGE#" + B64.encode(id + secret) + "?n=" + urlEncode(name)
 
     fun hmac(label: String): ByteArray = hmacSha256(secret, label.encodeToByteArray())
 
@@ -43,19 +49,38 @@ class PartyKey(val id: ByteArray, val secret: ByteArray, val name: String) {
     override fun hashCode() = id.contentHashCode()
 
     companion object {
+        /** Host and path of the invite page (docs/party.html on the project's GitHub Pages site). */
+        const val INVITE_HOST = "adam2314.github.io"
+        const val INVITE_PATH = "/maparound/party"
+        const val INVITE_PAGE = "https://$INVITE_HOST$INVITE_PATH"
+
+        /** Where an invite's code starts: the web link, and the app link (also the first app versions' invites). */
+        private val LINK_STARTS = listOf("$INVITE_HOST$INVITE_PATH#", "maparound://party/")
+
         /** URL-safe Base64, written without padding; read with or without. */
         private val B64 = Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT_OPTIONAL)
 
         fun create(name: String): PartyKey =
             PartyKey(randomBytes(16), randomBytes(32), name.trim().ifEmpty { "Party" })
 
-        /** Accepts the full link, or just the code after `party/`. */
+        /** True if [text] contains an invite link (web or app link). */
+        fun hasLink(text: String): Boolean = LINK_STARTS.any { it in text }
+
+        /**
+         * Accepts an invite link (web or app link), a message with one in it ("Join my party …:
+         * <link>"), or just the code.
+         */
         fun parse(text: String): PartyKey? = runCatching {
             val t = text.trim()
-            val code = t.substringAfter("party/").substringBefore('?').substringBefore('#')
+            val rest = LINK_STARTS.firstNotNullOfOrNull { start ->
+                t.indexOf(start).takeIf { it >= 0 }?.let { t.substring(it + start.length) }
+            } ?: t
+            val link = rest.takeWhile { !it.isWhitespace() }
+            val code = link.substringBefore('?').substringBefore('#').substringBefore('&')
             val raw = B64.decode(code)
             if (raw.size != 48) return null
-            val name = t.substringAfter("?n=", "").substringBefore('&').let(::urlDecode).ifEmpty { "Party" }
+            val name = link.substringAfter("?n=", "").substringBefore('&').substringBefore('#')
+                .let(::urlDecode).ifEmpty { "Party" }
             PartyKey(raw.copyOfRange(0, 16), raw.copyOfRange(16, 48), name)
         }.getOrNull()
     }

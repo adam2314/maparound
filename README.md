@@ -149,8 +149,12 @@ on Windows, prefix the commands with `MSYS_NO_PATHCONV=1`.
 
 ## Party location sharing
 
-- **Party = 16-byte id + 32-byte key**, shared as `maparound://party/<code>?n=<name>` (QR code or
-  link). Every message is **AES-256-GCM** encrypted end to end (`party/Protocol.kt`); a position
+- **Party = 16-byte id + 32-byte key**, shared as the web link
+  `https://adam2314.github.io/maparound/party#<code>?n=<name>` (QR code or link), so messaging
+  apps make it tappable and a phone camera opens it. The page (`docs/party.html`) opens the app
+  with `maparound://party/<code>?n=<name>`, or offers it on Google Play; the code stays after the
+  `#`, which browsers never send to the site. The app also reads `maparound://` invites from the
+  first versions. Every message is **AES-256-GCM** encrypted end to end (`party/Protocol.kt`); a position
   update is 54 bytes. Message types: position (with speed, heading, battery, SOS flag), hello
   (name, colour, icon, Meshtastic node), SOS, meeting point, text, leave. Hello first carries a
   colour index and the node and name, as the first app versions read it (they get the nearest of

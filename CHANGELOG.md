@@ -31,6 +31,10 @@
   the screen off, with progress in a notification (Android).
 
 ### Party
+- **Invites are web links** (`https://adam2314.github.io/maparound/party#…`), so messaging apps
+  make them tappable and the QR code opens from the phone's camera. The page opens MapAround, or
+  Google Play if it isn't installed; the party's code never reaches the website. Older
+  `maparound://` invites still work.
 - **Choose how others see you:** your initial or an icon (walker, hiker, runner, skier, kayaker,
   cyclist, e-bike, motorcycle, car, 4×4, van, truck and more), in any colour. Friends on older
   versions see your initial in the nearest of their colours.
