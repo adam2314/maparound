@@ -1,5 +1,6 @@
 package app.maparound.routing
 
+import btools.router.FormatJson
 import btools.router.OsmNodeNamed
 import btools.router.RoutingContext
 import btools.router.RoutingEngine
@@ -29,6 +30,8 @@ class OfflineRouter(private val segmentsDir: File, private val profilesDir: File
 
         val rc = RoutingContext()
         rc.localFunction = profileFile.absolutePath
+        // Turn hints for navigation. The profiles say "auto" (1), which keeps this setting.
+        rc.turnInstructionMode = TURN_HINTS_LOCUS
         val nodes = waypoints.mapIndexed { i, p ->
             OsmNodeNamed().apply {
                 name = when (i) {
@@ -59,7 +62,19 @@ class OfflineRouter(private val segmentsDir: File, private val profilesDir: File
         } else {
             track.totalSeconds.toLong().takeIf { it > 0 }
         }
-        return RouteResult(points, stats, duration, RouteResult.Source.OFFLINE)
+        // BRouter's turn hints are package-private; its own GeoJSON writer is the public way to them,
+        // in the same form the brouter.de server sends.
+        val turns = try {
+            Guidance.brouterHints(FormatJson(rc).format(track))
+        } catch (e: Exception) {
+            emptyList()
+        }
+        return RouteResult(points, stats, duration, RouteResult.Source.OFFLINE, turns)
+    }
+
+    companion object {
+        /** BRouter's "locus" turn style: keeps exits left/right apart from keep left/right. */
+        const val TURN_HINTS_LOCUS = 2
     }
 
     private fun friendly(message: String): String = when {

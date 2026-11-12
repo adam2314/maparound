@@ -2,6 +2,7 @@ package app.maparound.map.maplibre
 
 import app.maparound.data.Prefs
 import app.maparound.map.BaseMap
+import app.maparound.map.MapThemes
 import app.maparound.shared.fileSystem
 import app.maparound.shared.tempDir
 import app.maparound.terrain.DemIndex
@@ -97,7 +98,7 @@ class TerrainTilesTest {
         fun build(contours: Boolean, hillshade: Boolean) = Json.parseToJsonElement(
             style.build(
                 BaseMap.Offline(
-                    maps = emptyList(), topo = true, contours = contours, hillshade = hillshade, terrainVersion = 1, trails = false,
+                    maps = emptyList(), theme = MapThemes.TOPO, categories = null, contours = contours, hillshade = hillshade, terrainVersion = 1, trails = false,
                     trailsVersion = 0, background = Prefs.BACKGROUND_NONE, vectorOnTop = true, rasterMaps = emptyList(),
                 ),
                 service,

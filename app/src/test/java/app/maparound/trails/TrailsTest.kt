@@ -59,4 +59,28 @@ class TrailsTest {
         assertEquals(true, index.hasDataIn(BoundingBox(47.0, 9.0, 47.02, 9.02)))
         assertEquals(false, index.hasDataIn(BoundingBox(46.0, 8.0, 46.1, 8.1)))
     }
+
+    @Test
+    fun cliffsAreDrawnLikeOsmEvenWithTheTrailsOff() {
+        val cliff = """<way id="5"><nd ref="51" lat="47.004" lon="9.004"/><nd ref="52" lat="47.006" lon="9.007"/>
+            <tag k="natural" v="cliff"/></way></osm>"""
+        // The same cliff in two neighbouring cells' files: drawn once.
+        val cell = TrailCellIO.parseOverpass(overpass.replace("</osm>", cliff))
+        TrailCellIO.write(cell, tmp.newFile("N47E009.trails").path)
+        TrailCellIO.write(cell, tmp.newFile("N47E008.trails").path)
+        val index = TrailIndex(tmp.root)
+        assertEquals(1, index.featureCount)
+        assertEquals(2, index.wayCount)
+
+        fun tileAt(zoom: Byte) = Tile(MercatorProjection.longitudeToTileX(9.005, zoom), MercatorProjection.latitudeToTileY(47.005, zoom), zoom, 256)
+        val trailsOff = TrailDataStore(index, routes = false)
+        val ways = trailsOff.readMapData(tileAt(15)).ways
+        assertEquals(listOf("natural=cliff"), ways.map { w -> w.tags.joinToString { "${it.key}=${it.value}" } })
+        assertEquals(true, trailsOff.supportsTile(tileAt(15)))
+        // Below zoom 13 there's nothing to draw then; with the trails on, the lines come too.
+        assertEquals(false, trailsOff.supportsTile(tileAt(12)))
+        val trailsOn = TrailDataStore(index).readMapData(tileAt(15)).ways
+        assertEquals(1, trailsOn.count { w -> w.tags.any { it.key == "natural" } })
+        assertEquals(true, trailsOn.any { w -> w.tags.any { it.key == "trail" } })
+    }
 }

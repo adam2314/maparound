@@ -34,6 +34,9 @@ object ToolsSession {
         val observerHeightM: Double = 1.7,
         val targetHeightM: Double = 1.7,
         val radiusM: Double = 3_000.0,
+        /** Line of sight as a radio link between antennas: Fresnel zone and losses at [frequencyMHz]. */
+        val radio: Boolean = false,
+        val frequencyMHz: Double = 868.0,
         /** Ground heights at A and B from terrain data, when there is some. */
         val aGround: Double? = null,
         val bGround: Double? = null,
@@ -79,7 +82,10 @@ object ToolsSession {
         job?.cancel()
         val s = _state.value
         // Keep the settings, drop the points and results.
-        _state.value = State(mode = s.mode, observerHeightM = s.observerHeightM, targetHeightM = s.targetHeightM, radiusM = s.radiusM)
+        _state.value = State(
+            mode = s.mode, observerHeightM = s.observerHeightM, targetHeightM = s.targetHeightM, radiusM = s.radiusM,
+            radio = s.radio, frequencyMHz = s.frequencyMHz,
+        )
     }
 
     fun setMode(mode: Mode) {
@@ -149,6 +155,21 @@ object ToolsSession {
         recompute()
     }
 
+    /** Line of sight as a radio link (antenna heights, Fresnel zone, losses) or by eye. */
+    fun setRadio(on: Boolean) {
+        val s = _state.value
+        if (s.radio == on) return
+        _state.value = s.copy(radio = on, los = null)
+        recompute()
+    }
+
+    fun setFrequency(mhz: Double) {
+        val f = mhz.coerceIn(MIN_MHZ, MAX_MHZ)
+        if (f == _state.value.frequencyMHz) return
+        _state.value = _state.value.copy(frequencyMHz = f)
+        recompute()
+    }
+
     fun setRadius(m: Double) {
         val r = m.coerceIn(MIN_RADIUS, MAX_RADIUS)
         if (r == _state.value.radiusM) return
@@ -207,7 +228,7 @@ object ToolsSession {
         // Sample about as finely as the terrain data (30 m for 1″ tiles, 90 m for 3″).
         val stepM = ((dem?.finestStep ?: (1.0 / 1200)) * 111_000 * 0.8).coerceAtLeast(20.0)
         val los = if (s.mode == Mode.SIGHT && s.a != null && s.b != null && !needs) {
-            LineOfSight.compute(elevation, s.a, s.b, s.observerHeightM, s.targetHeightM, stepM)
+            LineOfSight.compute(elevation, s.a, s.b, s.observerHeightM, s.targetHeightM, stepM, s.frequencyMHz.takeIf { s.radio })
         } else {
             null
         }
@@ -229,4 +250,19 @@ object ToolsSession {
 
     const val MIN_RADIUS = 250.0
     const val MAX_RADIUS = 25_000.0
+    const val MIN_MHZ = 1.0
+    const val MAX_MHZ = 100_000.0
+
+    /** Common bands for the frequency picker: label and MHz. */
+    val BANDS = listOf(
+        "VHF 2 m (amateur)" to 145.0,
+        "Marine VHF" to 156.8,
+        "LoRa 433 MHz (EU433)" to 433.0,
+        "PMR446" to 446.0,
+        "FRS / GMRS" to 462.6,
+        "LoRa 868 MHz (EU868)" to 868.0,
+        "LoRa 915 MHz (US / ANZ)" to 915.0,
+        "2.4 GHz (LoRa 2.4, Wi-Fi)" to 2_440.0,
+        "5.8 GHz (Wi-Fi, video)" to 5_800.0,
+    )
 }

@@ -69,7 +69,8 @@ class TrailRepository(private val context: Context, private val prefs: Prefs) : 
     }
 
     override fun missingCells(bounds: GeoBounds): List<Pair<Int, Int>> =
-        cellsFor(bounds).filterNot { (lat, lon) -> file(lat, lon).exists() }
+        // Cells from before cliffs were fetched with the trails count as missing.
+        cellsFor(bounds).filterNot { (lat, lon) -> file(lat, lon).let { it.exists() && TrailCellIO.hasFeatures(it.path) } }
 
     private fun file(lat: Int, lon: Int) = File(dir, DemIndex.nameFor(lat, lon) + ".trails")
 
@@ -90,7 +91,7 @@ class TrailRepository(private val context: Context, private val prefs: Prefs) : 
                     _state.update { it.copy(progress = DownloadProgress(label, i + 1, cells.size, failed)) }
                 }
                 _events.tryEmit(
-                    if (failed == 0) "Marked trails ready for $label"
+                    if (failed == 0) "Marked trails and cliffs ready for $label"
                     else "Trails for $label: $failed of ${cells.size} areas failed. Tap again to retry.",
                 )
             } catch (e: CancellationException) {
@@ -119,7 +120,9 @@ class TrailRepository(private val context: Context, private val prefs: Prefs) : 
         val bbox = "$lat,$lon,${lat + 1},${lon + 1}"
         val query = "[out:xml][timeout:300];" +
             "relation[\"route\"~\"^(hiking|foot)$\"]($bbox)->.r;" +
-            "way(r.r)($bbox);out geom qt;.r out body qt;"
+            "way(r.r)($bbox);out geom qt;.r out body qt;" +
+            // Cliffs, arêtes, ridges and earth banks: the mapsforge maps leave them out.
+            "way[\"natural\"~\"${TrailCellIO.FEATURE_REGEX}\"]($bbox);out geom qt;"
         for (attempt in 0 until 3) {
             for (endpoint in ENDPOINTS) {
                 kotlin.coroutines.coroutineContext.ensureActive()

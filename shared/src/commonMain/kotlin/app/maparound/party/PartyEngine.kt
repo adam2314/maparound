@@ -14,7 +14,10 @@ enum class Via(val label: String) { ONLINE("online"), LORA("radio"), NEARBY("nea
 data class Member(
     val id: Int,
     val name: String = "",
-    val color: Int = 0,
+    /** ARGB; the first colour until their Hello arrives. */
+    val color: Int = PartyPalette.LEGACY[0],
+    /** [PartyIcon] code. */
+    val icon: Int = 0,
     val meshNode: Long = 0,
     val position: PartyMessage.Position? = null,
     /** When the position was taken (sender's clock). */
@@ -84,7 +87,7 @@ class PartyEngine(val key: PartyKey, val myId: Int, private val clock: () -> Lon
                 m = m.copy(position = msg, positionAt = rec.sentAt, sos = msg.sos || (m.sos && msg.sos), left = false)
             }
             is PartyMessage.Hello -> {
-                m = m.copy(name = msg.name, color = msg.color, meshNode = msg.meshNode, left = false)
+                m = m.copy(name = msg.name, color = msg.color, icon = msg.icon, meshNode = msg.meshNode, left = false)
                 if (msg.meshNode != 0L) meshNodes.remove(msg.meshNode)
             }
             is PartyMessage.Sos -> {

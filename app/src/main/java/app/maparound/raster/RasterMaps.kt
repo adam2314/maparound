@@ -38,19 +38,24 @@ class RasterMapRepository(private val context: Context) : RasterLibrary {
     private val _maps = MutableStateFlow(load())
     override val maps: StateFlow<List<RasterMap>> = _maps.asStateFlow()
 
-    private class Opened(val closeable: AutoCloseable, val renderer: RasterRenderer)
+    private class Opened(val closeable: AutoCloseable, val renderer: RasterTiles)
     private val opened = ConcurrentHashMap<String, Opened>()
 
     override fun get(id: String): RasterMap? = _maps.value.firstOrNull { it.id == id }
 
-    /** Adds an RMAP picked with the file picker (keeps read access to it). Blocking. */
+    /** Adds an RMAP or a tile database picked with the file picker (keeps read access to it). Blocking. */
     fun add(uri: Uri): RasterMap {
         runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-        val (file, close) = openFile(uri.toString())
-        val map = try {
-            describe(file, uri.toString(), displayName(uri) ?: "Raster map")
-        } finally {
-            close.close()
+        val name = displayName(uri) ?: "Raster map"
+        val map = if (TileDatabase.isSqlite(head(uri))) {
+            describeDatabase(uri, name)
+        } else {
+            val (file, close) = openFile(uri.toString())
+            try {
+                describe(file, uri.toString(), name)
+            } finally {
+                close.close()
+            }
         }
         val existing = _maps.value.firstOrNull { it.source == map.source }
         val saved = if (existing != null) map.copy(id = existing.id) else map
@@ -69,7 +74,32 @@ class RasterMapRepository(private val context: Context) : RasterLibrary {
         save()
     }
 
-    /** Opens the file picker for an .rmap; the file stays where it is (no copy). */
+    /** The first bytes of a picked file. */
+    private fun head(uri: Uri): ByteArray =
+        context.contentResolver.openInputStream(uri)?.use { s -> ByteArray(16).also { b -> var n = 0; while (n < 16) { val r = s.read(b, n, 16 - n); if (r < 0) break; n += r } } }
+            ?: throw RmapException("Can't open the file")
+
+    /** An MBTiles or SQLiteDB file: its coverage and zooms. */
+    private fun describeDatabase(uri: Uri, fileName: String): RasterMap {
+        val id = UUID.randomUUID().toString()
+        val (db, size) = openDatabase(uri.toString())
+        db.use { db ->
+            if (db.north <= db.south || db.east <= db.west) throw TileDatabaseException("The database's coverage is empty")
+            return RasterMap(
+                id = id,
+                name = db.name ?: fileName.substringBeforeLast('.'),
+                source = uri.toString(),
+                sizeBytes = size,
+                north = db.north, south = db.south, west = db.west, east = db.east,
+                projection = db.kind.label,
+                width = 0, height = 0,
+                levels = db.maxZoom - db.minZoom + 1,
+                format = if (db.kind == TileDatabase.Kind.MBTILES) RasterMap.FORMAT_MBTILES else RasterMap.FORMAT_SQLITEDB,
+            )
+        }
+    }
+
+    /** Opens the file picker for a raster map; the file stays where it is (no copy). */
     @Composable
     override fun rememberPicker(onResult: (Result<RasterMap>) -> Unit): () -> Unit {
         val scope = rememberCoroutineScope()
@@ -83,12 +113,18 @@ class RasterMapRepository(private val context: Context) : RasterLibrary {
     }
 
     /** A renderer for the map (opens the file on first use). Null if it can't be read any more. */
-    fun renderer(id: String): RasterRenderer? {
+    fun renderer(id: String): RasterTiles? {
         opened[id]?.let { return it.renderer }
         val map = get(id) ?: return null
         return try {
-            val (file, close) = openFile(map.source)
-            val o = Opened(close, RasterRenderer(file))
+            val o = if (map.format == RasterMap.FORMAT_RMAP) {
+                val (file, close) = openFile(map.source)
+                Opened(close, RasterRenderer(file))
+            } else {
+                val db = openDatabase(map.source).first
+                Opened(db, TileDatabaseRenderer(db))
+            }
+            val close = o.closeable
             opened.putIfAbsent(id, o)?.also { runCatching { close.close() } }?.renderer ?: o.renderer
         } catch (e: Exception) {
             Log.w(TAG, "Can't open ${map.name}", e)
@@ -97,6 +133,31 @@ class RasterMapRepository(private val context: Context) : RasterLibrary {
     }
 
     private fun openFile(source: String): Pair<RmapFile, AutoCloseable> {
+        val (read, size, closer) = openRead(source)
+        return try {
+            RmapFile(read, size) to closer
+        } catch (e: Exception) {
+            closer.close()
+            throw e
+        }
+    }
+
+    /** A tile database read in place (Android's own SQLite can't open picked files), and its size. */
+    private fun openDatabase(source: String): Pair<TileDatabase, Long> {
+        val (read, size, closer) = openRead(source)
+        return try {
+            TileDatabase(SqliteFile(read, size), closer) to size
+        } catch (e: SqliteException) {
+            closer.close()
+            throw TileDatabaseException(e.message ?: "Can't read the database")
+        } catch (e: Exception) {
+            closer.close()
+            throw e
+        }
+    }
+
+    /** Positional reads of a file (content:// or a path), its size, and what closes it. */
+    private fun openRead(source: String): Triple<RandomRead, Long, AutoCloseable> {
         val pfd: ParcelFileDescriptor = if (source.startsWith("content:")) {
             context.contentResolver.openFileDescriptor(Uri.parse(source), "r") ?: throw RmapException("Can't open the file")
         } else {
@@ -119,12 +180,7 @@ class RasterMapRepository(private val context: Context) : RasterLibrary {
             runCatching { stream.close() }
             runCatching { pfd.close() }
         }
-        return try {
-            RmapFile(read, size) to closer
-        } catch (e: Exception) {
-            closer.close()
-            throw e
-        }
+        return Triple(read, size, closer)
     }
 
     private fun describe(f: RmapFile, source: String, name: String): RasterMap {
@@ -160,6 +216,7 @@ class RasterMapRepository(private val context: Context) : RasterLibrary {
                 o.getString("id"), o.getString("name"), o.getString("source"), o.optLong("size"),
                 o.getDouble("n"), o.getDouble("s"), o.getDouble("w"), o.getDouble("e"),
                 o.optString("proj"), o.optInt("width"), o.optInt("height"), o.optInt("levels"),
+                o.optString("format", RasterMap.FORMAT_RMAP),
             )
         }
     }.getOrElse { emptyList() }
@@ -170,7 +227,8 @@ class RasterMapRepository(private val context: Context) : RasterLibrary {
             arr.put(
                 JSONObject().put("id", m.id).put("name", m.name).put("source", m.source).put("size", m.sizeBytes)
                     .put("n", m.north).put("s", m.south).put("w", m.west).put("e", m.east)
-                    .put("proj", m.projection).put("width", m.width).put("height", m.height).put("levels", m.levels),
+                    .put("proj", m.projection).put("width", m.width).put("height", m.height).put("levels", m.levels)
+                    .put("format", m.format),
             )
         }
         sp.edit().putString(KEY, arr.toString()).apply()
@@ -187,14 +245,14 @@ class RasterMapRepository(private val context: Context) : RasterLibrary {
  * pixels (exactly on a 16×16 grid, interpolated in between), the best zoom level of the file is
  * picked, and its JPEG tiles are decoded on demand (a small cache keeps recent ones).
  */
-class RasterRenderer(private val file: RmapFile) {
+class RasterRenderer(private val file: RmapFile) : RasterTiles {
     private class Src(val w: Int, val h: Int, val px: IntArray?)
     private val cache = object : LinkedHashMap<Long, Src>(64, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, Src>?) = size > 48
     }
 
     /** Renders tile z/x/y at [size]² into [out] (ARGB). False if the map doesn't cover it at all. */
-    fun render(z: Int, x: Int, y: Int, size: Int, out: IntArray): Boolean {
+    override fun render(z: Int, x: Int, y: Int, size: Int, out: IntArray): Boolean {
         val g = 16
         val nodes = g + 1
         val gx = DoubleArray(nodes * nodes)

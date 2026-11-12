@@ -10,7 +10,12 @@ import android.util.Log
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import app.maparound.data.MapNames
+import app.maparound.AppGraph
 import app.maparound.data.MapPos
+import app.maparound.party.IconPath
+import app.maparound.party.PartyIcon
+import app.maparound.party.PartyIcons
+import app.maparound.party.PartyPalette
 import app.maparound.routing.GeoPoint
 import app.maparound.terrain.ContourDataStore
 import app.maparound.tools.Viewshed
@@ -46,7 +51,7 @@ import org.mapsforge.map.layer.overlay.Circle
 import org.mapsforge.map.layer.overlay.Marker
 import org.mapsforge.map.layer.renderer.TileRendererLayer
 import org.mapsforge.map.reader.MapFile
-import org.mapsforge.map.rendertheme.internal.MapsforgeThemes
+
 import org.mapsforge.map.scalebar.MapScaleBar
 import java.io.File
 import kotlin.math.abs
@@ -91,10 +96,18 @@ class MapController(
     private val routeCasing: Polyline
     private val routeLine: Polyline
     private val waypointMarkers = ArrayList<Marker>()
+    private val waypointBitmaps = HashMap<Int, org.mapsforge.core.graphics.Bitmap>() // by number * 4 + kind
+    private var plannedLine: List<GeoPoint> = emptyList()
 
     /** Called when the user drags/pinches the map (used to stop "follow my location"). */
     var onUserGesture: (() -> Unit)? = null
     var onLongPress: ((LatLong) -> Unit)? = null
+    /** The finger moved on after a long press, still down; the map doesn't pan meanwhile. */
+    var onLongPressMove: ((LatLong) -> Unit)? = null
+    /** The finger was lifted after a long press. */
+    var onLongPressEnd: ((LatLong) -> Unit)? = null
+    /** Where the finger is during a long press (null when there's none). */
+    private var longPressAt: LatLong? = null
     /** Short tap on the map; return true if handled (e.g. the route planner adds a point). */
     var onTap: ((LatLong) -> Boolean)? = null
     /** Tap on a route waypoint marker (index into the waypoint list). */
@@ -148,7 +161,10 @@ class MapController(
 
     /** How offline vector maps are drawn. */
     data class OfflineStyle(
-        val topo: Boolean,
+        /** The style ([MapThemes] id). */
+        val theme: String,
+        /** Its rule categories to draw (the style's options), or null for all. */
+        val categories: Set<String>?,
         val contours: Boolean,
         val hillshade: Boolean,
         val demDir: File?,
@@ -158,7 +174,10 @@ class MapController(
         val trailsDir: File? = null,
         /** Changes when trail cells are added or removed. */
         val trailsVersion: Int = 0,
-    )
+    ) {
+        /** Whether contours and downloaded trails go to the renderer. */
+        val drawsTerrain: Boolean get() = MapThemes.drawsTerrain(theme)
+    }
 
     /** What's drawn under the offline vector map instead of its own colours. */
     sealed class Background {
@@ -170,7 +189,7 @@ class MapController(
         }
 
         /** A raster map file (RMAP). */
-        class Raster(val id: String, val renderer: app.maparound.raster.RasterRenderer) : Background() {
+        class Raster(val id: String, val renderer: app.maparound.raster.RasterTiles) : Background() {
             override val key get() = "raster:$id"
         }
     }
@@ -223,13 +242,7 @@ class MapController(
                 model.frameBufferModel.overdrawFactor, false,
             )
             val layer = TileRendererLayer(cache, data.store, model.mapViewPosition, hybrid, true, false, graphics, data.hills)
-            layer.setXmlRenderTheme(
-                when {
-                    hybrid -> TopoTheme(context, hybrid = true)
-                    style.topo -> TopoTheme(context)
-                    else -> MapsforgeThemes.DEFAULT
-                },
-            )
+            layer.setXmlRenderTheme(AppGraph.themes.renderTheme(style.theme, hybrid, style.categories))
             layers.add(if (bgLayer != null) 1 else 0, layer)
             baseLayer = layer
             baseCache = cache
@@ -326,7 +339,7 @@ class MapController(
             partyMarkers.remove(k)?.let { (layer, _) -> layers.remove(layer, false); layer.onDestroy() }
         }
         for (m in markers) {
-            val style = "${m.label}|${m.color}|${m.kind}|${m.stale}"
+            val style = "${m.label}|${m.color}|${m.kind}|${m.stale}|${m.icon}"
             val existing = partyMarkers[m.key]
             if (existing != null && existing.second == style) {
                 existing.first.setLatLong(LatLong(m.lat, m.lon))
@@ -394,10 +407,13 @@ class MapController(
         }
         p.alpha = alpha
         c.drawCircle(cx, cy, r, p)
-        // symbol
-        p.color = android.graphics.Color.WHITE
+        // symbol: white, or dark on light colours
+        p.color = if (m.kind == PartyMarker.Kind.MEMBER) PartyPalette.onColor(m.color) else android.graphics.Color.WHITE
         p.alpha = alpha
-        if (m.kind == PartyMarker.Kind.MEET) {
+        val icon = PartyIcon.of(m.icon)
+        if (m.kind == PartyMarker.Kind.MEMBER && icon != PartyIcon.LETTER) {
+            drawPartyIcon(c, PartyIcons.paths(icon), cx, cy, 18 * d, p)
+        } else if (m.kind == PartyMarker.Kind.MEET) {
             p.strokeWidth = 2 * d
             c.drawLine(cx - 4 * d, cy - 7 * d, cx - 4 * d, cy + 7 * d, p)
             c.drawPath(Path().apply {
@@ -420,6 +436,20 @@ class MapController(
         if (m.kind == PartyMarker.Kind.SOS) text.color = android.graphics.Color.rgb(213, 0, 0)
         c.drawText(label, cx, top + labelH / 2 - (text.descent() + text.ascent()) / 2, text)
         return AndroidGraphicFactory.convertToBitmap(BitmapDrawable(context.resources, bmp)) to cy.toInt()
+    }
+
+    /** A party icon (polygons in a 24×24 box) centred on ([cx], [cy]), [size] pixels across. */
+    private fun drawPartyIcon(c: android.graphics.Canvas, paths: List<IconPath>, cx: Float, cy: Float, size: Float, paint: android.graphics.Paint) {
+        val s = size / 24f
+        for (p in paths) {
+            val path = Path().apply { fillType = if (p.evenOdd) Path.FillType.EVEN_ODD else Path.FillType.WINDING }
+            for (sub in p.subpaths) {
+                path.moveTo(cx + (sub[0] - 12) * s, cy + (sub[1] - 12) * s)
+                for (k in 2 until sub.size step 2) path.lineTo(cx + (sub[k] - 12) * s, cy + (sub[k + 1] - 12) * s)
+                path.close()
+            }
+            c.drawPath(path, paint)
+        }
     }
 
     // ---- saved places -------------------------------------------------------------------------
@@ -498,9 +528,13 @@ class MapController(
 
     /** The route being planned: its line and the tapped waypoints (numbered markers). */
     fun setPlannedRoute(line: List<GeoPoint>, waypoints: List<GeoPoint>) {
-        val pts = line.map { LatLong(it.lat, it.lon) }
-        routeCasing.setPoints(pts)
-        routeLine.setPoints(pts)
+        // Dragging a stop calls this for every move: the line and the marker images stay when they can.
+        if (line != plannedLine) {
+            plannedLine = line
+            val pts = line.map { LatLong(it.lat, it.lon) }
+            routeCasing.setPoints(pts)
+            routeLine.setPoints(pts)
+        }
         val layers = mapView.layerManager.layers
         waypointMarkers.forEach { layers.remove(it, false) }
         waypointMarkers.clear()
@@ -510,7 +544,8 @@ class MapController(
                 waypoints.lastIndex -> 2
                 else -> 1
             }
-            val marker = WaypointMarker(i, LatLong(p.lat, p.lon), waypointBitmap(i + 1, kind))
+            val bitmap = waypointBitmaps.getOrPut((i + 1) * 4 + kind) { waypointBitmap(i + 1, kind) }
+            val marker = WaypointMarker(i, LatLong(p.lat, p.lon), bitmap)
             waypointMarkers += marker
             layers.add(marker, false) // above the gesture layer, so taps reach it first
         }
@@ -740,6 +775,13 @@ class MapController(
         return app.maparound.three.Camera3D(pos.latLong.latitude, pos.latLong.longitude, distance)
     }
 
+    /** Ground metres per dp at the middle of the view. */
+    fun metresPerDp(): Double {
+        val pos = mapView.model.mapViewPosition.mapPosition
+        val mapSize = MercatorProjection.getMapSize(pos.zoomLevel, mapView.model.displayModel.tileSize)
+        return MercatorProjection.calculateGroundResolution(pos.latLong.latitude, mapSize) * density
+    }
+
     // ---- camera -----------------------------------------------------------------------------
 
     fun position(): MapPos {
@@ -827,6 +869,7 @@ class MapController(
         override fun onLongPress(tapLatLong: LatLong?, layerXY: Point?, tapXY: Point?): Boolean {
             val ll = tapLatLong ?: return false
             val callback = onLongPress ?: return false
+            longPressAt = ll
             callback(ll)
             return true
         }
@@ -838,6 +881,31 @@ class MapController(
         var downX = 0f
         var downY = 0f
         mapView.setOnTouchListener { _, e ->
+            // After a long press the finger drags (a route stop); Android's gesture detector
+            // ignores those moves, so they come from here until the finger is lifted.
+            val held = longPressAt
+            if (held != null) {
+                when (e.actionMasked) {
+                    MotionEvent.ACTION_UP -> {
+                        longPressAt = null
+                        onLongPressEnd?.invoke(mapView.mapViewProjection.fromPixels(e.x.toDouble(), e.y.toDouble()) ?: held)
+                        return@setOnTouchListener false // the map view sees the end of the gesture
+                    }
+                    MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_DOWN -> { // DOWN: the end was missed
+                        longPressAt = null
+                        onLongPressEnd?.invoke(held)
+                    }
+                    else -> {
+                        // Moves of the first finger; a second finger doesn't start a pinch meanwhile.
+                        val at = mapView.mapViewProjection.fromPixels(e.getX(0).toDouble(), e.getY(0).toDouble())
+                        if (e.actionMasked == MotionEvent.ACTION_MOVE && at != null && at != held) {
+                            longPressAt = at
+                            onLongPressMove?.invoke(at)
+                        }
+                        return@setOnTouchListener true
+                    }
+                }
+            }
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     downX = e.x

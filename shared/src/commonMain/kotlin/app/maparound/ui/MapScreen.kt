@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -34,10 +35,12 @@ import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.LocationSearching
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.SatelliteAlt
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.SwapVert
@@ -87,6 +90,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -99,6 +104,13 @@ import app.maparound.data.LocalOfflineData
 import app.maparound.data.LocalPrefs
 import app.maparound.data.MapPos
 import app.maparound.map.BaseMap
+import app.maparound.map.LocalMapThemes
+import app.maparound.map.MapTheme
+import app.maparound.map.MapThemeLibrary
+import app.maparound.map.MapThemes
+import app.maparound.map.SourceList
+import app.maparound.map.StyleChoice
+import app.maparound.map.categories
 import app.maparound.map.MapListener
 import app.maparound.map.MapSurface
 import app.maparound.map.OnlineSource
@@ -114,12 +126,15 @@ import app.maparound.raster.LocalRasters
 import app.maparound.routing.Geo
 import app.maparound.routing.GeoPoint
 import app.maparound.routing.MapFocus
+import app.maparound.routing.NavigationSession
 import app.maparound.routing.PlannerSession
 import app.maparound.routing.RouteProfile
 import app.maparound.routing.RouteResult
 import app.maparound.sensors.GeoFix
 import app.maparound.sensors.LocalDeviceSensors
 import app.maparound.share.Incoming
+import app.maparound.shared.ioDispatcher
+import app.maparound.shared.util.Xml
 import app.maparound.shared.util.nowMillis
 import app.maparound.tools.Geodesy
 import app.maparound.tools.ToolsSession
@@ -130,6 +145,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun MapScreen(
@@ -183,7 +199,14 @@ fun MapScreen(
     val onlineSource = TileSources.find(baseLayerId, customSources)
     // "offline" (or an id that no longer exists) resolves to no online source -> render offline maps.
     val showingOffline = onlineSource == null
-    val topo by prefs.topoStyle.collectAsState()
+    // The offline maps' style and its options; a style that's gone (deleted, or not on this
+    // platform) falls back to the first.
+    val themeLib = LocalMapThemes.current
+    val themes by themeLib.themes.collectAsState()
+    val chosenTheme by prefs.mapTheme.collectAsState()
+    val styleChoices by prefs.styleChoices.collectAsState()
+    val theme = chosenTheme.takeIf { id -> themes.any { it.id == id } } ?: themes.firstOrNull()?.id ?: MapThemes.TOPO
+    val categories = remember(theme, styleChoices, themes) { themeLib.categories(theme, styleChoices) }
     val contours by prefs.contours.collectAsState()
     val hillshade by prefs.hillshade.collectAsState()
     val terrain by offline.terrain.state.collectAsState()
@@ -194,7 +217,8 @@ fun MapScreen(
     val rasterMaps by rastersLib.maps.collectAsState()
     val baseMap: BaseMap = onlineSource?.let { BaseMap.Online(it) } ?: BaseMap.Offline(
         maps = localMaps,
-        topo = topo,
+        theme = theme,
+        categories = categories,
         contours = contours,
         hillshade = hillshade,
         terrainVersion = terrain.version,
@@ -207,18 +231,22 @@ fun MapScreen(
     LaunchedEffect(baseMap) { controller.setBaseMap(baseMap) }
     val terrainShown = showingOffline && terrain.tiles > 0 && (contours || hillshade)
     // Marked trails: drawn from downloaded data in the Topo style, otherwise the online overlay.
-    val localTrails = trailsOn && showingOffline && topo && trailData.cells > 0
+    val localTrails = trailsOn && showingOffline && MapThemes.drawsTerrain(theme) && trailData.cells > 0
     val trailOverlay = trailsOn && !localTrails
     LaunchedEffect(trailOverlay) { controller.setTrailOverlay(trailOverlay) }
 
     // ---- routes & tracks ------------------------------------------------------------------------
     val planner by PlannerSession.state.collectAsState()
+    val nav by NavigationSession.state.collectAsState()
+    val navVoice by prefs.navVoice.collectAsState()
     val recorder by TrackRecorder.state.collectAsState()
     val savedTracks by tracksRepo.tracks.collectAsState()
     val visibleTracks by tracksRepo.visible.collectAsState()
-    LaunchedEffect(planner.active, planner.route, planner.waypoints) {
+    LaunchedEffect(planner.active, planner.route, planner.waypoints, planner.preview, nav.route) {
         val line = when {
+            nav.route != null -> nav.route!!.points
             !planner.active -> emptyList()
+            planner.preview != null -> planner.preview!!
             planner.route != null -> planner.route!!.points
             planner.profile == RouteProfile.LINE -> planner.waypoints
             else -> emptyList()
@@ -315,6 +343,7 @@ fun MapScreen(
     var pin by remember { mutableStateOf<GeoPoint?>(null) }
     var pinLabel by remember { mutableStateOf<String?>(null) }
     var showMe by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
     // (lat, lon, label) for the share sheet
     var shareTarget by remember { mutableStateOf<Triple<Double, Double, String?>?>(null) }
     SideEffect {
@@ -324,9 +353,20 @@ fun MapScreen(
             }
 
             override fun onLongPress(point: GeoPoint) {
+                // In the planner, a long press on a stop or the line picks it up to drag.
+                val planning = PlannerSession.state.value.active && !NavigationSession.state.value.active &&
+                    !ToolsSession.state.value.active
+                if (planning && PlannerSession.grab(point, controller.metresPerDp())) {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    return
+                }
                 pin = point
                 pinLabel = null
             }
+
+            override fun onLongPressMove(point: GeoPoint) = PlannerSession.drag(point)
+
+            override fun onLongPressEnd(point: GeoPoint) = PlannerSession.drop(point)
 
             override fun onMyLocationTap() {
                 showMe = true
@@ -337,14 +377,16 @@ fun MapScreen(
                     ToolsSession.tap(point)
                     true
                 }
-                PlannerSession.state.value.active -> {
+                PlannerSession.state.value.active && !NavigationSession.state.value.active -> {
                     PlannerSession.add(point)
                     true
                 }
                 else -> false
             }
 
-            override fun onWaypointTap(index: Int) = PlannerSession.removeAt(index)
+            override fun onWaypointTap(index: Int) {
+                if (!NavigationSession.state.value.active) PlannerSession.removeAt(index)
+            }
 
             override fun onPartyMarkerTap(key: String) {
                 selectedParty = key
@@ -358,8 +400,19 @@ fun MapScreen(
     LaunchedEffect(location) {
         val loc = location
         controller.updateLocation(loc)
+        // The background service feeds navigation too; the same fix counts once.
+        if (loc != null && NavigationSession.state.value.active) NavigationSession.onFix(loc)
         if (follow && loc != null) controller.animateTo(loc.lat, loc.lon)
     }
+    LaunchedEffect(nav.active) {
+        if (nav.active) {
+            follow = true
+            pin = null
+            showMe = false
+            location?.let { controller.animateTo(it.lat, it.lon, minZoom = if (nav.profile == RouteProfile.CAR) 16 else 17) }
+        }
+    }
+    if (nav.active) KeepScreenOn()
     LaunchedEffect(pin) { controller.setPin(pin) }
 
     // ---- things other apps shared with us ---------------------------------------------------------
@@ -408,7 +461,7 @@ fun MapScreen(
     Box(Modifier.fillMaxSize()) {
         mapView(controller, Modifier.fillMaxSize())
 
-        if (showingOffline && localMaps.isEmpty() && !planner.active && !tools.active) {
+        if (showingOffline && localMaps.isEmpty() && !planner.active && !tools.active && !nav.active) {
             ElevatedCard(
                 Modifier.align(Alignment.TopCenter).padding(top = 56.dp, start = 16.dp, end = 72.dp),
             ) {
@@ -433,7 +486,7 @@ fun MapScreen(
             SmallFloatingActionButton(onClick = { showLayers = true }) {
                 Icon(Icons.Filled.Layers, contentDescription = "Map layers")
             }
-            SmallFloatingActionButton(
+            if (!nav.active) SmallFloatingActionButton(
                 onClick = {
                     if (planner.active) {
                         PlannerSession.close()
@@ -447,7 +500,7 @@ fun MapScreen(
             ) {
                 Icon(Icons.Filled.Route, contentDescription = "Plan a route")
             }
-            SmallFloatingActionButton(
+            if (!nav.active) SmallFloatingActionButton(
                 onClick = {
                     if (tools.active) {
                         ToolsSession.close()
@@ -469,7 +522,17 @@ fun MapScreen(
             }
         }
 
-        if (recorder.recording) {
+        if (nav.active) {
+            // Left of the button column on the right.
+            Column(
+                Modifier.align(Alignment.TopStart).fillMaxWidth().padding(start = 8.dp, top = 8.dp, end = 64.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                NavigationBanner(nav, Modifier.fillMaxWidth())
+                if (recorder.recording) RecordingBar(recorder, onStop = { recording.stop() })
+            }
+        } else if (recorder.recording) {
             RecordingBar(
                 recorder,
                 onStop = { recording.stop() },
@@ -602,12 +665,32 @@ fun MapScreen(
             }
         }
         }
-        if (planner.active) {
+        if (nav.active) {
+            NavigationPanel(
+                nav,
+                voice = navVoice,
+                onVoice = {
+                    prefs.setNavVoice(it)
+                    NavigationSession.voiceChanged(it)
+                },
+                onStop = { NavigationSession.stop() },
+            )
+        } else if (planner.active) {
             PlannerPanel(
                 planner,
                 onSave = { saveDialog = true },
                 onShare = {
                     PlannerSession.currentTrack("Route " + Fmt.dayMonth(nowMillis()))?.let { platform.shareRoute(it, null) }
+                },
+                onNavigate = {
+                    val route = planner.route
+                    when {
+                        !hasLocation -> requestLocation()
+                        route != null -> {
+                            ToolsSession.close()
+                            NavigationSession.start(route, planner.waypoints, planner.profile)
+                        }
+                    }
                 },
                 onClose = { PlannerSession.close() },
             )
@@ -685,7 +768,7 @@ fun MapScreen(
             selectedId = if (showingOffline) TileSources.OFFLINE_ID else baseLayerId,
             custom = customSources,
             offlineCount = localMaps.size,
-            topo = topo,
+            theme = theme,
             contours = contours,
             hillshade = hillshade,
             terrainTiles = terrain.tiles,
@@ -696,6 +779,7 @@ fun MapScreen(
             vectorOnBackground = vectorOnBackground,
             rasterMaps = rasterMaps,
             onRasterError = { e -> scope.launch { snackbar.showSnackbar(rasterError(e)) } },
+            onMessage = { m -> scope.launch { snackbar.showSnackbar(m) } },
             onOpenOffline = {
                 showLayers = false
                 onOpenOffline()
@@ -724,9 +808,10 @@ fun partyMapMarkers(party: PartyState, now: Long): List<PartyMarker> = buildList
     party.members.forEach { m ->
         m.position?.let { p ->
             add(PartyMarker(
-                "m${m.id}", p.lat, p.lon, m.displayName, PartyColors.of(m.color).toArgb(),
+                "m${m.id}", p.lat, p.lon, m.displayName, m.color,
                 if (m.sos) PartyMarker.Kind.SOS else PartyMarker.Kind.MEMBER,
                 stale = now - m.positionAt > 10 * 60_000,
+                icon = m.icon,
             ))
         }
     }
@@ -867,7 +952,7 @@ private fun LayersSheet(
     selectedId: String,
     custom: List<OnlineSource>,
     offlineCount: Int,
-    topo: Boolean,
+    theme: String,
     contours: Boolean,
     hillshade: Boolean,
     terrainTiles: Int,
@@ -878,6 +963,7 @@ private fun LayersSheet(
     vectorOnBackground: Boolean,
     rasterMaps: List<app.maparound.raster.RasterMap>,
     onRasterError: (Throwable) -> Unit,
+    onMessage: (String) -> Unit,
     onOpenOffline: () -> Unit,
     onSelect: (String) -> Unit,
     onAddCustom: (OnlineSource) -> Unit,
@@ -886,7 +972,43 @@ private fun LayersSheet(
 ) {
     val prefs = LocalPrefs.current
     val rasters = LocalRasters.current
+    val platform = LocalPlatform.current
+    val themeLib = LocalMapThemes.current
+    val themes by themeLib.themes.collectAsState()
+    val scope = rememberCoroutineScope()
     var showAdd by remember { mutableStateOf(false) }
+    fun showStyle(id: String) {
+        prefs.setMapTheme(id)
+        prefs.setBaseLayer(TileSources.OFFLINE_ID)
+    }
+    val importTheme = rememberFilePicker(listOf("*/*")) { file ->
+        if (file == null) return@rememberFilePicker
+        scope.launch {
+            withContext(ioDispatcher) { themeLib.import(file.name, file.bytes) }.fold(
+                { added ->
+                    showStyle(added.first().id)
+                    onMessage(if (added.size == 1) "Added the style \"${added[0].name}\"" else "Added ${added.size} styles")
+                },
+                { onMessage(it.message ?: "Couldn't import that style") },
+            )
+        }
+    }
+    val importSources = rememberFilePicker(listOf("*/*")) { file ->
+        if (file == null) return@rememberFilePicker
+        SourceList.decode(Xml.decode(file.bytes)).fold(
+            { found ->
+                val added = prefs.addCustomSources(found, "custom_${nowMillis()}")
+                onMessage(
+                    when {
+                        added.isEmpty() -> "Those tile sources are already in the list"
+                        added.size == 1 -> "Added the tile source \"${added[0].name}\""
+                        else -> "Added ${added.size} tile sources"
+                    },
+                )
+            },
+            { onMessage(it.message ?: "Couldn't read that list") },
+        )
+    }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
             SheetHeader("Offline")
@@ -897,24 +1019,37 @@ private fun LayersSheet(
                 icon = Icons.Filled.DownloadForOffline,
                 onClick = { onSelect(TileSources.OFFLINE_ID) },
             )
-            Column(Modifier.padding(start = 72.dp, end = 16.dp)) {
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                    SegmentedButton(
-                        selected = topo,
-                        onClick = { prefs.setTopoStyle(true) },
-                        shape = SegmentedButtonDefaults.itemShape(0, 2),
-                    ) { Text("Topo") }
-                    SegmentedButton(
-                        selected = !topo,
-                        onClick = { prefs.setTopoStyle(false) },
-                        shape = SegmentedButtonDefaults.itemShape(1, 2),
-                    ) { Text("Classic") }
+            Column(Modifier.padding(start = 56.dp, end = 16.dp)) {
+                Text("Style", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(start = 16.dp, top = 4.dp))
+                themes.forEach { t ->
+                    StyleRow(
+                        theme = t,
+                        selected = t.id == theme,
+                        onClick = { showStyle(t.id) },
+                        onRemove = if (!t.imported) null else {
+                            {
+                                themeLib.delete(t.id)
+                                onMessage("Removed the style \"${t.name}\"")
+                            }
+                        },
+                    )
                 }
+                if (themeLib.canImport) {
+                    TextButton(onClick = importTheme) {
+                        Icon(Icons.Filled.FileOpen, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Import a style (.xml or .zip)")
+                    }
+                }
+            }
+            Column(Modifier.padding(start = 72.dp, end = 16.dp)) {
+                StyleOptions(theme, themeLib)
+                Text("Terrain", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
                 SwitchRow(
                     "Contour lines",
-                    if (!topo) "Shown in the Topo style" else null,
+                    if (!MapThemes.drawsTerrain(theme)) "Drawn by the Topo style and imported styles" else null,
                     checked = contours,
-                    enabled = topo,
+                    enabled = MapThemes.drawsTerrain(theme),
                 ) { prefs.setContours(it) }
                 SwitchRow("Hill shading", null, checked = hillshade) { prefs.setHillshade(it) }
                 if (terrainTiles == 0) {
@@ -959,7 +1094,7 @@ private fun LayersSheet(
             TextButton(onClick = addRaster, modifier = Modifier.padding(horizontal = 12.dp)) {
                 Icon(Icons.Filled.AddPhotoAlternate, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Add a raster map (.rmap)")
+                Text("Add a raster map (.rmap, .mbtiles, .sqlitedb)")
             }
             Column(Modifier.padding(start = 24.dp, end = 16.dp)) {
                 SwitchRow(
@@ -984,10 +1119,10 @@ private fun LayersSheet(
                     selected = selectedId == src.id,
                     title = src.name,
                     subtitle = src.description,
-                    icon = when (src.id) {
-                        "esri_imagery" -> Icons.Filled.SatelliteAlt
-                        "opentopomap" -> Icons.Filled.Terrain
-                        else -> Icons.Filled.Public
+                    icon = when (src.kind) {
+                        OnlineSource.Kind.IMAGERY -> Icons.Filled.SatelliteAlt
+                        OnlineSource.Kind.TOPO -> Icons.Filled.Terrain
+                        OnlineSource.Kind.STREET -> Icons.Filled.Public
                     },
                     onClick = { onSelect(src.id) },
                 )
@@ -1007,9 +1142,71 @@ private fun LayersSheet(
                 Spacer(Modifier.width(8.dp))
                 Text("Add custom tile source")
             }
+            Row(Modifier.padding(horizontal = 12.dp)) {
+                TextButton(onClick = importSources) {
+                    Icon(Icons.Filled.FileOpen, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Import list")
+                }
+                TextButton(
+                    onClick = { platform.shareTextFile(SourceList.FILE_NAME, "application/json", SourceList.encode(custom), "MapAround tile sources") },
+                    enabled = custom.isNotEmpty(),
+                ) {
+                    Icon(Icons.Filled.Share, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Export list")
+                }
+            }
         }
     }
     if (showAdd) AddSourceDialog(onDismiss = { showAdd = false }, onAdd = { showAdd = false; onAddCustom(it) })
+}
+
+/** One style of the offline maps (radio choice), removable when the user imported it. */
+@Composable
+private fun StyleRow(theme: MapTheme, selected: Boolean, onClick: () -> Unit, onRemove: (() -> Unit)?) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = null, modifier = Modifier.padding(horizontal = 12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(theme.name, style = MaterialTheme.typography.bodyLarge)
+            Text(theme.description, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        if (onRemove != null) IconButton(onClick = onRemove) { Icon(Icons.Filled.Delete, contentDescription = "Remove ${theme.name}") }
+    }
+}
+
+/** The chosen style's options (its style menu): a variant if it has several, and what to show. */
+@Composable
+private fun StyleOptions(themeId: String, lib: MapThemeLibrary) {
+    val prefs = LocalPrefs.current
+    val menu = remember(themeId) { lib.menu(themeId) } ?: return
+    val choices by prefs.styleChoices.collectAsState()
+    val choice = choices[themeId] ?: StyleChoice()
+    val style = menu.style(choice.style) ?: return
+    if (menu.styles.size > 1) {
+        Text("Variant", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
+        menu.styles.forEach { s ->
+            Row(
+                Modifier.fillMaxWidth().clickable { prefs.setStyleChoice(themeId, choice.copy(style = s.id)) }.padding(vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(selected = s.id == style.id, onClick = null, modifier = Modifier.padding(end = 12.dp))
+                Text(menu.name(s), style = MaterialTheme.typography.bodyLarge)
+            }
+        }
+    }
+    val overlays = menu.overlays(style)
+    if (overlays.isNotEmpty()) {
+        Text("Show", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
+        overlays.forEach { o ->
+            SwitchRow(menu.name(o), null, checked = menu.isOn(o, choice)) { on ->
+                prefs.setStyleChoice(themeId, choice.copy(overlays = choice.overlays + (o.id to on)))
+            }
+        }
+    }
 }
 
 @Composable
@@ -1125,7 +1322,13 @@ private fun AddSourceDialog(onDismiss: () -> Unit, onAdd: (OnlineSource) -> Unit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PlannerPanel(state: PlannerSession.State, onSave: () -> Unit, onShare: () -> Unit, onClose: () -> Unit) {
+private fun PlannerPanel(
+    state: PlannerSession.State,
+    onSave: () -> Unit,
+    onShare: () -> Unit,
+    onNavigate: () -> Unit,
+    onClose: () -> Unit,
+) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
@@ -1153,7 +1356,7 @@ private fun PlannerPanel(state: PlannerSession.State, onSave: () -> Unit, onShar
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 state.waypoints.size == 1 -> Text(
-                    "Now tap the destination. Keep tapping to add stops along the way.",
+                    "Now tap the destination, then more stops. To change the route, hold a stop or the line and drag it.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 state.error != null -> Text(state.error.orEmpty(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
@@ -1188,7 +1391,14 @@ private fun PlannerPanel(state: PlannerSession.State, onSave: () -> Unit, onShar
                     Icon(Icons.Filled.Share, contentDescription = "Share route")
                 }
                 Spacer(Modifier.weight(1f))
-                Button(onClick = onSave, enabled = route != null && !state.busy) { Text("Save") }
+                TextButton(onClick = onSave, enabled = route != null && !state.busy, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                    Text("Save")
+                }
+                Button(onClick = onNavigate, enabled = route != null && !state.busy, contentPadding = PaddingValues(horizontal = 12.dp)) {
+                    Icon(Icons.Filled.Navigation, contentDescription = null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Start")
+                }
             }
         }
     }

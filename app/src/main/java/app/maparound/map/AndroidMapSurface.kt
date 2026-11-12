@@ -22,6 +22,8 @@ class AndroidMapSurface(context: Context) : MapSurface {
     init {
         controller.onUserGesture = { listener?.onUserGesture() }
         controller.onLongPress = { listener?.onLongPress(GeoPoint(it.latitude, it.longitude)) }
+        controller.onLongPressMove = { listener?.onLongPressMove(GeoPoint(it.latitude, it.longitude)) }
+        controller.onLongPressEnd = { listener?.onLongPressEnd(GeoPoint(it.latitude, it.longitude)) }
         controller.onTap = { listener?.onTap(GeoPoint(it.latitude, it.longitude)) ?: false }
         controller.onWaypointTap = { listener?.onWaypointTap(it) }
         controller.onPartyMarkerTap = { listener?.onPartyMarkerTap(it) }
@@ -34,13 +36,15 @@ class AndroidMapSurface(context: Context) : MapSurface {
     override fun animateTo(lat: Double, lon: Double, minZoom: Int?) = controller.animateTo(lat, lon, minZoom)
     override fun showPoints(points: List<GeoPoint>) = controller.showPoints(points)
     override fun camera3D(): Camera3D? = controller.camera3D()
+    override fun metresPerDp(): Double = controller.metresPerDp()
 
     override suspend fun setBaseMap(base: BaseMap) {
         when (base) {
             is BaseMap.Online -> controller.showOnline(base.source)
             is BaseMap.Offline -> {
                 val style = MapController.OfflineStyle(
-                    topo = base.topo,
+                    theme = base.theme,
+                    categories = base.categories,
                     contours = base.contours,
                     hillshade = base.hillshade,
                     demDir = AppGraph.terrain.demDir,

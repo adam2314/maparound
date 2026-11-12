@@ -17,14 +17,18 @@ import androidx.lifecycle.LifecycleOwner
 import app.maparound.AppGraph
 import app.maparound.data.MapPos
 import app.maparound.map.MapController
+import app.maparound.map.MapThemes
 import app.maparound.map.TileSources
+import app.maparound.map.categories
 import app.maparound.party.PartySession
 import app.maparound.routing.GeoPoint
+import app.maparound.routing.NavigationSession
 import app.maparound.routing.PlannerSession
 import app.maparound.routing.RouteProfile
 import app.maparound.sensors.LocationSource
 import app.maparound.sensors.bestAltitude
 import app.maparound.sensors.hasLocationPermission
+import app.maparound.sensors.toGeoFix
 import app.maparound.tracks.TrackRecorder
 import app.maparound.ui.Fmt
 import app.maparound.ui.partyMapMarkers
@@ -37,7 +41,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.mapsforge.core.model.LatLong
 import org.mapsforge.core.util.MercatorProjection
@@ -67,6 +73,7 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
     private var following = true
     private var satellite = false
     private var scaleAccum = 1f
+    private var startWhenRouted = false
 
     init {
         lifecycle.addObserver(this)
@@ -163,13 +170,23 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
         controller?.let { applyBaseLayer(it) }
     }
 
+    /** "Navigate to" from the car: a car route from here, and guidance as soon as it is calculated. */
     fun showDestination(p: GeoPoint) {
         setFollowing(false)
         controller?.animateTo(p.lat, p.lon, minZoom = 13)
         val me = location
         if (me != null) {
+            NavigationSession.stop()
             PlannerSession.load(listOf(GeoPoint(me.latitude, me.longitude), p), RouteProfile.CAR)
+            startWhenRouted = true
         }
+    }
+
+    /** Guidance along the planned route. */
+    fun startNavigation() {
+        val planner = PlannerSession.state.value
+        val route = planner.route ?: return
+        NavigationSession.start(route, planner.waypoints, planner.profile)
     }
 
     private fun setFollowing(value: Boolean) {
@@ -209,7 +226,7 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
         s.launch {
             combine(
                 listOf(
-                    prefs.baseLayer, prefs.customSources, AppGraph.mapFiles.files, prefs.topoStyle, prefs.contours,
+                    prefs.baseLayer, prefs.customSources, AppGraph.mapFiles.files, prefs.mapTheme, prefs.styleChoices, prefs.contours,
                     prefs.hillshade, AppGraph.terrain.state, prefs.trails, AppGraph.trails.state,
                     prefs.mapBackground, prefs.vectorOnBackground, AppGraph.rasters.maps,
                 ),
@@ -219,15 +236,31 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
             }
         }
         s.launch {
-            PlannerSession.state.collect { planner ->
+            combine(PlannerSession.state, NavigationSession.state) { planner, nav -> planner to nav }.collect { (planner, nav) ->
                 val line = when {
+                    nav.route != null -> nav.route!!.points
                     !planner.active -> emptyList()
                     planner.route != null -> planner.route!!.points
                     planner.profile == RouteProfile.LINE -> planner.waypoints
                     else -> emptyList()
                 }
                 c.setPlannedRoute(line, if (planner.active) planner.waypoints else emptyList())
+                if (startWhenRouted && !planner.busy) {
+                    startWhenRouted = false
+                    if (planner.route != null && !nav.active) startNavigation()
+                }
                 pushStatus()
+            }
+        }
+        s.launch {
+            // Navigation started (here or on the phone): follow the car, close enough to see the turns.
+            NavigationSession.state.map { it.active }.distinctUntilChanged().collect { active ->
+                if (active) {
+                    controller?.mapView?.model?.mapViewPosition?.let { pos ->
+                        if (pos.zoomLevel < 16) pos.zoomLevel = minOf(16, pos.zoomLevelMax.toInt()).toByte()
+                    }
+                    recenter()
+                }
             }
         }
         s.launch {
@@ -253,6 +286,8 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
                 LocationSource.updates(carContext).collect { loc ->
                     location = loc
                     c.updateLocation(loc)
+                    // The navigation service feeds it too; the same fix counts once.
+                    if (NavigationSession.state.value.active) NavigationSession.onFix(loc.toGeoFix())
                     if (following) centerOn(loc.latitude, loc.longitude)
                     pushStatus()
                 }
@@ -271,7 +306,8 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
             c.showOffline(
                 AppGraph.mapFiles.files.value.map { it.file },
                 MapController.OfflineStyle(
-                    topo = prefs.topoStyle.value,
+                    theme = prefs.mapTheme.value,
+                    categories = AppGraph.themes.categories(prefs.mapTheme.value, prefs.styleChoices.value),
                     contours = prefs.contours.value,
                     hillshade = prefs.hillshade.value,
                     demDir = AppGraph.terrain.demDir,
@@ -285,7 +321,7 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
                 prefs.vectorOnBackground.value,
             )
         }
-        val localTrails = online == null && prefs.trails.value && prefs.topoStyle.value && AppGraph.trails.state.value.cells > 0
+        val localTrails = online == null && prefs.trails.value && MapThemes.drawsTerrain(prefs.mapTheme.value) && AppGraph.trails.state.value.cells > 0
         c.setTrailOverlay(prefs.trails.value && !localTrails)
     }
 

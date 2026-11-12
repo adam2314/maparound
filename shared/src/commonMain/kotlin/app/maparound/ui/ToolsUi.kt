@@ -20,6 +20,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.CellTower
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
@@ -32,12 +34,15 @@ import androidx.compose.material.icons.filled.Terrain
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.SegmentedButton
@@ -76,6 +81,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import app.maparound.data.LocalPrefs
 import app.maparound.routing.Geo
+import androidx.compose.ui.text.style.TextOverflow
 import app.maparound.routing.GeoPoint
 import app.maparound.sensors.DeviceSensors
 import app.maparound.sensors.GeoFix
@@ -103,6 +109,9 @@ import kotlin.math.sqrt
 
 private val Visible = Color(0xFF2E7D32)
 private val Hidden = Color(0xFFC62828)
+private val Partial = Color(0xFFE08600)
+/** The Fresnel zone on the profile. */
+private val ZoneColor = Color(0xFF1E88E5)
 
 /** Magnetic declination (degrees east) at a point, from the World Magnetic Model built into Android. */
 fun declinationAt(sensors: DeviceSensors, p: GeoPoint): Float = sensors.declination(p.lat, p.lon, 0.0, nowMillis())
@@ -311,14 +320,29 @@ private fun parseDistance(text: String): Double? {
 @Composable
 private fun SightBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTerrain: () -> Unit) {
     PointsRow(state, myLocation)
-    HeightsRow(state, "Eye at A (m)", "Target at B (m)")
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Filled.CellTower, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.width(8.dp))
+        Column(Modifier.weight(1f)) {
+            Text("Radio link", style = MaterialTheme.typography.bodyLarge)
+            Text("Antennas at A and B, Fresnel zone and path loss", style = MaterialTheme.typography.bodySmall)
+        }
+        Switch(state.radio, ToolsSession::setRadio)
+    }
+    if (state.radio) {
+        HeightsRow(state, "Antenna at A (m)", "Antenna at B (m)")
+        FrequencyPicker(state.frequencyMHz)
+    } else {
+        HeightsRow(state, "Eye at A (m)", "Target at B (m)")
+    }
     HigherGroundHint(state)
     val a = state.a
     val b = state.b
     when {
-        a == null -> Hint("Tap the map to place A, where you stand.")
-        b == null -> Hint("Now tap B, what you want to see. Further taps move B.")
+        a == null -> Hint(if (state.radio) "Tap the map to place A, the first antenna." else "Tap the map to place A, where you stand.")
+        b == null -> Hint(if (state.radio) "Now tap B, the other antenna. Further taps move B." else "Now tap B, what you want to see. Further taps move B.")
         state.needsTerrain -> TerrainNeeded(onGetTerrain)
+        state.los?.fresnel != null -> RadioResult(state.los, a, b)
         state.los != null -> {
             val los = state.los
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -359,6 +383,96 @@ private fun SightBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTerra
     if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
 }
 
+/** A radio link's verdict: how much of the first Fresnel zone is clear, and the path loss. */
+@Composable
+private fun RadioResult(los: LineOfSight, a: GeoPoint, b: GeoPoint) {
+    val f = los.fresnel ?: return
+    val t = f.tightest
+    val (title, color) = when {
+        !los.targetVisible -> "Radio path blocked" to Hidden
+        f.clearance >= LineOfSight.Fresnel.RULE -> "Clear radio path" to Visible
+        else -> "Fresnel zone partly blocked" to Partial
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Icon(Icons.Filled.CellTower, contentDescription = null, tint = color)
+        Text(title, style = MaterialTheme.typography.titleMedium, color = color, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.weight(1f))
+        Text("${Fmt.distance(los.distanceM.toFloat())} · ${deg(Geodesy.bearing(a, b))}", style = MaterialTheme.typography.bodyMedium)
+    }
+    val where = t?.let { Fmt.distance(it.distanceM.toFloat()) + " from A" }
+    val extra = f.obstructionLossDb.roundToInt()
+    Text(
+        when {
+            t == null || f.clearance >= 1 -> "The whole first Fresnel zone is clear of the terrain."
+            f.clearance >= LineOfSight.Fresnel.RULE ->
+                "At least ${percent(f.clearance)} of the first Fresnel zone is clear (the rule of thumb is 60%); tightest $where."
+            f.clearance > 0 ->
+                "The ground $where reaches into the Fresnel zone: only ${percent(f.clearance)} of it is clear. " +
+                    "Expect about $extra dB of extra loss."
+            else -> {
+                val above = -f.clearance * f.radiusAt(t.distanceM, los.distanceM)
+                "The ground $where rises ${above.roundToInt()} m above the direct line between the antennas. " +
+                    "Expect about $extra dB of extra loss (diffraction over it); the signal may still get through."
+            }
+        },
+        style = MaterialTheme.typography.bodyMedium,
+    )
+    Text(
+        "Path loss about ${f.totalLossDb.roundToInt()} dB: free space ${f.freeSpaceLossDb.roundToInt()} dB" +
+            (if (extra > 0) " + terrain $extra dB" else "") +
+            ". The first Fresnel zone is ${f.midRadiusM.roundToInt()} m in radius halfway.",
+        style = MaterialTheme.typography.bodyMedium,
+    )
+    SightProfile(los, Modifier.fillMaxWidth().height(130.dp))
+    Text(
+        "Bare terrain, with radio's 4/3 Earth radius; trees, buildings, antenna gain and cable loss aren't " +
+            "included. Terrain loss is the tightest point as a single knife edge (ITU-R P.526).",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+private fun percent(share: Double) = "${(share * 100).roundToInt().coerceAtLeast(0)}%"
+
+/** "868 MHz", "2.44 GHz". */
+private fun frequencyText(mhz: Double): String = when {
+    mhz >= 1000 -> "${trimZeros(fixed(mhz / 1000, 2))} GHz"
+    else -> "${trimZeros(fixed(mhz, 3))} MHz"
+}
+
+private fun trimZeros(s: String) = if ('.' in s) s.trimEnd('0').trimEnd('.') else s
+
+/** Common bands in a menu, and any frequency typed in. */
+@Composable
+private fun FrequencyPicker(mhz: Double) {
+    var open by remember { mutableStateOf(false) }
+    var other by remember { mutableStateOf(false) }
+    val band = ToolsSession.BANDS.firstOrNull { it.second == mhz }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(Modifier.weight(1f)) {
+            OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    (band?.first?.let { "$it · " } ?: "") + frequencyText(mhz),
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                )
+                Icon(Icons.Filled.ArrowDropDown, contentDescription = "Choose a frequency")
+            }
+            DropdownMenu(open, onDismissRequest = { open = false }) {
+                ToolsSession.BANDS.forEach { (label, f) ->
+                    DropdownMenuItem(
+                        text = { Text("$label · ${frequencyText(f)}") },
+                        onClick = { open = false; other = false; ToolsSession.setFrequency(f) },
+                    )
+                }
+                DropdownMenuItem(text = { Text("Other frequency…") }, onClick = { open = false; other = true })
+            }
+        }
+        if (other || band == null) {
+            NumberField("MHz", mhz, Modifier.width(110.dp), maxLength = 9) { ToolsSession.setFrequency(it) }
+        }
+    }
+}
+
 @Composable
 private fun HeightsRow(state: ToolsSession.State, observerLabel: String, targetLabel: String) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -368,8 +482,12 @@ private fun HeightsRow(state: ToolsSession.State, observerLabel: String, targetL
 }
 
 @Composable
-private fun HeightField(label: String, value: Double, modifier: Modifier, onChange: (Double) -> Unit) {
-    fun show(v: Double) = if (v == v.roundToInt().toDouble()) v.roundToInt().toString() else fixed(v, 1)
+private fun HeightField(label: String, value: Double, modifier: Modifier, onChange: (Double) -> Unit) =
+    NumberField(label, value, modifier, maxLength = 6, onChange = onChange)
+
+@Composable
+private fun NumberField(label: String, value: Double, modifier: Modifier, maxLength: Int, onChange: (Double) -> Unit) {
+    fun show(v: Double) = if (v == v.roundToInt().toDouble()) v.roundToInt().toString() else trimZeros(fixed(v, 3))
     var text by remember { mutableStateOf(show(value)) }
     // Follow outside changes (swap, mode switch) unless the field already says the same.
     LaunchedEffect(value) { if (text.replace(',', '.').toDoubleOrNull() != value) text = show(value) }
@@ -377,8 +495,8 @@ private fun HeightField(label: String, value: Double, modifier: Modifier, onChan
     OutlinedTextField(
         text,
         { t ->
-            text = t.take(6)
-            t.replace(',', '.').toDoubleOrNull()?.let(onChange)
+            text = t.take(maxLength)
+            text.replace(',', '.').toDoubleOrNull()?.let(onChange)
         },
         label = { Text(label, maxLines = 1) },
         singleLine = true,
@@ -427,15 +545,30 @@ private fun SightProfile(los: LineOfSight, modifier: Modifier = Modifier) {
     val ground = MaterialTheme.colorScheme.outline
     val fill = MaterialTheme.colorScheme.surfaceVariant
     val label = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
+    // Distance, ground as seen from A (curvature applied), and its colour.
+    class Point(val d: Double, val e: Double, val color: Color)
+    val fresnel = los.fresnel
     val series = remember(los) {
-        los.samples.filter { !it.groundM.isNaN() }.map { Triple(it.distanceM, it.groundM - Geodesy.curvatureDrop(it.distanceM), it.visible) }
+        los.samples.filter { !it.groundM.isNaN() }.map {
+            val color = when {
+                fresnel == null -> if (it.visible) Visible else Hidden
+                it.zone.isNaN() || it.zone >= LineOfSight.Fresnel.RULE -> Visible
+                it.zone > 0 -> Partial
+                else -> Hidden
+            }
+            Point(it.distanceM, it.groundM - los.drop(it.distanceM), color)
+        }
+    }
+    // The first Fresnel zone around the direct line, as (distance, top, bottom).
+    val zone = remember(los) {
+        fresnel?.let { f -> (0..80).map { i -> val d = los.distanceM * i / 80; Triple(d, los.lineAt(d) + f.radiusAt(d, los.distanceM), los.lineAt(d) - f.radiusAt(d, los.distanceM)) } }
     }
     if (series.size < 2) return
     Canvas(modifier) {
         val total = los.distanceM
-        val targetEff = los.targetTopM - Geodesy.curvatureDrop(total)
-        val lo = series.minOf { it.second }
-        val hi = maxOf(series.maxOf { it.second }, los.eyeM, targetEff)
+        val targetEff = los.lineAt(total)
+        val lo = minOf(series.minOf { it.e }, zone?.minOf { it.third } ?: Double.MAX_VALUE)
+        val hi = maxOf(series.maxOf { it.e }, los.eyeM, targetEff, zone?.maxOf { it.second } ?: Double.MIN_VALUE)
         val pad = max((hi - lo) * 0.08, 5.0)
         val bottom = lo - pad
         val range = hi + pad - bottom
@@ -444,29 +577,55 @@ private fun SightProfile(los: LineOfSight, modifier: Modifier = Modifier) {
 
         val path = Path().apply {
             moveTo(0f, size.height)
-            series.forEach { (d, e, _) -> lineTo(x(d), y(e)) }
+            series.forEach { lineTo(x(it.d), y(it.e)) }
             lineTo(size.width, size.height)
             close()
         }
         drawPath(path, fill)
-        // Ground line, green where A can see it, red where hidden.
+        if (zone != null && fresnel != null) {
+            // The zone as a lens, and the 60% that should stay clear (its lower edge dashed).
+            val lens = Path().apply {
+                moveTo(x(zone.first().first), y(zone.first().second))
+                zone.forEach { (d, top, _) -> lineTo(x(d), y(top)) }
+                zone.asReversed().forEach { (d, _, low) -> lineTo(x(d), y(low)) }
+                close()
+            }
+            drawPath(lens, ZoneColor.copy(alpha = 0.16f))
+            drawPath(lens, ZoneColor.copy(alpha = 0.6f), style = Stroke(1.dp.toPx()))
+            val rule = Path().apply {
+                zone.forEachIndexed { i, (d, _, _) ->
+                    val e = los.lineAt(d) - LineOfSight.Fresnel.RULE * fresnel.radiusAt(d, total)
+                    if (i == 0) moveTo(x(d), y(e)) else lineTo(x(d), y(e))
+                }
+            }
+            drawPath(rule, ZoneColor.copy(alpha = 0.8f), style = Stroke(1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 3.dp.toPx()))))
+        }
+        // Ground line: green where A can see it (radio: clear of 60% of the zone), amber in the
+        // zone, red where hidden (radio: above the direct line).
         for (i in 1 until series.size) {
-            val (d0, e0, _) = series[i - 1]
-            val (d1, e1, v1) = series[i]
-            drawLine(if (v1) Visible else Hidden, Offset(x(d0), y(e0)), Offset(x(d1), y(e1)), strokeWidth = 2.5.dp.toPx(), cap = StrokeCap.Round)
+            val p0 = series[i - 1]
+            val p1 = series[i]
+            drawLine(p1.color, Offset(x(p0.d), y(p0.e)), Offset(x(p1.d), y(p1.e)), strokeWidth = 2.5.dp.toPx(), cap = StrokeCap.Round)
         }
         drawLine(ground.copy(alpha = 0.4f), Offset(0f, y(lo)), Offset(size.width, y(lo)), strokeWidth = 1.dp.toPx())
-        // Sight line from the eye to the target.
+        // Sight line from the eye (or antenna) to the target.
+        val lineColor = when {
+            !los.targetVisible -> Hidden
+            fresnel != null && fresnel.clearance < LineOfSight.Fresnel.RULE -> Partial
+            else -> Visible
+        }
         drawLine(
-            if (los.targetVisible) Visible else Hidden,
+            lineColor,
             Offset(0f, y(los.eyeM)), Offset(size.width, y(targetEff)),
             strokeWidth = 1.5.dp.toPx(),
             pathEffect = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 5.dp.toPx())),
         )
         drawCircle(Color(0xFF1565C0), 4.dp.toPx(), Offset(0f + 4.dp.toPx(), y(los.eyeM)))
         drawCircle(Color(0xFFEF6C00), 4.dp.toPx(), Offset(size.width - 4.dp.toPx(), y(targetEff)))
-        los.obstacle?.let { o ->
-            drawCircle(Hidden, 4.dp.toPx(), Offset(x(o.distanceM), y(o.groundM - Geodesy.curvatureDrop(o.distanceM))), style = Stroke(2.dp.toPx()))
+        // What blocks the view, or for a radio link the tightest point when it's in the zone.
+        val mark = if (fresnel != null) fresnel.tightest?.takeIf { fresnel.clearance < LineOfSight.Fresnel.RULE } else los.obstacle
+        mark?.let { o ->
+            drawCircle(lineColor, 4.dp.toPx(), Offset(x(o.distanceM), y(o.groundM - los.drop(o.distanceM))), style = Stroke(2.dp.toPx()))
         }
         drawText(measurer, "${hi.roundToInt()} m", topLeft = Offset(10.dp.toPx(), 0f), style = label)
         drawText(measurer, "${lo.roundToInt()} m", topLeft = Offset(10.dp.toPx(), y(lo) - 15.dp.toPx()), style = label)

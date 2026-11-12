@@ -43,4 +43,10 @@ interface NativeMapCallbacks {
     fun onTap(lat: Double, lon: Double, tapped: String?)
 
     fun onLongPress(lat: Double, lon: Double)
+
+    /** The finger moved after a long press, still down. */
+    fun onLongPressMove(lat: Double, lon: Double)
+
+    /** The finger was lifted after a long press (or the gesture was cancelled). */
+    fun onLongPressEnd(lat: Double, lon: Double)
 }

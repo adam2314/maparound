@@ -169,7 +169,7 @@ class ThemeStyleTest {
         val xml = topo() ?: return
         val style = MapStyle(ThemeStyle.convert(xml).layers, BasicLayers.GLYPHS)
         val base = app.maparound.map.BaseMap.Offline(
-            maps = emptyList(), topo = true, contours = false, hillshade = false, terrainVersion = 0, trails = false,
+            maps = emptyList(), theme = app.maparound.map.MapThemes.TOPO, categories = null, contours = false, hillshade = false, terrainVersion = 0, trails = false,
             trailsVersion = 0, background = app.maparound.data.Prefs.BACKGROUND_SATELLITE, vectorOnTop = true, rasterMaps = emptyList(),
         )
         val json = kotlinx.serialization.json.Json.parseToJsonElement(style.build(base, TileService())).jsonObject

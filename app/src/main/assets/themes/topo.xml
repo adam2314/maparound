@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  MapAround Topo: a hiking style for mapsforge vector maps, inspired by the mapeak.com hike map.
+  MapAround Topo: a hiking style for mapsforge vector maps.
   Cream base, soft land cover, hill shading, brown contour lines with elevation labels,
   brown trails with white casing, double-line tracks and colour-coded roads.
 
@@ -12,6 +12,54 @@
 <rendertheme xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" map-background="#FAF7E1"
     map-background-outside="#EDEADA" version="5" xmlns="http://mapsforge.org/renderTheme"
     xsi:schemaLocation="http://mapsforge.org/renderTheme https://raw.githubusercontent.com/mapsforge/mapsforge/master/resources/renderTheme.xsd">
+
+    <!-- ===== options (the map's Layers sheet; see docs/map-styles.md) =====
+         Each overlay switches the rules of its category (cat="…") on or off. -->
+    <stylemenu id="topo" defaultvalue="topo" defaultlang="en">
+        <layer id="landcover" enabled="true">
+            <name lang="en" value="Land cover (forest, fields, built-up areas)" />
+            <cat id="landcover" />
+        </layer>
+        <layer id="buildings" enabled="true">
+            <name lang="en" value="Buildings &amp; barriers" />
+            <cat id="buildings" />
+        </layer>
+        <layer id="boundaries" enabled="true">
+            <name lang="en" value="Boundaries &amp; protected areas" />
+            <cat id="boundaries" />
+        </layer>
+        <layer id="transport" enabled="true">
+            <name lang="en" value="Railways, ferries, ski pistes &amp; lifts" />
+            <cat id="transport" />
+        </layer>
+        <layer id="waynames" enabled="true">
+            <name lang="en" value="Road &amp; path names" />
+            <cat id="waynames" />
+        </layer>
+        <layer id="places" enabled="true">
+            <name lang="en" value="Place names" />
+            <cat id="places" />
+        </layer>
+        <layer id="natural" enabled="true">
+            <name lang="en" value="Peaks, springs &amp; caves" />
+            <cat id="natural" />
+        </layer>
+        <layer id="pois" enabled="true">
+            <name lang="en" value="Points of interest" />
+            <cat id="pois" />
+        </layer>
+        <layer id="topo" visible="true">
+            <name lang="en" value="Topo" />
+            <overlay id="landcover" />
+            <overlay id="buildings" />
+            <overlay id="boundaries" />
+            <overlay id="transport" />
+            <overlay id="waynames" />
+            <overlay id="places" />
+            <overlay id="natural" />
+            <overlay id="pois" />
+        </layer>
+    </stylemenu>
 
     <!-- ===== sea & land ===== -->
     <rule e="way" k="natural" v="issea|sea">
@@ -25,6 +73,7 @@
     </rule>
 
     <!-- ===== land use / land cover ===== -->
+    <rule cat="landcover" e="any" k="*" v="*">
     <rule e="way" k="landuse"
         v="residential|retail|commercial|industrial|brownfield|railway|garages|construction"
         zoom-min="11">
@@ -92,6 +141,8 @@
         <rule e="any" k="*" v="*" zoom-min="13">
             <line stroke="#B0E53935" stroke-width="1.2" scale="none" stroke-dasharray="6,3" />
         </rule>
+    </rule>
+
     </rule>
 
     <!-- ===== hill shading (drawn over land cover, under contours, water and roads) ===== -->
@@ -174,6 +225,7 @@
 
 
     <!-- ===== POI areas, leisure, platforms (from the mapsforge default theme) ===== -->
+    <rule cat="pois" e="any" k="*" v="*">
     <!-- POI areas -->
     <rule e="way" k="area" v="yes|true">
         <rule e="way" k="highway" v="footway|pedestrian">
@@ -264,7 +316,10 @@
     </rule>
 
 
+    </rule>
+
     <!-- ===== boundaries & protected areas ===== -->
+    <rule cat="boundaries" e="any" k="*" v="*">
     <rule e="any" k="*" v="*">
         <rule e="way" k="admin_level" v="2">
             <line stroke="#4D9E6AB8" stroke-linecap="butt" stroke-width="5" scale="none" />
@@ -285,6 +340,8 @@
         </rule>
     </rule>
 
+    </rule>
+
     <!-- ===== cliffs & ridges ===== -->
     <rule e="way" k="natural" v="cliff|earth_bank" zoom-min="13">
         <line stroke="#977C73" stroke-width="1.2" scale="none" />
@@ -296,6 +353,7 @@
     </rule>
 
     <!-- ===== buildings & barriers ===== -->
+    <rule cat="buildings" e="any" k="*" v="*">
     <rule e="any" k="*" v="*">
         <rule e="way" k="waterway" v="dam|weir" zoom-min="14">
             <line stroke="#555555" stroke-width="1.0" />
@@ -322,6 +380,8 @@
         <rule e="way" k="power" v="line|minor_line" zoom-min="14">
             <line stroke="#BBBBBB" stroke-width="1.0" scale="none" />
         </rule>
+    </rule>
+
     </rule>
 
     <!-- ===== aeroways ===== -->
@@ -620,6 +680,7 @@
     </rule>
 
     <!-- ===== way names ===== -->
+    <rule cat="waynames" e="any" k="*" v="*">
     <rule e="way" k="tunnel" v="~|no|false">
         <rule e="way" k="highway" v="footway|path|track|bridleway|steps" zoom-min="14">
             <pathText fill="#404040" font-size="11" font-style="bold" k="name" priority="-8"
@@ -660,6 +721,8 @@
         </rule>
     </rule>
 
+    </rule>
+
     <!-- ===== contour labels (after roads so the halo sits on top) ===== -->
     <rule e="way" k="contour" v="major" zoom-min="13">
         <pathText fill="#A17F56" font-size="10" font-style="bold" k="ele" priority="-200"
@@ -667,6 +730,7 @@
     </rule>
 
     <!-- ===== ferries, pistes, railways, aerial ways (from the mapsforge default theme) ===== -->
+    <rule cat="transport" e="any" k="*" v="*">
     <!-- ferry routes -->
     <rule e="way" k="route" v="ferry">
         <line stroke="#707070" stroke-dasharray="15,10" stroke-linecap="butt" stroke-width="0.3" />
@@ -793,7 +857,10 @@
     </rule>
 
 
+    </rule>
+
     <!-- ===== places ===== -->
+    <rule cat="places" e="any" k="*" v="*">
     <rule e="any" k="*" v="*">
         <rule e="any" k="place" v="locality" zoom-min="14">
             <rule e="any" k="mountain_pass|natural|tourism" v="~">
@@ -835,7 +902,10 @@
         </rule>
     </rule>
 
+    </rule>
+
     <!-- ===== natural features: peaks, passes, springs, caves ===== -->
+    <rule cat="natural" e="any" k="*" v="*">
     <rule e="any" k="*" v="*">
         <rule e="node" k="natural" v="peak|volcano" zoom-min="11">
             <symbol id="peak" src="jar:symbols/peak.svg" symbol-width="11" priority="60" />
@@ -883,7 +953,10 @@
         </rule>
     </rule>
 
+    </rule>
+
     <!-- ===== points of interest (from the mapsforge default theme) ===== -->
+    <rule cat="pois" e="any" k="*" v="*">
     <!-- emergency -->
     <rule e="any" k="*" v="*">
         <rule e="any" k="amenity|building" v="hospital|clinic" zoom-min="14">
@@ -1422,6 +1495,8 @@
             <caption fill="#666666" font-size="10" font-style="bold" k="addr:housenumber"
                 stroke="#FFFFFF" stroke-width="2.0" />
         </rule>
+    </rule>
+
     </rule>
 
 </rendertheme>

@@ -29,6 +29,9 @@ interface PlatformActions {
 
     /** Only the text with links (no file). */
     fun shareRouteLink(track: Track)
+
+    /** A text file (e.g. the list of map sources) through the share sheet, to save or send. */
+    fun shareTextFile(fileName: String, mimeType: String, content: String, title: String)
 }
 
 val LocalPlatform = staticCompositionLocalOf<PlatformActions> { error("No PlatformActions provided") }

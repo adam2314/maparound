@@ -21,6 +21,8 @@ data class PartyMarker(
     val color: Int,
     val kind: Kind,
     val stale: Boolean,
+    /** A member's icon ([app.maparound.party.PartyIcon] code; 0: the initial). */
+    val icon: Int = 0,
 ) {
     enum class Kind { MEMBER, SOS, MEET, RADIO }
 }
@@ -39,7 +41,10 @@ sealed class BaseMap {
     /** The downloaded vector maps, with the style and background chosen in Layers. */
     data class Offline(
         val maps: List<LocalMap>,
-        val topo: Boolean,
+        /** The style ([MapThemes] id). */
+        val theme: String,
+        /** The style's rule categories to draw (its options), or null for all. */
+        val categories: Set<String>?,
         val contours: Boolean,
         val hillshade: Boolean,
         /** Changes when terrain tiles are added or removed. */
@@ -53,7 +58,13 @@ sealed class BaseMap {
         val vectorOnTop: Boolean,
         /** The raster maps the background may name. */
         val rasterMaps: List<RasterMap>,
-    ) : BaseMap()
+    ) : BaseMap() {
+        /** The Topo style (MapAround's contours and trails are styled). */
+        val topo: Boolean get() = theme == MapThemes.TOPO
+
+        /** Whether contours and downloaded trails go to the renderer (see [MapThemes.drawsTerrain]). */
+        val drawsTerrain: Boolean get() = MapThemes.drawsTerrain(theme)
+    }
 }
 
 /** What happens on the map, for the screen to act on. Called on the main thread. */
@@ -61,6 +72,12 @@ interface MapListener {
     /** The user moved the map (stops following the location). */
     fun onUserGesture()
     fun onLongPress(point: GeoPoint)
+
+    /** The finger moved after a long press without being lifted (the map doesn't pan meanwhile). */
+    fun onLongPressMove(point: GeoPoint) {}
+
+    /** The finger was lifted (or the gesture cancelled) after a long press. */
+    fun onLongPressEnd(point: GeoPoint) {}
 
     /** A tap on the map itself; true if the screen used it. */
     fun onTap(point: GeoPoint): Boolean
@@ -83,6 +100,9 @@ interface MapSurface {
 
     /** A 3D camera looking at the same area, or null when there is none. */
     fun camera3D(): Camera3D?
+
+    /** Ground metres per dp (a point on iOS) at the middle of the view: how much a finger covers. */
+    fun metresPerDp(): Double
 
     /** May open files (raster backgrounds): call from a coroutine. */
     suspend fun setBaseMap(base: BaseMap)

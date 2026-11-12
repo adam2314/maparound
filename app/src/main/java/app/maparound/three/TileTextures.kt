@@ -3,19 +3,18 @@ package app.maparound.three
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import app.maparound.AppGraph
 import app.maparound.USER_AGENT
 import app.maparound.map.MapController
 import app.maparound.map.OfflineMapData
 import app.maparound.map.OnlineSource
 import app.maparound.map.TileSources
-import app.maparound.map.TopoTheme
 import org.mapsforge.core.model.Tile
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory
 import org.mapsforge.map.layer.cache.InMemoryTileCache
 import org.mapsforge.map.layer.renderer.DatabaseRenderer
 import org.mapsforge.map.layer.renderer.RendererJob
 import org.mapsforge.map.model.DisplayModel
-import org.mapsforge.map.rendertheme.internal.MapsforgeThemes
 import org.mapsforge.map.rendertheme.rule.RenderThemeFuture
 import java.io.File
 import java.net.HttpURLConnection
@@ -45,7 +44,7 @@ class OfflineTileTextures(
     private val displayModel = DisplayModel().apply { setUserScaleFactor(2f / DisplayModel.getDeviceScaleFactor()) }
     private val theme = RenderThemeFuture(
         AndroidGraphicFactory.INSTANCE,
-        if (hybrid) TopoTheme(context, hybrid = true) else if (style.topo) TopoTheme(context) else MapsforgeThemes.DEFAULT,
+        AppGraph.themes.renderTheme(style.theme, hybrid, style.categories),
         displayModel,
     ).also { it.run() }
     private val renderer = DatabaseRenderer(data.store, AndroidGraphicFactory.INSTANCE, InMemoryTileCache(16), null, true, false, data.hills)
@@ -71,7 +70,7 @@ class OfflineTileTextures(
 }
 
 /** A raster map (RMAP), reprojected to 512-pixel tiles. */
-class RasterTileTextures(private val renderer: app.maparound.raster.RasterRenderer) : TileTextures {
+class RasterTileTextures(private val renderer: app.maparound.raster.RasterTiles) : TileTextures {
     override val maxZoom = 18
     override val threads = 2
 

@@ -3,6 +3,7 @@ package app.maparound.map.maplibre
 import app.maparound.data.MapPos
 import app.maparound.data.Prefs
 import app.maparound.map.BaseMap
+import app.maparound.map.MapThemes
 import app.maparound.map.MapListener
 import app.maparound.map.OnlineSource
 import app.maparound.map.PlaceMarker
@@ -57,7 +58,7 @@ class MapLibreSurfaceTest {
     private fun sources(json: String) = Json.parseToJsonElement(json).jsonObject["sources"]!!.jsonObject
 
     private fun offline(background: String = Prefs.BACKGROUND_NONE, vectorOnTop: Boolean = true) = BaseMap.Offline(
-        maps = emptyList(), topo = true, contours = false, hillshade = false, terrainVersion = 0,
+        maps = emptyList(), theme = MapThemes.TOPO, categories = null, contours = false, hillshade = false, terrainVersion = 0,
         trails = false, trailsVersion = 0, background = background, vectorOnTop = vectorOnTop, rasterMaps = emptyList(),
     )
 

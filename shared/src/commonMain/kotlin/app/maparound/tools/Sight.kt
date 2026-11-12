@@ -13,6 +13,7 @@ import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.ln
+import kotlin.math.log10
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -61,11 +62,18 @@ object Geodesy {
     /** NATO mils (6400 per circle), used on many military and some hiking compasses. */
     fun mils(deg: Double): Int = ((deg / 360.0 * 6400).roundToInt()) % 6400
 
+    /** Effective Earth radius factor for light: the usual refraction coefficient 0.13. */
+    const val OPTICAL_K = 1 / (1 - 0.13)
+
+    /** Effective Earth radius factor for radio waves (standard atmosphere). */
+    const val RADIO_K = 4.0 / 3
+
     /**
-     * How much lower a point [distanceM] away appears because of the Earth's curvature, minus
-     * the usual atmospheric refraction (k = 0.13). ~6.8 m at 10 km, ~68 m at 32 km.
+     * How much lower a point [distanceM] away appears because of the Earth's curvature, less the
+     * bending of the ray in the air ([k] times the Earth's radius). Optical: ~6.8 m at 10 km,
+     * ~68 m at 32 km; radio: ~5.9 m at 10 km.
      */
-    fun curvatureDrop(distanceM: Double): Double = distanceM * distanceM / (2 * R) * (1 - 0.13)
+    fun curvatureDrop(distanceM: Double, k: Double = OPTICAL_K): Double = distanceM * distanceM / (2 * R * k)
 
     /**
      * Distances to sample terrain along a sight line: every [stepM] (about the terrain data's
@@ -122,15 +130,79 @@ class LineOfSight(
      * negative = how far the obstacle sticks up into the line.
      */
     val marginM: Double,
+    /** Effective Earth radius factor used ([Geodesy.OPTICAL_K], or [Geodesy.RADIO_K] for a radio link). */
+    val k: Double = Geodesy.OPTICAL_K,
+    /** For a radio link: the first Fresnel zone along the path, and the expected losses. */
+    val fresnel: Fresnel? = null,
 ) {
-    class Sample(val distanceM: Double, val lat: Double, val lon: Double, val groundM: Double, val visible: Boolean)
+    /**
+     * [zone]: for a radio link, how much of the first Fresnel zone's radius is clear above the
+     * ground here (1 = all, 0.6 = the usual rule of thumb, below 0 = the ground is above the
+     * direct line); NaN otherwise.
+     */
+    class Sample(
+        val distanceM: Double, val lat: Double, val lon: Double, val groundM: Double, val visible: Boolean,
+        val zone: Double = Double.NaN,
+    )
+
+    /**
+     * The radio side of a path: the first Fresnel zone (the ellipsoid around the direct line in
+     * which most of the signal travels) and what the terrain costs.
+     */
+    class Fresnel(
+        val frequencyMHz: Double,
+        val wavelengthM: Double,
+        /** The smallest [Sample.zone] along the path (see there), and where it is. */
+        val clearance: Double,
+        val tightest: Sample?,
+        /** The zone's radius halfway, where it is widest. */
+        val midRadiusM: Double,
+        /** Free-space loss between two isotropic antennas. */
+        val freeSpaceLossDb: Double,
+        /** Extra loss from the tightest point as a single knife edge (ITU-R P.526). */
+        val obstructionLossDb: Double,
+    ) {
+        /** Radius of the first Fresnel zone [d] metres from A on a path [total] long. */
+        fun radiusAt(d: Double, total: Double): Double =
+            if (d <= 0 || d >= total) 0.0 else sqrt(wavelengthM * d * (total - d) / total)
+
+        val totalLossDb: Double get() = freeSpaceLossDb + obstructionLossDb
+
+        companion object {
+            /** At least this share of the first Fresnel zone should stay clear. */
+            const val RULE = 0.6
+        }
+    }
+
+    /** How much lower the ground [distanceM] from A appears (curvature and refraction for [k]). */
+    fun drop(distanceM: Double): Double = Geodesy.curvatureDrop(distanceM, k)
+
+    /** Height of the direct line from A's eye or antenna to B's top, [distanceM] from A (curvature applied). */
+    fun lineAt(distanceM: Double): Double = eyeM + (targetTopM - drop(this.distanceM) - eyeM) * distanceM / this.distanceM
 
     companion object {
+        private const val SPEED_OF_LIGHT = 299_792_458.0
+
+        /** Free-space path loss in dB. */
+        fun freeSpaceLossDb(distanceM: Double, frequencyMHz: Double): Double =
+            20 * log10(distanceM / 1000) + 20 * log10(frequencyMHz) + 32.44
+
+        /** Single knife-edge diffraction loss J(v) in dB (ITU-R P.526); 0 for well-cleared paths. */
+        fun knifeEdgeLossDb(v: Double): Double =
+            if (v <= -0.78) 0.0 else 6.9 + 20 * log10(sqrt((v - 0.1) * (v - 0.1) + 1) + v - 0.1)
+
         /**
          * @param observerHeightM eye height above ground at a (1.7 m standing, ~2 m in a car)
          * @param targetHeightM height above ground of what we look for at b
+         * @param frequencyMHz for a radio link between antennas at those heights: adds the
+         *   Fresnel zone and the losses, with radio's curvature ([Geodesy.RADIO_K])
          */
-        fun compute(dem: Elevation, a: GeoPoint, b: GeoPoint, observerHeightM: Double, targetHeightM: Double, stepM: Double = 25.0): LineOfSight? {
+        fun compute(
+            dem: Elevation, a: GeoPoint, b: GeoPoint, observerHeightM: Double, targetHeightM: Double, stepM: Double = 25.0,
+            frequencyMHz: Double? = null,
+        ): LineOfSight? {
+            val k = if (frequencyMHz != null) Geodesy.RADIO_K else Geodesy.OPTICAL_K
+            val wavelength = frequencyMHz?.let { SPEED_OF_LIGHT / (it * 1e6) }
             val dist = Geo.distance(a, b)
             if (dist < 1) return null
             val raw = (doubleArrayOf(0.0) + Geodesy.sightSteps(dist, stepM)).map { d ->
@@ -146,7 +218,8 @@ class LineOfSight(
             val samples = ArrayList<Sample>(raw.size)
             val targetGround = raw.last().second
             val targetTop = targetGround + targetHeightM
-            val sightSlope = (targetTop - Geodesy.curvatureDrop(dist) - eye) / dist
+            val sightSlope = (targetTop - Geodesy.curvatureDrop(dist, k) - eye) / dist
+            var tightest: Int? = null // the sample with the least of the Fresnel zone clear
             for ((i, r) in raw.withIndex()) {
                 val (d, lat, lon) = r.first
                 val ground = r.second
@@ -154,17 +227,39 @@ class LineOfSight(
                     samples += Sample(0.0, lat, lon, ground, true)
                     continue
                 }
-                val z = (if (ground.isNaN()) Double.NEGATIVE_INFINITY else ground) - Geodesy.curvatureDrop(d)
+                val z = (if (ground.isNaN()) Double.NEGATIVE_INFINITY else ground) - Geodesy.curvatureDrop(d, k)
                 val slope = (z - eye) / d
+                val clear = eye + sightSlope * d - z // gap between the direct line and the ground
+                val zone = if (wavelength != null && i < raw.lastIndex && !ground.isNaN()) {
+                    clear / sqrt(wavelength * d * (dist - d) / dist)
+                } else {
+                    Double.NaN
+                }
                 // A point on the ground is visible if nothing nearer rises above the line to it.
-                samples += Sample(d, lat, lon, ground, slope >= maxSlope)
+                samples += Sample(d, lat, lon, ground, slope >= maxSlope, zone)
                 if (i < raw.lastIndex) {
                     maxSlope = max(maxSlope, slope)
-                    val above = z - (eye + sightSlope * d)
-                    if (worst == null || above > worst.second) worst = i to above
+                    if (worst == null || -clear > worst.second) worst = i to -clear
+                    if (!zone.isNaN() && (tightest == null || zone < samples[tightest].zone)) tightest = i
                 }
             }
             val visible = sightSlope >= maxSlope
+            val fresnel = if (frequencyMHz != null && wavelength != null) {
+                val t = tightest?.let { samples[it] }
+                val clearance = t?.zone ?: Double.POSITIVE_INFINITY
+                Fresnel(
+                    frequencyMHz = frequencyMHz,
+                    wavelengthM = wavelength,
+                    clearance = clearance,
+                    tightest = t,
+                    midRadiusM = sqrt(wavelength * dist / 4),
+                    freeSpaceLossDb = freeSpaceLossDb(dist, frequencyMHz),
+                    // The diffraction parameter v is √2 × (height into the zone / zone radius).
+                    obstructionLossDb = if (clearance.isFinite()) knifeEdgeLossDb(-sqrt(2.0) * clearance) else 0.0,
+                )
+            } else {
+                null
+            }
             return LineOfSight(
                 distanceM = dist,
                 samples = samples,
@@ -173,6 +268,8 @@ class LineOfSight(
                 targetVisible = visible,
                 obstacle = worst?.takeIf { !visible }?.let { samples[it.first] },
                 marginM = worst?.second?.let { -it } ?: 0.0,
+                k = k,
+                fresnel = fresnel,
             )
         }
     }

@@ -47,6 +47,7 @@ class MainActivity : ComponentActivity() {
                 LocalTracks provides AppGraph.tracks,
                 LocalRecordingControl provides recording,
                 LocalRasters provides AppGraph.rasters,
+                app.maparound.map.LocalMapThemes provides AppGraph.themes,
                 LocalParty provides PartySession,
                 LocalPartyPlatform provides AndroidPartyPlatform,
                 LocalOfflineData provides OfflineData(

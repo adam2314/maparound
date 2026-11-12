@@ -1,6 +1,8 @@
 package app.maparound.data
 
+import app.maparound.map.MapThemes
 import app.maparound.map.OnlineSource
+import app.maparound.map.StyleChoice
 import app.maparound.map.TileSources
 import app.maparound.sensors.SpeedUnit
 import app.maparound.sensors.Vec3
@@ -10,7 +12,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
@@ -23,7 +27,7 @@ data class MapPos(val lat: Double, val lon: Double, val zoom: Int)
 /** The app's settings, saved in [sp] (the same keys as before on Android). */
 class Prefs(private val sp: KeyValueStore) {
 
-    private val _baseLayer = MutableStateFlow(sp.getString(K_BASE) ?: TileSources.DEFAULT_ID)
+    private val _baseLayer = MutableStateFlow(sp.getString(K_BASE)?.let(TileSources::current) ?: TileSources.DEFAULT_ID)
     val baseLayer: StateFlow<String> = _baseLayer.asStateFlow()
     fun setBaseLayer(id: String) {
         _baseLayer.value = id
@@ -34,6 +38,18 @@ class Prefs(private val sp: KeyValueStore) {
     val customSources: StateFlow<List<OnlineSource>> = _customSources.asStateFlow()
     fun addCustomSource(source: OnlineSource) =
         saveSources(_customSources.value.filterNot { it.id == source.id } + source)
+
+    /**
+     * Adds imported sources, skipping URLs the app already has. Returns the ones added (with
+     * new ids), in order.
+     */
+    fun addCustomSources(sources: List<OnlineSource>, idPrefix: String): List<OnlineSource> {
+        val known = (TileSources.builtIn + _customSources.value).map { it.urlTemplate }.toMutableSet()
+        val added = sources.filter { known.add(it.urlTemplate) }
+            .mapIndexed { i, s -> s.copy(id = "${idPrefix}_$i", custom = true) }
+        if (added.isNotEmpty()) saveSources(_customSources.value + added)
+        return added
+    }
 
     fun removeCustomSource(id: String) {
         saveSources(_customSources.value.filterNot { it.id == id })
@@ -62,12 +78,47 @@ class Prefs(private val sp: KeyValueStore) {
     }
 
     // ---- offline map style & terrain ----
-    private val _topoStyle = MutableStateFlow(sp.getBoolean(K_TOPO, true))
-    val topoStyle: StateFlow<Boolean> = _topoStyle.asStateFlow()
-    fun setTopoStyle(value: Boolean) {
-        _topoStyle.value = value
-        sp.putBoolean(K_TOPO, value)
+    /** The offline maps' style ([MapThemes] id); before styles could be imported it was Topo or Classic. */
+    private val _mapTheme = MutableStateFlow(
+        sp.getString(K_THEME) ?: if (sp.getBoolean(K_TOPO, true)) MapThemes.TOPO else MapThemes.CLASSIC,
+    )
+    val mapTheme: StateFlow<String> = _mapTheme.asStateFlow()
+    fun setMapTheme(id: String) {
+        _mapTheme.value = id
+        sp.putString(K_THEME, id)
     }
+
+    /** What the user chose in each style's options (its style menu), by style id. */
+    private val _styleChoices = MutableStateFlow(decodeChoices(sp.getString(K_STYLE_CHOICES)))
+    val styleChoices: StateFlow<Map<String, StyleChoice>> = _styleChoices.asStateFlow()
+    fun setStyleChoice(themeId: String, choice: StyleChoice) {
+        val all = _styleChoices.value + (themeId to choice)
+        _styleChoices.value = all
+        sp.putString(
+            K_STYLE_CHOICES,
+            buildJsonObject {
+                for ((id, c) in all) {
+                    put(
+                        id,
+                        buildJsonObject {
+                            c.style?.let { put("style", it) }
+                            put("overlays", buildJsonObject { for ((o, on) in c.overlays) put(o, on) })
+                        },
+                    )
+                }
+            }.toString(),
+        )
+    }
+
+    private fun decodeChoices(raw: String?): Map<String, StyleChoice> = runCatching {
+        Json.parseToJsonElement(raw ?: return emptyMap()).jsonObject.mapValues { (_, v) ->
+            val o = v.jsonObject
+            StyleChoice(
+                style = o["style"]?.jsonPrimitive?.content,
+                overlays = o["overlays"]?.jsonObject?.mapValues { it.value.jsonPrimitive.boolean }.orEmpty(),
+            )
+        }
+    }.getOrDefault(emptyMap())
 
     private val _contours = MutableStateFlow(sp.getBoolean(K_CONTOURS, true))
     val contours: StateFlow<Boolean> = _contours.asStateFlow()
@@ -119,6 +170,8 @@ class Prefs(private val sp: KeyValueStore) {
                         put("name", s.name)
                         put("url", s.urlTemplate)
                         put("maxZoom", s.maxZoom)
+                        put("attribution", s.attribution)
+                        put("subdomains", buildJsonArray { s.subdomains.forEach { add(JsonPrimitive(it)) } })
                     },
                 )
             }
@@ -136,7 +189,8 @@ class Prefs(private val sp: KeyValueStore) {
                     name = o.getValue("name").jsonPrimitive.content,
                     urlTemplate = o.getValue("url").jsonPrimitive.content,
                     maxZoom = runCatching { o.getValue("maxZoom").jsonPrimitive.int }.getOrDefault(19),
-                    attribution = o.getValue("name").jsonPrimitive.content,
+                    attribution = (o["attribution"] ?: o.getValue("name")).jsonPrimitive.content,
+                    subdomains = o["subdomains"]?.jsonArray?.map { it.jsonPrimitive.content }?.takeIf { it.isNotEmpty() } ?: listOf("a", "b", "c"),
                     custom = true,
                 )
             }
@@ -154,6 +208,8 @@ class Prefs(private val sp: KeyValueStore) {
         private const val K_LON = "last_lon"
         private const val K_ZOOM = "last_zoom"
         private const val K_TOPO = "topo_style"
+        private const val K_THEME = "map_theme"
+        private const val K_STYLE_CHOICES = "style_choices"
         private const val K_CONTOURS = "contours"
         private const val K_HILLSHADE = "hillshade"
         private const val K_TERRAIN_HIGH = "terrain_high_detail"
@@ -162,6 +218,7 @@ class Prefs(private val sp: KeyValueStore) {
         private const val K_LEVEL_UP = "level_up"
         private const val K_SPEED_UNIT = "speed_unit"
         private const val K_PLACES_ON_MAP = "places_on_map"
+        private const val K_NAV_VOICE = "nav_voice"
         private const val K_BACKGROUND = "map_background"
         private const val K_VECTOR_ON_BG = "vector_on_background"
         const val BACKGROUND_NONE = "none"
@@ -190,6 +247,14 @@ class Prefs(private val sp: KeyValueStore) {
     fun setPlacesOnMap(value: Boolean) {
         _placesOnMap.value = value
         sp.putBoolean(K_PLACES_ON_MAP, value)
+    }
+
+    /** Spoken turn-by-turn instructions while navigating. */
+    private val _navVoice = MutableStateFlow(sp.getBoolean(K_NAV_VOICE, true))
+    val navVoice: StateFlow<Boolean> = _navVoice.asStateFlow()
+    fun setNavVoice(value: Boolean) {
+        _navVoice.value = value
+        sp.putBoolean(K_NAV_VOICE, value)
     }
 
     // ---- motion & speed ----

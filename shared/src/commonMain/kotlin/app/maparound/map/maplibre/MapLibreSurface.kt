@@ -57,6 +57,14 @@ class MapLibreSurface(
             override fun onLongPress(lat: Double, lon: Double) {
                 listener?.onLongPress(GeoPoint(lat, lon))
             }
+
+            override fun onLongPressMove(lat: Double, lon: Double) {
+                listener?.onLongPressMove(GeoPoint(lat, lon))
+            }
+
+            override fun onLongPressEnd(lat: Double, lon: Double) {
+                listener?.onLongPressEnd(GeoPoint(lat, lon))
+            }
         })
         applyStyle(style.build(null, tiles))
     }
@@ -96,10 +104,13 @@ class MapLibreSurface(
         if (h <= 0) return null
         val c = native.camera()
         // Ground metres across the view's height, then the distance that shows that at a 45° field of view.
-        val metresPerPoint = EARTH_CIRCUMFERENCE_M * cos(c.lat * PI / 180) / (512 * 2.0.pow(c.zoom))
-        val distance = metresPerPoint * h / (2 * tan(22.5 * PI / 180)) * 0.8
+        val distance = metresPerPoint(c) * h / (2 * tan(22.5 * PI / 180)) * 0.8
         return Camera3D(c.lat, c.lon, distance.toFloat())
     }
+
+    override fun metresPerDp(): Double = metresPerPoint(native.camera())
+
+    private fun metresPerPoint(c: NativeCamera) = EARTH_CIRCUMFERENCE_M * cos(c.lat * PI / 180) / (512 * 2.0.pow(c.zoom))
 
     // ---- base map ---------------------------------------------------------------------------------
 
@@ -166,7 +177,7 @@ class MapLibreSurface(
 
     override fun setPartyMarkers(markers: List<PartyMarker>) {
         native.setGeoJson(MapStyle.PARTY, GeoJson.collection(markers.map { m ->
-            GeoJson.point(m.lat, m.lon, mapOf("icon" to MarkerIcons.party(m.kind, m.color, m.label, m.stale), "tap" to "$TAP_PARTY${m.key}"))
+            GeoJson.point(m.lat, m.lon, mapOf("icon" to MarkerIcons.party(m.kind, m.color, m.label, m.stale, m.icon), "tap" to "$TAP_PARTY${m.key}"))
         }))
     }
 

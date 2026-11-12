@@ -53,6 +53,7 @@ fun MainViewController(newMap: () -> NativeMapView): UIViewController = ComposeU
         LocalTracks provides app.tracks,
         LocalRecordingControl provides PendingRecording,
         LocalRasters provides PendingRasters,
+        app.maparound.map.LocalMapThemes provides app.themes,
         LocalParty provides PendingParty,
         LocalPartyPlatform provides PendingPartyPlatform,
         LocalOfflineData provides app.offline,

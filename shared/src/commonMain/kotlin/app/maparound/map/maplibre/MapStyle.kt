@@ -29,7 +29,14 @@ class MapStyle(
     private val glyphs: String,
     /** Where hill shading goes among [vectorLayers] (the theme says), and its zoom range. */
     private val hillshade: ThemeStyle.Hillshade? = null,
+    /**
+     * The theme drawn with only some rule categories (its options, see StyleMenu); null when
+     * [vectorLayers] is all there is. Results are kept per set of categories.
+     */
+    private val variant: ((Set<String>) -> ThemeStyle.Result)? = null,
 ) {
+
+    private val variants = HashMap<Set<String>, ThemeStyle.Result>()
 
     /** The whole style document for [base] (null: an empty map with the overlays only), tiles from [tiles]. */
     fun build(base: BaseMap?, tiles: TileService): String = buildJsonObject {
@@ -55,7 +62,9 @@ class MapStyle(
                     put("attribution", "© OpenStreetMap contributors")
                 }
                 val terrain = tiles.terrainVersion
-                val themeLayers = vectorLayers.toMutableList()
+                val theme = base.categories?.let { cats -> variant?.let { v -> variants.getOrPut(cats) { v(cats) } } }
+                val shading = theme?.hillshade ?: hillshade
+                val themeLayers = (theme?.layers ?: vectorLayers).toMutableList()
                 if (terrain != null && base.contours) {
                     sources[ThemeStyle.CONTOURS] = buildJsonObject {
                         put("type", "vector")
@@ -72,8 +81,8 @@ class MapStyle(
                         put("tileSize", TerrainTiles.DEM_SIZE)
                         put("maxzoom", TerrainTiles.DEM_MAX_ZOOM)
                     }
-                    val at = (hillshade?.index ?: 1).coerceIn(0, themeLayers.size)
-                    themeLayers.add(at, hillshadeLayer())
+                    val at = (shading?.index ?: 1).coerceIn(0, themeLayers.size)
+                    themeLayers.add(at, hillshadeLayer(shading))
                 }
                 val satellite = base.background == Prefs.BACKGROUND_SATELLITE
                 if (satellite) {
@@ -101,7 +110,7 @@ class MapStyle(
     }.toString()
 
     /** MapLibre's own hill shading from the elevation tiles, in the Topo style's browns. */
-    private fun hillshadeLayer() = layer("hillshade", "hillshade") {
+    private fun hillshadeLayer(hillshade: ThemeStyle.Hillshade?) = layer("hillshade", "hillshade") {
         put("source", DEM_SOURCE)
         put("minzoom", maxOf((hillshade?.minZoom ?: 8) - 1, 0))
         hillshade?.maxZoom?.takeIf { it < 99 }?.let { put("maxzoom", it) }

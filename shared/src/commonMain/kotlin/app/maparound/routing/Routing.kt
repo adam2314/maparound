@@ -28,6 +28,8 @@ data class RouteResult(
     /** Travel time estimated by the routing engine (bike/car), or by the hiking formula. */
     val durationS: Long?,
     val source: Source,
+    /** The router's turn instructions (BRouter's turn hints); empty for straight lines. */
+    val maneuvers: List<Maneuver> = emptyList(),
 ) {
     enum class Source { OFFLINE, ONLINE, STRAIGHT }
 }

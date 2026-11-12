@@ -12,32 +12,45 @@ import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 
-/** All downloaded trail cells, merged (ways shared by neighbouring cells kept once) and indexed. */
+/**
+ * All downloaded trail cells, merged (ways shared by neighbouring cells kept once) and indexed:
+ * the route ways, and the cliffs, arêtes, ridges and earth banks fetched with them.
+ */
 class TrailIndex(dir: File) {
-    private class Entry(val way: TrailWay, val routes: List<TrailRoute>, val minLat: Int, val minLon: Int, val maxLat: Int, val maxLon: Int)
+    /** A route way (with its routes) or a feature. */
+    private class Entry(
+        val way: TrailWay?,
+        val routes: List<TrailRoute>,
+        val feature: TrailFeature?,
+        val minLat: Int, val minLon: Int, val maxLat: Int, val maxLon: Int,
+    )
 
     private val entries = ArrayList<Entry>()
     private val grid = HashMap<Long, MutableList<Int>>()
     val isEmpty: Boolean get() = entries.isEmpty()
-    val wayCount: Int get() = entries.size
+    val wayCount: Int get() = entries.count { it.way != null }
+    val featureCount: Int get() = entries.count { it.feature != null }
 
     init {
-        val seen = HashSet<Long>()
+        val seenWays = HashSet<Long>()
+        val seenFeatures = HashSet<Long>()
         dir.listFiles { f -> f.name.endsWith(".trails") }.orEmpty().sortedBy { it.name }.forEach { f ->
             val cell = runCatching { TrailCellIO.read(f.path) }.getOrNull() ?: return@forEach
-            for (w in cell.ways) {
-                if (!seen.add(w.id)) continue
-                var a = Int.MAX_VALUE; var b = Int.MAX_VALUE; var c = Int.MIN_VALUE; var d = Int.MIN_VALUE
-                for (k in w.coords.indices step 2) {
-                    a = min(a, w.coords[k]); c = max(c, w.coords[k])
-                    b = min(b, w.coords[k + 1]); d = max(d, w.coords[k + 1])
-                }
-                val idx = entries.size
-                entries += Entry(w, w.routes.map { cell.routes[it] }, a, b, c, d)
-                for (gy in bucket(a)..bucket(c)) for (gx in bucket(b)..bucket(d)) {
-                    grid.getOrPut(key(gy, gx)) { ArrayList(4) } += idx
-                }
-            }
+            for (w in cell.ways) if (seenWays.add(w.id)) add(w.coords) { a, b, c, d -> Entry(w, w.routes.map { cell.routes[it] }, null, a, b, c, d) }
+            for (x in cell.features) if (seenFeatures.add(x.id)) add(x.coords) { a, b, c, d -> Entry(null, emptyList(), x, a, b, c, d) }
+        }
+    }
+
+    private inline fun add(coords: IntArray, entry: (Int, Int, Int, Int) -> Entry) {
+        var a = Int.MAX_VALUE; var b = Int.MAX_VALUE; var c = Int.MIN_VALUE; var d = Int.MIN_VALUE
+        for (k in coords.indices step 2) {
+            a = min(a, coords[k]); c = max(c, coords[k])
+            b = min(b, coords[k + 1]); d = max(d, coords[k + 1])
+        }
+        val idx = entries.size
+        entries += entry(a, b, c, d)
+        for (gy in bucket(a)..bucket(c)) for (gx in bucket(b)..bucket(d)) {
+            grid.getOrPut(key(gy, gx)) { ArrayList(4) } += idx
         }
     }
 
@@ -49,8 +62,7 @@ class TrailIndex(dir: File) {
         )
     }
 
-    /** Ways whose bounding box intersects the given box, each with the routes it belongs to. */
-    fun query(bb: BoundingBox, visit: (TrailWay, List<TrailRoute>) -> Unit) {
+    private inline fun near(bb: BoundingBox, visit: (Entry) -> Unit) {
         val a = (bb.minLatitude * 1e6).toInt(); val c = (bb.maxLatitude * 1e6).toInt()
         val b = (bb.minLongitude * 1e6).toInt(); val d = (bb.maxLongitude * 1e6).toInt()
         val done = HashSet<Int>()
@@ -59,14 +71,20 @@ class TrailIndex(dir: File) {
                 if (!done.add(i)) continue
                 val e = entries[i]
                 if (e.maxLat < a || e.minLat > c || e.maxLon < b || e.minLon > d) continue
-                visit(e.way, e.routes)
+                visit(e)
             }
         }
     }
 
-    fun hasDataIn(bb: BoundingBox): Boolean {
+    /** Route ways whose bounding box intersects the given box, each with the routes it belongs to. */
+    fun query(bb: BoundingBox, visit: (TrailWay, List<TrailRoute>) -> Unit) = near(bb) { e -> e.way?.let { visit(it, e.routes) } }
+
+    /** Cliffs, arêtes, ridges and earth banks whose bounding box intersects the given box. */
+    fun queryFeatures(bb: BoundingBox, visit: (TrailFeature) -> Unit) = near(bb) { e -> e.feature?.let(visit) }
+
+    fun hasDataIn(bb: BoundingBox, routes: Boolean = true, features: Boolean = true): Boolean {
         var found = false
-        query(bb) { _, _ -> found = true }
+        near(bb) { e -> if ((routes && e.way != null) || (features && e.feature != null)) found = true }
         return found
     }
 
@@ -83,8 +101,12 @@ class TrailIndex(dir: File) {
  * colour, tagged so the theme can draw the colours side by side:
  *  `trail=hiking`, `trail_colour=red|blue|…`, `trail_offset=0|l05|r05|l1|r1|l15|r15`,
  * and on the first copy `trail_n=<count>` plus the most important route's `name` / `ref`.
+ *
+ * Also the cliffs, arêtes, ridges and earth banks downloaded with the trails, from zoom
+ * [FEATURE_MIN_ZOOM], as `natural=cliff|arete|ridge|earth_bank` ways like in OSM; those come
+ * even when the trail lines are off ([routes]).
  */
-class TrailDataStore(private val index: TrailIndex) : MapDataStore() {
+class TrailDataStore(private val index: TrailIndex, private val routes: Boolean = true) : MapDataStore() {
 
     override fun boundingBox(): BoundingBox = index.boundingBox() ?: BoundingBox(0.0, 0.0, 0.0, 0.0)
     override fun close() = Unit
@@ -92,14 +114,21 @@ class TrailDataStore(private val index: TrailIndex) : MapDataStore() {
     override fun readPoiData(tile: Tile): MapReadResult = MapReadResult()
     override fun startPosition(): LatLong? = null
     override fun startZoomLevel(): Byte? = null
-    override fun supportsTile(tile: Tile): Boolean = tile.zoomLevel >= MIN_ZOOM && index.hasDataIn(tile.boundingBox)
+    override fun supportsTile(tile: Tile): Boolean = supportsArea(tile.boundingBox, tile.zoomLevel)
     override fun supportsFullTile(tile: Tile): Boolean = false
     override fun supportsArea(boundingBox: BoundingBox, zoomLevel: Byte): Boolean =
-        zoomLevel >= MIN_ZOOM && index.hasDataIn(boundingBox)
+        zoomLevel >= MIN_ZOOM && index.hasDataIn(boundingBox, routes = routes, features = zoomLevel >= FEATURE_MIN_ZOOM)
     override fun supportsFullArea(boundingBox: BoundingBox, zoomLevel: Byte): Boolean = false
 
     override fun readMapData(tile: Tile): MapReadResult {
         val result = MapReadResult()
+        if (tile.zoomLevel >= FEATURE_MIN_ZOOM) {
+            index.queryFeatures(tile.boundingBox) { f ->
+                val pts = Array(f.coords.size / 2) { k -> LatLong(f.coords[2 * k] / 1e6, f.coords[2 * k + 1] / 1e6) }
+                result.ways.add(Way(LAYER, listOf(FEATURE_TAGS[f.kind.ordinal]), arrayOf(pts), null))
+            }
+        }
+        if (!routes) return result
         index.query(tile.boundingBox) { way, routes ->
             // Most important routes first (international … local), one line per colour, max 4.
             val ordered = routes.sortedBy { it.network }
@@ -128,8 +157,12 @@ class TrailDataStore(private val index: TrailIndex) : MapDataStore() {
 
     companion object {
         const val MIN_ZOOM: Byte = 11
+
+        /** Cliffs and ridges from here (topo.xml draws them from 13). */
+        const val FEATURE_MIN_ZOOM: Byte = 13
         private const val LAYER: Byte = 5
         private val TAG_HIKING = Tag("trail", "hiking")
+        private val FEATURE_TAGS = TrailFeature.Kind.entries.map { Tag("natural", it.tag) }
         private val OFFSETS = arrayOf(
             arrayOf("0"),
             arrayOf("l05", "r05"),

@@ -5,7 +5,10 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import app.maparound.routing.GeoPoint
 import kotlinx.coroutines.flow.StateFlow
 
-/** A raster map (RMAP) the user added. Large files are read where they are, never copied. */
+/**
+ * A raster map the user added: an RMAP, or a tile database (MBTiles, SQLiteDB). Large files are
+ * read where they are, never copied.
+ */
 data class RasterMap(
     val id: String,
     val name: String,
@@ -20,7 +23,15 @@ data class RasterMap(
     val width: Int,
     val height: Int,
     val levels: Int,
+    /** [FORMAT_RMAP], [FORMAT_MBTILES] or [FORMAT_SQLITEDB]. */
+    val format: String = FORMAT_RMAP,
 ) {
+    companion object {
+        const val FORMAT_RMAP = "rmap"
+        const val FORMAT_MBTILES = "mbtiles"
+        const val FORMAT_SQLITEDB = "sqlitedb"
+    }
+
     val center: GeoPoint get() = GeoPoint((north + south) / 2, (west + east) / 2)
 }
 

@@ -62,7 +62,7 @@ object PartySession : PartyController {
         app = context.applicationContext
         val key = prefs.getString("link", null)?.let(PartyKey::parse)
         if (key != null) {
-            val me = PartyMe(prefs.getInt("my_id", 0), prefs.getString("my_name", "")!!, prefs.getInt("my_color", 0))
+            val me = PartyMe(prefs.getInt("my_id", 0), prefs.getString("my_name", "")!!, myColor(), prefs.getInt("my_icon", 0))
             engine = PartyEngine(key, me.id)
             seq = prefs.getLong("seq", 0)
             reserveSeq()
@@ -89,12 +89,17 @@ object PartySession : PartyController {
 
     override fun join(key: PartyKey, myName: String) {
         leaveSilently()
-        val me = PartyMe(SecureRandom().nextInt().let { if (it == 0) 1 else it }, myName.trim().ifEmpty { "Me" }, SecureRandom().nextInt(PALETTE_SIZE))
+        // A new id per party; the look (icon, colour) carries over from the last one.
+        val me = PartyMe(
+            SecureRandom().nextInt().let { if (it == 0) 1 else it }, myName.trim().ifEmpty { "Me" },
+            if (prefs.contains("my_rgb") || prefs.contains("my_color")) myColor() else PartyPalette.PRESETS.random(),
+            prefs.getInt("my_icon", 0),
+        )
         prefs.edit {
             putString("link", key.toLink())
             putInt("my_id", me.id)
             putString("my_name", me.name)
-            putInt("my_color", me.color)
+            putInt("my_rgb", me.color)
             putLong("seq", 1)
         }
         seq = 1
@@ -137,13 +142,17 @@ object PartySession : PartyController {
         if (on) lastSent.clear() // send soon
     }
 
-    override fun setProfile(name: String, color: Int) {
+    override fun setProfile(name: String, color: Int, icon: Int) {
         val me = _state.value.me ?: return
-        val updated = me.copy(name = name.trim().ifEmpty { me.name }, color = color)
-        prefs.edit { putString("my_name", updated.name); putInt("my_color", updated.color) }
+        val updated = me.copy(name = name.trim().ifEmpty { me.name }, color = color, icon = icon)
+        prefs.edit { putString("my_name", updated.name); putInt("my_rgb", updated.color); putInt("my_icon", updated.icon) }
         update { it.copy(me = updated) }
         sendHello(force = true)
     }
+
+    /** My colour (ARGB); the first versions kept an index into [PartyPalette.LEGACY]. */
+    private fun myColor(): Int =
+        if (prefs.contains("my_rgb")) prefs.getInt("my_rgb", PartyPalette.LEGACY[0]) else PartyPalette.legacy(prefs.getInt("my_color", 0))
 
     override fun setOnlineEnabled(on: Boolean) {
         prefs.edit { putBoolean("online", on) }
@@ -363,7 +372,7 @@ object PartySession : PartyController {
         }.toSet()
         if (due.isEmpty()) return
         due.forEach { lastHello[it] = now }
-        sendNow(PartyMessage.Hello(me.name, me.color, e.myMeshNode), due)
+        sendNow(PartyMessage.Hello(me.name, me.color, e.myMeshNode, me.icon), due)
     }
 
     private fun nextSeq(): Long {
@@ -441,7 +450,6 @@ object PartySession : PartyController {
 
     fun hex(id: Int): String = String.format("%08x", id)
 
-    const val PALETTE_SIZE = 8
     private const val CHANNEL_SOS = "party_sos"
     private const val CHANNEL_MESSAGES = "party_messages"
 }

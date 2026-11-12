@@ -27,6 +27,8 @@ class AndroidPlatform(private val context: Context) : PlatformActions {
     override fun sharePlaces(places: List<Place>, title: String) = Sharing.sharePlaces(context, places, title)
     override fun shareRoute(track: Track, gpxPath: String?) = Sharing.shareRoute(context, track, gpxPath?.let(::File))
     override fun shareRouteLink(track: Track) = Sharing.shareRouteLink(context, track)
+    override fun shareTextFile(fileName: String, mimeType: String, content: String, title: String) =
+        Sharing.shareTextFile(context, fileName, mimeType, content, title)
 }
 
 /** GPS recording on Android: the foreground [Recorder] service. */

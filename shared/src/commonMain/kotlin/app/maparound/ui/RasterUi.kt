@@ -63,9 +63,9 @@ fun LazyListScope.rasterMapsSection(
             ListItem(
                 modifier = Modifier.clickable(onClick = onAdd),
                 leadingContent = { Icon(Icons.Filled.AddPhotoAlternate, contentDescription = null) },
-                headlineContent = { Text("Add a raster map (.rmap)") },
+                headlineContent = { Text("Add a raster map (.rmap, .mbtiles, .sqlitedb)") },
                 supportingContent = {
-                    Text("TwoNav / CompeGPS maps, e.g. scanned 1:50,000 topo sheets. Shown under or instead of the vector map; large files are read in place, not copied.")
+                    Text("TwoNav / CompeGPS maps (e.g. scanned 1:50,000 topo sheets) and tile databases from QGIS, GDAL, MOBAC, Locus or OsmAnd. Shown under or instead of the vector map; large files are read in place, not copied.")
                 },
             )
         }
@@ -77,7 +77,10 @@ fun LazyListScope.rasterMapsSection(
             leadingContent = { Icon(Icons.Filled.Image, contentDescription = null) },
             headlineContent = { Text(m.name) },
             supportingContent = {
-                Text("${Fmt.fileSize(m.sizeBytes)} · ${m.width}×${m.height} px · ${m.levels} levels · ${m.projection}")
+                Text(
+                    if (m.format == RasterMap.FORMAT_RMAP) "${Fmt.fileSize(m.sizeBytes)} · ${m.width}×${m.height} px · ${m.levels} levels · ${m.projection}"
+                    else "${Fmt.fileSize(m.sizeBytes)} · ${m.projection} · ${m.levels} zoom levels",
+                )
             },
             trailingContent = {
                 Box {

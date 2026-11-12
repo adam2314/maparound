@@ -108,10 +108,16 @@ final class MapLibreMap: NSObject, NativeMapView, MLNMapViewDelegate {
         callbacks?.onTap(lat: c.latitude, lon: c.longitude, tapped: tapped(at: p))
     }
 
+    /// A long press, then the finger moving on (dragging a route stop) until it's lifted. The map
+    /// doesn't pan meanwhile: its own pan can't start while this recognizer holds the touch.
     @objc private func longPress(_ r: UILongPressGestureRecognizer) {
-        guard r.state == .began else { return }
         let c = mapView.convert(r.location(in: mapView), toCoordinateFrom: mapView)
-        callbacks?.onLongPress(lat: c.latitude, lon: c.longitude)
+        switch r.state {
+        case .began: callbacks?.onLongPress(lat: c.latitude, lon: c.longitude)
+        case .changed: callbacks?.onLongPressMove(lat: c.latitude, lon: c.longitude)
+        case .ended, .cancelled: callbacks?.onLongPressEnd(lat: c.latitude, lon: c.longitude)
+        default: break
+        }
     }
 
     /// The `tap` property of the topmost marker near the finger (layers named "tap-…", see MapStyle.kt).

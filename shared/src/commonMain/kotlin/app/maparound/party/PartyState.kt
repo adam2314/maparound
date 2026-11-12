@@ -13,8 +13,8 @@ data class TransportStatus(val state: State, val detail: String = "") {
     enum class State { OFF, CONNECTING, CONNECTED, ERROR }
 }
 
-/** Me in the current party. */
-data class PartyMe(val id: Int, val name: String, val color: Int)
+/** Me in the current party: [color] ARGB, [icon] a [PartyIcon] code. */
+data class PartyMe(val id: Int, val name: String, val color: Int, val icon: Int = 0)
 
 /** Everything the Party screen and the map show about the party. */
 data class PartyState(
@@ -52,7 +52,7 @@ interface PartyController {
     fun leave()
     fun setActive(on: Boolean)
     fun setSharing(on: Boolean)
-    fun setProfile(name: String, color: Int)
+    fun setProfile(name: String, color: Int, icon: Int)
     fun setOnlineEnabled(on: Boolean)
     fun setGateway(on: Boolean)
     fun setRadio(address: String, name: String)

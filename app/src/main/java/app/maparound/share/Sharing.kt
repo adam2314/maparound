@@ -62,6 +62,13 @@ object Sharing {
         shareFile(context, file, "application/gpx+xml", text, title)
     }
 
+    /** Any text as a file, e.g. the list of map sources. */
+    fun shareTextFile(context: Context, fileName: String, mime: String, content: String, title: String) {
+        val file = File(sharedDir(context), fileName.replace(Regex("[^A-Za-z0-9._-]"), "_"))
+        file.writeText(content, Charsets.UTF_8)
+        shareFile(context, file, mime, title, title)
+    }
+
     /** Only the links, for chat apps that drop attachments' text. */
     fun shareRouteLink(context: Context, track: Track) {
         val send = Intent(Intent.ACTION_SEND).setType("text/plain")

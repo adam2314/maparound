@@ -40,8 +40,9 @@ object ThemeStyle {
 
     class Hillshade(val index: Int, val minZoom: Int, val maxZoom: Int, val magnitude: Int)
 
-    fun convert(xml: String): Result {
-        val root = parse(xml)
+    /** [categories]: the rule categories to draw (the theme's options, see StyleMenu), or null for all. */
+    fun convert(xml: String, categories: Set<String>? = null): Result {
+        val root = parse(xml, categories)
         val out = Converter()
         root.background?.let { out.layers += layer("background", "background", AREA_FLAG) { put("paint", obj("background-color" to color(it))) } }
         out.walk(root.children, Ctx.ROOT)
@@ -63,11 +64,18 @@ object ThemeStyle {
         val children = ArrayList<Node>()
     }
 
-    private fun parse(xml: String): Theme {
+    private fun parse(xml: String, categories: Set<String>?): Theme {
         var theme: Theme? = null
         val stack = ArrayList<MutableList<Node>>()
+        // Inside the style menu, or a rule or instruction of a category that is off: skipped.
+        var skipping = 0
         Xml.parse(xml, object : XmlHandler {
             override fun start(name: String, attrs: Map<String, String>) {
+                val off = name == "stylemenu" || (categories != null && attrs["cat"]?.let { it !in categories } == true)
+                if (skipping > 0 || off) {
+                    skipping++
+                    return
+                }
                 when (name) {
                     "rendertheme" -> Theme(attrs["map-background"]).also { theme = it; stack += it.children }
                     "rule" -> Rule(attrs).also { stack.lastOrNull()?.add(it); stack += it.children }
@@ -76,6 +84,10 @@ object ThemeStyle {
             }
 
             override fun end(name: String) {
+                if (skipping > 0) {
+                    skipping--
+                    return
+                }
                 if (name == "rule" || name == "rendertheme") stack.removeLastOrNull()
             }
         })

@@ -13,6 +13,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import app.maparound.AppGraph
 import app.maparound.map.MapController
 import app.maparound.map.TileSources
+import app.maparound.map.categories
 import app.maparound.map.resolveBackground
 import app.maparound.map.satelliteSource
 import app.maparound.three.CompositeTileTextures
@@ -46,7 +47,8 @@ fun Scene3DAndroidView(args: Scene3DViewArgs) {
             val online = if (args.satellite) satelliteSource else TileSources.find(prefs.baseLayer.value, prefs.customSources.value)
             val maps = AppGraph.mapFiles.files.value.map { it.file }
             val style = MapController.OfflineStyle(
-                topo = prefs.topoStyle.value,
+                theme = prefs.mapTheme.value,
+                categories = AppGraph.themes.categories(prefs.mapTheme.value, prefs.styleChoices.value),
                 contours = prefs.contours.value,
                 hillshade = prefs.hillshade.value,
                 demDir = AppGraph.terrain.demDir,

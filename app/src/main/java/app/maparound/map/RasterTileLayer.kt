@@ -1,7 +1,7 @@
 package app.maparound.map
 
 import android.util.Log
-import app.maparound.raster.RasterRenderer
+import app.maparound.raster.RasterTiles
 import org.mapsforge.core.graphics.TileBitmap
 import org.mapsforge.core.model.Tile
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory
@@ -17,7 +17,7 @@ import org.mapsforge.map.model.MapViewPosition
 class RasterTileLayer(
     tileCache: TileCache,
     mapViewPosition: MapViewPosition,
-    private val renderer: RasterRenderer,
+    private val renderer: RasterTiles,
 ) : TileLayer<Job>(tileCache, mapViewPosition, AndroidGraphicFactory.INSTANCE.createMatrix(), true, true) {
     @Volatile private var running = true
     private val workers = List(2) { i ->

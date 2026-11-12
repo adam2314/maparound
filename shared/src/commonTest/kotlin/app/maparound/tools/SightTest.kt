@@ -64,6 +64,63 @@ class SightTest {
     }
 
     @Test
+    fun radioFormulas() {
+        // Free-space loss: 10 km at 868 MHz is about 111 dB; doubling the distance adds 6 dB.
+        assertEquals(111.2, LineOfSight.freeSpaceLossDb(10_000.0, 868.0), 0.1)
+        assertEquals(6.02, LineOfSight.freeSpaceLossDb(20_000.0, 868.0) - LineOfSight.freeSpaceLossDb(10_000.0, 868.0), 0.01)
+        // Knife edge (ITU-R P.526): grazing (v = 0) costs about 6 dB, well clear costs nothing.
+        assertEquals(6.0, LineOfSight.knifeEdgeLossDb(0.0), 0.1)
+        assertEquals(0.0, LineOfSight.knifeEdgeLossDb(-1.0), 0.0)
+        assertEquals(13.9, LineOfSight.knifeEdgeLossDb(1.0), 0.1)
+        // Radio bends round the Earth more than light: less drop at the same distance.
+        assertTrue(Geodesy.curvatureDrop(10_000.0, Geodesy.RADIO_K) < Geodesy.curvatureDrop(10_000.0))
+        assertEquals(5.9, Geodesy.curvatureDrop(10_000.0, Geodesy.RADIO_K), 0.1)
+    }
+
+    @Test
+    fun fresnelZoneOverFlatGround() {
+        // 10 km at 868 MHz: wavelength 0.345 m, zone radius halfway √(λ·d/4) = 29.4 m.
+        val los = LineOfSight.compute(flat, a, b, 10.0, 10.0, frequencyMHz = 868.0)!!
+        val f = los.fresnel!!
+        assertEquals(0.3454, f.wavelengthM, 0.0005)
+        assertEquals(29.4, f.midRadiusM, 0.2)
+        assertEquals(f.midRadiusM, f.radiusAt(5_000.0, 10_000.0), 1e-9)
+        assertEquals(0.0, f.radiusAt(0.0, 10_000.0), 0.0)
+        // Masts 10 m high see each other, but the flat ground (bulging ~1.5 m with radio's
+        // curvature halfway) fills most of the zone: line of sight is not a clear radio path.
+        assertTrue(los.targetVisible)
+        assertTrue("${f.clearance}", f.clearance in 0.1..0.4)
+        assertTrue("extra loss ${f.obstructionLossDb}", f.obstructionLossDb in 1.0..6.0)
+        // Every sample between the ends knows its share of the zone; the ends don't.
+        assertTrue(los.samples.drop(1).dropLast(1).none { it.zone.isNaN() })
+        assertTrue(los.samples.last().zone.isNaN())
+        assertEquals(los.eyeM, los.lineAt(0.0), 1e-9)
+
+        // On 40 m masts the zone is clear and the loss is free space alone.
+        val high = LineOfSight.compute(flat, a, b, 40.0, 40.0, frequencyMHz = 868.0)!!.fresnel!!
+        assertTrue(high.clearance >= LineOfSight.Fresnel.RULE)
+        assertEquals(0.0, high.obstructionLossDb, 0.0)
+        assertEquals(high.freeSpaceLossDb, high.totalLossDb, 0.0)
+        // A lower frequency has a wider zone: the same masts are tighter at 145 MHz.
+        val vhf = LineOfSight.compute(flat, a, b, 40.0, 40.0, frequencyMHz = 145.0)!!.fresnel!!
+        assertTrue(vhf.midRadiusM > 2 * high.midRadiusM)
+        assertTrue(vhf.clearance < high.clearance)
+    }
+
+    @Test
+    fun hillInTheWayOfARadioLink() {
+        val los = LineOfSight.compute(hill, a, b, 2.0, 2.0, frequencyMHz = 433.0)!!
+        val f = los.fresnel!!
+        assertFalse(los.targetVisible)
+        assertTrue(f.clearance < 0)
+        assertEquals("tightest at the hill top", 5_000.0, f.tightest!!.distanceM, 100.0)
+        // ~300 m into a ~42 m zone: a big diffraction loss.
+        assertTrue("${f.obstructionLossDb}", f.obstructionLossDb > 25)
+        // The light check is unchanged by a radio link's existence.
+        assertNull(LineOfSight.compute(hill, a, b, 2.0, 2.0)!!.fresnel)
+    }
+
+    @Test
     fun findsHigherGroundNextToTheObserver() {
         val top = Geodesy.destination(a, 90.0, 5_000.0) // the hill top
         val below = Geodesy.destination(top, 200.0, 60.0)

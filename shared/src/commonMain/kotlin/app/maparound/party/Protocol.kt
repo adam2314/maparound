@@ -80,8 +80,11 @@ sealed class PartyMessage {
         override val type = 1
     }
 
-    /** Who I am: name, colour index and (if I have one) my Meshtastic node number. */
-    data class Hello(val name: String, val color: Int, val meshNode: Long) : PartyMessage() {
+    /**
+     * Who I am: name, colour (ARGB), map icon ([PartyIcon] code) and (if I have one) my
+     * Meshtastic node number.
+     */
+    data class Hello(val name: String, val color: Int, val meshNode: Long, val icon: Int = 0) : PartyMessage() {
         override val type = 2
     }
 
@@ -175,8 +178,12 @@ private object Bodies {
                 b.byte((if (m.sos) 1 else 0) or (if (m.driving) 4 else 0))
             }
             is PartyMessage.Hello -> {
-                b.byte(m.color).int(m.meshNode.toInt())
+                // The first versions read a colour index, the node and the name, and ignore the
+                // rest: they get the nearest of their colours; newer ones the icon and the RGB.
+                b.byte(PartyPalette.nearestLegacy(m.color)).int(m.meshNode.toInt())
                 putText(b, m.name, 24)
+                b.byte(m.icon.coerceIn(0, 255))
+                b.byte(m.color shr 16 and 0xFF).byte(m.color shr 8 and 0xFF).byte(m.color and 0xFF)
             }
             is PartyMessage.Sos -> {
                 b.byte(if (m.active) 1 else 0)
@@ -205,7 +212,18 @@ private object Bodies {
                 val flags = b.byte().toInt()
                 PartyMessage.Position(lat, lon, alt, acc, speed, heading, battery, flags and 1 != 0, flags and 4 != 0)
             }
-            2 -> PartyMessage.Hello(color = b.u8(), meshNode = b.int().toLong() and 0xFFFFFFFFL, name = getText(b))
+            2 -> {
+                val legacy = b.u8()
+                val node = b.int().toLong() and 0xFFFFFFFFL
+                val name = getText(b)
+                if (b.remaining >= 4) {
+                    val icon = b.u8()
+                    val rgb = (b.u8() shl 16) or (b.u8() shl 8) or b.u8()
+                    PartyMessage.Hello(name, (0xFF shl 24) or rgb, node, icon)
+                } else {
+                    PartyMessage.Hello(name, PartyPalette.legacy(legacy), node) // from a first version
+                }
+            }
             3 -> PartyMessage.Sos(b.byte().toInt() != 0, getText(b))
             4 -> PartyMessage.Meet(b.int() / 1e7, b.int() / 1e7, getText(b))
             5 -> PartyMessage.Text(getText(b))

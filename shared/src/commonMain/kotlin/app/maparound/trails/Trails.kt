@@ -60,7 +60,27 @@ data class TrailRoute(val name: String, val ref: String, val network: Int, val c
 /** A way that belongs to one or more routes; coordinates in micro-degrees (lat, lon pairs). */
 class TrailWay(val id: Long, val routes: IntArray, val coords: IntArray)
 
-class TrailCell(val routes: List<TrailRoute>, val ways: List<TrailWay>)
+/**
+ * A rock or terrain line that the mapsforge maps leave out (their tag mapping has no
+ * `natural=cliff`), fetched with the trails so the Topo style can draw it.
+ */
+class TrailFeature(val id: Long, val kind: Kind, val coords: IntArray) {
+    enum class Kind(val tag: String) {
+        CLIFF("cliff"), ARETE("arete"), RIDGE("ridge"), EARTH_BANK("earth_bank");
+
+        companion object {
+            fun of(natural: String?): Kind? = entries.firstOrNull { it.tag == natural }
+        }
+    }
+}
+
+class TrailCell(
+    val routes: List<TrailRoute>,
+    val ways: List<TrailWay>,
+    val features: List<TrailFeature> = emptyList(),
+    /** Downloaded together with the cliffs (format 2); older cells need fetching again for them. */
+    val withFeatures: Boolean = true,
+)
 
 /**
  * Trail cells: Overpass XML in, a small binary file out. The file layout is the one Java's
@@ -69,9 +89,21 @@ class TrailCell(val routes: List<TrailRoute>, val ways: List<TrailWay>)
  */
 object TrailCellIO {
     private const val MAGIC = 0x4D415452 // "MATR"
-    private const val VERSION = 1
+    /** 1: routes and their ways; 2: also cliffs, arêtes, ridges and earth banks ([TrailFeature]). */
+    private const val VERSION = 2
 
-    /** Parses Overpass XML (ways with `out geom`, relations with `out body`), streamed. */
+    /** The `natural=*` lines to fetch with the trails, as an Overpass value regex. */
+    val FEATURE_REGEX = "^(" + TrailFeature.Kind.entries.joinToString("|") { it.tag } + ")$"
+
+    /** Reads only a cell file's header: whether it has the cliffs (format 2). */
+    fun hasFeatures(path: String): Boolean = runCatching {
+        fileSystem.source(path.toPath()).buffer().use { it.readInt() == MAGIC && it.readInt() >= 2 }
+    }.getOrDefault(false)
+
+    /**
+     * Parses Overpass XML (ways with `out geom`, relations with `out body`), streamed. Ways in a
+     * route relation become trail ways; ways tagged with a [TrailFeature.Kind] become features.
+     */
     fun parseOverpass(input: BufferedSource): TrailCell {
         val h = OverpassHandler()
         Xml.parse(input, h)
@@ -94,7 +126,11 @@ object TrailCellIO {
             val r = wayRoutes[id] ?: return@mapNotNull null
             if (coords.size < 4) null else TrailWay(id, r.distinct().toIntArray(), coords)
         }
-        return TrailCell(routes, ways)
+        val features = h.natural.mapNotNull { (id, natural) ->
+            val kind = TrailFeature.Kind.of(natural) ?: return@mapNotNull null
+            h.ways[id]?.takeIf { it.size >= 4 }?.let { TrailFeature(id, kind, it) }
+        }
+        return TrailCell(routes, ways, features)
     }
 
     fun parseOverpass(xml: String): TrailCell = parseOverpass(Buffer().writeUtf8(xml))
@@ -121,13 +157,21 @@ object TrailCellIO {
             out.writeInt(w.coords.size)
             w.coords.forEach { out.writeInt(it) }
         }
+        out.writeInt(cell.features.size)
+        for (f in cell.features) {
+            out.writeLong(f.id)
+            out.writeByte(f.kind.ordinal)
+            out.writeInt(f.coords.size)
+            f.coords.forEach { out.writeInt(it) }
+        }
     }
 
     fun read(path: String): TrailCell = fileSystem.source(path.toPath()).buffer().use { read(it) }
 
     fun read(inp: BufferedSource): TrailCell {
         require(inp.readInt() == MAGIC) { "Not a trail file" }
-        require(inp.readInt() == VERSION) { "Unsupported trail file version" }
+        val version = inp.readInt()
+        require(version in 1..VERSION) { "Unsupported trail file version" }
         val routes = List(inp.readInt()) {
             TrailRoute(readUtf(inp), readUtf(inp), inp.readByte().toInt(), TrailColour.entries[inp.readByte().toInt()])
         }
@@ -137,7 +181,13 @@ object TrailCellIO {
             val c = IntArray(inp.readInt()) { inp.readInt() }
             TrailWay(id, r, c)
         }
-        return TrailCell(routes, ways)
+        if (version < 2) return TrailCell(routes, ways, withFeatures = false)
+        val features = List(inp.readInt()) {
+            val id = inp.readLong()
+            val kind = TrailFeature.Kind.entries[inp.readByte().toInt()]
+            TrailFeature(id, kind, IntArray(inp.readInt()) { inp.readInt() })
+        }
+        return TrailCell(routes, ways, features)
     }
 
     /** DataOutputStream.writeUTF: a 2-byte length, then modified UTF-8 (U+0000 as two bytes, surrogates one by one). */
@@ -187,6 +237,8 @@ object TrailCellIO {
 
     private class OverpassHandler : XmlHandler {
         val ways = LinkedHashMap<Long, IntArray>()
+        /** The `natural=*` value of ways that have one. */
+        val natural = LinkedHashMap<Long, String>()
         val relations = ArrayList<Relation>()
         private var wayId = -1L
         private var coords = IntList()
@@ -214,10 +266,12 @@ object TrailCellIO {
                     refs = ArrayList()
                 }
                 "member" -> if (inRelation && attrs["type"] == "way") attrs["ref"]?.toLongOrNull()?.let(refs::add)
-                "tag" -> if (inRelation) {
+                "tag" -> {
                     val k = attrs["k"]
                     val v = attrs["v"]
-                    if (k != null && v != null) tags[k] = v
+                    if (k != null && v != null) {
+                        if (inRelation) tags[k] = v else if (wayId >= 0 && k == "natural") natural[wayId] = v
+                    }
                 }
             }
         }

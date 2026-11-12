@@ -13,6 +13,10 @@ import app.maparound.ios.freeBytes
 import app.maparound.ios.PendingRouting
 import app.maparound.data.TerrainStore
 import app.maparound.ios.PendingTrails
+import app.maparound.map.MapTheme
+import app.maparound.map.MapThemeLibrary
+import app.maparound.map.MapThemes
+import app.maparound.map.StyleMenu
 import app.maparound.map.TileSources
 import app.maparound.map.maplibre.BasicLayers
 import app.maparound.map.maplibre.MapStyle
@@ -30,6 +34,8 @@ import app.maparound.routing.GeoPoint
 import app.maparound.share.Incoming
 import app.maparound.shared.ioDispatcher
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSBundle
@@ -52,8 +58,19 @@ object IosApp {
     /** Label fonts in the app bundle (iosApp/fetch-fonts.sh); online fonts when they're missing. */
     private val fonts: String? = NSBundle.mainBundle.resourcePath?.let { "$it/Fonts" }?.takeIf { fileSystem.exists(it.toPath()) }
     val tiles = TileService("$documents/dem", fonts)
-    /** The map style, made from the Android map's theme (topo.xml in the app bundle). */
-    val style = theme()?.let { MapStyle(it.layers, BasicLayers.GLYPHS, it.hillshade) } ?: MapStyle(BasicLayers.layers, BasicLayers.GLYPHS)
+    /** The Android map's theme (topo.xml in the app bundle). */
+    private val topoXml: String? = runCatching {
+        val path = NSBundle.mainBundle.pathForResource("topo", "xml") ?: error("topo.xml is not in the app")
+        fileSystem.read(path.toPath()) { readUtf8() }
+    }.onFailure { println("MapAround: map theme not loaded ($it), using the basic style") }.getOrNull()
+
+    /** The map style, made from the theme; its options draw it again with fewer rule categories. */
+    val style = theme()?.let { t ->
+        MapStyle(t.layers, BasicLayers.GLYPHS, t.hillshade) { categories -> ThemeStyle.convert(topoXml.orEmpty(), categories) }
+    } ?: MapStyle(BasicLayers.layers, BasicLayers.GLYPHS)
+
+    /** Topo only: its rules become MapLibre layers. Importing styles is Android-only for now. */
+    val themes: MapThemeLibrary = IosMapThemes(topoXml)
     val maps = IosInstalledMaps("$documents/maps")
     val places = PlaceRepository(documents)
     val tracks = TrackRepository(documents, UserDefaultsStore("tracks"))
@@ -140,8 +157,19 @@ object IosApp {
         }
     }
 
-    private fun theme(): ThemeStyle.Result? = runCatching {
-        val path = NSBundle.mainBundle.pathForResource("topo", "xml") ?: error("topo.xml is not in the app")
-        ThemeStyle.convert(fileSystem.read(path.toPath()) { readUtf8() })
-    }.onFailure { println("MapAround: map theme not loaded ($it), using the basic style") }.getOrNull()
+    private fun theme(): ThemeStyle.Result? = topoXml?.let { xml ->
+        runCatching { ThemeStyle.convert(xml) }.onFailure { println("MapAround: map theme not converted ($it), using the basic style") }.getOrNull()
+    }
+}
+
+/** The styles on iPhone: Topo with its options. */
+private class IosMapThemes(topoXml: String?) : MapThemeLibrary {
+    private val topoMenu = topoXml?.let { runCatching { StyleMenu.parse(it) }.getOrNull() }
+    override val themes: StateFlow<List<MapTheme>> =
+        MutableStateFlow(listOf(MapTheme(MapThemes.TOPO, "Topo", "MapAround's hiking style: contours, trails, peaks")))
+    override fun menu(themeId: String): StyleMenu? = if (themeId == MapThemes.TOPO) topoMenu else null
+    override val canImport = false
+    override fun import(name: String?, bytes: ByteArray): Result<List<MapTheme>> =
+        Result.failure(UnsupportedOperationException("Importing map styles comes to iPhone in a later version"))
+    override fun delete(themeId: String) = Unit
 }

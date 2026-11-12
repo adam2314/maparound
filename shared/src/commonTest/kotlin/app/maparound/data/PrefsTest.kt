@@ -1,6 +1,10 @@
 package app.maparound.data
 
+import app.maparound.map.MapThemes
 import app.maparound.map.OnlineSource
+import app.maparound.map.SourceList
+import app.maparound.map.StyleChoice
+import app.maparound.map.TileSources
 import app.maparound.sensors.SpeedUnit
 import app.maparound.sensors.Vec3
 import app.maparound.tools.CoordFormat
@@ -54,7 +58,30 @@ class PrefsTest {
         assertNull(Prefs(store).levelUp.value)
         again.setBaseLayer("c1")
         again.removeCustomSource("c1")
-        assertEquals("osm", Prefs(store).baseLayer.value) // removing the source in use falls back
+        assertEquals(TileSources.DEFAULT_ID, Prefs(store).baseLayer.value) // removing the source in use falls back
+    }
+
+    @Test
+    fun stylesAndSourcesCarryOver() {
+        // Before styles: Topo on or off, and the OSM server that blocks the app.
+        val store = MemoryStore()
+        store.putBoolean("topo_style", false)
+        store.putString("base_layer", "osm")
+        val p = Prefs(store)
+        assertEquals(MapThemes.CLASSIC, p.mapTheme.value)
+        assertEquals(TileSources.DEFAULT_ID, p.baseLayer.value)
+
+        p.setMapTheme("user:elevate/Elevate.xml")
+        p.setStyleChoice("user:elevate/Elevate.xml", StyleChoice("elv-hiking", mapOf("elv-pois" to false)))
+        val again = Prefs(store)
+        assertEquals("user:elevate/Elevate.xml", again.mapTheme.value)
+        assertEquals(StyleChoice("elv-hiking", mapOf("elv-pois" to false)), again.styleChoices.value["user:elevate/Elevate.xml"])
+
+        // Imported sources: new ids, nothing twice, attribution kept.
+        val list = SourceList.decode("A | https://a.example/{z}/{x}/{y}.png\nhttps://a.example/{z}/{x}/{y}.png\nB https://b.example/{z}/{x}/{y}.png").getOrThrow()
+        assertEquals(listOf("A", "B"), again.addCustomSources(list, "imp").map { it.name })
+        assertEquals(emptyList(), again.addCustomSources(list, "imp2"))
+        assertEquals(listOf("imp_0", "imp_1"), Prefs(store).customSources.value.map { it.id })
     }
 
     @Test

@@ -55,13 +55,16 @@ class OfflineMapData(val store: MapDataStore, val hills: HillsRenderConfig?, val
             // Contour lines are generated from the elevation tiles as extra map data (only the
             // topo theme styles them); hill shading is done by mapsforge itself.
             val dem = style.demDir?.takeIf { style.contours || style.hillshade }?.let { DemIndex(it.path) }?.takeUnless { it.isEmpty }
-            val trailIndex = style.trailsDir?.takeIf { style.trails && style.topo }?.let { TrailIndex(it) }?.takeUnless { it.isEmpty }
-            val withContours = dem != null && style.contours && style.topo
+            // Downloaded trail data: the marked trails when they're on, and the cliffs and ridges
+            // fetched with them always (the mapsforge maps have none).
+            val trailIndex = style.trailsDir?.takeIf { style.drawsTerrain }?.let { TrailIndex(it) }
+                ?.takeUnless { it.isEmpty || (!style.trails && it.featureCount == 0) }
+            val withContours = dem != null && style.contours && style.drawsTerrain
             val store: MapDataStore = if (withContours || trailIndex != null) {
                 MultiMapDataStore(MultiMapDataStore.DataPolicy.RETURN_ALL).apply {
                     addMapDataStore(vector, false, false)
                     if (withContours) addMapDataStore(ContourDataStore(dem!!, vector), false, false)
-                    if (trailIndex != null) addMapDataStore(TrailDataStore(trailIndex), false, false)
+                    if (trailIndex != null) addMapDataStore(TrailDataStore(trailIndex, routes = style.trails), false, false)
                 }
             } else {
                 vector

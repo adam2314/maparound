@@ -218,7 +218,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                     Icon(Icons.Filled.FileOpen, contentDescription = "Import a .map file")
                 }
                 IconButton(onClick = addRaster) {
-                    Icon(Icons.Filled.AddPhotoAlternate, contentDescription = "Add a raster map (.rmap)")
+                    Icon(Icons.Filled.AddPhotoAlternate, contentDescription = "Add a raster map")
                 }
             },
             windowInsets = WindowInsets(0, 0, 0, 0),
@@ -893,7 +893,9 @@ private fun TrailsDialog(map: LocalMap, onDismiss: () -> Unit, onStart: (GeoBoun
                 Text(
                     "Waymarked hiking routes from OpenStreetMap (for example red-white-red or the colour-marked trails), " +
                         "drawn in their colours with their names in the Topo style. Without this download, they are " +
-                        "shown only online, as an overlay.",
+                        "shown only online, as an overlay.\n\n" +
+                        "It also brings the cliffs, arêtes and ridges, which the downloaded maps leave out. " +
+                        "Areas fetched before they came along are downloaded again.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 when {

@@ -60,7 +60,7 @@ class RoutePlanner(
     private fun online(points: List<GeoPoint>, profile: RouteProfile): RouteResult {
         val lonlats = points.joinToString("|") { String.format(Locale.ROOT, "%.6f,%.6f", it.lon, it.lat) }
         val url = "https://brouter.de/brouter?lonlats=${URLEncoder.encode(lonlats, "UTF-8")}" +
-            "&profile=${profile.brouterProfile}&alternativeidx=0&format=geojson"
+            "&profile=${profile.brouterProfile}&alternativeidx=0&format=geojson&timode=${OfflineRouter.TURN_HINTS_LOCUS}"
         val conn = URL(url).openConnection() as HttpURLConnection
         val body = try {
             conn.connectTimeout = 15_000
@@ -100,7 +100,7 @@ class RoutePlanner(
         } else {
             props.optString("total-time").toLongOrNull()
         }
-        return RouteResult(pts, stats, duration, RouteResult.Source.ONLINE)
+        return RouteResult(pts, stats, duration, RouteResult.Source.ONLINE, Guidance.brouterHints(body))
     }
 
     private fun isOnline(): Boolean {

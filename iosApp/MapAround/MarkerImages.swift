@@ -1,4 +1,5 @@
 import UIKit
+import MapAroundShared
 
 /// Draws the map's marker images from their names (see MarkerIcons.kt for the format), with the
 /// same look as the Android map's markers. Every image is centred on its point except the pin,
@@ -25,9 +26,14 @@ enum MarkerImages {
             let sos = kind == "sos"
             let body: UIColor = kind == "meet" ? rgb(198, 40, 40) : kind == "radio" ? rgb(97, 97, 97) : color(f[2])
             let symbol = sos ? "!" : String(f[3].prefix(1)).uppercased()
+            // A member's chosen icon (PartyIcon code) and the colour to draw it in on their disc.
+            let iconCode = f.count >= 7 ? Int32(f[5]) ?? 0 : 0
+            let symbolColor: UIColor = f.count >= 7 && kind == "member" ? color(f[6]) : .white
+            let icon = kind == "member" && iconCode != 0 ? PartyIcons.shared.svg(code: iconCode) : ""
             return badge(ring: sos ? red : .white, ringWidth: sos ? 4 : 2, body: body, radius: 13,
-                         symbol: kind == "meet" ? "" : symbol, symbolFont: .boldSystemFont(ofSize: 13), symbolColor: .white,
-                         label: f[3], labelColor: sos ? red : dark, alpha: f[4] == "1" ? 140 / 255 : 1, flag: kind == "meet")
+                         symbol: kind == "meet" ? "" : symbol, symbolFont: .boldSystemFont(ofSize: 13), symbolColor: symbolColor,
+                         label: f[3], labelColor: sos ? red : dark, alpha: f[4] == "1" ? 140 / 255 : 1, flag: kind == "meet",
+                         icon: icon)
         case "wp" where f.count >= 3:
             let fill: UIColor = f[2] == "0" ? rgb(46, 125, 50) : f[2] == "2" ? rgb(198, 40, 40) : rgb(106, 27, 154)
             return disc(size: 26, shadow: false, rings: [(12, .white), (10, fill)], text: f[1], font: .boldSystemFont(ofSize: 12))
@@ -49,7 +55,8 @@ enum MarkerImages {
     /// A round marker with an optional label tag below; the circle's centre is the image's centre.
     private static func badge(ring: UIColor, ringWidth: CGFloat, body: UIColor, radius r: CGFloat,
                               symbol: String, symbolFont: UIFont, symbolColor: UIColor,
-                              label: String, labelColor: UIColor, alpha: CGFloat, flag: Bool = false) -> UIImage {
+                              label: String, labelColor: UIColor, alpha: CGFloat, flag: Bool = false,
+                              icon: String = "") -> UIImage {
         let labelAttrs: [NSAttributedString.Key: Any] = [
             .font: UIFont.boldSystemFont(ofSize: 11), .foregroundColor: labelColor.withAlphaComponent(alpha),
         ]
@@ -82,6 +89,8 @@ enum MarkerImages {
                 cloth.addLine(to: CGPoint(x: cx - 4, y: cy))
                 cloth.close()
                 cloth.fill()
+            } else if !icon.isEmpty {
+                drawIcon(icon, cx: cx, cy: cy, size: 18, color: symbolColor.withAlphaComponent(alpha))
             } else if !symbol.isEmpty {
                 let attrs: [NSAttributedString.Key: Any] = [.font: symbolFont, .foregroundColor: symbolColor.withAlphaComponent(alpha)]
                 let s = (symbol as NSString).size(withAttributes: attrs)
@@ -94,6 +103,33 @@ enum MarkerImages {
                 (label as NSString).draw(at: CGPoint(x: cx - labelSize.width / 2, y: top + (labelH - labelSize.height) / 2),
                                          withAttributes: labelAttrs)
             }
+        }
+    }
+
+    /// A party icon from PartyIcons.svg (Kotlin): paths split by "|", each "N" or "E" (fill rule)
+    /// then M/L/Z commands in a 24×24 box, drawn centred on (cx, cy), `size` points across.
+    private static func drawIcon(_ svg: String, cx: CGFloat, cy: CGFloat, size: CGFloat, color: UIColor) {
+        let s = size / 24
+        color.setFill()
+        for part in svg.split(separator: "|") {
+            let tokens = part.split(separator: " ")
+            guard let rule = tokens.first else { continue }
+            let path = UIBezierPath()
+            path.usesEvenOddFillRule = rule == "E"
+            var i = 1
+            while i < tokens.count {
+                let t = tokens[i]
+                if t == "Z" {
+                    path.close()
+                    i += 1
+                    continue
+                }
+                guard i + 2 < tokens.count, let x = Double(tokens[i + 1]), let y = Double(tokens[i + 2]) else { break }
+                let p = CGPoint(x: cx + (CGFloat(x) - 12) * s, y: cy + (CGFloat(y) - 12) * s)
+                if t == "M" { path.move(to: p) } else { path.addLine(to: p) }
+                i += 3
+            }
+            path.fill()
         }
     }
 

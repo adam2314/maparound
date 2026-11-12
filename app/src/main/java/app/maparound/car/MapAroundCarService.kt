@@ -35,13 +35,14 @@ class CarMapSession : Session() {
     override fun onCreateScreen(intent: Intent): Screen {
         val r = CarMapRenderer(carContext, lifecycle)
         renderer = r
+        val navigation = CarNavigation(carContext, lifecycle)
         handle(intent)
-        return CarMapScreen(carContext, r)
+        return CarMapScreen(carContext, r, navigation)
     }
 
     override fun onNewIntent(intent: Intent) = handle(intent)
 
-    /** "Navigate to …" from the car (Assistant, other apps): show the place and a route to it. */
+    /** "Navigate to …" from the car (Assistant, other apps): route there and start guidance. */
     private fun handle(intent: Intent) {
         if (intent.action != CarContext.ACTION_NAVIGATE) return
         val shared = intent.dataString?.let { SharedLinks.parse(it) } as? Shared.Point ?: return

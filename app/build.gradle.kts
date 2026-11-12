@@ -81,4 +81,6 @@ dependencies {
     implementation("androidx.car.app:app-projected:1.4.0")
 
     testImplementation("junit:junit:4.13.2")
+    // Real SQLite files for the tile database tests.
+    testImplementation("org.xerial:sqlite-jdbc:3.46.1.0")
 }

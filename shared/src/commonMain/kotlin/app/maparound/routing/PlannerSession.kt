@@ -28,6 +28,8 @@ object PlannerSession {
         val route: RouteResult? = null,
         val busy: Boolean = false,
         val error: String? = null,
+        /** While a stop is dragged: the line to draw instead of the route (straight to the stop). */
+        val preview: List<GeoPoint>? = null,
     )
 
     private val _state = MutableStateFlow(State())
@@ -43,6 +45,17 @@ object PlannerSession {
     private var job: Job? = null
     private val undo = ArrayList<List<GeoPoint>>()
 
+    /** The stop being dragged, if any, and what it needs (see [grab]). */
+    private class Drag(
+        val grab: RouteEdit.Grab,
+        val finger: GeoPoint,
+        val stops: List<GeoPoint>,
+        val line: List<GeoPoint>,
+        val stopIndices: List<Int>,
+        val metresPerDp: Double,
+    )
+    private var drag: Drag? = null
+
     fun open() {
         _state.value = _state.value.copy(active = true)
     }
@@ -50,6 +63,7 @@ object PlannerSession {
     fun close() {
         job?.cancel()
         undo.clear()
+        drag = null
         _state.value = State(profile = _state.value.profile)
     }
 
@@ -57,6 +71,7 @@ object PlannerSession {
     fun load(points: List<GeoPoint>, profile: RouteProfile?) {
         job?.cancel()
         undo.clear()
+        drag = null
         _state.value = State(active = true, profile = profile ?: _state.value.profile, waypoints = points)
         recompute()
     }
@@ -83,9 +98,60 @@ object PlannerSession {
 
     fun clear() = edit(emptyList())
 
+    /**
+     * A long press at [p]: picks up the stop there, or a new stop on the route line, to move with
+     * [drag] and put down with [drop]. False when there is nothing there to pick up.
+     * [metresPerDp] is the map's scale, for how near the finger has to be.
+     */
+    fun grab(p: GeoPoint, metresPerDp: Double): Boolean {
+        val s = _state.value
+        if (!s.active) return false
+        // What's drawn: the route, or straight lines in Line mode before it's calculated.
+        val drawn = s.route?.points ?: if (s.profile == RouteProfile.LINE) s.waypoints else emptyList()
+        val grab = RouteEdit.grab(p, s.waypoints, drawn, metresPerDp) ?: return false
+        // Without a route (one stop, or routing failed) the preview joins the stops directly.
+        val line = if (drawn.size >= 2) drawn else s.waypoints
+        val indices = if (drawn.size >= 2) Guidance.stopIndices(drawn, s.waypoints) else s.waypoints.indices.toList()
+        drag = Drag(grab, p, s.waypoints, line, indices, metresPerDp)
+        show(grab.at)
+        return true
+    }
+
+    /** The finger holding a picked-up stop moved to [p]. */
+    fun drag(p: GeoPoint) {
+        val d = drag ?: return
+        show(follow(d, p))
+    }
+
+    /** The finger was lifted at [p]: the stop stays there and the route is calculated again. */
+    fun drop(p: GeoPoint) {
+        val d = drag ?: return
+        drag = null
+        val at = follow(d, p)
+        val moved = Geo.distance(at, d.grab.at) > MOVE_SLOP_DP * d.metresPerDp
+        if (d.grab.inserted || moved) {
+            edit(RouteEdit.place(d.stops, d.grab, at), before = d.stops)
+        } else {
+            _state.value = _state.value.copy(waypoints = d.stops, preview = null) // just a long press on a stop
+        }
+    }
+
+    /** Where the stop is with the finger at [p]: it keeps the offset it had from the finger when picked up. */
+    private fun follow(d: Drag, p: GeoPoint) =
+        GeoPoint(d.grab.at.lat + (p.lat - d.finger.lat), d.grab.at.lon + (p.lon - d.finger.lon))
+
+    private fun show(at: GeoPoint) {
+        val d = drag ?: return
+        _state.value = _state.value.copy(
+            waypoints = RouteEdit.place(d.stops, d.grab, at),
+            preview = RouteEdit.preview(d.line, d.stopIndices, d.grab, at),
+        )
+    }
+
     fun undo() {
         val previous = undo.removeLastOrNull() ?: return
-        _state.value = _state.value.copy(waypoints = previous)
+        drag = null
+        _state.value = _state.value.copy(waypoints = previous, preview = null)
         recompute()
     }
 
@@ -94,12 +160,16 @@ object PlannerSession {
     /** Saves the planned route to the library (and shows it on the map). */
     fun save(name: String): SavedTrack? = currentTrack(name)?.let { library?.save(it) }
 
-    private fun edit(waypoints: List<GeoPoint>) {
-        undo += _state.value.waypoints
+    private fun edit(waypoints: List<GeoPoint>, before: List<GeoPoint> = _state.value.waypoints) {
+        drag = null
+        undo += before
         if (undo.size > 50) undo.removeAt(0)
-        _state.value = _state.value.copy(waypoints = waypoints)
+        _state.value = _state.value.copy(waypoints = waypoints, preview = null)
         recompute()
     }
+
+    /** A stop dragged less than this (in dp) stays where it was. */
+    private const val MOVE_SLOP_DP = 4.0
 
     private fun recompute() {
         job?.cancel()

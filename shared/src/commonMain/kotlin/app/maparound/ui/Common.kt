@@ -167,6 +167,12 @@ object Fmt {
         return "${d.dayOfMonth} ${MONTHS[d.monthNumber - 1]} ${padded(d.hour, 2)}:${padded(d.minute, 2)}"
     }
 
+    /** "14:05" (local time). */
+    fun timeOfDay(timeMs: Long): String {
+        val d = Instant.fromEpochMilliseconds(timeMs).toLocalDateTime(TimeZone.currentSystemDefault())
+        return "${padded(d.hour, 2)}:${padded(d.minute, 2)}"
+    }
+
     private val MONTHS = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
     /** Running clock for recordings: "1:05:09". */

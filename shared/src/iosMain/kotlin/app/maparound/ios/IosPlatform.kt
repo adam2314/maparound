@@ -68,6 +68,14 @@ object IosPlatformActions : PlatformActions {
 
     override fun shareRouteLink(track: Track) = share(listOf(RouteText.of(track)))
 
+    override fun shareTextFile(fileName: String, mimeType: String, content: String, title: String) {
+        val dir = NSTemporaryDirectory() + "shared"
+        fileSystem.createDirectories(dir.toPath())
+        val path = "$dir/${fileName.replace(Regex("[^A-Za-z0-9._-]"), "_")}"
+        fileSystem.write(path.toPath()) { writeUtf8(content) }
+        share(listOf(NSURL.fileURLWithPath(path)))
+    }
+
     /** Writes a GPX file to share into the temporary folder. */
     private fun writeShared(name: String, write: (Appendable) -> Unit): NSURL {
         val dir = NSTemporaryDirectory() + "shared"
@@ -128,7 +136,7 @@ object PendingParty : PartyController {
     override fun leave() = Unit
     override fun setActive(on: Boolean) = Unit
     override fun setSharing(on: Boolean) = Unit
-    override fun setProfile(name: String, color: Int) = Unit
+    override fun setProfile(name: String, color: Int, icon: Int) = Unit
     override fun setOnlineEnabled(on: Boolean) = Unit
     override fun setGateway(on: Boolean) = Unit
     override fun setRadio(address: String, name: String) = Unit

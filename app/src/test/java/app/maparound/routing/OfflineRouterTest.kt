@@ -19,10 +19,13 @@ class OfflineRouterTest {
         val end = GeoPoint(31.7731, 35.1251)   // Sataf
         for (profile in listOf(RouteProfile.HIKE, RouteProfile.BIKE, RouteProfile.CAR)) {
             val r = router.route(listOf(start, end), profile)
-            println("$profile: ${r.points.size} pts, ${r.stats.distanceM.toInt()} m, +${r.stats.ascentM?.toInt()} m, ${r.durationS} s")
+            println("$profile: ${r.points.size} pts, ${r.stats.distanceM.toInt()} m, +${r.stats.ascentM?.toInt()} m, ${r.durationS} s, ${r.maneuvers.size} turns")
             assertTrue("$profile route is longer than the straight line", r.stats.distanceM > Geo.distance(start, end))
             assertTrue("$profile route has elevation", r.points.any { it.ele != null })
             assertNotNull(r.durationS)
+            // Winding hill roads and paths: navigation needs BRouter's turn hints, on the route.
+            assertTrue("$profile route has turn hints", r.maneuvers.isNotEmpty())
+            assertTrue(r.maneuvers.all { it.index in r.points.indices })
         }
     }
 }

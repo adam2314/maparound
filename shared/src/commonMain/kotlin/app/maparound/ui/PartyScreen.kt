@@ -1,5 +1,7 @@
 package app.maparound.ui
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -85,15 +87,6 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** Colours members can pick; also used for their map markers. */
-object PartyColors {
-    val all = listOf(
-        Color(0xFF1E88E5), Color(0xFFE53935), Color(0xFF43A047), Color(0xFFFB8C00),
-        Color(0xFF8E24AA), Color(0xFF00897B), Color(0xFFD81B60), Color(0xFF6D4C41),
-    )
-
-    fun of(index: Int): Color = all[(index % all.size + all.size) % all.size]
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -200,7 +193,14 @@ fun PartyScreen(
 
     if (showQr) s.party?.let { InviteDialog(it, onDismiss = { showQr = false }) }
     if (radioPicker) partyPlatform.RadioPicker(onPick = { addr, name -> radioPicker = false; party.setRadio(addr, name) }, onDismiss = { radioPicker = false })
-    if (editMe) s.me?.let { me -> EditMeDialog(me.name, me.color, onDismiss = { editMe = false }, onSave = { n, c -> editMe = false; party.setProfile(n, c) }) }
+    if (editMe) {
+        s.me?.let { me ->
+            EditMeDialog(me.name, me.color, me.icon, onDismiss = { editMe = false }) { n, c, i ->
+                editMe = false
+                party.setProfile(n, c, i)
+            }
+        }
+    }
 
     if (confirmSos) {
         var text by remember { mutableStateOf("") }
@@ -300,7 +300,7 @@ private fun InParty(
                     SwitchLine("Share my location", if (s.sharing) "Others see you" else "Hidden: you see them, they don't see you", s.sharing) { party.setSharing(it) }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         s.me?.let { me ->
-                            Box(Modifier.size(14.dp).background(PartyColors.of(me.color), CircleShape))
+                            PartyAvatar(me.name, me.color, me.icon, 28.dp)
                             Spacer(Modifier.width(8.dp))
                             Text("You: ${me.name}", Modifier.weight(1f))
                         }
@@ -449,13 +449,7 @@ private fun MemberRow(m: Member, me: GeoFix?, now: Long, onShow: (GeoPoint) -> U
     val p = m.position
     ListItem(
         modifier = Modifier.clickable(enabled = p != null) { p?.let { onShow(GeoPoint(it.lat, it.lon)) } },
-        leadingContent = {
-            Box(
-                Modifier.size(32.dp).background(PartyColors.of(m.color), CircleShape)
-                    .then(if (m.sos) Modifier.border(3.dp, MaterialTheme.colorScheme.error, CircleShape) else Modifier),
-                contentAlignment = Alignment.Center,
-            ) { Text(m.displayName.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold) }
-        },
+        leadingContent = { PartyAvatar(m.displayName, m.color, m.icon, 36.dp, sos = m.sos) },
         headlineContent = {
             Text(
                 (if (m.sos) "SOS · " else "") + m.displayName,
@@ -538,27 +532,25 @@ private fun InviteDialog(key: PartyKey, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun EditMeDialog(name: String, color: Int, onDismiss: () -> Unit, onSave: (String, Int) -> Unit) {
+private fun EditMeDialog(name: String, color: Int, icon: Int, onDismiss: () -> Unit, onSave: (String, Int, Int) -> Unit) {
     var n by remember { mutableStateOf(name) }
     var c by remember { mutableStateOf(color) }
+    var i by remember { mutableStateOf(icon) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("You in this party") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(n, { n = it.take(24) }, label = { Text("Name") }, singleLine = true)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PartyColors.all.forEachIndexed { i, col ->
-                        Box(
-                            Modifier.size(28.dp).background(col, CircleShape)
-                                .then(if (i == c) Modifier.border(3.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier)
-                                .clickable { c = i },
-                        )
-                    }
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    PartyAvatar(n, c, i, 48.dp)
+                    Spacer(Modifier.width(12.dp))
+                    OutlinedTextField(n, { n = it.take(24) }, label = { Text("Name") }, singleLine = true)
                 }
+                Text("How the others see you on the map", style = MaterialTheme.typography.bodySmall)
+                PartyLookPicker(n, c, i, onColor = { c = it }, onIcon = { i = it })
             }
         },
-        confirmButton = { TextButton(onClick = { onSave(n, c) }) { Text("Save") } },
+        confirmButton = { TextButton(onClick = { onSave(n, c, i) }) { Text("Save") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }

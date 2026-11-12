@@ -3,7 +3,8 @@
 # MapAround
 
 An Android map browser built around OpenStreetMap data. You can download maps per country and use
-them with no internet connection. It also plans routes, records tracks, shows marked hiking trails,
+them with no internet connection. It also plans routes and guides you along them turn by turn,
+records tracks, shows marked hiking trails,
 shares your group's live positions (online and off-grid over LoRa radios), and includes a compass,
 a barometer and a GNSS satellite-reception view.
 
@@ -15,16 +16,16 @@ Licence: **GPL-3.0** (see [LICENSE](LICENSE)); bundled components keep their own
 |---|---|
 | **Map** | Pan/zoom map, my-location dot with accuracy circle and follow mode, long-press to drop a pin (coordinates, DMS, distance/bearing from you, copy, open in another app). Buttons for **search**, layers, the **route planner**, **map tools**, the **3D view** and **track recording**; zoom with pinch or double-tap. |
 | **Search** (on the map, magnifier) | Your saved places, coordinates in any format and map links, and names in the **offline maps** around the map centre (towns, peaks, springs, streets, paths, hotels…, within 25 km, works without internet) as you type; **online** search of OpenStreetMap anywhere (Photon, with Nominatim as a fallback) when you press search. Picking a result drops a labelled pin there. |
-| **Map tools** (on the map, ruler button) | **Azimuth & range** between two points (true and magnetic bearing, mils, back bearing, height difference, slope, place B by bearing + distance). **Line of sight** from A to B with a terrain profile and where the view is blocked. **Viewshed**: a circle (250 m–25 km) showing ground in sight (green) and hidden (red). **Coordinate converter**: one point in decimal degrees, deg-min, deg-min-sec, UTM, MGRS, Israeli ITM, Plus Code and Maidenhead; type or paste any of them to jump there; pick the format used on pins. |
-| **Route planner** (on the map) | Tap points (start, stops, end); tap a numbered point to remove it. Profiles **Hike / Bike / Car** follow paths and roads; **Line** draws straight lines to measure. Shows distance, climb/descent, estimated time and an elevation profile; undo, reverse, save to the library. |whats
+| **Map tools** (on the map, ruler button) | **Azimuth & range** between two points (true and magnetic bearing, mils, back bearing, height difference, slope, place B by bearing + distance). **Line of sight** from A to B with a terrain profile and where the view is blocked; as a **radio link**, with antenna heights at both ends and a frequency (LoRa 433/868/915 MHz, 2.4 and 5.8 GHz, VHF, PMR446, FRS/GMRS or any), it draws the first Fresnel zone on the profile and gives its clearance (60% rule) and the path loss (free space + terrain). **Viewshed**: a circle (250 m–25 km) showing ground in sight (green) and hidden (red). **Coordinate converter**: one point in decimal degrees, deg-min, deg-min-sec, UTM, MGRS, Israeli ITM, Plus Code and Maidenhead; type or paste any of them to jump there; pick the format used on pins. |
+| **Route planner** (on the map) | Tap points (start, stops, end); tap a numbered point to remove it. Hold a stop and drag it to move it, or hold the line and drag to add a stop there; the line follows your finger and the route is calculated again when you let go. Profiles **Hike / Bike / Car** follow paths and roads; **Line** draws straight lines to measure. Shows distance, climb/descent, estimated time and an elevation profile; undo, reverse, save to the library. **Start** navigates: the next turn and its distance, time left and arrival, voice prompts (switchable), a new route when you leave it, and it keeps going with the screen off. |whats
 | **3D view** (on the map, cube button) | The map in 3D, streamed as you move: terrain relief with the map draped on it (your offline topo style, or the online layer, or satellite), detailed near you and coarser to the horizon, and buildings extruded from the offline map close up (heights from OSM `height` / `building:levels`). One finger pans, pinch zooms, two fingers turn and tilt; relief exaggeration ×1–4, buildings on/off, face north. |
 | **Places** (Library → Places) | Your own points of interest: save from any pin or your location with a name, category (⭐ favourite, ⛺ camp, 💧 water, 🔭 viewpoint, 🅿️ parking, ⛽ fuel, 🍴 food, ⚠️ danger, 📍 other) and a note. Shown on the map (Layers → Saved places); tap one for route here, share, viewshed, edit, delete. The list searches names and notes, filters by category and sorts by distance, name or date. Import waypoints from any GPX file, share or export places as GPX. |
 | **Library** | Routes & tracks, and Places. Library of saved routes and tracks (GPX files): show/hide on the map, elevation profile & stats, share as GPX, rename, delete, **import GPX** from other apps. **Record** a track with GPS; it keeps recording with the screen off. |
-| **Party** | Live location sharing for a group (hiking, convoys). Create a party and invite with a QR code or link; members appear on the map with name, colour, age and how their update arrived. Works **online** (MQTT) and **off-grid over LoRa** through Meshtastic radios paired by Bluetooth; a phone with both acts as a **gateway** between them. SOS alerts, meeting point, route to a member, short messages, "hidden" mode. End-to-end encrypted. |
+| **Party** | Live location sharing for a group (hiking, convoys). Create a party and invite with a QR code or link; members appear on the map with name, their chosen icon (initial; walker, hiker, runner, Nordic walker, skier, kayaker; cyclist, bicycle, e-bike, motorcycle, moped; car, 4×4, van, truck, caravan) on their colour (16 presets or any mix), age and how their update arrived. Works **online** (MQTT) and **off-grid over LoRa** through Meshtastic radios paired by Bluetooth; a phone with both acts as a **gateway** between them. SOS alerts, meeting point, route to a member, short messages, "hidden" mode. End-to-end encrypted. |
 | **Sharing** | Share any point (long-press pin, your location dot, party members, meeting point) as a **link** (Google Maps + OpenStreetMap), a **GPX waypoint**, or open it in another app. Share routes as **GPX + links** (BRouter-Web rebuilds the route in any browser; Google Maps directions). MapAround also **opens** what others send: `geo:` links, Google/OSM/Apple/Waze/BRouter links, text with coordinates (also degrees-minutes-seconds), GPX files, mapsforge `.map` files, and party invites. |
-| **Offline** | Browse the per-country catalog on download.mapsforge.org (continents → countries → regions), download with the system DownloadManager (background, resumable, Wi‑Fi-only option, storage check), update when the server has a newer file, delete, or import any mapsforge `.map` file (e.g. OpenAndroMaps). A 3 MB world overview map is used for zoomed-out views. Each map's **⋮** menu adds extras for its area: **contours & hill shading**, **offline routing** and **marked trails**. **Raster maps**: add TwoNav / CompeGPS **`.rmap`** files (e.g. scanned 1:50,000 topo sheets); big files are read where they are, not copied. |
-| **Layers** (on the map) | *Offline vector* (all installed maps rendered together) in the **Topo** or Classic style, with switches for **contour lines** and **hill shading**; a **marked hiking trails** overlay; or online raster sources: OpenStreetMap, OpenTopoMap, CyclOSM, Humanitarian, **Satellite** (Esri World Imagery), plus your own XYZ URL templates (`{s} {z} {x} {y} {-y}`). Online tiles are cached on disk. **Background of the offline map**: its own colours, **satellite imagery**, or one of your **raster maps**, with the vector map's roads, trails, contours and labels drawn on top (switchable). |
-| **Android Auto** | The map on the car screen: the same offline/online map, contours, hill shading and trails as the phone, your position (follow mode), the planned route, shown tracks, the recording and party members. Speed, altitude, heading and party status at the top; **Satellite** toggle, re-centre, pan and zoom. "Navigate to" a place from the car shows it with a car route. |
+| **Offline** | Browse the per-country catalog on download.mapsforge.org (continents → countries → regions), download with the system DownloadManager (background, resumable, Wi‑Fi-only option, storage check), update when the server has a newer file, delete, or import any mapsforge `.map` file (e.g. OpenAndroMaps). A 3 MB world overview map is used for zoomed-out views. Each map's **⋮** menu adds extras for its area: **contours & hill shading**, **offline routing** and **marked trails**; they keep downloading with the app in the background, with their progress in a notification. **Raster maps**: add TwoNav / CompeGPS **`.rmap`** files (e.g. scanned 1:50,000 topo sheets) and tile databases, **MBTiles** (from QGIS, GDAL, MOBAC, MapTiler…) and **SQLiteDB** (Locus, OsmAnd, RMaps); big files are read where they are, not copied. |
+| **Layers** (on the map) | *Offline vector* (all installed maps rendered together) in a **style**: Topo, Classic, Osmarender, Biker, Motorider or one you **import** (a mapsforge render theme, `.xml` or `.zip`), each with its own **options** to show or hide parts of the map (Topo: land cover, buildings, boundaries, railways | **Layers** (on the map) | *Offline vector* (all installed maps rendered together) in the **Topo** or Classic style, with switches for **contour lines** and **hill shading**; a **marked hiking trails** overlay; or online raster sources: OpenStreetMap, OpenTopoMap, CyclOSM, Humanitarian, **Satellite** (Esri World Imagery), plus your own XYZ URL templates (`{s} {z} {x} {y} {-y}`). Online tiles are cached on disk. lifts, names, peaks | **Layers** (on the map) | *Offline vector* (all installed maps rendered together) in the **Topo** or Classic style, with switches for **contour lines** and **hill shading**; a **marked hiking trails** overlay; or online raster sources: OpenStreetMap, OpenTopoMap, CyclOSM, Humanitarian, **Satellite** (Esri World Imagery), plus your own XYZ URL templates (`{s} {z} {x} {y} {-y}`). Online tiles are cached on disk. springs, points of interest); switches for **contour lines** and **hill shading**; a **marked hiking trails** overlay. Or **online** raster sources: OpenStreetMap France and Germany, OpenTopoMap, CyclOSM, Humanitarian, Esri World Topo and Street, **Satellite** (Esri World Imagery), and national maps (swisstopo, basemap.at, Kartverket, IGN plan | **Layers** (on the map) | *Offline vector* (all installed maps rendered together) in the **Topo** or Classic style, with switches for **contour lines** and **hill shading**; a **marked hiking trails** overlay; or online raster sources: OpenStreetMap, OpenTopoMap, CyclOSM, Humanitarian, **Satellite** (Esri World Imagery), plus your own XYZ URL templates (`{s} {z} {x} {y} {-y}`). Online tiles are cached on disk. aerial, USGS Topo), plus your own XYZ URL templates (`{s} {z} {x} {y} {-y}`); **import and export** the list of your own. Online tiles are cached on disk. See [docs/map-styles.md](docs/map-styles.md). **Background of the offline map**: its own colours, **satellite imagery**, or one of your **raster maps**, with the vector map's roads, trails, contours and labels drawn on top (switchable). |
+| **Android Auto** | The map on the car screen: the same offline/online map, contours, hill shading and trails as the phone, your position (follow mode), the planned route, shown tracks, the recording and party members. Speed, altitude, heading and party status at the top; **Satellite** toggle, re-centre, pan and zoom. "Navigate to" a place from the car routes there and starts **turn-by-turn navigation**: the next maneuver, time and distance left, voice through the car's speakers, and the trip on the car's own displays; Start / Stop / Mute on the car screen. |
 | **Sensors** | **Compass:** rotation-vector heading with smoothing, magnetic or true north (declination from your position), calibration warning (tilt is in Motion). **Speed:** GPS ground speed (km/h, mph, knots, m/s) with its accuracy, heading of travel, walking pace, a trip counter (distance, max, average while moving, moving/total time) and a 10-minute chart; keeps the screen on. **Motion:** inclinometer for vehicles (pitch and roll drawn as a car from the side and behind, amber at 15°, red at 25°, **Set as level** for a phone in a holder); accelerometer (total g, x/y/z, movement without gravity, peak, a G-meter for braking/accelerating and cornering, 10-second chart); gyroscope (turn rate left/right, x/y/z °/s, chart); sensor model and range. **Barometer:** pressure (hPa / inHg / mmHg), barometric altitude, calibration by known elevation, GPS altitude or QNH, live trend chart with hPa/h. **Satellites:** live GNSS reception — fix state, satellites in use / in view, sky plot, per-satellite C/N₀ signal bars, constellation and band, TTFF, accuracy, speed, course. |
 
 Map extras per area (all optional):
@@ -33,7 +34,7 @@ Map extras per area (all optional):
 |---|---|---|---|
 | Contours & hill shading | AWS Terrain Tiles | 30 m: ~26 MB per 1°×1°; 90 m: ~3 MB | Contour lines are generated on the phone. |
 | Offline routing | brouter.de (BRouter) | 5°×5° blocks, 2–300 MB each | Without it, routes are calculated online by brouter.de. |
-| Marked trails | OpenStreetMap via Overpass API | ~0.5–5 MB per 1°×1° on the phone | Without it, trails are an online overlay (waymarkedtrails.org). |
+| Marked trails & cliffs | OpenStreetMap via Overpass API | ~0.5–8 MB per 1°×1° on the phone | Without it, trails are an online overlay (waymarkedtrails.org) and the Topo style has no cliffs (the mapsforge maps leave them out). |
 
 Missing sensors (no barometer, no GPS, and so on) show an explanation instead of crashing.
 
@@ -44,7 +45,7 @@ Requirements: Android Studio (Ladybug or newer) **or** JDK 17 + Android SDK 35.
 ```bash
 ./gradlew :app:assembleDebug        # APK in app/build/outputs/apk/debug/
 ./gradlew :shared:testDebugUnitTest # shared logic on the JVM: catalog, contours, elevation, GPX, routing
-                                    # geometry, trails, party, links, map tools & coordinates, tilt & trip
+                                    # geometry & navigation, trails, party, links, map tools & coordinates, tilt & trip
                                     # stats, places, search, RMAP, 3D tiles & buildings, mapsforge reader
 ./gradlew :app:testDebugUnitTest    # Android-side: map layers & theme, trail rendering, BRouter, MQTT
 # optional live tests: MQTT_LIVE=1 (public broker), BROUTER_SEGMENTS=<dir with E35_N30.rd5>,
@@ -63,8 +64,7 @@ services dependency, so it also works on de-Googled phones.
 
 ## Topo style, contours & hill shading
 
-The Topo style (`app/src/main/assets/themes/topo.xml`) is a hiking map inspired by mapeak.com's
-hike style:
+The Topo style (`app/src/main/assets/themes/topo.xml`) is a hiking map:
 - cream base, soft land cover;
 - brown contours with elevation labels on the major lines;
 - brown trails with a white casing, double-line tracks by grade;
@@ -73,6 +73,13 @@ hike style:
 The point-of-interest sections come from the mapsforge default theme. `topo.xml` is the only source
 for the style: edit it directly, then check the result with the preview tool below. Sample renders
 are in [`docs/topo-preview/`](docs/topo-preview/).
+
+Its `<stylemenu>` makes it modular: land cover, buildings, boundaries, railways & lifts, names,
+peaks & springs and points of interest are options in Layers, and each one switches a category of
+rules (`cat="…"`). The same works for any style with a menu, built in or imported (Android). The
+shared `StyleMenu` turns the choices into categories for mapsforge on Android and for the MapLibre
+conversion on iOS. How to write or import a style, and the extra map data MapAround gives it
+(contours, marked trails), is in [docs/map-styles.md](docs/map-styles.md).
 
 How the terrain works (`app/src/main/java/app/maparound/terrain/`, plain Kotlin with no Android
 dependencies):
@@ -108,12 +115,25 @@ on Windows, prefix the commands with `MSYS_NO_PATHCONV=1`.
 ## Routes, tracks & trails
 
 - **Route planner** (`routing/`): `PlannerSession` holds the waypoints and recalculates shortly after
-  each change. `RoutePlanner` uses the embedded **BRouter** engine (`OfflineRouter`, vendored in
+  each change. A long press within 24 dp of a stop, or 16 dp of the line, picks that stop or a new
+  one on that leg up (`RouteEdit`); while it's dragged, the legs next to it are drawn straight and
+  the route is calculated once it's let go (one undo step). `RoutePlanner` uses the embedded **BRouter** engine (`OfflineRouter`, vendored in
   [`brouter/`](brouter/README.md), MIT) when the routisong data for every point is downloaded,
   otherwise the public brouter.de server; if an offline route runs off the downloaded area, it
   falls back to the server when online. Profiles: `hiking-mountain`, `trekking` (bike), `car-vario`.
   Hiking times use the DIN 33466 rule (4 km/h, 300 m/h up, 500 m/h down); bike and car times come
   from BRouter. **Line** mode measures straight lines, with heights sampled from the terrain data.
+- **Navigation** (`routing/Navigator`, `NavigationSession`, `Guidance`): the turns come from
+  BRouter's turn hints (`turnInstructionMode` 2 offline, `timode=2` online), plus each stop and the
+  arrival; straight lines get turns from their shape at the stops. Each GPS fix is matched to the
+  route near where you were (the direction of travel tells apart the two legs of an out-and-back),
+  then the next maneuver is announced up to three times: far ahead, near ("In 300 metres, turn
+  right", with "then …" if the next one follows closely) and at the turn. The distances depend on the
+  profile and grow with speed. After 3–4 fixes 30–60 m off the route, a new route is calculated from
+  where you are to the stops still ahead (offline, or online without routing data), at most every
+  15 s. A foreground service (`NavigationService`) keeps the fixes coming with the screen off and
+  shows the next turn in its notification; the voice is Android's TextToSpeech, as navigation
+  guidance (music ducks). Navigation ends two minutes after you arrive.
 - **Tracks** (`tracks/`): every route and track is a GPX 1.1 file in `files/tracks/`.
   `RecordingService` is a location foreground service; each fix (accuracy ≤ 40 m, ≥ 3 m from the
   last) is appended to `recording.journal` first. If Android restarts the service after killing
@@ -122,14 +142,21 @@ on Windows, prefix the commands with `MSYS_NO_PATHCONV=1`.
 - **Marked trails** (`trails/`): OSM `route=hiking|foot` relations are downloaded per 1°×1° cell from
   the Overpass API and stored compactly (`TrailCellIO`, ~10× smaller than the download).
   `TrailDataStore` feeds them to the renderer one line per waymark colour (from `osmc:symbol` or
-  `colour`), offset side by side where routes share a path, as mapeak and Waymarked Trails do.
+  `colour`), offset side by side where routes share a path, as Waymarked Trails does. The same
+  request also fetches `natural=cliff|arete|ridge|earth_bank` ways, which the mapsforge maps leave
+  out; the data store gives them to the renderer as in OSM (from zoom 13, also with the trail lines
+  off), so Topo's cliff rules draw them. Cells from before (format 1) are fetched again for them.
 
 ## Party location sharing
 
 - **Party = 16-byte id + 32-byte key**, shared as `maparound://party/<code>?n=<name>` (QR code or
   link). Every message is **AES-256-GCM** encrypted end to end (`party/Protocol.kt`); a position
   update is 54 bytes. Message types: position (with speed, heading, battery, SOS flag), hello
-  (name, colour, Meshtastic node), SOS, meeting point, text, leave.
+  (name, colour, icon, Meshtastic node), SOS, meeting point, text, leave. Hello first carries a
+  colour index and the node and name, as the first app versions read it (they get the nearest of
+  their 8 colours); the icon code and the full RGB colour follow, so newer versions show both
+  (`party/PartyLook.kt`). The icons are flattened to polygons there, so the list, the Android map
+  and the iOS map draw the same shapes.
 - **Transports** (`party/`), each a module the router drives:
   - **Online** (`MqttTransport`): MQTT over TLS, topics `maparound/v1/<party tag>/<sender>/<kind>`.
     Positions, names, SOS and meeting point are *retained*, so whoever joins sees everyone at
@@ -185,6 +212,14 @@ shading extra); azimuth and the converter work without it.
   (default 1.7 m) to the target at B (default 1.7 m). It reports in sight / hidden, the blocking
   point and by how much, or the clearance. The map line is green where A sees the ground and red where
   it doesn't; the panel draws the profile with the sight line.
+- **Radio link** (the Sight tool's switch; `LineOfSight.Fresnel`): the heights become antenna heights
+  and the line runs antenna to antenna, with radio's effective Earth radius (k = 4/3, about 6 m drop
+  at 10 km). Along the path it computes the first Fresnel zone, r = √(λ·d₁·d₂ / d), and how much of
+  it the ground leaves clear; the verdict is clear (60% or more of the zone clear), partly blocked or
+  blocked. Path loss is free space (32.44 + 20 log d[km] + 20 log f[MHz]) plus the tightest point as a
+  single knife edge, J(v) of ITU-R P.526. The profile shows the zone as a lens, its 60% line dashed,
+  and the ground green / amber / red by how far it reaches into it. Antenna gain, cable loss, trees
+  and buildings aren't included.
 - **Viewshed** (`Viewshed`): radial sweep from A, one ray to every edge cell of a grid of up to
   601×601 cells laid out in Web Mercator (so it lines up with map pixels). Each ray samples terrain at
   the same spacing as the line of sight, so both tools agree (checked against brute-force sight lines
@@ -214,8 +249,10 @@ MapAround is a **navigation-category car app** built with the Android for Cars A
 display on it and shows an ordinary mapsforge `MapView` there (in a `Presentation`), with its own
 tile caches and text scaled for the car screen. It follows the same live data as the phone (base map
 and style, planned route, tracks, recording, party). Pan, pinch and double-tap come from the car's
-touch screen; the template has zoom buttons, re-centre and a satellite toggle. It is a map display,
-not turn-by-turn navigation.
+touch screen; the template has zoom buttons, re-centre and a satellite toggle. While navigating
+(`CarNavigation`), the template's routing card shows the next maneuver (arrows drawn from the same
+shapes as the phone's, `TurnGlyph`), `NavigationManager` gets the trip for the car's cluster or
+head-up display, and stopping navigation from the car stops it on the phone too.
 
 **Using it with a sideloaded build** (Android Auto only lists Play Store apps unless you allow others):
 
@@ -266,7 +303,7 @@ phone locked depends on how the Android Auto host keeps the app running.
 ## Backgrounds, raster maps & search
 
 - **Hybrid map** (`map/TopoTheme.kt`, `map/MapController.kt`): with a background chosen in
-  Layers, the offline vector map is drawn transparently on top of it in a variant of the Topo style
+  Layers, the offline vector map is drawn transparently on top of it in a variant of its style
   with every area fill removed (land use, water, buildings) and a transparent background, so only
   roads, paths, marked trails, contours, symbols and labels remain; hill shading is off (the
   picture has its own light). "Roads, trails & labels on top" can be switched off to see the
@@ -282,6 +319,15 @@ phone locked depends on how the Android Auto host keeps the app running.
   don't have to be the corners). Tiles are reprojected to Web Mercator on worker threads: exact
   on a 16×16 grid per tile, interpolated in between, from the file's level that best matches the
   zoom, smoothed when zoomed in past the scan's resolution.
+- **Tile databases** (`raster/TileDatabase`, `SqliteFile`): raster MBTiles (`tiles` table in TMS
+  rows, or mbutil's `map` + `images` behind a `tiles` view) and SQLiteDB (`tiles` with x, y, z = 17 −
+  zoom unless its `info` says `simple`, rows from the north unless `inverted_y`). They're read with
+  MapAround's own read-only SQLite reader (schema, b-trees, overflow pages, index lookups) through
+  the same positional reads as RMAP: Android's SQLite can't open a file picked through the system's
+  file picker, and this way nothing is copied and the code can serve iOS later. Names, zooms and
+  bounds come from the metadata, else from the tiles. Past the most detailed level, tiles are
+  enlarged; up to two levels above the least detailed one, put together from smaller tiles. Vector
+  MBTiles and elliptical-Mercator (Yandex) SQLiteDB files are refused with a message.
 - **Search** (`search/`): as you type, saved places and coordinates (any format) appear at once,
   and the offline maps are read around the map centre (25 km; names in every language the map
   stores, accents and Hebrew vowel points ignored; pieces of the same river or street merged).
@@ -321,13 +367,14 @@ shared/src/
   commonMain/kotlin/app/maparound/
     ui/                    all Compose screens and the app frame (MapAroundRoot), theme, formatting
     map/                   MapSurface (the map as the screens drive it), BaseMap, markers, tile sources
+                           and their import/export (SourceList), styles and their options (StyleMenu)
     map/maplibre/          the map on MapLibre (iOS): MapLibreSurface, the style made from topo.xml
                            (ThemeStyle), GeoJSON overlays, the in-app tile service (vector tiles,
                            contours, Terrarium elevation, fonts)
     tools/ sensors/ three/ search/ routing/ terrain/ raster/ places/ tracks/ trails/ share/ party/ data/
                            the shared parts of the app packages below: geodesy, sight & viewshed,
                            coordinates, tilt & trip, sensor interfaces, 3D tiles & meshes, search
-                           engine, routing geometry & planner session, contours, elevation tiles
+                           engine, routing geometry, planner (dragging stops: RouteEdit) & navigation, turn arrows, contours, elevation tiles
                            (memory-mapped), HGT processing, RMAP, places, GPX & track library, trail
                            cells, links, party protocol, engine & state, Meshtastic codec, map
                            catalog, settings (Prefs) and the offline-data interfaces
@@ -347,19 +394,22 @@ iosApp/                    the iOS app shell (Swift, XcodeGen project): MLNMapVi
                            label fonts and map symbols before a build. Built and run in CI
 app/src/main/java/app/maparound/
   MapAroundApp.kt          app init + tiny service locator (AppGraph)
-  data/                    prefs, installed maps, remote catalog, map/terrain/trail downloaders
-  map/                     MapController (mapsforge MapView + layers), online tile sources, TopoTheme
+  data/                    prefs, installed maps, remote catalog, map/terrain/trail downloaders, the
+                           download service that keeps terrain & trail downloads going
+  map/                     MapController (mapsforge MapView + layers), online tile sources, the styles
+                           (AndroidMapThemes: built in and imported)
   terrain/                 elevation tiles, contour tracing, contour data source, coast mask
-  routing/                 route planner session, BRouter wrapper, online router, routing data
+  routing/                 BRouter wrapper, online router, routing data, navigation service & voice
   tracks/                  GPX read/write, track library, GPS recording service
   trails/                  marked hiking trails: Overpass parsing, cell files, index, data source
   share/                   link parsing/building, sharing out, handling what other apps send in
   tools/                   map tools: geodesy, line of sight, viewshed, coordinate formats, tools session
   places/                  saved places (POIs): categories, GPX read/write, search, repository
-  raster/                  raster maps: RMAP reader & calibration (projections, least-squares fit), reprojecting tile renderer
+  raster/                  raster maps: RMAP reader & calibration (projections, least-squares fit), reprojecting tile renderer,
+                           tile databases (MBTiles, SQLiteDB) on a small SQLite file reader
   search/                  place search: name matching & ranking, offline map names, online (Photon / Nominatim)
   three/                   3D view: terrain mesh, building extrusion & triangulation, scene loader, OpenGL ES 3 renderer
-  car/                     Android Auto: car app service, session, map renderer on the car surface, template screen
+  car/                     Android Auto: car app service, session, map renderer on the car surface, template screen, navigation
   party/                   party key & encryption, Meshtastic protobuf codec, engine, MQTT & BLE transports, service
   sensors/                 location, GNSS status, compass, motion (tilt, accelerometer, gyro), speed & trip, barometer
   ui/                      Android root (permissions, start-up), platform actions, Satellites tab, 3D view host
@@ -381,10 +431,14 @@ Online tiles are cached in the app's cache folder, one cache per source.
 ## Privacy & permissions
 
 - **Location** (fine/coarse): used for the position dot, true-north declination, GPS altitude for
-  barometer calibration, the Speed and Satellites tabs, the map tools, track recording and the
-  Android Auto map. It stays on the device.
-- **Foreground service (location) & notifications**: while you record a track or the party is on; a
-  notification is shown the whole time. No background location access is requested.
+  barometer calibration, the Speed and Satellites tabs, the map tools, track recording, navigation
+  and the Android Auto map. It stays on the device, except when navigation recalculates a route
+  online (below).
+- **Foreground service (location) & notifications**: while you record a track, navigate or the party
+  is on; a notification is shown the whole time. No background location access is requested.
+- **Foreground service (data sync) & wake lock**: while terrain or trails download, so they go on
+  with the app in the background and the screen off; the notification shows their progress.
+- **Voice**: navigation prompts use the phone's own text-to-speech engine.
 - **Bluetooth** (scan & connect): only to find and talk to your Meshtastic radio.
 - **Camera**: only to scan a party QR code.
 - **Android Auto** (`androidx.car.app.NAVIGATION_TEMPLATES`, `androidx.car.app.ACCESS_SURFACE`): lets
@@ -395,52 +449,41 @@ Online tiles are cached in the app's cache folder, one cache per source.
 - **Internet**: used for map, terrain, routing-data and trail downloads, online tiles (2D and 3D),
   online route calculation, and online search (the search text and the map centre go to
   photon.komoot.io, or nominatim.openstreetmap.org as a fallback; offline search sends nothing).
-  For online routes the tapped points are sent to brouter.de. There are no
-  analytics, accounts or tracking.
+  For online routes the tapped points are sent to brouter.de, and so is your position when
+  navigation recalculates a route without offline routing data. There are no analytics, accounts
+  or tracking.
 
 ## Known limitations
 
-- **Terrain and trail downloads run inside the app.** Map and routing-data downloads use Android's
-  DownloadManager, but these two don't, so keep MapAround open until they finish. If one is
-  interrupted, start it again from the map's ⋮ menu: only the missing areas are fetched.
-- **The coast is cut using the maps installed at terrain-download time.** If you later add a
-  neighbouring coastal map, delete and re-download that area's terrain to clean up its coastline.
-- **Marked trails show offline only in the Topo style.** With the Classic style or an online base
-  map, the online overlay is used instead.
-- **Overpass and brouter.de are free community servers.** Big trail areas can take minutes or hit
-  "server busy" (the app retries); a published app with many users should use its own servers.
-- **Party: phone-to-phone Bluetooth ("nearby") and own ESP32 firmware are not built yet**; offline
-  sharing needs Meshtastic radios. The LoRa transport is tested against Meshtastic's protocol
-  definitions, not yet with real radios. Public MQTT brokers have no uptime guarantee.
-- **The route planner has no turn-by-turn navigation** and no dragging of route lines; you edit a
-  route by adding, removing and reordering (reverse) its points.
-- **Line of sight and viewsheds use bare terrain.** Trees, buildings and anything smaller than the
-  terrain data's ~30 m cells aren't included, and sharp peaks are rounded off, so treat results as a
-  good guide, not a guarantee (radio links also need Fresnel-zone clearance, which isn't modelled).
-- **Raster maps: only `.rmap`** for now, in the projections listed above (no rotated or
-  Lambert/Cassini maps, no old Israeli grid). Non-WGS 84 datums other than DHDN and Israel 1993
-  are treated as WGS 84.
-- **Offline search covers 25 km around the map centre** (mapsforge maps carry names but no search
-  index); move the map to search elsewhere, or search online.
-- **Android Auto hasn't been tried in a car or on the desktop head unit yet.** It's a map display,
-  not turn-by-turn navigation. Sideloaded builds need **Unknown sources** in Android Auto's developer
-  settings, and whether GPS keeps updating with the phone locked depends on the Android Auto host.
-- **The 3D view draws offline tiles on the phone**, so the first view of a new area takes a while to
-  sharpen (online layers are faster once cached). Buildings are flat-roofed blocks from their
-  footprints (no roof shapes or `building:part` details), and map labels are part of the tile
-  pictures, so a label can be cut at a tile edge.
-- **The Speed tab's trip counts only while MapAround is open.** Record a track for a full log.
-- **Contours start at zoom 11**, and the Topo style is needed to see them (Classic only shows hill shading).
-- **Satellite reception data is Android-only.** iOS doesn't expose it, so the iOS version (in
-  progress, see `docs/IOS_PLAN.md`) will have no Satellites tab.
+- **On iPhone, keep MapAround open while terrain downloads** (Android goes on in the background),
+  and the offline maps have the Topo style only (importing styles is Android-only).
+  Restarting a download from the map's ⋮ menu fetches only the missing areas.
+- **Terrain coastlines follow the maps installed when it was downloaded**; after adding a
+  neighbouring coastal map, re-download that area's terrain.
+- **Contours and offline trails need the Topo style** or an imported style that draws them (the
+  others show hill shading and the online trail overlay). Contours start at zoom 11.
+- **Navigation has no street names or lanes**: BRouter's data has neither.
+- **English only**, voice prompts included.
+- **Line of sight, radio links and viewsheds use bare ~30 m terrain**: no trees or buildings, and
+  rounded peaks; radio loss is a single-obstacle estimate. Treat them as a guide.
+- **Off-grid party sharing needs Meshtastic radios**; there is no phone-to-phone Bluetooth yet.
+- **Not yet tried for real**: navigation on the road, Android Auto in a car, and the LoRa transport
+  with real radios.
+- **Raster maps: `.rmap`, MBTiles and SQLiteDB only** (no GeoTIFF, OziExplorer or KMZ yet), with no
+  rotated, Lambert or Cassini `.rmap` maps or old Israeli grid;
+  datums other than DHDN and Israel 1993 are treated as WGS 84.
+- **Overpass, brouter.de and public MQTT brokers are free community servers**: they can be slow,
+  busy or down, and a published app with many users needs its own.
 
 ## Data sources & licences
 
 - **Offline maps**: © OpenStreetMap contributors (ODbL), converted by the mapsforge project.
 - **Terrain**: [Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) on AWS Open Data, © Mapzen and its sources (SRTM, GMTED, ETOPO1 and others; see the dataset's attribution page).
-- **OpenStreetMap tiles**: subject to the [OSM tile usage policy](https://operations.osmfoundation.org/policies/tiles/). The app sends an identifying User-Agent and never bulk-prefetches; the 3D view with an online layer loads the tiles it shows (more than a flat map does) and caches them for a month. For a published app with many users, switch to your own or a commercial tile provider.
-- **OpenTopoMap** (CC-BY-SA), **CyclOSM / Humanitarian** (OSM France): community servers with fair-use limits.
-- **Esri World Imagery**: check Esri's terms before any commercial or large-scale use.
+- **Online tiles** (list and placeholders in [docs/map-styles.md](docs/map-styles.md)). The app sends an identifying User-Agent and never bulk-prefetches; the 3D view with an online layer loads the tiles it shows (more than a flat map does) and caches them for a month. For a published app with many users, switch to your own or a commercial tile provider.
+  - **OpenStreetMap France / Germany, CyclOSM, Humanitarian** (OSM France), **OpenTopoMap** (CC-BY-SA): community servers with fair-use limits. The standard tile.openstreetmap.org server isn't used: it refuses this app under its [tile usage policy](https://operations.osmfoundation.org/policies/tiles/), which asks for contact details in the User-Agent.
+  - **Esri World Topo, World Street, World Imagery**: check Esri's terms before any commercial or large-scale use.
+  - **National open data**: swisstopo (© swisstopo, free use with attribution), basemap.at (CC BY 4.0), Kartverket (CC BY 4.0), IGN Géoplateforme (Etalab open licence 2.0), USGS The National Map (public domain).
+- **Map styles**: Topo's point-of-interest sections and the Classic, Osmarender, Biker and Motorider styles come from [mapsforge](https://github.com/mapsforge/mapsforge) (LGPL-3.0). Imported styles keep their authors' licences.
 - **Party**: Meshtastic phone API and protocol definitions ([meshtastic/protobufs](https://github.com/meshtastic/protobufs), GPL-3.0; a minimal encoder for the messages used is in `party/MeshProto.kt`). MQTT via [Eclipse Paho](https://github.com/eclipse-paho/paho.mqtt.java) (EPL-2.0 / EDL-1.0). QR codes via [ZXing Android Embedded](https://github.com/journeyapps/zxing-android-embedded) (Apache-2.0).
 - **Android Auto**: [Android for Cars App Library](https://developer.android.com/training/cars/apps) (`androidx.car.app`, Apache-2.0).
 - **Magnetic declination**: the World Magnetic Model built into Android (`GeomagneticField`).

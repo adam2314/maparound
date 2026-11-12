@@ -13,7 +13,17 @@ import app.maparound.data.TerrainRepository
 import app.maparound.routing.RoutePlanner
 import app.maparound.routing.RoutingDataRepository
 import app.maparound.party.PartySession
+import app.maparound.routing.AndroidSpeaker
+import app.maparound.routing.NavigationService
+import app.maparound.routing.NavigationSession
 import app.maparound.routing.PlannerSession
+import kotlinx.coroutines.MainScope
+import app.maparound.data.DownloadService
+import app.maparound.map.AndroidMapThemes
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import app.maparound.tools.ToolsSession
 import app.maparound.tracks.TrackRepository
 import app.maparound.data.TrailRepository
@@ -47,6 +57,8 @@ object AppGraph {
         private set
     lateinit var places: PlaceRepository
         private set
+    lateinit var themes: AndroidMapThemes
+        private set
     lateinit var rasters: RasterMapRepository
         private set
     val catalog = MapCatalog()
@@ -57,14 +69,29 @@ object AppGraph {
         mapFiles = MapFilesRepository(app)
         downloader = MapDownloader(app, mapFiles)
         terrain = TerrainRepository(app, prefs, mapFiles)
+        themes = AndroidMapThemes(app)
         ToolsSession.terrainSource = { terrain.demDir.path to terrain.state.value.version }
         routing = RoutingDataRepository(app)
         planner = RoutePlanner(app, routing, terrain.demDir)
         trails = TrailRepository(app, prefs)
+        // A terrain or trail download started: keep it going if the app goes to the background.
+        MainScope().launch {
+            combine(terrain.state, trails.state) { t, r -> t.progress != null || r.progress != null }
+                .distinctUntilChanged()
+                .collect { running -> if (running) DownloadService.start(app) }
+        }
         tracks = TrackRepository((app.getExternalFilesDir(null) ?: app.filesDir).path, SharedPrefsStore(app, "tracks"))
         places = PlaceRepository((app.getExternalFilesDir(null) ?: app.filesDir).path)
         PlannerSession.router = { points, profile -> planner.plan(points, profile) }
         PlannerSession.library = tracks
+        NavigationSession.speaker = AndroidSpeaker(app)
+        NavigationSession.voiceOn = { prefs.navVoice.value }
+        // Navigation started on the phone or the car: keep it going with the screen off.
+        MainScope().launch {
+            NavigationSession.state.map { it.active }.distinctUntilChanged().collect { active ->
+                if (active) NavigationService.start(app)
+            }
+        }
         rasters = RasterMapRepository(app)
         PartySession.init(app)
     }
