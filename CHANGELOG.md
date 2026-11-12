@@ -19,6 +19,9 @@
   mapsforge style (`.xml` or `.zip`). Styles that have options get switches in Layers. In Topo you
   can hide land cover, buildings, boundaries, railways and lifts, names, peaks and springs, or
   points of interest. See [docs/map-styles.md](docs/map-styles.md).
+- **Country borders at every zoom.** Zoomed out, and in areas you haven't downloaded, the offline
+  map now shows the world's borders (from Natural Earth); downloaded maps keep their own exact
+  ones. In Topo, disputed borders and lines of control are drawn with short dashes.
 - **Cliffs and ridges** now show on the Topo map. They come with the Marked trails download; tap
   it again for areas you downloaded before.
 - **More online maps:** OpenStreetMap Germany, Esri Topo and Street, and national maps for

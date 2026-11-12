@@ -134,14 +134,15 @@ existing theme switchable without touching its rules.
 
 ### MapAround's own map data
 
-Imported styles (like Topo) also get two kinds of ways that aren't in the map files. Style them to
-show them:
+MapAround adds ways that aren't in the map files. Imported styles (like Topo) get all of them, the
+built-in ones only the country borders. Style them to show them:
 
 | Ways | Tags | From |
 |---|---|---|
 | Contour lines | `contour=minor` or `contour=major`, `ele=<metres>` | the terrain download, traced on the phone; intervals depend on the zoom |
 | Marked hiking trails | `trail=hiking`, `trail_colour=red\|blue\|green\|yellow\|black\|white\|orange\|purple…`, `trail_offset=0\|l05\|r05…`, and on the first colour of a way `trail_n=<colours on it>`, `name`, `ref` | the marked-trails download; one way per waymark colour, offset side by side |
 | Cliffs, arêtes, ridges, earth banks | `natural=cliff\|arete\|ridge\|earth_bank`, as in OSM | the marked-trails download (the mapsforge maps leave these out); from zoom 13, also when the trail lines are switched off |
+| Country borders | `boundary=administrative`, `admin_level=2`, and `disputed=yes` on disputed borders, lines of control and undefined frontiers | built into the app (Natural Earth), for the zooms and areas where the installed maps have no borders: up to zoom 7 everywhere (the world overview map has none), and outside the downloaded country maps above that. Every style gets these, built-in ones too |
 
 See the contour and trail sections of `topo.xml` for working examples.
 

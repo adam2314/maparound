@@ -1,11 +1,13 @@
 package app.maparound.map
 
 import android.util.Log
+import app.maparound.AppGraph
 import app.maparound.data.MapNames
 import app.maparound.terrain.ContourDataStore
 import app.maparound.terrain.DemIndex
 import app.maparound.trails.TrailDataStore
 import app.maparound.trails.TrailIndex
+import org.mapsforge.core.model.BoundingBox
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory
 import org.mapsforge.map.datastore.MapDataStore
 import org.mapsforge.map.datastore.MultiMapDataStore
@@ -17,8 +19,9 @@ import org.mapsforge.map.reader.MapFile
 import java.io.File
 
 /**
- * What mapsforge draws offline: the installed maps (a world overview only at low zooms), contour
- * lines and marked trails as extra map data, and hill shading. Used by the 2D map and the 3D view.
+ * What mapsforge draws offline: the installed maps (a world overview only at low zooms), country
+ * borders where those have none, contour lines and marked trails as extra map data, and hill
+ * shading. Used by the 2D map and the 3D view.
  */
 class OfflineMapData(val store: MapDataStore, val hills: HillsRenderConfig?, val mapCount: Int) {
     fun close() {
@@ -36,9 +39,11 @@ class OfflineMapData(val store: MapDataStore, val hills: HillsRenderConfig?, val
             // coastlines don't paint over the detailed country maps.
             val splitByZoom = files.size > 1 && files.any { MapNames.isWorld(it.name) }
             var count = 0
+            val countryAreas = ArrayList<BoundingBox>()
             for (f in files) {
                 try {
                     val mapFile = MapFile(f)
+                    if (!MapNames.isWorld(f.name)) countryAreas += mapFile.boundingBox()
                     if (splitByZoom) {
                         if (MapNames.isWorld(f.name)) {
                             mapFile.restrictToZoomRange(0, WORLD_MAX_ZOOM.toByte())
@@ -60,11 +65,19 @@ class OfflineMapData(val store: MapDataStore, val hills: HillsRenderConfig?, val
             val trailIndex = style.trailsDir?.takeIf { style.drawsTerrain }?.let { TrailIndex(it) }
                 ?.takeUnless { it.isEmpty || (!style.trails && it.featureCount == 0) }
             val withContours = dem != null && style.contours && style.drawsTerrain
-            val store: MapDataStore = if (withContours || trailIndex != null) {
+            // Country borders for the whole world: the world map has none, and the country maps
+            // only their own. Drawn everywhere at the zooms without country maps (or their
+            // borders), and outside the country maps above that.
+            val borders = vector.boundingBox()?.let { bounds ->
+                val overviewMaxZoom = if (splitByZoom) WORLD_MAX_ZOOM else BorderDataStore.MAP_BORDERS_FROM_ZOOM - 1
+                BorderDataStore({ AppGraph.borders }, countryAreas, overviewMaxZoom, bounds)
+            }
+            val store: MapDataStore = if (withContours || trailIndex != null || borders != null) {
                 MultiMapDataStore(MultiMapDataStore.DataPolicy.RETURN_ALL).apply {
                     addMapDataStore(vector, false, false)
                     if (withContours) addMapDataStore(ContourDataStore(dem!!, vector), false, false)
                     if (trailIndex != null) addMapDataStore(TrailDataStore(trailIndex, routes = style.trails), false, false)
+                    if (borders != null) addMapDataStore(borders, false, false)
                 }
             } else {
                 vector

@@ -484,6 +484,7 @@ The app's privacy policy (also for the stores) is [docs/privacy.md](docs/privacy
 ## Data sources & licences
 
 - **Offline maps**: © OpenStreetMap contributors (ODbL), converted by the mapsforge project.
+- **Country borders** where the offline maps have none (the overview zooms and areas without a downloaded map): [Natural Earth](https://www.naturalearthdata.com) 1:10m land boundary lines (public domain), packed into `app/src/main/assets/borders.bin` by `tools/borders/make_borders.py`.
 - **Terrain**: [Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) on AWS Open Data, © Mapzen and its sources (SRTM, GMTED, ETOPO1 and others; see the dataset's attribution page).
 - **Online tiles** (list and placeholders in [docs/map-styles.md](docs/map-styles.md)). The app sends an identifying User-Agent and never bulk-prefetches; the 3D view with an online layer loads the tiles it shows (more than a flat map does) and caches them for a month. For a published app with many users, switch to your own or a commercial tile provider.
   - **OpenStreetMap France / Germany, CyclOSM, Humanitarian** (OSM France), **OpenTopoMap** (CC-BY-SA): community servers with fair-use limits. The standard tile.openstreetmap.org server isn't used: it refuses this app under its [tile usage policy](https://operations.osmfoundation.org/policies/tiles/), which asks for contact details in the User-Agent.

@@ -322,8 +322,14 @@
     <rule cat="boundaries" e="any" k="*" v="*">
     <rule e="any" k="*" v="*">
         <rule e="way" k="admin_level" v="2">
-            <line stroke="#4D9E6AB8" stroke-linecap="butt" stroke-width="5" scale="none" />
-            <line stroke="#8B5A9E" stroke-dasharray="10,4" stroke-width="1.0" scale="none" />
+            <rule e="way" k="disputed" v="~|no">
+                <line stroke="#4D9E6AB8" stroke-linecap="butt" stroke-width="5" scale="none" />
+                <line stroke="#8B5A9E" stroke-dasharray="10,4" stroke-width="1.0" scale="none" />
+            </rule>
+            <!-- Disputed borders, lines of control and undefined frontiers: no band, short dashes. -->
+            <rule e="way" k="disputed" v="yes">
+                <line stroke="#8B5A9E" stroke-dasharray="3,4" stroke-width="1.0" scale="none" />
+            </rule>
         </rule>
         <rule e="way" k="admin_level" v="4" zoom-min="8">
             <line stroke="#B38B5A9E" stroke-dasharray="8,3,2,3" stroke-width="0.8" scale="none" />

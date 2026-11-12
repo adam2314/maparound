@@ -20,6 +20,7 @@ import app.maparound.routing.PlannerSession
 import kotlinx.coroutines.MainScope
 import app.maparound.data.DownloadService
 import app.maparound.map.AndroidMapThemes
+import app.maparound.map.BorderLines
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -62,8 +63,15 @@ object AppGraph {
     lateinit var rasters: RasterMapRepository
         private set
     val catalog = MapCatalog()
+    private lateinit var app: Application
+
+    /** The world's country borders for the offline maps (assets/borders.bin), read on first use. */
+    val borders: BorderLines? by lazy {
+        runCatching { app.assets.open("borders.bin").use { BorderLines.decode(it.readBytes()) } }.getOrNull()
+    }
 
     fun init(app: Application) {
+        this.app = app
         userAgent = USER_AGENT
         prefs = Prefs(SharedPrefsStore(app, "maparound"))
         mapFiles = MapFilesRepository(app)
