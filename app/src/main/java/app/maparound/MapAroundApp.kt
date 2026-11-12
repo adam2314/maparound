@@ -17,10 +17,12 @@ import app.maparound.routing.AndroidSpeaker
 import app.maparound.routing.NavigationService
 import app.maparound.routing.NavigationSession
 import app.maparound.routing.PlannerSession
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import app.maparound.data.DownloadService
 import app.maparound.map.AndroidMapThemes
 import app.maparound.map.BorderLines
+import app.maparound.map.WorldData
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -70,8 +72,18 @@ object AppGraph {
         runCatching { app.assets.open("borders.bin").use { BorderLines.decode(it.readBytes()) } }.getOrNull()
     }
 
+    /** Land, sea, lakes, rivers and names for the offline maps (assets/world.bin), read on first use. */
+    val world: WorldData? by lazy {
+        runCatching { app.assets.open("world.bin").use { WorldData.decode(it.readBytes()) } }.getOrNull()
+    }
+
     fun init(app: Application) {
         this.app = app
+        // Read the built-in world in the background, so the first map frame doesn't wait for it.
+        MainScope().launch(Dispatchers.Default) {
+            world
+            borders
+        }
         userAgent = USER_AGENT
         prefs = Prefs(SharedPrefsStore(app, "maparound"))
         mapFiles = MapFilesRepository(app)

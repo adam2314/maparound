@@ -227,7 +227,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
 
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
             val hasWorld = installed.any { it.isWorld } || downloads.any { MapNames.isWorld(it.fileName) }
-            if (!hasWorld) {
+            if (!hasWorld && !offline.builtInWorld) {
                 item {
                     ElevatedCard(Modifier.fillMaxWidth().padding(16.dp)) {
                         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -274,6 +274,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                             listOfNotNull(
                                 map.region,
                                 Fmt.fileSize(map.sizeBytes),
+                                "not needed any more, the app has its own".takeIf { map.isWorld && offline.builtInWorld },
                                 "terrain ✓".takeIf { ex?.terrain == true },
                                 "routing ✓".takeIf { ex?.routing == true },
                                 "trails ✓".takeIf { ex?.trails == true },

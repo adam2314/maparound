@@ -221,6 +221,11 @@
             <caption fill="#125595" font-size="12" font-style="bold_italic" k="name"
                 priority="-100" stroke="#FFFFFF" stroke-width="2.5" />
         </rule>
+        <!-- The built-in world's lake names (points; its lake areas have no names). -->
+        <rule e="node" k="natural" v="water" zoom-max="12">
+            <caption fill="#125595" font-size="12" font-style="italic" k="name"
+                priority="-50" stroke="#FFFFFF" stroke-width="2.0" />
+        </rule>
     </rule>
 
 
@@ -893,6 +898,29 @@
         <rule e="node" k="place" v="town" zoom-min="9">
             <caption fill="#404040" font-size="15" font-style="bold" k="name" priority="30"
                 stroke="#FFFFFF" stroke-width="2.5" />
+        </rule>
+        <!-- Overview zooms: only the built-in world's places (the country maps start at 8). -->
+        <rule e="node" k="place" v="town" zoom-min="6" zoom-max="7">
+            <caption fill="#505050" font-size="12" k="name" priority="25"
+                stroke="#FFFFFF" stroke-width="2.0" />
+        </rule>
+        <rule e="node" k="place" v="city" zoom-max="4">
+            <rule e="node" k="capital" v="yes">
+                <caption fill="#404040" font-size="13" font-style="bold" k="name" priority="45"
+                    stroke="#FFFFFF" stroke-width="2.0" />
+            </rule>
+            <rule e="node" k="capital" v="~|no">
+                <caption fill="#404040" font-size="12" k="name" priority="35"
+                    stroke="#FFFFFF" stroke-width="2.0" />
+            </rule>
+        </rule>
+        <rule e="node" k="place" v="ocean" zoom-max="9">
+            <caption fill="#3A6EA5" font-size="16" font-style="italic" k="name" priority="60"
+                stroke="#8EBDF0" stroke-width="1.5" />
+        </rule>
+        <rule e="node" k="place" v="sea" zoom-max="11">
+            <caption fill="#3A6EA5" font-size="13" font-style="italic" k="name" priority="20"
+                stroke="#8EBDF0" stroke-width="1.5" />
         </rule>
         <rule e="node" k="place" v="city" zoom-min="5" zoom-max="9">
             <caption fill="#404040" font-size="15" font-style="bold" k="name" priority="40"

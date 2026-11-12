@@ -49,7 +49,7 @@ class BorderLinesTest {
         assertEquals(4, lines.pieceCount)   // 64 + 64 + 24 points (sharing the points where they meet), and the short line
         assertEquals(64 + 64 + 24 + 2, lines.pointCount)
         val found = ArrayList<BorderLines.Piece>()
-        lines.query(46_000_000, 4_000_000, 48_000_000, 7_000_000) { found += it }
+        lines.query(GeoBox(46_000_000, 4_000_000, 48_000_000, 7_000_000)) { found += it }
         assertEquals(3, found.size)
         assertTrue(found.zipWithNext().all { (a, b) ->
             a.coords[a.coords.size - 2] == b.coords[0] && a.coords[a.coords.size - 1] == b.coords[1]
@@ -59,7 +59,7 @@ class BorderLinesTest {
         assertFalse(found[0].contested)
 
         val south = ArrayList<BorderLines.Piece>()
-        lines.query(-34_000_000, -71_000_000, -33_000_000, -70_000_000) { south += it }
+        lines.query(GeoBox(-34_000_000, -71_000_000, -33_000_000, -70_000_000)) { south += it }
         assertEquals(1, south.size)
         assertTrue(south[0].contested)
         assertEquals(-70_250_000, south[0].coords[1])
@@ -71,11 +71,11 @@ class BorderLinesTest {
         val zigzag = (0 until 60).map { (if (it % 2 == 0) 10.0 else 10.01) to 20.0 + it * 0.05 }
         val piece = BorderLines.decode(encode(false to zigzag))!!.let { l ->
             var p: BorderLines.Piece? = null
-            l.query(-90_000_000, -180_000_000, 90_000_000, 180_000_000) { p = it }
+            l.query(GeoBox(-90_000_000, -180_000_000, 90_000_000, 180_000_000)) { p = it }
             p!!
         }
         assertEquals(2, piece.coordsAt(3).size / 2)
-        assertEquals(60, piece.coordsAt(BorderLines.FULL_DETAIL_ZOOM).size / 2)
+        assertEquals(60, piece.coordsAt(FULL_DETAIL_ZOOM).size / 2)
         assertTrue(piece.coordsAt(9).size / 2 > 2)
         // Ends always stay.
         val z3 = piece.coordsAt(3)

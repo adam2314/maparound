@@ -19,9 +19,10 @@ import org.mapsforge.map.reader.MapFile
 import java.io.File
 
 /**
- * What mapsforge draws offline: the installed maps (a world overview only at low zooms), country
- * borders where those have none, contour lines and marked trails as extra map data, and hill
- * shading. Used by the 2D map and the 3D view.
+ * What mapsforge draws offline: the built-in world (land and sea, lakes, rivers, borders and
+ * names) at overview zooms and outside the installed country maps, the country maps themselves
+ * from zoom 8, contour lines and marked trails as extra map data, and hill shading. Used by the
+ * 2D map and the 3D view.
  */
 class OfflineMapData(val store: MapDataStore, val hills: HillsRenderConfig?, val mapCount: Int) {
     fun close() {
@@ -35,28 +36,24 @@ class OfflineMapData(val store: MapDataStore, val hills: HillsRenderConfig?, val
 
         fun open(files: List<File>, style: MapController.OfflineStyle, maxZoom: Int = MapController.MAX_ZOOM): OfflineMapData {
             val vector = MultiMapDataStore(MultiMapDataStore.DataPolicy.RETURN_ALL)
-            // With a low-detail world map present, use it only for overview zooms so its coarse
-            // coastlines don't paint over the detailed country maps.
-            val splitByZoom = files.size > 1 && files.any { MapNames.isWorld(it.name) }
             var count = 0
             val countryAreas = ArrayList<BoundingBox>()
             for (f in files) {
+                // The built-in world replaces mapsforge's world overview map (land and sea only).
+                if (MapNames.isWorld(f.name)) continue
                 try {
                     val mapFile = MapFile(f)
-                    if (!MapNames.isWorld(f.name)) countryAreas += mapFile.boundingBox()
-                    if (splitByZoom) {
-                        if (MapNames.isWorld(f.name)) {
-                            mapFile.restrictToZoomRange(0, WORLD_MAX_ZOOM.toByte())
-                        } else {
-                            mapFile.restrictToZoomRange((WORLD_MAX_ZOOM + 1).toByte(), maxZoom.toByte())
-                        }
-                    }
+                    countryAreas += mapFile.boundingBox()
+                    // Overview zooms are the world's: the country maps' own data there is sparse
+                    // and would show as patches.
+                    mapFile.restrictToZoomRange((WORLD_MAX_ZOOM + 1).toByte(), maxZoom.toByte())
                     vector.addMapDataStore(mapFile, false, false)
                     count++
                 } catch (e: Exception) {
                     Log.w(TAG, "Skipping unreadable map ${f.name}", e)
                 }
             }
+            val world = WorldDataStore({ AppGraph.world }, { AppGraph.borders }, countryAreas, WORLD_MAX_ZOOM)
             // Contour lines are generated from the elevation tiles as extra map data (only the
             // topo theme styles them); hill shading is done by mapsforge itself.
             val dem = style.demDir?.takeIf { style.contours || style.hillshade }?.let { DemIndex(it.path) }?.takeUnless { it.isEmpty }
@@ -65,22 +62,19 @@ class OfflineMapData(val store: MapDataStore, val hills: HillsRenderConfig?, val
             val trailIndex = style.trailsDir?.takeIf { style.drawsTerrain }?.let { TrailIndex(it) }
                 ?.takeUnless { it.isEmpty || (!style.trails && it.featureCount == 0) }
             val withContours = dem != null && style.contours && style.drawsTerrain
-            // Country borders for the whole world: the world map has none, and the country maps
-            // only their own. Drawn everywhere at the zooms without country maps (or their
-            // borders), and outside the country maps above that.
-            val borders = vector.boundingBox()?.let { bounds ->
-                val overviewMaxZoom = if (splitByZoom) WORLD_MAX_ZOOM else BorderDataStore.MAP_BORDERS_FROM_ZOOM - 1
-                BorderDataStore({ AppGraph.borders }, countryAreas, overviewMaxZoom, bounds)
-            }
-            val store: MapDataStore = if (withContours || trailIndex != null || borders != null) {
-                MultiMapDataStore(MultiMapDataStore.DataPolicy.RETURN_ALL).apply {
-                    addMapDataStore(vector, false, false)
-                    if (withContours) addMapDataStore(ContourDataStore(dem!!, vector), false, false)
-                    if (trailIndex != null) addMapDataStore(TrailDataStore(trailIndex, routes = style.trails), false, false)
-                    if (borders != null) addMapDataStore(borders, false, false)
+            val store = MultiMapDataStore(MultiMapDataStore.DataPolicy.RETURN_ALL).apply {
+                addMapDataStore(world, false, false)
+                if (count > 0) addMapDataStore(vector, false, false)
+                if (withContours) {
+                    // Contours stop at the coast: the country maps' where they're installed, the
+                    // world's elsewhere.
+                    val sea = MultiMapDataStore(MultiMapDataStore.DataPolicy.RETURN_ALL).apply {
+                        addMapDataStore(world, false, false)
+                        if (count > 0) addMapDataStore(vector, false, false)
+                    }
+                    addMapDataStore(ContourDataStore(dem!!, sea), false, false)
                 }
-            } else {
-                vector
+                if (trailIndex != null) addMapDataStore(TrailDataStore(trailIndex, routes = style.trails), false, false)
             }
             val hills = if (dem != null && style.hillshade) {
                 HillsRenderConfig(

@@ -137,6 +137,11 @@ class OfflineData(
     val terrain: TerrainData,
     val trails: TrailData,
     val routing: RoutingData,
+    /**
+     * The app has its own world map (land and sea, lakes, rivers, borders, names), so mapsforge's
+     * world overview map isn't needed (Android).
+     */
+    val builtInWorld: Boolean = false,
 )
 
 val LocalOfflineData = staticCompositionLocalOf<OfflineData> { error("No OfflineData provided") }

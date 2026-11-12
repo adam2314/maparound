@@ -57,6 +57,7 @@ class MainActivity : ComponentActivity() {
                     terrain = AppGraph.terrain,
                     trails = AppGraph.trails,
                     routing = AppGraph.routing,
+                    builtInWorld = true,
                 ),
             ) {
                 MapAroundTheme {
