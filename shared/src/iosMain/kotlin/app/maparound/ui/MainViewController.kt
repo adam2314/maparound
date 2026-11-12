@@ -21,6 +21,7 @@ import app.maparound.ios.PendingPartyPlatform
 import app.maparound.ios.PendingRasters
 import app.maparound.ios.PendingRecording
 import app.maparound.map.maplibre.MapLibreSurface
+import app.maparound.map.LocalMapThemes
 import app.maparound.map.maplibre.NativeMap
 import app.maparound.party.LocalParty
 import app.maparound.party.LocalPartyPlatform
@@ -53,7 +54,7 @@ fun MainViewController(newMap: () -> NativeMapView): UIViewController = ComposeU
         LocalTracks provides app.tracks,
         LocalRecordingControl provides PendingRecording,
         LocalRasters provides PendingRasters,
-        app.maparound.map.LocalMapThemes provides app.themes,
+        LocalMapThemes provides app.themes,
         LocalParty provides PendingParty,
         LocalPartyPlatform provides PendingPartyPlatform,
         LocalOfflineData provides app.offline,

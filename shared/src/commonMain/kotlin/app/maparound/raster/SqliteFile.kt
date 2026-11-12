@@ -1,5 +1,8 @@
 package app.maparound.raster
 
+import kotlinx.atomicfu.locks.SynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
+
 // A small read-only reader for SQLite database files (https://www.sqlite.org/fileformat.html),
 // enough for tile databases: the schema, table rows by rowid, full scans and index lookups. It
 // reads through [RandomRead], so a file the user picked is read where it is (Android can't open
@@ -15,10 +18,9 @@ class SqliteFile(private val source: RandomRead, val sizeBytes: Long) {
     /** One row: its rowid and column values (Long, Double, String, ByteArray or null). */
     class Row(val rowid: Long, val values: List<Any?>)
 
-    /** Recently read pages (before init: reading the schema needs it). */
-    private val cache = object : LinkedHashMap<Int, ByteArray>(128, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, ByteArray>?) = size > 512
-    }
+    /** Recently read pages, oldest use first (before init: reading the schema needs it). */
+    private val cache = LinkedHashMap<Int, ByteArray>()
+    private val lock = SynchronizedObject()
 
     val pageSize: Int
     private val usable: Int
@@ -45,10 +47,15 @@ class SqliteFile(private val source: RandomRead, val sizeBytes: Long) {
 
     private fun page(n: Int): ByteArray {
         if (n < 1 || (n - 1).toLong() * pageSize >= sizeBytes) throw SqliteException("Page $n is outside the file")
-        synchronized(cache) { cache[n]?.let { return it } }
+        // Re-inserting a page marks it as used last.
+        val cached = synchronized(lock) { cache.remove(n)?.also { cache[n] = it } }
+        if (cached != null) return cached
         val p = source.read((n - 1).toLong() * pageSize, pageSize)
         if (p.size < pageSize) throw SqliteException("The file ends early")
-        synchronized(cache) { cache[n] = p }
+        synchronized(lock) {
+            cache[n] = p
+            while (cache.size > CACHED_PAGES) cache.remove(cache.keys.first())
+        }
         return p
     }
 
@@ -282,6 +289,7 @@ class SqliteFile(private val source: RandomRead, val sizeBytes: Long) {
     fun isWithoutRowid(table: String) = entry(table)?.sql?.contains(Regex("(?i)without\\s+rowid")) == true
 
     companion object {
+        private const val CACHED_PAGES = 512
         private const val INDEX_INTERIOR = 2
         private const val TABLE_INTERIOR = 5
         private const val INDEX_LEAF = 10

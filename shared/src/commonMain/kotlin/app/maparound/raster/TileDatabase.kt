@@ -1,5 +1,7 @@
 package app.maparound.raster
 
+import kotlinx.atomicfu.locks.SynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
 import kotlin.math.PI
 import kotlin.math.atan
 import kotlin.math.exp
@@ -29,6 +31,7 @@ class TileDatabase(private val file: SqliteFile, private val onClose: AutoClosea
         private val valueAt: Int
         private val index: SqliteFile.SchemaEntry?
         private var memo: HashMap<List<Any?>, Long>? = null
+        private val lock = SynchronizedObject()
 
         init {
             val e = file.entry(table) ?: throw TileDatabaseException("No table $table")
@@ -63,7 +66,7 @@ class TileDatabase(private val file: SqliteFile, private val onClose: AutoClosea
             else file.scan(root) { r -> visit(keyAt.map { col(r, it) }); true }
         }
 
-        private fun memo(): HashMap<List<Any?>, Long> = memo ?: synchronized(this) {
+        private fun memo(): HashMap<List<Any?>, Long> = memo ?: synchronized(lock) {
             memo ?: HashMap<List<Any?>, Long>().also { m ->
                 file.scan(root) { r -> m[keyAt.map { norm(col(r, it)) }] = r.rowid; true }
                 memo = m
