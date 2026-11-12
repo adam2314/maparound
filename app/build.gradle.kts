@@ -1,19 +1,40 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// The Google Play upload key, kept outside the repository: ~/.mapAround-keys/keystore.properties
+// (or the file MAPAROUND_KEYSTORE names) with storeFile, storePassword, keyAlias, keyPassword.
+// Without it (CI, other machines) release builds are unsigned.
+val uploadKey: Properties? = (
+    System.getenv("MAPAROUND_KEYSTORE")?.let(::File)
+        ?: File(System.getProperty("user.home"), ".mapAround-keys/keystore.properties")
+    ).takeIf { it.isFile }?.let { f -> Properties().apply { f.inputStream().use { load(it) } } }
+
 android {
     namespace = "app.maparound"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "app.maparound"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 1
+        targetSdk = 36
+        versionCode = 2
         versionName = "0.1.0"
+    }
+
+    signingConfigs {
+        if (uploadKey != null) {
+            create("upload") {
+                storeFile = file(uploadKey.getProperty("storeFile"))
+                storePassword = uploadKey.getProperty("storePassword")
+                keyAlias = uploadKey.getProperty("keyAlias")
+                keyPassword = uploadKey.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
@@ -23,6 +44,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            signingConfig = signingConfigs.findByName("upload")
         }
     }
     compileOptions {

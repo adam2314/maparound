@@ -26,3 +26,4 @@ iosApp/MapAround/Info.plist
 iosApp/build/
 iosApp/MapAround/*.map
 iosApp/MapAround/*.hgt
+keystore.properties

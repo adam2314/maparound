@@ -58,7 +58,7 @@ The shared tests also run on the iOS simulator in GitHub Actions (`.github/workf
 macOS runners); its latest log is on the `ci-ios-shared` branch and a simulator screenshot of the
 iOS app on `ci-screenshots`.
 
-minSdk 26 (Android 8.0), targetSdk 35. Uses Kotlin, Jetpack Compose (Material 3) and
+minSdk 26 (Android 8.0), targetSdk 36 (Android 16, as Google Play requires). Uses Kotlin, Jetpack Compose (Material 3) and
 [mapsforge](https://github.com/mapsforge/mapsforge) 0.25 for map rendering. It has no Google Play
 services dependency, so it also works on de-Googled phones.
 
