@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if page.title %}{{ page.title }}{% else %}{{ site.title }}{% endif %}</title>
+  <meta name="theme-color" content="#1b6b4a">
+  <link rel="icon" href="{{ '/assets/icon-64.png' | relative_url }}" sizes="64x64" type="image/png">
+  <link rel="stylesheet" href="{{ '/assets/site.css' | relative_url }}">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="{{ '/' | relative_url }}"><img src="{{ '/assets/icon-192.png' | relative_url }}" alt="" width="36" height="36">MapAround</a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="{{ '/' | relative_url }}">Home</a>
+      <a href="https://github.com/adam2314/maparound">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main class="doc">
+{{ content }}
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>MapAround · Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a></span>
+    <nav aria-label="Footer">
+      <a href="{{ '/privacy' | relative_url }}">Privacy policy</a>
+      <a href="https://github.com/adam2314/maparound">Source code</a>
+      <a href="https://github.com/adam2314/maparound/issues">Report a problem</a>
+    </nav>
+  </div>
+</footer>
+
+</body>
+</html>

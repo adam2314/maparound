@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MapAround</title>
+  <meta name="description" content="Offline topo maps, routes and turn-by-turn navigation, marked trails, and live group tracking, even off-grid over LoRa radios. No account, no ads, no tracking.">
+  <meta name="theme-color" content="#1b6b4a">
+  <link rel="icon" href="assets/icon-64.png" sizes="64x64" type="image/png">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="MapAround: offline maps for hiking, biking and off-road">
+  <meta property="og:description" content="Offline topo maps, routes and navigation, trails, and off-grid group tracking.">
+  <meta property="og:image" content="https://adam2314.github.io/maparound/store/feature-graphic.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="assets/icon-192.png" alt="" width="36" height="36">MapAround</a>
+    <nav class="site-nav" aria-label="Main">
+      <a class="wide" href="#features">Features</a>
+      <a class="wide" href="#party">Group tracking</a>
+      <a href="privacy">Privacy</a>
+      <a href="https://github.com/adam2314/maparound">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="contours" aria-hidden="true"></div>
+    <div class="wrap">
+      <div>
+        <span class="eyebrow">Hiking · Biking · Off-road</span>
+        <h1>Maps that keep working where <span class="trail">the signal stops.</span></h1>
+        <p class="lede">Download the map of any country, plan a route and follow it turn by turn with no phone signal, and see where everyone in your group is, even beyond mobile coverage over LoRa radios.</p>
+        <div class="cta">
+          <a class="btn btn-primary" href="https://play.google.com/store/apps/details?id=app.maparound">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v9.59l3.3-3.3a1 1 0 1 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.42l3.3 3.3V4a1 1 0 0 1 1-1zM5 19h14a1 1 0 1 1 0 2H5a1 1 0 1 1 0-2z"/></svg>
+            Get it on Google Play
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/adam2314/maparound">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M8.7 16.3 4.4 12l4.3-4.3-1.4-1.4L1.6 12l5.7 5.7 1.4-1.4zm6.6 0 4.3-4.3-4.3-4.3 1.4-1.4 5.7 5.7-5.7 5.7-1.4-1.4z"/></svg>
+            Source code
+          </a>
+        </div>
+        <ul class="facts">
+          <li>Works offline</li>
+          <li>No account, ads or tracking</li>
+          <li>Open source (GPL-3.0)</li>
+        </ul>
+      </div>
+      <div class="hero-phone">
+        <div class="phone"><img src="assets/map.webp" alt="MapAround's topo map of the Tristaina lakes in Andorra, with contour lines and a marked hiking trail" width="720" height="1280"></div>
+        <span class="tag">No signal needed</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section feature" id="features">
+    <div class="wrap">
+      <div class="visual pair">
+        <div class="phone"><img src="assets/route.webp" alt="Route planner: a 3.7 km hike with 575 m of climb, the time and an elevation profile" width="720" height="1280" loading="lazy"></div>
+        <div class="phone"><img src="assets/navigate.webp" alt="Turn-by-turn navigation: turn left in 350 m, 2.6 km and 1 h 44 min to go" width="720" height="1280" loading="lazy"></div>
+      </div>
+      <div>
+        <span class="kicker">Plan and navigate</span>
+        <h2>Plan the hike. Then just follow it.</h2>
+        <p>Tap a few points and MapAround finds the way along paths and roads, on your phone when routing data is downloaded.</p>
+        <ul class="ticks">
+          <li>Hike, bike and car profiles, or straight lines to measure</li>
+          <li>Distance, climb, estimated time and an elevation profile</li>
+          <li>Turn-by-turn guidance with voice prompts, also with the screen off</li>
+          <li>A new route if you leave it, and Android Auto in the car</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section feature flip" id="party">
+    <div class="wrap">
+      <div class="visual pair">
+        <div class="phone"><img src="assets/party-map.webp" alt="A party on the map: three hikers, a 4×4, a meeting point and the planned route" width="720" height="1280" loading="lazy"></div>
+        <div class="phone"><img src="assets/party-list.webp" alt="The party screen: SOS button, connections and the members with distance and battery" width="720" height="1280" loading="lazy"></div>
+      </div>
+      <div>
+        <span class="kicker">Travel as a group</span>
+        <h2>Know where everyone is, even off-grid.</h2>
+        <p>Start a party and invite your group with a QR code. Everyone shows up on the map with their own icon and colour, online or through Meshtastic LoRa radios paired by Bluetooth.</p>
+        <ul class="ticks">
+          <li>A phone with both internet and a radio passes messages between them</li>
+          <li>SOS alerts, a meeting point and short messages</li>
+          <li>End-to-end encrypted: only your party can read it</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section feature">
+    <div class="wrap">
+      <div class="visual pair">
+        <div class="phone"><img src="assets/3d-topo.webp" alt="3D view of the mountains with the topo map draped over the terrain" width="720" height="1280" loading="lazy"></div>
+        <div class="phone"><img src="assets/satellite.webp" alt="Satellite imagery under the offline map's trails, contours and labels" width="720" height="1280" loading="lazy"></div>
+      </div>
+      <div>
+        <span class="kicker">Maps your way</span>
+        <h2>Read the terrain before you're in it.</h2>
+        <p>Free OpenStreetMap maps of every country in a detailed topo style, with contour lines, hill shading and the marked hiking trails in their colours.</p>
+        <ul class="ticks">
+          <li>3D view with terrain relief and buildings</li>
+          <li>Satellite imagery under the offline map's trails and labels</li>
+          <li>National maps (swisstopo, IGN, Kartverket, USGS…) and your own tile servers</li>
+          <li>Scanned topo sheets and tile databases: MBTiles, SQLiteDB, TwoNav .rmap</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section feature flip">
+    <div class="wrap">
+      <div class="visual" style="display:flex;justify-content:center">
+        <div class="phone"><img src="assets/inclinometer.webp" alt="Inclinometer for vehicles: 17° nose up and 9° roll, with an accelerometer below" width="720" height="1280" loading="lazy"></div>
+      </div>
+      <div>
+        <span class="kicker">Tools for the field</span>
+        <h2>The instruments you'd otherwise carry.</h2>
+        <p>Everything works from the phone's own sensors and the terrain data on it.</p>
+        <ul class="ticks">
+          <li>Bearing and distance, line of sight and viewshed</li>
+          <li>Radio link planner: Fresnel zone and path loss for LoRa, VHF, PMR446…</li>
+          <li>Coordinates in DMS, UTM, MGRS, ITM, Plus Codes and Maidenhead</li>
+          <li>Compass with true north, speedometer, barometer and GPS satellite view</li>
+          <li>Inclinometer and G-meter for 4×4s</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>And the everyday things</h2>
+        <p>Small features that matter on the trail.</p>
+      </div>
+      <div class="cards">
+        <div class="card"><h3>Track recording</h3><p>Record where you went with GPS, with the screen off, and see distance and climb.</p></div>
+        <div class="card"><h3>Your places</h3><p>Save camps, springs, viewpoints and parking with a note, and find them by distance.</p></div>
+        <div class="card"><h3>GPX in and out</h3><p>Import routes, tracks and waypoints from other apps, and export your own.</p></div>
+        <div class="card"><h3>Offline search</h3><p>Towns, peaks, springs, streets and paths from the downloaded maps, no internet needed.</p></div>
+        <div class="card"><h3>Share a spot</h3><p>Send any point or route as a link or GPX, and open links and coordinates others send you.</p></div>
+        <div class="card"><h3>No Google services needed</h3><p>MapAround doesn't depend on Google Play services, so it also runs on de-Googled phones.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="privacy-band">
+        <div>
+          <h2>Your trips stay yours.</h2>
+          <p>Your maps, tracks and places stay on your phone. The developer runs no server and receives none of your data.</p>
+          <a class="btn" href="privacy">Read the privacy policy</a>
+        </div>
+        <ul>
+          <li><span aria-hidden="true">✓</span>No account</li>
+          <li><span aria-hidden="true">✓</span>No ads, no analytics, no tracking</li>
+          <li><span aria-hidden="true">✓</span>Party data end-to-end encrypted</li>
+          <li><span aria-hidden="true">✓</span>Open source under the GPL-3.0</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>MapAround · Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a></span>
+    <nav aria-label="Footer">
+      <a href="privacy">Privacy policy</a>
+      <a href="https://github.com/adam2314/maparound">Source code</a>
+      <a href="https://github.com/adam2314/maparound/issues">Report a problem</a>
+    </nav>
+  </div>
+</footer>
+
+</body>
+</html>

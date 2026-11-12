@@ -1,0 +1,12 @@
+# GitHub Pages site for MapAround (Settings → Pages → Deploy from a branch: main, /docs).
+# index.html is the home page; Markdown pages such as privacy.md use _layouts/default.html.
+title: MapAround
+description: Offline topo maps, routes and navigation, trails, and off-grid group tracking.
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
+exclude:
+  - IOS_PLAN.md
+  - "store/*.mp4"
