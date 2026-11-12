@@ -430,6 +430,8 @@ Online tiles are cached in the app's cache folder, one cache per source.
 
 ## Privacy & permissions
 
+The app's privacy policy (also for the stores) is [docs/privacy.md](docs/privacy.md).
+
 - **Location** (fine/coarse): used for the position dot, true-north declination, GPS altitude for
   barometer calibration, the Speed and Satellites tabs, the map tools, track recording, navigation
   and the Android Auto map. It stays on the device, except when navigation recalculates a route
