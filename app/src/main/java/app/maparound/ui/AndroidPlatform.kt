@@ -24,6 +24,15 @@ class AndroidPlatform(private val context: Context) : PlatformActions {
     override fun sharePointText(lat: Double, lon: Double, label: String?) = Sharing.sharePointText(context, lat, lon, label)
     override fun sharePointGpx(lat: Double, lon: Double, label: String?) = Sharing.sharePointGpx(context, lat, lon, label)
     override fun openPointElsewhere(lat: Double, lon: Double, label: String?) = Sharing.openPointElsewhere(context, lat, lon, label)
+
+    override fun openUrl(url: String) {
+        runCatching {
+            context.startActivity(
+                android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }
+    }
     override fun sharePlaces(places: List<Place>, title: String) = Sharing.sharePlaces(context, places, title)
     override fun shareRoute(track: Track, gpxPath: String?) = Sharing.shareRoute(context, track, gpxPath?.let(::File))
     override fun shareRouteLink(track: Track) = Sharing.shareRouteLink(context, track)

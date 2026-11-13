@@ -99,6 +99,8 @@ object WebPlatformActions : PlatformActions {
 
     override fun openPointElsewhere(lat: Double, lon: Double, label: String?) = openWindow(SharedLinks.osmLink(lat, lon))
 
+    override fun openUrl(url: String) = openWindow(url)
+
     override fun sharePlaces(places: List<Place>, title: String) = saveGpx(title) { Places.writeGpx(places, it, title) }
 
     override fun shareRoute(track: Track, gpxPath: String?) {

@@ -77,6 +77,27 @@ final class MapLibreMap: NSObject, NativeMapView, MLNMapViewDelegate {
         self.callbacks = callbacks
     }
 
+    /// The points of interest drawn within `radiusPx` points of (lat, lon), as JSON (see NativeMap.kt).
+    func poisNear(lat: Double, lon: Double, radiusPx: Double) -> String {
+        guard let style = mapView.style else { return "[]" }
+        let ids = Set(style.layers.compactMap { layer -> String? in
+            guard let symbols = layer as? MLNSymbolStyleLayer, symbols.sourceLayerIdentifier == "poi" else { return nil }
+            return symbols.identifier
+        })
+        guard !ids.isEmpty else { return "[]" }
+        let p = mapView.convert(CLLocationCoordinate2D(latitude: lat, longitude: lon), toPointTo: mapView)
+        let r = CGFloat(radiusPx)
+        var out: [[String: Any]] = []
+        for feature in mapView.visibleFeatures(in: CGRect(x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r), styleLayerIdentifiers: ids) {
+            guard feature is MLNPointFeature else { continue }
+            var props: [String: String] = [:]
+            for (key, value) in feature.attributes { props[key] = "\(value)" }
+            out.append(["lat": feature.coordinate.latitude, "lon": feature.coordinate.longitude, "p": props])
+        }
+        guard let data = try? JSONSerialization.data(withJSONObject: out), let json = String(data: data, encoding: .utf8) else { return "[]" }
+        return json
+    }
+
     // MARK: MLNMapViewDelegate
 
     func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {

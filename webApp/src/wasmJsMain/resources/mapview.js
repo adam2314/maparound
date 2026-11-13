@@ -842,6 +842,17 @@
       const p = map.unproject([x, y]);
       return p.lat + ',' + p.lng;
     },
+    /** The points of interest drawn within radius CSS px of (lat, lon), as JSON (see NativeMap.kt). */
+    poisNear(lat, lon, radius) {
+      const style = map && map.getStyle();
+      if (!style || !style.layers) return '[]';
+      const layers = style.layers.filter((l) => l.type === 'symbol' && l['source-layer'] === 'poi').map((l) => l.id);
+      if (!layers.length) return '[]';
+      const c = map.project([lon, lat]);
+      const fs = map.queryRenderedFeatures([[c.x - radius, c.y - radius], [c.x + radius, c.y + radius]], { layers: layers });
+      return JSON.stringify(fs.filter((f) => f.geometry && f.geometry.type === 'Point')
+        .map((f) => ({ lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0], p: f.properties })));
+    },
     /** The `tap` property of the topmost marker at (x, y), or "". */
     tapped(x, y) {
       const layers = tapLayers();

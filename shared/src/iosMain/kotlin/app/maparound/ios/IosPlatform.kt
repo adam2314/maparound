@@ -53,6 +53,11 @@ object IosPlatformActions : PlatformActions {
         UIApplication.sharedApplication.openURL(url, emptyMap<Any?, Any?>(), null)
     }
 
+    override fun openUrl(url: String) {
+        val u = NSURL(string = url)
+        UIApplication.sharedApplication.openURL(u, emptyMap<Any?, Any?>(), null)
+    }
+
     override fun sharePlaces(places: List<Place>, title: String) {
         val file = writeShared(title) { Places.writeGpx(places, it, title) }
         val text = if (places.size == 1) SharedLinks.pointText(places[0].lat, places[0].lon, places[0].name)

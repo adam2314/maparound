@@ -17,7 +17,11 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
+import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
+import org.maplibre.geojson.Point
+import com.google.gson.JsonArray
+import com.google.gson.JsonObject
 import java.io.InputStream
 
 /**
@@ -211,6 +215,27 @@ class AndroidNativeMap(
         this.callbacks = callbacks
     }
 
+    override fun poisNear(lat: Double, lon: Double, radiusPx: Double): String {
+        val m = map ?: return "[]"
+        val style = m.style ?: return "[]"
+        val ids = style.layers.filterIsInstance<SymbolLayer>().filter { it.sourceLayer == POI_LAYER }.map { it.id }
+        if (ids.isEmpty()) return "[]"
+        val p = m.projection.toScreenLocation(LatLng(lat, lon))
+        val r = (radiusPx * density).toFloat()
+        val out = JsonArray()
+        for (f in m.queryRenderedFeatures(RectF(p.x - r, p.y - r, p.x + r, p.y + r), *ids.toTypedArray())) {
+            val point = f.geometry() as? Point ?: continue
+            val props = JsonObject()
+            f.properties()?.entrySet()?.forEach { (k, v) -> if (v.isJsonPrimitive) props.addProperty(k, v.asString) }
+            out.add(JsonObject().apply {
+                addProperty("lat", point.latitude())
+                addProperty("lon", point.longitude())
+                add("p", props)
+            })
+        }
+        return out.toString()
+    }
+
     // ---- the car screen's controls ------------------------------------------------------------------------
 
     /** Moves the map's content by screen pixels (a drag on the car's screen), as MapLibre's own pan does. */
@@ -246,6 +271,8 @@ class AndroidNativeMap(
     }
 
     private companion object {
+        /** The offline maps' points of interest in the vector tiles (MapsforgeToMvt). */
+        private const val POI_LAYER = "poi"
         const val ANIMATION_MS = 600
 
         // mapsforge's limits (2…21), in MapLibre's zooms (one lower).

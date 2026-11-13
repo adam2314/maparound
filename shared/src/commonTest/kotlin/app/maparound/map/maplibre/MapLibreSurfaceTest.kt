@@ -50,6 +50,9 @@ class MapLibreSurfaceTest {
         override fun setCallbacks(callbacks: NativeMapCallbacks?) {
             cbs = callbacks
         }
+
+        var pois = "[]"
+        override fun poisNear(lat: Double, lon: Double, radiusPx: Double) = pois
     }
 
     private val style = MapStyle(BasicLayers.layers, BasicLayers.GLYPHS)
@@ -61,6 +64,40 @@ class MapLibreSurfaceTest {
         maps = emptyList(), theme = MapThemes.TOPO, categories = null, contours = false, hillshade = false, terrainVersion = 0,
         trails = false, trailsVersion = 0, background = background, vectorOnTop = vectorOnTop, rasterMaps = emptyList(),
     )
+
+    @Test
+    fun aTapOnAPointOfInterest() {
+        val native = FakeMap().apply { pois = """[{"lat":1.0,"lon":2.0,"p":{"name":"Quelle","natural":"spring"}}]""" }
+        val map = MapLibreSurface(native, TileService(), style)
+        var screenTaps = 0
+        var screenUses = false
+        map.listener = object : MapListener {
+            override fun onUserGesture() {}
+            override fun onLongPress(point: GeoPoint) {}
+            override fun onTap(point: GeoPoint): Boolean {
+                screenTaps++
+                return screenUses
+            }
+            override fun onPoiTap(poi: app.maparound.map.MapPoi) {
+                tappedPoi = poi
+            }
+            override fun onWaypointTap(index: Int) {}
+            override fun onPartyMarkerTap(key: String) {}
+            override fun onPlaceTap(id: String) {}
+            override fun onMyLocationTap() {}
+        }
+        native.cbs!!.onTap(1.0, 2.0, null)
+        assertEquals("Quelle", tappedPoi?.title)
+        assertEquals("Spring", tappedPoi?.kind)
+        // The tools and the route planner come first: then it's theirs.
+        tappedPoi = null
+        screenUses = true
+        native.cbs!!.onTap(1.0, 2.0, null)
+        assertNull(tappedPoi)
+        assertEquals(2, screenTaps)
+    }
+
+    private var tappedPoi: app.maparound.map.MapPoi? = null
 
     @Test
     fun threeDCameraAndBack() {

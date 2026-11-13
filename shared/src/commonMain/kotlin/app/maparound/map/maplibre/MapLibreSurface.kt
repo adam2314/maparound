@@ -1,8 +1,10 @@
 package app.maparound.map.maplibre
 
+import app.maparound.shared.util.deviceLanguage
 import app.maparound.data.MapPos
 import app.maparound.map.BaseMap
 import app.maparound.map.MapListener
+import app.maparound.map.MapPoi
 import app.maparound.map.MapSurface
 import app.maparound.map.PartyMarker
 import app.maparound.map.PlaceMarker
@@ -52,12 +54,12 @@ class MapLibreSurface(
             override fun onTap(lat: Double, lon: Double, tapped: String?) {
                 val l = listener ?: return
                 when {
-                    tapped == null -> l.onTap(GeoPoint(lat, lon))
+                    tapped == null -> tapMap(l, GeoPoint(lat, lon))
                     tapped == TAP_ME -> l.onMyLocationTap()
                     tapped.startsWith(TAP_WAYPOINT) -> tapped.removePrefix(TAP_WAYPOINT).toIntOrNull()?.let(l::onWaypointTap)
                     tapped.startsWith(TAP_PARTY) -> l.onPartyMarkerTap(tapped.removePrefix(TAP_PARTY))
                     tapped.startsWith(TAP_PLACE) -> l.onPlaceTap(tapped.removePrefix(TAP_PLACE))
-                    else -> l.onTap(GeoPoint(lat, lon))
+                    else -> tapMap(l, GeoPoint(lat, lon))
                 }
             }
 
@@ -112,6 +114,15 @@ class MapLibreSurface(
         val c = native.camera()
         return Camera3D(c.lat, c.lon, (metresPerPoint(c) * h * DISTANCE_PER_GROUND).toFloat())
     }
+
+    /** A tap on the map: the screen's (tools, route planner), else the point of interest under it. */
+    private fun tapMap(l: MapListener, p: GeoPoint) {
+        if (l.onTap(p)) return
+        poisNear(p, TAP_RADIUS_DP).firstOrNull()?.let(l::onPoiTap)
+    }
+
+    override fun poisNear(point: GeoPoint, radiusDp: Double): List<MapPoi> =
+        MapPoi.parseList(runCatching { native.poisNear(point.lat, point.lon, radiusDp) }.getOrDefault("[]"), point.lat, point.lon, deviceLanguage())
 
     override fun showFrom3D(camera: Camera3D) {
         val h = native.viewHeight()
@@ -255,6 +266,9 @@ class MapLibreSurface(
         private const val COLOR_A = 0xFF1565C0.toInt()
         private const val COLOR_B = 0xFFEF6C00.toInt()
         private const val EARTH_CIRCUMFERENCE_M = 40_075_016.686
+
+        /** How near a tap must be to a point of interest's symbol (as the markers'). */
+        const val TAP_RADIUS_DP = 22.0
 
         /**
          * The 3D camera's distance per metre of ground across the 2D view's height: the distance

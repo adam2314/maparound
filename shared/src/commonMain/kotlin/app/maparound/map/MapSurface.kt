@@ -81,6 +81,9 @@ interface MapListener {
 
     /** A tap on the map itself; true if the screen used it. */
     fun onTap(point: GeoPoint): Boolean
+
+    /** A tap on a point of interest the map draws (when [onTap] didn't use it). */
+    fun onPoiTap(poi: MapPoi) {}
     fun onWaypointTap(index: Int)
     fun onPartyMarkerTap(key: String)
     fun onPlaceTap(id: String)
@@ -103,6 +106,9 @@ interface MapSurface {
 
     /** Back from the 3D view: the map shows where its [camera] was looking. */
     fun showFrom3D(camera: Camera3D) = Unit
+
+    /** The points of interest drawn within [radiusDp] of [point], nearest first. */
+    fun poisNear(point: GeoPoint, radiusDp: Double): List<MapPoi> = emptyList()
 
     /** Ground metres per dp (a point on iOS) at the middle of the view: how much a finger covers. */
     fun metresPerDp(): Double

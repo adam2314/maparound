@@ -21,6 +21,9 @@ interface PlatformActions {
     /** Opens the point in another map or navigation app. */
     fun openPointElsewhere(lat: Double, lon: Double, label: String?)
 
+    /** Opens a web page (a Wikipedia article…) in the browser. */
+    fun openUrl(url: String)
+
     /** Places as a GPX file. */
     fun sharePlaces(places: List<Place>, title: String)
 

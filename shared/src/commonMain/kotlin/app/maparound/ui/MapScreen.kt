@@ -20,6 +20,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.TravelExplore
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
@@ -349,6 +351,10 @@ fun MapScreen(
     var follow by rememberSaveable { mutableStateOf(false) }
     var pin by remember { mutableStateOf<GeoPoint?>(null) }
     var pinLabel by remember { mutableStateOf<String?>(null) }
+    // The point of interest the pin is on (tapped on the map), while the pin stays there.
+    var pinPoi by remember { mutableStateOf<app.maparound.map.MapPoi?>(null) }
+    // "What's here?" open for a point (and the point of interest there).
+    var whatsHere by remember { mutableStateOf<Pair<GeoPoint, app.maparound.map.MapPoi?>?>(null) }
     var showMe by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
     // (lat, lon, label) for the share sheet
@@ -389,6 +395,16 @@ fun MapScreen(
                     true
                 }
                 else -> false
+            }
+
+            override fun onPoiTap(poi: app.maparound.map.MapPoi) {
+                // The pin on the point of interest, with what it is.
+                showMe = false
+                selectedPlace = null
+                selectedParty = null
+                pin = poi.point
+                pinLabel = poi.title
+                pinPoi = poi
             }
 
             override fun onWaypointTap(index: Int) {
@@ -599,8 +615,12 @@ fun MapScreen(
                 })
             }
             pin?.let { p ->
+                val poi = pinPoi?.takeIf { it.point == p }
                 PinCard(
                     p, pinLabel, location, onClose = { pin = null },
+                    details = poi?.details,
+                    onWhatsHere = { whatsHere = p to poi },
+                    wikiUrl = poi?.wikipedia?.let { (lang, title) -> app.maparound.search.Wikipedia.articleUrl(lang, title) },
                     onRoute = {
                         pin = null
                         ToolsSession.close()
@@ -719,6 +739,18 @@ fun MapScreen(
     }
 
     shareTarget?.let { (la, lo, label) -> PointShareSheet(la, lo, label, onDismiss = { shareTarget = null }) }
+
+    whatsHere?.let { (p, poi) ->
+        // The places the map draws around the point (offline), nearest first.
+        val around = remember(p) { controller.poisNear(p, WHATS_HERE_RADIUS_DP) }
+        WhatsHereSheet(p, poi, around, onShow = { other ->
+            whatsHere = null
+            pin = other.point
+            pinLabel = other.title
+            pinPoi = other
+            controller.animateTo(other.lat, other.lon)
+        }, onDismiss = { whatsHere = null })
+    }
 
     scene3d?.let { req ->
         Scene3DScreen(req, onClose = { last ->
@@ -910,8 +942,14 @@ private fun PinCard(
     onMeetHere: (() -> Unit)? = null,
     onSavePlace: (() -> Unit)? = null,
     onTool: ((ToolsSession.Mode) -> Unit)? = null,
+    /** What the point of interest under the pin is ("Peak · 2085 m"). */
+    details: String? = null,
+    onWhatsHere: (() -> Unit)? = null,
+    /** Its Wikipedia article, from its own tags. */
+    wikiUrl: String? = null,
 ) {
     val clipboard = LocalClipboardManager.current
+    val platform = LocalPlatform.current
     val format by LocalPrefs.current.coordFormat.collectAsState()
     val primary = app.maparound.tools.Coords.format(pin, format) ?: Fmt.latLon(pin.lat, pin.lon)
     val secondary = if (format == app.maparound.tools.CoordFormat.DD) Fmt.dms(pin.lat, pin.lon) else Fmt.latLon(pin.lat, pin.lon)
@@ -921,6 +959,7 @@ private fun PinCard(
                 // Tapping the coordinates opens the converter with this point.
                 Column(Modifier.weight(1f).clickable(enabled = onTool != null) { onTool?.invoke(ToolsSession.Mode.COORDS) }) {
                     if (label != null) Text(label, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (details != null) Text(details, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
                     Text(
                         primary,
                         style = if (label == null) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium,
@@ -936,6 +975,24 @@ private fun PinCard(
                     "${Fmt.distance(Geo.distance(from, pin).toFloat())} from you · ${bearing.roundToInt()}° ${Fmt.cardinal(bearing)}",
                     style = MaterialTheme.typography.bodyMedium,
                 )
+            }
+            if (onWhatsHere != null || wikiUrl != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (onWhatsHere != null) {
+                        TextButton(onClick = onWhatsHere) {
+                            Icon(Icons.Filled.TravelExplore, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("What's here?")
+                        }
+                    }
+                    if (wikiUrl != null) {
+                        TextButton(onClick = { platform.openUrl(wikiUrl) }) {
+                            Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Wikipedia")
+                        }
+                    }
+                }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (onRoute != null) {
@@ -1430,3 +1487,6 @@ private fun SaveRouteDialog(suggested: String, onDismiss: () -> Unit, onSave: (S
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }
+
+/** How far around a point "What's here?" lists the map's places, on screen. */
+private const val WHATS_HERE_RADIUS_DP = 140.0

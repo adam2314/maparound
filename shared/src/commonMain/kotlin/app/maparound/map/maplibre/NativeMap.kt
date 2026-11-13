@@ -29,6 +29,13 @@ interface NativeMap {
     fun fitBounds(south: Double, west: Double, north: Double, east: Double, animated: Boolean)
 
     fun setCallbacks(callbacks: NativeMapCallbacks?)
+
+    /**
+     * The points of interest the map draws within [radiusPx] points of ([lat], [lon]): the
+     * features of its symbol layers from the offline maps' `poi` layer, as JSON
+     * `[{"lat":…,"lon":…,"p":{"name":…,"natural":"peak",…}}]` (see [app.maparound.map.MapPoi]).
+     */
+    fun poisNear(lat: Double, lon: Double, radiusPx: Double): String
 }
 
 /** What happens on the native map. Called on the main thread. */

@@ -52,6 +52,7 @@ private fun mlMoved(): Boolean = js("MapAroundMap.moved()")
 private fun mlZoomAt(delta: Double, x: Double, y: Double, animated: Boolean): Unit = js("{ MapAroundMap.zoomAt(delta, x, y, animated); }")
 private fun mlLngLat(x: Double, y: Double): String = js("MapAroundMap.lngLat(x, y)")
 private fun mlTapped(x: Double, y: Double): String = js("MapAroundMap.tapped(x, y)")
+private fun mlPoisNear(lat: Double, lon: Double, radius: Double): String = js("MapAroundMap.poisNear(lat, lon, radius)")
 
 /**
  * The MapLibre GL JS map as the shared [NativeMap] (there's one map on the page, in `#map`).
@@ -82,6 +83,8 @@ class WebNativeMap(style: String, symbolsUrl: String, tiles: (String) -> JsAny?)
     override fun setCallbacks(callbacks: NativeMapCallbacks?) {
         this.callbacks = callbacks
     }
+
+    override fun poisNear(lat: Double, lon: Double, radiusPx: Double): String = mlPoisNear(lat, lon, radiusPx)
 
     fun place(left: Double, top: Double, width: Double, height: Double) = mlPlace(left, top, width, height)
     fun hide() = mlHide()

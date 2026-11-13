@@ -34,6 +34,12 @@
   overview download isn't needed any more; you can delete it.
 - **Country borders at every zoom.** In Topo, disputed borders and lines of control are drawn
   with short dashes.
+- **Tap a place on the map.** Peaks, springs, huts, viewpoints, villages and the other places the
+  map labels can be tapped: the pin shows what it is (Peak · 2085 m, Alpine hut, Drinking water…)
+  with its name in your language and the local one, ready to route to, share or save.
+- **What's here?** From any pin: the places the map shows around it, nearest first (offline; tap
+  one to go there), and Wikipedia articles about places nearby, in your language and in English
+  (online). A place with its own article gets a *Wikipedia* button. On Android, iPhone and the web.
 
 ### Web app
 - **MapAround in the browser** at [adam2314.github.io/maparound/app](https://adam2314.github.io/maparound/app/),
