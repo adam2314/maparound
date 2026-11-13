@@ -101,6 +101,9 @@ interface MapSurface {
     /** A 3D camera looking at the same area, or null when there is none. */
     fun camera3D(): Camera3D?
 
+    /** Back from the 3D view: the map shows where its [camera] was looking. */
+    fun showFrom3D(camera: Camera3D) = Unit
+
     /** Ground metres per dp (a point on iOS) at the middle of the view: how much a finger covers. */
     fun metresPerDp(): Double
 

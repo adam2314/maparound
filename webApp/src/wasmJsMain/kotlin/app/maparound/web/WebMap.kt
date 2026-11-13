@@ -231,8 +231,11 @@ private suspend fun PointerInputScope.wheelZoom(map: WebNativeMap) {
 
 // ---- the 3D view: mapview.js turns the map itself to MapLibre's terrain and globe ----------------
 
-private fun ml3dEnter(lat: Double, lon: Double, zoom: Double, bearing: Double, pitch: Double, satellite: Boolean, exaggeration: Double, buildings: Boolean): Unit =
-    js("{ MapAroundMap.enter3d(lat, lon, zoom, bearing, pitch, satellite, exaggeration, buildings); }")
+private fun ml3dEnter(
+    lat: Double, lon: Double, zoom: Double, bearing: Double, pitch: Double, satellite: Boolean, exaggeration: Double, buildings: Boolean, intro: Boolean,
+): Unit = js("{ MapAroundMap.enter3d(lat, lon, zoom, bearing, pitch, satellite, exaggeration, buildings, intro); }")
+
+private fun ml3dLeave(lat: Double, lon: Double, zoom: Double, done: () -> Unit): Unit = js("{ MapAroundMap.leave3d(lat, lon, zoom, done); }")
 
 private fun ml3dExit(lat: Double, lon: Double, zoom: Double): Unit = js("{ MapAroundMap.exit3d(lat, lon, zoom); }")
 private fun ml3dExaggeration(e: Double): Unit = js("{ MapAroundMap.exaggeration3d(e); }")
@@ -264,7 +267,23 @@ private class WebScene3DControl : Scene3DControl {
     override val status: String get() = if (ml3dLoading()) "Loading the relief\u2026" else ""
 
     override fun faceNorth() = ml3dNorth()
+
+    /** Where [leave] took the map: the 2D view to stay at when the 3D view goes. */
+    var leftTo: Triple<Double, Double, Double>? = null
+        private set
+
+    /** Eases back to the 2D map's look where the 2D map will be ([MapLibreSurface.showFrom3D]). */
+    override fun leave(done: () -> Unit) {
+        val c = camera
+        val to = Triple(c.lat, c.lon, zoom2d(c))
+        leftTo = to
+        ml3dLeave(to.first, to.second, to.third, done)
+    }
 }
+
+/** The 2D map's zoom for a 3D camera, NaN when there's none (the view isn't laid out). */
+private fun zoom2d(c: Camera3D): Double =
+    MapLibreSurface.zoomFor(c, mlHeight()).takeIf { it.isFinite() }?.coerceIn(1.0, 20.0) ?: Double.NaN
 
 /**
  * The 3D view on the web: the map itself on the relief (online elevation tiles), a globe when
@@ -280,15 +299,17 @@ fun WebScene3DView(args: Scene3DViewArgs) {
         val c = a.camera
         ml3dEnter(
             c.lat, c.lon, zoomFor(c.lat, c.distance.toDouble(), mlHeight()), c.yaw.toDouble(),
-            (90.0 - c.pitch).coerceIn(0.0, 80.0), a.satellite, a.exaggeration.toDouble(), a.buildings,
+            (90.0 - c.pitch).coerceIn(0.0, 80.0), a.satellite, a.exaggeration.toDouble(), a.buildings, a.intro,
         )
         val control = WebScene3DControl()
         a.onCreated(control, Scene3DSetup(emptyList(), hasBuildings = ml3dHasBuildings()))
         onDispose {
-            // The 2D map comes back where the 3D view was looking, flat and north up.
+            // The 2D map comes back where the 3D view was looking, flat and north up: where the
+            // closing eased to, or (gone some other way) from the 3D camera.
             val last = control.camera
             current.value.onReleased(control)
-            ml3dExit(last.lat, last.lon, MapLibreSurface.zoomFor(last, mlHeight()).takeIf { it.isFinite() }?.coerceIn(1.0, 20.0) ?: Double.NaN)
+            val to = control.leftTo ?: Triple(last.lat, last.lon, zoom2d(last))
+            ml3dExit(to.first, to.second, to.third)
         }
     }
     LaunchedEffect(args.exaggeration) { ml3dExaggeration(args.exaggeration.toDouble()) }

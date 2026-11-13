@@ -52,7 +52,13 @@ class FrameState(
  * slide up/down to tilt; double-tap zooms in.
  */
 @SuppressLint("ViewConstructor")
-class Scene3DView(context: Context, start: Camera3D, private val engine: TerrainEngine) : FrameLayout(context), Scene3DControl {
+class Scene3DView(
+    context: Context,
+    start: Camera3D,
+    private val engine: TerrainEngine,
+    /** Ease in from straight down (as the 2D map looked) to [start]. */
+    intro: Boolean = false,
+) : FrameLayout(context), Scene3DControl {
     private val gl = GLSurfaceView(context)
     private val labels = LabelOverlay(context, engine)
     private val renderer = Renderer3D(engine, start)
@@ -67,10 +73,29 @@ class Scene3DView(context: Context, start: Camera3D, private val engine: Terrain
         gl.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
         addView(gl, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         addView(labels, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        if (intro) {
+            renderer.yaw = 0f
+            renderer.pitch = STRAIGHT_DOWN
+            renderer.turnTo(start.yaw, start.pitch, INTRO_SECONDS)
+        }
     }
 
+    /** A line of the view's own (fetching elevation…), shown instead of the loading progress. */
+    @Volatile var note: String = ""
+
+    /** Closing: the view eases back to the 2D map's look; touches wait. */
+    private var leaving = false
+
     override val camera: Camera3D get() = renderer.camera()
-    override val status: String get() = renderer.status
+    override val status: String get() = note.ifEmpty { renderer.status }
+
+    override fun leave(done: () -> Unit) {
+        if (leaving) return
+        leaving = true
+        renderer.stopMotion()
+        renderer.turnTo(0f, STRAIGHT_DOWN, LEAVE_SECONDS, locked = true) { post { done() } }
+        gl.requestRender()
+    }
 
     fun requestRender() = gl.requestRender()
     fun onPause() = gl.onPause()
@@ -89,8 +114,7 @@ class Scene3DView(context: Context, start: Camera3D, private val engine: Terrain
     }
 
     override fun faceNorth() {
-        renderer.yaw = 0f
-        renderer.pitch = 45f
+        renderer.turnTo(0f, 45f, NORTH_SECONDS)
         gl.requestRender()
     }
 
@@ -121,6 +145,7 @@ class Scene3DView(context: Context, start: Camera3D, private val engine: Terrain
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(e: MotionEvent): Boolean {
+        if (leaving) return true
         taps.onTouchEvent(e)
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -223,6 +248,12 @@ class Scene3DView(context: Context, start: Camera3D, private val engine: Terrain
     private companion object {
         /** Slower lifts of the finger don't fling (dp per second). */
         const val FLING_MIN_PX_S = 400f
+
+        /** Looking (almost) straight down, as the 2D map does: the steepest tilt the gestures allow. */
+        const val STRAIGHT_DOWN = 89f
+        const val INTRO_SECONDS = 1.1f
+        const val LEAVE_SECONDS = 0.6f
+        const val NORTH_SECONDS = 0.6f
     }
 }
 
@@ -251,6 +282,31 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
     @Volatile private var zoomTarget = 0f
     @Volatile private var zoomStart = 0L
     private var lastFrameNanos = 0L
+
+    // An eased turn and tilt (into and out of the view, facing north); it starts with the next frame.
+    @Volatile private var turnStart = 0L
+    @Volatile private var turnSeconds = 1f
+    @Volatile private var turnLocked = false
+    private var yawFrom = 0f
+    private var yawTo = 0f
+    private var pitchFrom = 0f
+    private var pitchTo = 0f
+    @Volatile private var turnDone: (() -> Unit)? = null
+
+    /** Eases to heading [yaw] and tilt [pitch] in [seconds]; [locked]: touches don't stop it. [done] on the GL thread. */
+    fun turnTo(yaw: Float, pitch: Float, seconds: Float, locked: Boolean = false, done: (() -> Unit)? = null) {
+        yawFrom = this.yaw
+        var d = (yaw - yawFrom) % 360f
+        if (d > 180f) d -= 360f
+        if (d < -180f) d += 360f
+        yawTo = yawFrom + d // the short way round
+        pitchFrom = this.pitch
+        pitchTo = pitch
+        turnSeconds = seconds
+        turnLocked = locked
+        turnDone = done
+        turnStart = -1L
+    }
 
     private class GpuTile(val vbo: Int, val tex: Int, val n: Int, val center: Vec3, var used: Long, val fadeFrom: Long)
     private class GpuBuildings(val vbo: Int, val vertexCount: Int, val center: Vec3, val basis: FloatArray, var used: Long)
@@ -298,11 +354,30 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
         flingVx = 0f
         flingVy = 0f
         zoomStart = 0L
+        // A touch takes over from an easing turn (not from closing).
+        if (!turnLocked) {
+            turnStart = 0L
+            turnDone = null
+        }
     }
 
-    /** Moves the fling and the eased zoom on by [dt] seconds; true while either goes on. */
+    /** Moves the fling, the eased zoom and the eased turn on by [dt] seconds; true while any goes on. */
     private fun animate(now: Long, dt: Float): Boolean {
         var moving = false
+        if (turnStart != 0L) {
+            if (turnStart == -1L) turnStart = now
+            val t = ((now - turnStart) / 1e9f / turnSeconds).coerceIn(0f, 1f)
+            val ease = t * t * (3 - 2 * t)
+            yaw = yawFrom + (yawTo - yawFrom) * ease
+            pitch = pitchFrom + (pitchTo - pitchFrom) * ease
+            if (t >= 1f) {
+                turnStart = 0L
+                turnLocked = false
+                turnDone?.let { turnDone = null; it() }
+            } else {
+                moving = true
+            }
+        }
         if (flingVx != 0f || flingVy != 0f) {
             pan(flingVx * dt, flingVy * dt, flingViewPx)
             val decay = exp(-FLING_DECAY * dt)

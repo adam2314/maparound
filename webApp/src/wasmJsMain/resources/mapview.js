@@ -601,6 +601,8 @@
   const IMAGERY = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
   const OSM_SOURCE = 'osm'; // MapStyle.OSM_SOURCE: the downloaded maps
   const MAX_PITCH_2D = 60, MAX_PITCH_3D = 80;
+  /** Eases in and out (smoothstep), for the 3D view's turns and tilts. */
+  const SMOOTH = (t) => t * t * (3 - 2 * t);
   /** Around the globe: space (the atmosphere's glow is MapLibre's). */
   const SPACE = 'radial-gradient(ellipse at 50% 60%, #1b2a4a 0%, #0a1020 70%)';
   /** While the 3D view is open: its settings, and the 2D view to go back to. */
@@ -749,8 +751,10 @@
     hide() { container.style.display = 'none'; },
 
     // ---- the 3D view (pitch: MapLibre's, from straight down) ----
-    enter3d(lat, lon, zoom, bearing, pitch, satellite, exaggeration, buildings) {
+    /** intro: ease in from the 2D map (straight down) instead of jumping there. */
+    enter3d(lat, lon, zoom, bearing, pitch, satellite, exaggeration, buildings, intro) {
       if (exit3dTimer) { clearTimeout(exit3dTimer); exit3dTimer = null; }
+      const fresh = !view3d;
       if (!view3d) {
         const c = map.getCenter();
         view3d = { back: { center: [c.lng, c.lat], zoom: map.getZoom(), bearing: map.getBearing(), pitch: 0 } };
@@ -760,7 +764,18 @@
       }
       Object.assign(view3d, { satellite: satellite, exaggeration: exaggeration, buildings: buildings });
       apply3d();
-      map.jumpTo({ center: [lon, lat], zoom: zoom, bearing: bearing, pitch: Math.min(pitch, MAX_PITCH_3D) });
+      const to = { center: [lon, lat], zoom: zoom, bearing: bearing, pitch: Math.min(pitch, MAX_PITCH_3D) };
+      if (fresh && intro) map.easeTo(Object.assign(to, { duration: 1100, easing: SMOOTH }));
+      else map.jumpTo(to);
+    },
+    /** Closing: eases back to the 2D map's look at (lat, lon, MapLibre's zoom), then done(). */
+    leave3d(lat, lon, zoom, done) {
+      let called = false;
+      const finish = () => { if (!called) { called = true; done(); } };
+      if (!view3d || !isFinite(lat) || !isFinite(lon) || !isFinite(zoom)) { finish(); return; }
+      map.easeTo({ center: [lon, lat], zoom: zoom, bearing: 0, pitch: 0, duration: 600, easing: SMOOTH });
+      map.once('moveend', finish);
+      setTimeout(finish, 800); // nothing to move: no moveend
     },
     /** Back to 2D at (lat, lon), MapLibre's zoom (NaN: where the 2D map was before). */
     exit3d(lat, lon, zoom) {
@@ -797,7 +812,7 @@
     },
     loading3d() { return !!view3d && !map.areTilesLoaded(); },
     hasBuildings3d() { return !!map.getSource(OSM_SOURCE); },
-    north3d() { map.easeTo({ bearing: 0, duration: 500 }); },
+    north3d() { map.easeTo({ bearing: 0, pitch: 45, duration: 600, easing: SMOOTH }); },
 
     // ---- gestures, positions in CSS pixels within the map ----
     /** The press that's down now reached the map (not something over it): the map follows it. */

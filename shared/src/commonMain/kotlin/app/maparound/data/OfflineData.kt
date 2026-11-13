@@ -121,6 +121,29 @@ interface TerrainData {
     fun download(label: String, bounds: GeoBounds, highDetail: Boolean): String?
     fun cancel()
     fun deleteAll()
+
+    /** The detail of downloads nobody asked for ([ensure]): the user's last choice where there is one. */
+    val autoHighDetail: Boolean get() = false
+
+    /**
+     * Gets the elevation data [bounds] needs without asking (the 3D view, line of sight, viewshed):
+     * starts downloading its missing cells, a few at most. Null when that's under way (or nothing's
+     * missing); otherwise why not (Wi‑Fi only, no space, too big an area…). The data's [state]
+     * version changes when it arrives.
+     */
+    fun ensure(label: String, bounds: GeoBounds): String? {
+        val missing = missingCells(bounds)
+        if (missing.isEmpty() || state.value.progress != null) return null
+        if (missing.size > AUTO_MAX_CELLS) {
+            return "This area needs ${missing.size} terrain tiles: download them with the map (Offline maps \u2192 \u22ee \u2192 Terrain)."
+        }
+        return download(label, bounds, autoHighDetail)
+    }
+
+    companion object {
+        /** The most 1° cells [ensure] downloads at a time. */
+        const val AUTO_MAX_CELLS = 6
+    }
 }
 
 interface TrailData {

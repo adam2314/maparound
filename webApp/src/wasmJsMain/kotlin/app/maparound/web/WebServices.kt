@@ -14,8 +14,6 @@ import app.maparound.data.LocalMap
 import app.maparound.data.MapDownloads
 import app.maparound.data.RoutingData
 import app.maparound.data.RoutingDataState
-import app.maparound.data.TerrainData
-import app.maparound.data.TerrainState
 import app.maparound.data.TrailData
 import app.maparound.data.TrailState
 import app.maparound.map.MapTheme
@@ -431,16 +429,6 @@ private fun cells(bounds: GeoBounds): List<Pair<Int, Int>> {
         for (lon in floor(bounds.minLon).toInt()..floor(bounds.maxLon - 1e-9).toInt()) out += lat to lon
     }
     return out
-}
-
-object PendingTerrain : TerrainData {
-    override val state: StateFlow<TerrainState> = MutableStateFlow(TerrainState())
-    override fun cellsFor(bounds: GeoBounds) = cells(bounds)
-    override fun missingCells(bounds: GeoBounds) = cells(bounds)
-    override fun estimateBytes(cells: Int, highDetail: Boolean): Long = 0
-    override fun download(label: String, bounds: GeoBounds, highDetail: Boolean): String = "Terrain: $LATER"
-    override fun cancel() = Unit
-    override fun deleteAll() = Unit
 }
 
 object PendingTrails : TrailData {

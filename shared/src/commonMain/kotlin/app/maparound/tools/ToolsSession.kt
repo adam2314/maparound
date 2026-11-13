@@ -1,7 +1,9 @@
 package app.maparound.tools
 
+import app.maparound.data.TerrainData
 import app.maparound.routing.GeoPoint
 import app.maparound.terrain.DemIndex
+import app.maparound.terrain.GeoBounds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +17,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
+import kotlin.math.PI
+import kotlin.math.cos
 
 /**
  * The map tools (azimuth & range, line of sight, viewshed, coordinate converter). Lives outside
@@ -45,6 +49,10 @@ object ToolsSession {
         val busy: Boolean = false,
         /** Line of sight / viewshed need terrain data at A (and B). */
         val needsTerrain: Boolean = false,
+        /** The area's terrain is downloading for them (done, total 1° cells). */
+        val terrainProgress: Pair<Int, Int>? = null,
+        /** Why the area's terrain couldn't be fetched (offline, Wi‑Fi only…), with a retry. */
+        val terrainProblem: String? = null,
         /** Ground near A that is higher than A (and may block the view), with its height. */
         val higherNearA: Pair<GeoPoint, Double>? = null,
     ) {
@@ -66,6 +74,42 @@ object ToolsSession {
      * platform at start-up (Android: the terrain repository).
      */
     var terrainSource: () -> Pair<String, Int>? = { null }
+
+    /**
+     * The platform's elevation data, to fetch what line of sight and viewshed need without asking.
+     * Set at start-up, with [terrainSource].
+     */
+    var terrainData: TerrainData? = null
+        set(value) {
+            field = value
+            watchJob?.cancel()
+            watchJob = value?.let { t ->
+                scope.launch {
+                    var version = t.state.value.version
+                    t.state.collect { st ->
+                        val s = _state.value
+                        if (s.active && s.terrainProgress != null) {
+                            _state.value = s.copy(terrainProgress = st.progress?.let { it.done to it.total } ?: s.terrainProgress)
+                        }
+                        // New elevation data (or a download ended): try again with it.
+                        if (st.version != version) {
+                            version = st.version
+                            if (_state.value.active) recompute()
+                        }
+                    }
+                }
+            }
+        }
+    private var watchJob: Job? = null
+
+    /** 1° cells already fetched for the tools this session that didn't come: not again until [retryTerrain]. */
+    private val triedCells = HashSet<Pair<Int, Int>>()
+
+    /** Tries again to fetch the terrain that didn't come. */
+    fun retryTerrain() {
+        triedCells.clear()
+        recompute()
+    }
 
     fun open(mode: Mode? = null, a: GeoPoint? = null) {
         val s = _state.value
@@ -186,11 +230,58 @@ object ToolsSession {
         return dem
     }
 
+    /** The ground line of sight or the viewshed need, or null. */
+    private fun neededArea(s: State): GeoBounds? = when {
+        s.mode == Mode.SIGHT && s.a != null && s.b != null ->
+            GeoBounds(minOf(s.a.lat, s.b.lat), minOf(s.a.lon, s.b.lon), maxOf(s.a.lat, s.b.lat), maxOf(s.a.lon, s.b.lon))
+        s.mode == Mode.VIEW && s.a != null -> {
+            val dLat = s.radiusM / 111_320.0
+            val dLon = dLat / cos(s.a.lat * PI / 180).coerceAtLeast(0.05)
+            GeoBounds(s.a.lat - dLat, s.a.lon - dLon, s.a.lat + dLat, s.a.lon + dLon)
+        }
+        else -> null
+    }
+
+    /**
+     * Starts fetching the terrain [s] needs, if some is missing: true while it downloads (the
+     * results wait for it). Cells that didn't come are left to [retryTerrain].
+     */
+    private fun fetchTerrain(s: State): Boolean {
+        val t = terrainData ?: return false
+        val area = neededArea(s) ?: return false
+        val missing = t.missingCells(area)
+        if (missing.isEmpty()) {
+            _state.value = _state.value.copy(terrainProgress = null, terrainProblem = null)
+            return false
+        }
+        val fresh = missing.filterNot { it in triedCells }
+        if (fresh.isEmpty()) {
+            // Tried and they didn't come (no connection?): compute with what there is.
+            if (_state.value.terrainProblem == null) {
+                _state.value = _state.value.copy(terrainProgress = null, terrainProblem = "Couldn't get the terrain data for this area (no connection?).")
+            }
+            return false
+        }
+        val problem = t.ensure("this area", area)
+        if (problem != null) {
+            _state.value = _state.value.copy(terrainProgress = null, terrainProblem = problem)
+            return false
+        }
+        triedCells += fresh
+        val p = t.state.value.progress
+        _state.value = _state.value.copy(
+            busy = true, needsTerrain = true, los = null, viewshed = null, terrainProblem = null,
+            terrainProgress = (p?.done ?: 0) to (p?.total ?: missing.size),
+        )
+        return true
+    }
+
     private fun recompute() {
         job?.cancel()
         val s = _state.value
         if (!s.active) return
-        _state.value = s.copy(busy = s.mode == Mode.SIGHT || s.mode == Mode.VIEW)
+        if (fetchTerrain(s)) return
+        _state.value = _state.value.copy(busy = s.mode == Mode.SIGHT || s.mode == Mode.VIEW, terrainProgress = null)
         job = scope.launch {
             delay(150) // let slider drags and quick taps settle
             try {

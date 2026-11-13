@@ -98,6 +98,8 @@ class TerrainStore(
     override fun missingCells(bounds: GeoBounds): List<Pair<Int, Int>> =
         cellsFor(bounds).filterNot { (lat, lon) -> fileSystem.exists(dir / (DemIndex.nameFor(lat, lon) + ".hgt")) }
 
+    override val autoHighDetail: Boolean get() = prefs.terrainHighDetail
+
     override fun estimateBytes(cells: Int, highDetail: Boolean): Long =
         cells * if (highDetail) BYTES_1_ARCSEC else BYTES_3_ARCSEC
 

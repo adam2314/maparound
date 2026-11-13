@@ -94,6 +94,7 @@ object AppGraph {
         terrain = TerrainRepository(app, prefs, mapFiles)
         themes = AndroidMapThemes(app)
         ToolsSession.terrainSource = { terrain.demDir.path to terrain.state.value.version }
+        ToolsSession.terrainData = terrain
         routing = RoutingDataRepository(app)
         planner = RoutePlanner(app, routing, terrain.demDir)
         trails = TrailRepository(app, prefs)

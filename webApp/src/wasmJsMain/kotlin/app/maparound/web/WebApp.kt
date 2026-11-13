@@ -75,12 +75,15 @@ class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: Str
     /** The party, watch only (WebParty.kt). */
     val party = WebPartyWatcher(WebStorageStore("party"))
     val searcher = WebSearcher(places, maps)
+    /** Elevation data for line of sight and viewshed, fetched as they need it. */
+    val terrain = WebTerrain(demDir)
+
     val offline = OfflineData(
         maps = maps,
         downloads = WebDownloads,
         // mapsforge.org's server doesn't let a web page read its lists: MapAround's catalog only.
         catalog = MapAroundCatalog(useMapsforge = false),
-        terrain = PendingTerrain,
+        terrain = terrain,
         trails = PendingTrails,
         routing = PendingRouting,
         builtInWorld = true,
@@ -90,7 +93,8 @@ class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: Str
     init {
         fileSystem.createDirectories(demDir.toPath())
         userAgent = "MapAround (web; offline OSM map viewer)"
-        ToolsSession.terrainSource = { demDir to 0 }
+        ToolsSession.terrainSource = { demDir to terrain.state.value.version }
+        ToolsSession.terrainData = terrain
         PlannerSession.library = tracks
         PlannerSession.router = { points, profile -> route(points, profile) }
     }

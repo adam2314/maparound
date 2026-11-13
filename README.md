@@ -16,7 +16,7 @@ Licence: **GPL-3.0** (see [LICENSE](LICENSE)); bundled components keep their own
 |---|---|
 | **Map** | Pan/zoom map, my-location dot with accuracy circle and follow mode, long-press to drop a pin (coordinates, DMS, distance/bearing from you, copy, open in another app). Buttons for **search**, layers, the **route planner**, **map tools**, the **3D view** and **track recording**; zoom with pinch or double-tap. |
 | **Search** (on the map, magnifier) | Your saved places, coordinates in any format and map links, and names in the **offline maps** around the map centre (towns, peaks, springs, streets, paths, hotels…, within 25 km, works without internet) as you type; **online** search of OpenStreetMap anywhere (Photon, with Nominatim as a fallback) when you press search. Picking a result drops a labelled pin there. |
-| **Map tools** (on the map, ruler button) | **Azimuth & range** between two points (true and magnetic bearing, mils, back bearing, height difference, slope, place B by bearing + distance). **Line of sight** from A to B with a terrain profile and where the view is blocked; as a **radio link**, with antenna heights at both ends and a frequency (LoRa 433/868/915 MHz, 2.4 and 5.8 GHz, VHF, PMR446, FRS/GMRS or any), it draws the first Fresnel zone on the profile and gives its clearance (60% rule) and the path loss (free space + terrain). **Viewshed**: a circle (250 m–25 km) showing ground in sight (green) and hidden (red). **Coordinate converter**: one point in decimal degrees, deg-min, deg-min-sec, UTM, MGRS, Israeli ITM, Plus Code and Maidenhead; type or paste any of them to jump there; pick the format used on pins. |
+| **Map tools** (on the map, ruler button) | **Azimuth & range** between two points (true and magnetic bearing, mils, back bearing, height difference, slope, place B by bearing + distance). **Line of sight** from A to B with a terrain profile and where the view is blocked; as a **radio link**, with antenna heights at both ends and a frequency (LoRa 433/868/915 MHz, 2.4 and 5.8 GHz, VHF, PMR446, FRS/GMRS or any), it draws the first Fresnel zone on the profile and gives its clearance (60% rule) and the path loss (free space + terrain). **Viewshed**: a circle (250 m–25 km) showing ground in sight (green) and hidden (red). **Coordinate converter**: one point in decimal degrees, deg-min, deg-min-sec, UTM, MGRS, Israeli ITM, Plus Code and Maidenhead; type or paste any of them to jump there; pick the format used on pins. Line of sight and viewshed fetch the terrain they need themselves when it's missing (a few 1° tiles at most, as the Wi‑Fi-only setting allows). |
 | **Route planner** (on the map) | Tap points (start, stops, end); tap a numbered point to remove it. Hold a stop and drag it to move it, or hold the line and drag to add a stop there; the line follows your finger and the route is calculated again when you let go. Profiles **Hike / Bike / Car** follow paths and roads; **Line** draws straight lines to measure. Shows distance, climb/descent, estimated time and an elevation profile; undo, reverse, save to the library. **Start** navigates: the next turn and its distance, time left and arrival, voice prompts (switchable), a new route when you leave it, and it keeps going with the screen off. |
 | **3D view** (on the map, cube button) | The map in 3D on the whole globe, streamed as you move: terrain relief with the map draped on it (drawn by MapLibre like the 2D map: your offline style, or the online layer, or satellite), detailed near you and coarser to the horizon, a sky with haze, names standing up over the terrain (places, peaks with their heights, huts; hidden behind ridges), and buildings extruded from the offline map close up (heights from OSM `height` / `building:levels`). Zoom out and it's the Earth in space. One finger pans and flings, pinch zooms, two fingers turn and tilt; relief exaggeration ×1–4, buildings on/off, face north. |
 | **Places** (Library → Places) | Your own points of interest: save from any pin or your location with a name, category (⭐ favourite, ⛺ camp, 💧 water, 🔭 viewpoint, 🅿️ parking, ⛽ fuel, 🍴 food, ⚠️ danger, 📍 other) and a note. Shown on the map (Layers → Saved places); tap one for route here, share, viewshed, edit, delete. The list searches names and notes, filters by category and sorts by distance, name or date. Import waypoints from any GPX file, share or export places as GPX. |
@@ -246,6 +246,12 @@ shading extra); azimuth and the converter work without it.
   single knife edge, J(v) of ITU-R P.526. The profile shows the zone as a lens, its 60% line dashed,
   and the ground green / amber / red by how far it reaches into it. Antenna gain, cable loss, trees
   and buildings aren't included.
+- **Terrain on demand** (`TerrainData.ensure`): line of sight, the viewshed and the 3D view fetch
+  the 1° elevation tiles their area lacks without asking (at most 6, at the detail last chosen, not
+  on mobile data when Wi‑Fi only is on), show the download's progress and carry on when it's in;
+  tiles that didn't come (no connection) wait for *Try again*. The web app fetches the same tiles
+  with the browser (`WebTerrain`: its gzip, every third sample, so standard detail) and keeps them
+  with its files.
 - **Viewshed** (`Viewshed`): radial sweep from A, one ray to every edge cell of a grid of up to
   601×601 cells laid out in Web Mercator (so it lines up with map pixels). Each ray samples terrain at
   the same spacing as the line of sight, so both tools agree (checked against brute-force sight lines
@@ -279,7 +285,11 @@ like on the iPhone, and driven by the same shared code (`map/maplibre/MapLibreSu
   Terrarium elevation tiles for hill shading come from the elevation files. MapLibre asks for them
   over HTTP from a host that never resolves (`tiles.maparound.invalid`): an interceptor in its OkHttp
   client (`map/gl/GlTiles.kt`) answers on the phone, a few tiles at a time on a small pool of
-  readers. URLs carry a key of the data, so MapLibre may cache tiles for good.
+  readers. URLs carry a key of the data, so MapLibre may cache tiles for good. MapLibre holds back
+  every HTTP request while the phone has no network, these too, so the app tells it it's always
+  connected (`MapLibre.setConnected(true)`) and tells it again when a network comes up, which
+  makes it retry the online tiles at once; without that, the offline map, contours and trails
+  didn't draw with no signal.
 - **Styles** are the same mapsforge themes, turned into MapLibre layers by the shared `ThemeStyle`
   (Topo, Classic, Osmarender, Biker, Motorider and imported ones; their options draw fewer rule
   categories). Theme symbols are drawn from their SVGs when MapLibre first needs them, marker
@@ -464,7 +474,8 @@ How it fits together (`webApp/`, `shared/src/wasmJsMain/`):
   relief shaded, buildings extruded from the downloaded maps (`height`, `building:levels`), and
   Esri imagery for satellite, under the names. When it closes (also with Esc), the 2D map shows
   where it was looking, flat and north up (`MapLibreSurface.zoomFor`, the way back from
-  `camera3D`). Two fingers moving up or down tilt it; a right-button (or ctrl + drag) mouse drag
+  `camera3D`); it eases in from the 2D map's look (straight down) and back out when it closes, as
+  on Android. Two fingers moving up or down tilt it; a right-button (or ctrl + drag) mouse drag
   turns and tilts it. Esc is the web app's back key: it also closes the search and goes up a
   level in the map list.
 - **Files and settings.** The browser has no file system for the shared code: files live in memory

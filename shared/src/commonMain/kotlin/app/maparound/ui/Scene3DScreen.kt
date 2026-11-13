@@ -48,6 +48,9 @@ interface Scene3DControl {
     val status: String
 
     fun faceNorth()
+
+    /** Closing: the view eases back to the 2D map's look (straight down, north up), then [done] on the main thread. */
+    fun leave(done: () -> Unit) = done()
 }
 
 /** What the platform's 3D view found when it was set up. */
@@ -60,6 +63,8 @@ class Scene3DViewArgs(
     val satellite: Boolean,
     val exaggeration: Float,
     val buildings: Boolean,
+    /** The screen's first view: it eases in from the 2D map (straight down) to [camera]; rebuilt views don't. */
+    val intro: Boolean,
     val onCreated: (Scene3DControl, Scene3DSetup) -> Unit,
     val onReleased: (Scene3DControl) -> Unit,
     val modifier: Modifier,
@@ -70,8 +75,7 @@ class Scene3DViewArgs(
  * The platform draws it ([view]); this screen has the controls.
  */
 @Composable
-fun Scene3DScreen(start: Camera3D, onClose: () -> Unit, view: @Composable (Scene3DViewArgs) -> Unit) {
-    PlatformBackHandler(onBack = onClose)
+fun Scene3DScreen(start: Camera3D, onClose: (last: Camera3D?) -> Unit, view: @Composable (Scene3DViewArgs) -> Unit) {
     var satellite by rememberSaveable { mutableStateOf(false) }
     var exaggeration by remember { mutableFloatStateOf(1.5f) }
     var buildings by remember { mutableStateOf(true) }
@@ -81,6 +85,23 @@ fun Scene3DScreen(start: Camera3D, onClose: () -> Unit, view: @Composable (Scene
     var status by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf<List<String>>(emptyList()) }
     var hasBuildings by remember { mutableStateOf(false) }
+    var shown by remember { mutableStateOf(false) }
+    var leaving by remember { mutableStateOf(false) }
+
+    // The view eases back to the 2D map's look, then the screen closes with where it was.
+    fun close() {
+        if (leaving) return
+        leaving = true
+        val c = control
+        if (c == null) {
+            onClose(null)
+        } else {
+            // Where it was looking, before it eases back.
+            val last = c.camera
+            c.leave { onClose(last) }
+        }
+    }
+    PlatformBackHandler(onBack = { close() })
 
     LaunchedEffect(control) {
         while (true) {
@@ -97,7 +118,9 @@ fun Scene3DScreen(start: Camera3D, onClose: () -> Unit, view: @Composable (Scene
                     satellite = satellite,
                     exaggeration = exaggeration,
                     buildings = buildings,
+                    intro = !shown,
                     onCreated = { c, setup ->
+                        shown = true
                         control = c
                         notes = setup.notes
                         hasBuildings = setup.hasBuildings
@@ -112,7 +135,7 @@ fun Scene3DScreen(start: Camera3D, onClose: () -> Unit, view: @Composable (Scene
         }
 
         Row(Modifier.align(Alignment.TopStart).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SmallFloatingActionButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = "Close 3D view") }
+            SmallFloatingActionButton(onClick = { close() }) { Icon(Icons.Filled.Close, contentDescription = "Close 3D view") }
             SmallFloatingActionButton(onClick = { control?.faceNorth() }) { Icon(Icons.Filled.Explore, contentDescription = "Face north") }
             SmallFloatingActionButton(
                 onClick = {

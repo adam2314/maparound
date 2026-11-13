@@ -101,6 +101,7 @@ object IosApp {
     init {
         userAgent = "MapAround/$version (iOS; offline OSM map viewer)"
         ToolsSession.terrainSource = { terrain.demDir to terrain.state.value.version }
+        ToolsSession.terrainData = terrain
         PlannerSession.library = tracks
         if (demo) {
             prefs.saveLastPosition(MapPos(47.141, 9.521, 14))

@@ -113,6 +113,13 @@ class MapLibreSurface(
         return Camera3D(c.lat, c.lon, (metresPerPoint(c) * h * DISTANCE_PER_GROUND).toFloat())
     }
 
+    override fun showFrom3D(camera: Camera3D) {
+        val h = native.viewHeight()
+        if (h <= 0) return
+        val zoom = zoomFor(camera, h).takeIf { it.isFinite() } ?: return
+        native.moveCamera(camera.lat, camera.lon, zoom.coerceIn((MIN_ZOOM - ZOOM_OFFSET).toDouble(), (MAX_ZOOM - ZOOM_OFFSET).toDouble()), animated = false)
+    }
+
     override fun metresPerDp(): Double = metresPerPoint(native.camera())
 
     private fun metresPerPoint(c: NativeCamera) = EARTH_CIRCUMFERENCE_M * cos(c.lat * PI / 180) / (512 * 2.0.pow(c.zoom))

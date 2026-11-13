@@ -720,7 +720,13 @@ fun MapScreen(
 
     shareTarget?.let { (la, lo, label) -> PointShareSheet(la, lo, label, onDismiss = { shareTarget = null }) }
 
-    scene3d?.let { req -> Scene3DScreen(req, onClose = { scene3d = null }) { view3d(it) } }
+    scene3d?.let { req ->
+        Scene3DScreen(req, onClose = { last ->
+            scene3d = null
+            // The 2D map comes back where the 3D view was looking.
+            last?.let(controller::showFrom3D)
+        }) { view3d(it) }
+    }
 
     if (searching) {
         SearchOverlay(

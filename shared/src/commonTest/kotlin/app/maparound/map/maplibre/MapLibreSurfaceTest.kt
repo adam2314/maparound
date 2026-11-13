@@ -69,6 +69,11 @@ class MapLibreSurfaceTest {
         assertEquals(46.56, camera.lat)
         // Back to 2D: the same zoom (to the camera distance's float precision).
         assertEquals(12.3, MapLibreSurface.zoomFor(camera, native.viewHeight()), 1e-6)
+        // And the map goes there when the 3D view closes.
+        native.cam = NativeCamera(0.0, 0.0, 3.0, 0.0)
+        MapLibreSurface(native, TileService(), style).showFrom3D(camera)
+        assertEquals(46.56, native.cam.lat)
+        assertEquals(12.3, native.cam.zoom, 1e-3)
     }
 
     @Test

@@ -342,7 +342,7 @@ private fun SightBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTerra
     when {
         a == null -> Hint(if (state.radio) "Tap the map to place A, the first antenna." else "Tap the map to place A, where you stand.")
         b == null -> Hint(if (state.radio) "Now tap B, the other antenna. Further taps move B." else "Now tap B, what you want to see. Further taps move B.")
-        state.needsTerrain -> TerrainNeeded(onGetTerrain)
+        state.needsTerrain -> TerrainNeeded(state, onGetTerrain)
         state.los?.fresnel != null -> RadioResult(state.los, a, b)
         state.los != null -> {
             val los = state.los
@@ -525,17 +525,45 @@ private fun HigherGroundHint(state: ToolsSession.State) {
     }
 }
 
+/**
+ * The terrain line of sight or the viewshed need: downloading on its own (with progress), or why
+ * it couldn't be (with a retry), or where to get it.
+ */
 @Composable
-private fun TerrainNeeded(onGetTerrain: (() -> Unit)?) {
+private fun TerrainNeeded(state: ToolsSession.State, onGetTerrain: (() -> Unit)?) {
+    val progress = state.terrainProgress
+    if (progress != null) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.Terrain, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Getting the terrain data for this area" +
+                        (if (progress.second > 1) " (${progress.first} of ${progress.second})" else "") + "…",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            if (progress.first == 0) {
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+            } else {
+                LinearProgressIndicator(progress = { progress.first.toFloat() / progress.second }, modifier = Modifier.fillMaxWidth())
+            }
+        }
+        return
+    }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Filled.Terrain, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.width(8.dp))
         Text(
-            "This needs terrain data for the area. Download it with the map (Offline maps → ⋮ → Terrain).",
+            state.terrainProblem ?: "This needs terrain data for the area. Download it with the map (Offline maps → ⋮ → Terrain).",
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(1f),
         )
-        if (onGetTerrain != null) TextButton(onClick = onGetTerrain) { Text("Get") }
+        if (state.terrainProblem != null) {
+            TextButton(onClick = { ToolsSession.retryTerrain() }) { Text("Try again") }
+        } else if (onGetTerrain != null) {
+            TextButton(onClick = onGetTerrain) { Text("Get") }
+        }
     }
 }
 
@@ -668,7 +696,7 @@ private fun ViewshedBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTe
     HigherGroundHint(state)
     when {
         state.a == null -> Hint("Tap the map where you'll stand. Green ground is in sight, red is hidden.")
-        state.needsTerrain -> TerrainNeeded(onGetTerrain)
+        state.needsTerrain -> TerrainNeeded(state, onGetTerrain)
         state.viewshed != null -> {
             val vs = state.viewshed
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
