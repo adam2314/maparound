@@ -65,6 +65,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.maparound.data.LocalPrefs
+import app.maparound.i18n.T
+import app.maparound.i18n.ltr
 import app.maparound.places.LocalPlaces
 import app.maparound.places.Place
 import app.maparound.places.PlaceCategory
@@ -92,7 +94,7 @@ fun PlaceBadge(category: PlaceCategory, size: Int = 36) {
 /** "1.2 km NE" from the user's position, or null without one. */
 private fun distanceFrom(me: GeoFix?, p: Place): String? = me?.let {
     val from = GeoPoint(it.lat, it.lon)
-    "${Fmt.distance(Geo.distance(from, p.point).toFloat())} ${Fmt.cardinal(Geodesy.bearing(from, p.point).toFloat())}"
+    T.library.distanceDirection(Fmt.distance(Geo.distance(from, p.point).toFloat()), Fmt.cardinal(Geodesy.bearing(from, p.point).toFloat()))
 }
 
 // ---- add / edit -------------------------------------------------------------------------------------------
@@ -105,10 +107,10 @@ fun PlaceEditDialog(place: Place, isNew: Boolean, onDismiss: () -> Unit, onSave:
     var note by remember { mutableStateOf(place.note) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (isNew) "Save place" else "Edit place") },
+        title = { Text(if (isNew) T.library.savePlace else T.library.editPlace) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(name, { name = it.take(80) }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(name, { name = it.take(80) }, label = { Text(T.library.placeName) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     PlaceCategory.entries.forEach { c ->
                         FilterChip(
@@ -118,16 +120,16 @@ fun PlaceEditDialog(place: Place, isNew: Boolean, onDismiss: () -> Unit, onSave:
                         )
                     }
                 }
-                OutlinedTextField(note, { note = it.take(1000) }, label = { Text("Note") }, minLines = 2, maxLines = 5, modifier = Modifier.fillMaxWidth())
-                Text(formatPoint(place.lat, place.lon, LocalPrefs.current.coordFormat.value), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(note, { note = it.take(1000) }, label = { Text(T.library.placeNote) }, minLines = 2, maxLines = 5, modifier = Modifier.fillMaxWidth())
+                Text(ltr(formatPoint(place.lat, place.lon, LocalPrefs.current.coordFormat.value)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         confirmButton = {
             TextButton(onClick = {
                 onSave(place.copy(name = name.trim().ifEmpty { category.label }, category = category, note = note.trim()))
-            }) { Text("Save") }
+            }) { Text(T.common.save) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(T.common.cancel) } },
     )
 }
 
@@ -153,31 +155,31 @@ fun PlaceCard(
                 Column(Modifier.weight(1f)) {
                     Text(place.name, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(
-                        listOfNotNull(place.category.label, distanceFrom(myLocation, place), place.ele?.let { "${it.toInt()} m" }).joinToString(" · "),
+                        listOfNotNull(place.category.label, distanceFrom(myLocation, place), place.ele?.let { "${it.toInt()} ${T.common.unitM}" }).joinToString(" · "),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
-                IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = "Close") }
+                IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = T.common.close) }
             }
             if (place.note.isNotBlank()) {
                 Text(place.note, style = MaterialTheme.typography.bodyMedium, maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp, end = 8.dp))
             }
-            Text(formatPoint(place.lat, place.lon, LocalPrefs.current.coordFormat.value), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(ltr(formatPoint(place.lat, place.lon, LocalPrefs.current.coordFormat.value)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row {
-                IconButton(onClick = onRoute) { Icon(Icons.Filled.Route, contentDescription = "Route here") }
-                IconButton(onClick = onShare) { Icon(Icons.Filled.Share, contentDescription = "Share place") }
-                IconButton(onClick = onViewshed) { Icon(Icons.Filled.Visibility, contentDescription = "What can be seen from here") }
-                IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, contentDescription = "Edit place") }
-                IconButton(onClick = { confirm = true }) { Icon(Icons.Filled.Delete, contentDescription = "Delete place") }
+                IconButton(onClick = onRoute) { Icon(Icons.Filled.Route, contentDescription = T.library.routeHere) }
+                IconButton(onClick = onShare) { Icon(Icons.Filled.Share, contentDescription = T.library.sharePlace) }
+                IconButton(onClick = onViewshed) { Icon(Icons.Filled.Visibility, contentDescription = T.library.whatCanBeSeenFromHere) }
+                IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, contentDescription = T.library.editPlace) }
+                IconButton(onClick = { confirm = true }) { Icon(Icons.Filled.Delete, contentDescription = T.library.deletePlace) }
             }
         }
     }
     if (confirm) {
         AlertDialog(
             onDismissRequest = { confirm = false },
-            title = { Text("Delete “${place.name}”?") },
-            confirmButton = { TextButton(onClick = { confirm = false; onDelete() }) { Text("Delete") } },
-            dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancel") } },
+            title = { Text(T.library.confirmDeletePlace(place.name)) },
+            confirmButton = { TextButton(onClick = { confirm = false; onDelete() }) { Text(T.common.delete) } },
+            dismissButton = { TextButton(onClick = { confirm = false }) { Text(T.common.cancel) } },
         )
     }
 }
@@ -190,8 +192,8 @@ fun LibraryScreen(hasLocation: Boolean, requestLocation: () -> Unit, snackbar: S
     var places by rememberSaveable { mutableStateOf(false) }
     val header: @Composable () -> Unit = {
         SingleChoiceSegmentedButtonRow {
-            SegmentedButton(selected = !places, onClick = { places = false }, shape = SegmentedButtonDefaults.itemShape(0, 2), icon = {}) { Text("Routes") }
-            SegmentedButton(selected = places, onClick = { places = true }, shape = SegmentedButtonDefaults.itemShape(1, 2), icon = {}) { Text("Places") }
+            SegmentedButton(selected = !places, onClick = { places = false }, shape = SegmentedButtonDefaults.itemShape(0, 2), icon = {}) { Text(T.library.routes) }
+            SegmentedButton(selected = places, onClick = { places = true }, shape = SegmentedButtonDefaults.itemShape(1, 2), icon = {}) { Text(T.library.places) }
         }
     }
     if (places) {
@@ -226,8 +228,8 @@ fun PlacesScreen(hasLocation: Boolean, snackbar: SnackbarHostState, onShowMap: (
                 val result = withContext(Dispatchers.Default) { runCatching { repo.importGpx(file.bytes) } }
                 snackbar.showSnackbar(
                     result.fold(
-                        { n -> if (n == 0) "No new places in that file" else "Imported $n place${if (n == 1) "" else "s"}" },
-                        { "Import failed: ${it.message}" },
+                        { n -> if (n == 0) T.library.noNewPlacesInFile else T.library.importedPlaces(n) },
+                        { T.library.importFailed(it.message) },
                     ),
                 )
             }
@@ -245,22 +247,23 @@ fun PlacesScreen(hasLocation: Boolean, snackbar: SnackbarHostState, onShowMap: (
         TopAppBar(
             title = header,
             actions = {
-                IconButton(onClick = { importer() }) { Icon(Icons.Filled.FileOpen, contentDescription = "Import places from a GPX file") }
-                IconButton(onClick = { platform.sharePlaces(shown, "MapAround places") }, enabled = shown.isNotEmpty()) {
-                    Icon(Icons.Filled.Share, contentDescription = "Share the listed places as GPX")
+                IconButton(onClick = { importer() }) { Icon(Icons.Filled.FileOpen, contentDescription = T.library.importPlacesFromGpx) }
+                IconButton(onClick = { platform.sharePlaces(shown, T.library.sharedPlacesTitle) }, enabled = shown.isNotEmpty()) {
+                    Icon(Icons.Filled.Share, contentDescription = T.library.shareListedPlaces)
                 }
+                SettingsButton()
             },
         )
         OutlinedTextField(
             query, { query = it },
-            placeholder = { Text("Search names and notes") },
+            placeholder = { Text(T.library.searchNamesAndNotes) },
             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-            trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, contentDescription = "Clear") } },
+            trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, contentDescription = T.library.clear) } },
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         )
         LazyRow(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            item { FilterChip(selected = category == null, onClick = { category = null }, label = { Text("All ${all.size}") }) }
+            item { FilterChip(selected = category == null, onClick = { category = null }, label = { Text(T.library.allCount(all.size)) }) }
             items(PlaceCategory.entries.filter { c -> all.any { it.category == c } }) { c ->
                 FilterChip(
                     selected = category == c,
@@ -283,8 +286,8 @@ fun PlacesScreen(hasLocation: Boolean, snackbar: SnackbarHostState, onShowMap: (
         if (all.isEmpty()) {
             MessageCard(
                 Icons.Filled.Place,
-                "No saved places yet",
-                "Long-press the map and tap the bookmark on the pin to save a place, or import waypoints from a GPX file.",
+                T.library.noSavedPlaces,
+                T.library.noSavedPlacesHint,
                 modifier = Modifier.padding(16.dp),
             )
         }
@@ -305,9 +308,9 @@ fun PlacesScreen(hasLocation: Boolean, snackbar: SnackbarHostState, onShowMap: (
     deleting?.let { p ->
         AlertDialog(
             onDismissRequest = { deleting = null },
-            title = { Text("Delete “${p.name}”?") },
-            confirmButton = { TextButton(onClick = { repo.delete(p.id); deleting = null }) { Text("Delete") } },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
+            title = { Text(T.library.confirmDeletePlace(p.name)) },
+            confirmButton = { TextButton(onClick = { repo.delete(p.id); deleting = null }) { Text(T.common.delete) } },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text(T.common.cancel) } },
         )
     }
 }
@@ -328,11 +331,11 @@ private fun PlaceRow(p: Place, me: GeoFix?, onClick: () -> Unit, onEdit: () -> U
         },
         trailingContent = {
             Box {
-                IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More for ${p.name}") }
+                IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = T.library.moreFor(p.name)) }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(text = { Text("Edit") }, leadingIcon = { Icon(Icons.Filled.Edit, null) }, onClick = { menu = false; onEdit() })
-                    DropdownMenuItem(text = { Text("Share") }, leadingIcon = { Icon(Icons.Filled.Share, null) }, onClick = { menu = false; onShare() })
-                    DropdownMenuItem(text = { Text("Delete") }, leadingIcon = { Icon(Icons.Filled.Delete, null) }, onClick = { menu = false; onDelete() })
+                    DropdownMenuItem(text = { Text(T.common.edit) }, leadingIcon = { Icon(Icons.Filled.Edit, null) }, onClick = { menu = false; onEdit() })
+                    DropdownMenuItem(text = { Text(T.common.share) }, leadingIcon = { Icon(Icons.Filled.Share, null) }, onClick = { menu = false; onShare() })
+                    DropdownMenuItem(text = { Text(T.common.delete) }, leadingIcon = { Icon(Icons.Filled.Delete, null) }, onClick = { menu = false; onDelete() })
                 }
             }
         },

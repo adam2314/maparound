@@ -17,6 +17,7 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import app.maparound.AppGraph
 import app.maparound.MainActivity
+import app.maparound.i18n.T
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -123,18 +124,18 @@ class DownloadService : Service() {
 
     /** The downloads running now, by what they fetch. */
     private fun downloads(): List<Pair<String, DownloadProgress>> = listOfNotNull(
-        AppGraph.terrain.state.value.progress?.let { "Terrain" to it },
-        AppGraph.trails.state.value.progress?.let { "Trails" to it },
+        AppGraph.terrain.state.value.progress?.let { T.offline.terrain to it },
+        AppGraph.trails.state.value.progress?.let { T.offline.trails to it },
     )
 
     private fun progress(list: List<Pair<String, DownloadProgress>>): Notification {
         val title = when (list.size) {
-            0 -> "Downloading"
-            1 -> "${list[0].first} for ${list[0].second.label}"
-            else -> list.joinToString(" and ") { it.first.lowercase() }.replaceFirstChar { it.uppercase() }
+            0 -> T.offline.downloading
+            1 -> T.offline.whatFor(list[0].first, list[0].second.label)
+            else -> T.offline.together(list.map { it.first })
         }
         val text = list.joinToString(" · ") { (what, p) ->
-            val areas = "${p.done} of ${p.total} area${if (p.total == 1) "" else "s"}"
+            val areas = T.offline.areasDone(p.done, p.total)
             if (list.size == 1) areas else "$what: $areas"
         }
         val done = list.sumOf { it.second.done }
@@ -152,14 +153,14 @@ class DownloadService : Service() {
             .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
             .setContentIntent(openApp())
-            .addAction(0, "Cancel", cancel)
+            .addAction(0, T.common.cancel, cancel)
             .build()
     }
 
     private fun done(lines: List<String>) {
         val notification = NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
-            .setContentTitle(if (lines.size == 1) lines[0] else "Downloads finished")
+            .setContentTitle(if (lines.size == 1) lines[0] else T.offline.downloadsFinished)
             .apply { if (lines.size > 1) setStyle(NotificationCompat.BigTextStyle().bigText(lines.joinToString("\n"))) }
             .setAutoCancel(true)
             .setContentIntent(openApp())
@@ -174,13 +175,12 @@ class DownloadService : Service() {
 
     private fun createChannel() {
         val nm = getSystemService(NotificationManager::class.java)
-        if (nm.getNotificationChannel(CHANNEL) == null) {
-            nm.createNotificationChannel(
-                NotificationChannel(CHANNEL, "Downloads", NotificationManager.IMPORTANCE_LOW).apply {
-                    description = "Terrain and trail downloads in progress"
-                },
-            )
-        }
+        // Each time: creating it again renames it in the app's language (its settings stay).
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL, T.offline.channelDownloads, NotificationManager.IMPORTANCE_LOW).apply {
+                description = T.offline.channelDownloadsDescription
+            },
+        )
     }
 
     companion object {

@@ -35,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import app.maparound.i18n.T
 import app.maparound.shared.util.localFixed
 import app.maparound.three.Camera3D
 import kotlinx.coroutines.delay
@@ -135,8 +136,8 @@ fun Scene3DScreen(start: Camera3D, onClose: (last: Camera3D?) -> Unit, view: @Co
         }
 
         Row(Modifier.align(Alignment.TopStart).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SmallFloatingActionButton(onClick = { close() }) { Icon(Icons.Filled.Close, contentDescription = "Close 3D view") }
-            SmallFloatingActionButton(onClick = { control?.faceNorth() }) { Icon(Icons.Filled.Explore, contentDescription = "Face north") }
+            SmallFloatingActionButton(onClick = { close() }) { Icon(Icons.Filled.Close, contentDescription = T.map.close3d) }
+            SmallFloatingActionButton(onClick = { control?.faceNorth() }) { Icon(Icons.Filled.Explore, contentDescription = T.map.faceNorth) }
             SmallFloatingActionButton(
                 onClick = {
                     control?.let { camera = it.camera }
@@ -144,7 +145,7 @@ fun Scene3DScreen(start: Camera3D, onClose: (last: Camera3D?) -> Unit, view: @Co
                 },
                 containerColor = if (satellite) MaterialTheme.colorScheme.primary else FloatingActionButtonDefaults.containerColor,
                 contentColor = if (satellite) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
-            ) { Icon(Icons.Filled.SatelliteAlt, contentDescription = if (satellite) "Back to the map" else "Satellite imagery") }
+            ) { Icon(Icons.Filled.SatelliteAlt, contentDescription = if (satellite) T.map.backToMap else T.map.satelliteImagery) }
         }
 
         Surface(
@@ -156,7 +157,7 @@ fun Scene3DScreen(start: Camera3D, onClose: (last: Camera3D?) -> Unit, view: @Co
             Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "Relief ×${localFixed(exaggeration.toDouble(), 1)}",
+                        T.map.relief(localFixed(exaggeration.toDouble(), 1)),
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.width(90.dp),
                     )
@@ -164,12 +165,12 @@ fun Scene3DScreen(start: Camera3D, onClose: (last: Camera3D?) -> Unit, view: @Co
                 }
                 if (hasBuildings) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Buildings (close up)", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        Text(T.map.buildingsCloseUp, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                         Switch(checked = buildings, onCheckedChange = { buildings = it })
                     }
                 }
                 Text(
-                    status.ifEmpty { "1 finger: move · pinch: zoom · 2 fingers: turn and tilt · double-tap: zoom in" },
+                    status.ifEmpty { T.map.gestures3d },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

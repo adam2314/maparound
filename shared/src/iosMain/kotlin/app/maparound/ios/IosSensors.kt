@@ -2,6 +2,7 @@
 
 package app.maparound.ios
 
+import app.maparound.i18n.T
 import app.maparound.sensors.DeviceSensors
 import app.maparound.sensors.GeoFix
 import app.maparound.sensors.MotionSample
@@ -109,8 +110,8 @@ class IosSensors : DeviceSensors {
         val m = CMMotionManager()
         // iOS doesn't tell ranges or chips; a range of 0 is shown as unknown.
         return when (sensor) {
-            MotionSensor.ACCELEROMETER -> SensorInfo("Accelerometer", "Apple", 0f, 0f, 100).takeIf { m.accelerometerAvailable }
-            MotionSensor.GYROSCOPE -> SensorInfo("Gyroscope", "Apple", 0f, 0f, 100).takeIf { m.gyroAvailable }
+            MotionSensor.ACCELEROMETER -> SensorInfo(T.sensors.accelerometer, "Apple", 0f, 0f, 100).takeIf { m.accelerometerAvailable }
+            MotionSensor.GYROSCOPE -> SensorInfo(T.sensors.gyroscope, "Apple", 0f, 0f, 100).takeIf { m.gyroAvailable }
         }
     }
 

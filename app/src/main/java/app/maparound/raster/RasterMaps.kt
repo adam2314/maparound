@@ -15,6 +15,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import app.maparound.i18n.T
 import app.maparound.routing.GeoPoint
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -46,7 +47,7 @@ class RasterMapRepository(private val context: Context) : RasterLibrary {
     /** Adds an RMAP or a tile database picked with the file picker (keeps read access to it). Blocking. */
     fun add(uri: Uri): RasterMap {
         runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-        val name = displayName(uri) ?: "Raster map"
+        val name = displayName(uri) ?: T.offline.rasterMapDefaultName
         val map = if (TileDatabase.isSqlite(head(uri))) {
             describeDatabase(uri, name)
         } else {
@@ -77,14 +78,14 @@ class RasterMapRepository(private val context: Context) : RasterLibrary {
     /** The first bytes of a picked file. */
     private fun head(uri: Uri): ByteArray =
         context.contentResolver.openInputStream(uri)?.use { s -> ByteArray(16).also { b -> var n = 0; while (n < 16) { val r = s.read(b, n, 16 - n); if (r < 0) break; n += r } } }
-            ?: throw RmapException("Can't open the file")
+            ?: throw RmapException(T.offline.cantOpenFile)
 
     /** An MBTiles or SQLiteDB file: its coverage and zooms. */
     private fun describeDatabase(uri: Uri, fileName: String): RasterMap {
         val id = UUID.randomUUID().toString()
         val (db, size) = openDatabase(uri.toString())
         db.use { db ->
-            if (db.north <= db.south || db.east <= db.west) throw TileDatabaseException("The database's coverage is empty")
+            if (db.north <= db.south || db.east <= db.west) throw TileDatabaseException(T.offline.dbCoverageEmpty)
             return RasterMap(
                 id = id,
                 name = db.name ?: fileName.substringBeforeLast('.'),
@@ -149,7 +150,7 @@ class RasterMapRepository(private val context: Context) : RasterLibrary {
             TileDatabase(SqliteFile(read, size), closer) to size
         } catch (e: SqliteException) {
             closer.close()
-            throw TileDatabaseException(e.message ?: "Can't read the database")
+            throw TileDatabaseException(e.message ?: T.offline.cantReadDatabase)
         } catch (e: Exception) {
             closer.close()
             throw e
@@ -159,7 +160,7 @@ class RasterMapRepository(private val context: Context) : RasterLibrary {
     /** Positional reads of a file (content:// or a path), its size, and what closes it. */
     private fun openRead(source: String): Triple<RandomRead, Long, AutoCloseable> {
         val pfd: ParcelFileDescriptor = if (source.startsWith("content:")) {
-            context.contentResolver.openFileDescriptor(Uri.parse(source), "r") ?: throw RmapException("Can't open the file")
+            context.contentResolver.openFileDescriptor(Uri.parse(source), "r") ?: throw RmapException(T.offline.cantOpenFile)
         } else {
             ParcelFileDescriptor.open(File(source), ParcelFileDescriptor.MODE_READ_ONLY)
         }
@@ -189,7 +190,7 @@ class RasterMapRepository(private val context: Context) : RasterLibrary {
             0.0 to f.height.toDouble(), f.width / 2.0 to f.height.toDouble(), f.width.toDouble() to f.height.toDouble())
             .map { (x, y) -> c.pixelToLatLon(x, y) }
         if (pts.any { it.lat.isNaN() || it.lon.isNaN() || it.lat !in -90.0..90.0 || it.lon !in -180.0..180.0 }) {
-            throw RmapException("The map's calibration doesn't give a valid position")
+            throw RmapException(T.offline.calibrationInvalid)
         }
         return RasterMap(
             id = UUID.randomUUID().toString(),

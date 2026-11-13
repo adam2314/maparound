@@ -69,6 +69,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.maparound.i18n.T
+import app.maparound.i18n.Texts
+import app.maparound.i18n.ltr
 import app.maparound.party.LocalParty
 import app.maparound.party.LocalPartyPlatform
 import app.maparound.party.Member
@@ -111,16 +114,16 @@ fun PartyScreen(
     val ensureNotifications = partyPlatform.rememberNotificationPermission()
     val scan = partyPlatform.rememberQrScanner { text ->
         val key = PartyKey.parse(text)
-        if (key == null) scope.launch { snackbar.showSnackbar("That QR code isn't a MapAround party") }
+        if (key == null) scope.launch { snackbar.showSnackbar(T.party.notAPartyQr) }
         else party.pendingInvite.value = key
     }
 
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
-            title = { Text(s.party?.name ?: "Party") },
+            title = { Text(s.party?.name ?: T.party.title) },
             actions = {
                 if (s.party != null && !party.watchOnly) {
-                    IconButton(onClick = { showQr = true }) { Icon(Icons.Filled.QrCode, contentDescription = "Invite") }
+                    IconButton(onClick = { showQr = true }) { Icon(Icons.Filled.QrCode, contentDescription = T.party.invite) }
                 }
             },
             windowInsets = WindowInsets(0, 0, 0, 0),
@@ -128,7 +131,7 @@ fun PartyScreen(
         if (s.party == null && party.watchOnly) {
             WatchNoParty(onLink = { text ->
                 val key = PartyKey.parse(text)
-                if (key == null) scope.launch { snackbar.showSnackbar("That isn't a valid party link") }
+                if (key == null) scope.launch { snackbar.showSnackbar(T.party.invalidLink) }
                 else party.pendingInvite.value = key
             })
         } else if (s.party == null) {
@@ -139,7 +142,7 @@ fun PartyScreen(
                 showQr = true
             }, onScan = scan, onLink = { text ->
                 val key = PartyKey.parse(text)
-                if (key == null) scope.launch { snackbar.showSnackbar("That isn't a valid party link") }
+                if (key == null) scope.launch { snackbar.showSnackbar(T.party.invalidLink) }
                 else party.pendingInvite.value = key
             })
         } else {
@@ -176,35 +179,31 @@ fun PartyScreen(
     if (party.watchOnly) pending?.let { key ->
         AlertDialog(
             onDismissRequest = { party.pendingInvite.value = null },
-            title = { Text("Watch “${key.name}”?") },
+            title = { Text(T.party.watchQuestion(key.name)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        "You'll see where everyone in the party is, their SOS alerts and messages, while this page is open. " +
-                            "The web app only watches: it doesn't share your position, and the party doesn't see you. " +
-                            "To share yours, join with the MapAround app.",
-                    )
-                    if (s.party != null) Text("You'll stop watching “${s.party!!.name}”.", color = MaterialTheme.colorScheme.error)
+                    Text(T.party.watchExplanation)
+                    if (s.party != null) Text(T.party.stopWatchingWarning(s.party!!.name), color = MaterialTheme.colorScheme.error)
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
                     party.pendingInvite.value = null
                     party.join(key, "")
-                }) { Text("Watch") }
+                }) { Text(T.party.watch) }
             },
-            dismissButton = { TextButton(onClick = { party.pendingInvite.value = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { party.pendingInvite.value = null }) { Text(T.common.cancel) } },
         )
     } else pending?.let { key ->
         var name by remember(key) { mutableStateOf(s.me?.name.orEmpty()) }
         AlertDialog(
             onDismissRequest = { party.pendingInvite.value = null },
-            title = { Text("Join “${key.name}”?") },
+            title = { Text(T.party.joinQuestion(key.name)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Everyone in the party sees your live location while sharing is on.")
-                    if (s.party != null) Text("You'll leave “${s.party!!.name}”.", color = MaterialTheme.colorScheme.error)
-                    OutlinedTextField(name, { name = it }, label = { Text("Your name") }, singleLine = true)
+                    Text(T.party.joinExplanation)
+                    if (s.party != null) Text(T.party.leaveWarning(s.party!!.name), color = MaterialTheme.colorScheme.error)
+                    OutlinedTextField(name, { name = it }, label = { Text(T.party.yourName) }, singleLine = true)
                 }
             },
             confirmButton = {
@@ -213,9 +212,9 @@ fun PartyScreen(
                     if (!hasLocation) requestLocation()
                     ensureNotifications()
                     party.join(key, name)
-                }) { Text("Join") }
+                }) { Text(T.party.join) }
             },
-            dismissButton = { TextButton(onClick = { party.pendingInvite.value = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { party.pendingInvite.value = null }) { Text(T.common.cancel) } },
         )
     }
 
@@ -234,34 +233,34 @@ fun PartyScreen(
         var text by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { confirmSos = false },
-            title = { Text("Send SOS?") },
+            title = { Text(T.party.sendSosQuestion) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Everyone in the party gets an alert with your position, over every connection you have.")
-                    OutlinedTextField(text, { text = it }, label = { Text("What happened (optional)") }, singleLine = true)
+                    Text(T.party.sosExplanation)
+                    OutlinedTextField(text, { text = it }, label = { Text(T.party.sosWhatHappened) }, singleLine = true)
                 }
             },
             confirmButton = {
                 Button(
                     onClick = { confirmSos = false; party.sos(true, text) },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                ) { Text("Send SOS") }
+                ) { Text(T.party.sendSos) }
             },
-            dismissButton = { TextButton(onClick = { confirmSos = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { confirmSos = false }) { Text(T.common.cancel) } },
         )
     }
     if (confirmLeave) {
         AlertDialog(
             onDismissRequest = { confirmLeave = false },
-            title = { Text(if (party.watchOnly) "Stop watching?" else "Leave the party?") },
+            title = { Text(if (party.watchOnly) T.party.stopWatchingQuestion else T.party.leaveQuestion) },
             text = {
                 Text(
-                    if (party.watchOnly) "You can watch again with the invite link."
-                    else "Your position is removed for the others. You can rejoin with the invite.",
+                    if (party.watchOnly) T.party.watchAgainHint
+                    else T.party.leaveExplanation,
                 )
             },
-            confirmButton = { TextButton(onClick = { confirmLeave = false; party.leave() }) { Text(if (party.watchOnly) "Stop" else "Leave") } },
-            dismissButton = { TextButton(onClick = { confirmLeave = false }) { Text("Cancel") } },
+            confirmButton = { TextButton(onClick = { confirmLeave = false; party.leave() }) { Text(if (party.watchOnly) T.common.stop else T.party.leave) } },
+            dismissButton = { TextButton(onClick = { confirmLeave = false }) { Text(T.common.cancel) } },
         )
     }
 }
@@ -273,18 +272,16 @@ private fun WatchNoParty(onLink: (String) -> Unit) {
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Text(
-                "See your group live on the map: where everyone is, SOS alerts and messages. Open the party's " +
-                    "invite link, or paste it here. The web app only watches; to share your own position, " +
-                    "join with the MapAround app.",
+                T.party.watchIntro,
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Watch a party", style = MaterialTheme.typography.titleMedium)
-                    OutlinedTextField(link, { link = it }, label = { Text("Invite link") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    Button(onClick = { onLink(link) }, enabled = link.isNotBlank()) { Text("Watch") }
+                    Text(T.party.watchAParty, style = MaterialTheme.typography.titleMedium)
+                    OutlinedTextField(link, { link = it }, label = { Text(T.party.inviteLink) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Button(onClick = { onLink(link) }, enabled = link.isNotBlank()) { Text(T.party.watch) }
                 }
             }
         }
@@ -299,32 +296,31 @@ private fun NoParty(onCreate: (String, String) -> Unit, onScan: () -> Unit, onLi
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Text(
-                "See your group live on the map, online and off-grid over LoRa radios (Meshtastic). " +
-                    "Everything is end-to-end encrypted with the party's key.",
+                T.party.intro,
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Start a party", style = MaterialTheme.typography.titleMedium)
-                    OutlinedTextField(party, { party = it }, label = { Text("Party name, e.g. Desert run") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(me, { me = it }, label = { Text("Your name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    Button(onClick = { onCreate(party, me) }, enabled = me.isNotBlank()) { Text("Create & invite") }
+                    Text(T.party.startParty, style = MaterialTheme.typography.titleMedium)
+                    OutlinedTextField(party, { party = it }, label = { Text(T.party.partyNameHint) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(me, { me = it }, label = { Text(T.party.yourName) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Button(onClick = { onCreate(party, me) }, enabled = me.isNotBlank()) { Text(T.party.createAndInvite) }
                 }
             }
         }
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Join a party", style = MaterialTheme.typography.titleMedium)
+                    Text(T.party.joinAParty, style = MaterialTheme.typography.titleMedium)
                     FilledTonalButton(onClick = onScan) {
                         Icon(Icons.Filled.QrCodeScanner, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Scan invite QR code")
+                        Text(T.party.scanInviteQr)
                     }
-                    OutlinedTextField(link, { link = it }, label = { Text("…or paste the invite link") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    TextButton(onClick = { onLink(link) }, enabled = link.isNotBlank()) { Text("Join with link") }
+                    OutlinedTextField(link, { link = it }, label = { Text(T.party.orPasteInviteLink) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    TextButton(onClick = { onLink(link) }, enabled = link.isNotBlank()) { Text(T.party.joinWithLink) }
                 }
             }
         }
@@ -354,31 +350,31 @@ private fun InParty(
         if (party.watchOnly) item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    SwitchLine("Watching", if (s.active) "Seeing the party live while this page is open" else "Off: not connected", s.active, onToggleActive)
+                    SwitchLine(T.party.watching, if (s.active) T.party.watchingOnSubtitle else T.party.watchingOffSubtitle, s.active, onToggleActive)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            "Only watching: your position isn't shared, and the party doesn't see you.",
+                            T.party.onlyWatching,
                             Modifier.weight(1f),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        TextButton(onClick = onLeave) { Text("Stop watching") }
+                        TextButton(onClick = onLeave) { Text(T.party.stopWatching) }
                     }
                 }
             }
         } else item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    SwitchLine("Party on", if (s.active) "Sending and receiving, also with the screen off" else "Off: not sending or receiving", s.active, onToggleActive)
-                    SwitchLine("Share my location", if (s.sharing) "Others see you" else "Hidden: you see them, they don't see you", s.sharing) { party.setSharing(it) }
+                    SwitchLine(T.party.partyOn, if (s.active) T.party.partyOnSubtitle else T.party.partyOffSubtitle, s.active, onToggleActive)
+                    SwitchLine(T.party.shareMyLocation, if (s.sharing) T.party.sharingOnSubtitle else T.party.sharingOffSubtitle, s.sharing) { party.setSharing(it) }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         s.me?.let { me ->
                             PartyAvatar(me.name, me.color, me.icon, 28.dp)
                             Spacer(Modifier.width(8.dp))
-                            Text("You: ${me.name}", Modifier.weight(1f))
+                            Text(T.party.youName(me.name), Modifier.weight(1f))
                         }
-                        TextButton(onClick = onEditMe) { Text("Edit") }
-                        TextButton(onClick = onLeave) { Text("Leave") }
+                        TextButton(onClick = onEditMe) { Text(T.common.edit) }
+                        TextButton(onClick = onLeave) { Text(T.party.leave) }
                     }
                 }
             }
@@ -391,15 +387,15 @@ private fun InParty(
                     containerColor = if (s.mySos) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.error,
                     contentColor = if (s.mySos) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onError,
                 ),
-            ) { Text(if (s.mySos) "SOS is active. Tap to cancel" else "SOS", fontWeight = FontWeight.Bold) }
+            ) { Text(if (s.mySos) T.party.sosActiveTapToCancel else "SOS", fontWeight = FontWeight.Bold) }
         }
         item { Connections(s, onRadio) }
         item {
             Text(
                 when {
-                    s.members.isNotEmpty() -> "Members (${s.members.size})"
-                    party.watchOnly -> if (s.active) "No one in the party has sent anything yet." else "Turn watching on to see the party."
-                    else -> "Waiting for others… share the invite (QR icon at the top)."
+                    s.members.isNotEmpty() -> T.party.members(s.members.size)
+                    party.watchOnly -> if (s.active) T.party.nothingYet else T.party.turnWatchingOnToSee
+                    else -> T.party.waitingForOthers
                 },
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
@@ -411,25 +407,29 @@ private fun InParty(
             item {
                 ListItem(
                     leadingContent = { Icon(Icons.Filled.Flag, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                    headlineContent = { Text("Meeting point" + if (meet.label.isNotBlank() && meet.label != "Meeting point") ": ${meet.label}" else "") },
-                    supportingContent = { Text(distanceText(s.myPosition, meet.lat, meet.lon) ?: Fmt.latLon(meet.lat, meet.lon)) },
+                    headlineContent = {
+                        // A label that only says "Meeting point" (in any language the app speaks) isn't repeated.
+                        val named = meet.label.isNotBlank() && meet.label !in listOf(Texts.English, Texts.Hebrew).map { it.party.meetingPoint }
+                        Text(if (named) T.party.meetingPointNamed(meet.label) else T.party.meetingPoint)
+                    },
+                    supportingContent = { Text(distanceText(s.myPosition, meet.lat, meet.lon) ?: ltr(Fmt.latLon(meet.lat, meet.lon))) },
                     trailingContent = {
                         Row {
-                            IconButton(onClick = { onRouteTo(GeoPoint(meet.lat, meet.lon)) }) { Icon(Icons.Filled.Route, contentDescription = "Route to meeting point") }
-                            if (!party.watchOnly) TextButton(onClick = { party.clearMeeting() }) { Text("Clear") }
+                            IconButton(onClick = { onRouteTo(GeoPoint(meet.lat, meet.lon)) }) { Icon(Icons.Filled.Route, contentDescription = T.party.routeToMeetingPoint) }
+                            if (!party.watchOnly) TextButton(onClick = { party.clearMeeting() }) { Text(T.party.clearMeetingPoint) }
                         }
                     },
                 )
             }
         } ?: if (party.watchOnly) Unit else item {
             Text(
-                "Set a meeting point: long-press the map, then “Meet here”.",
+                T.party.setMeetingPointHint(T.map.meetHere),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         if (s.meshNodes.isNotEmpty()) {
-            item { Text("Other radios in range (${s.meshNodes.size})", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary) }
+            item { Text(T.party.otherRadios(s.meshNodes.size), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary) }
             items(s.meshNodes, key = { "mesh-${it.num}" }) { n ->
                 val pos = n.position!!
                 ListItem(
@@ -439,7 +439,7 @@ private fun InParty(
                         Text(listOfNotNull(distanceText(s.myPosition, pos.lat, pos.lon), ago(now, n.heardAt)).joinToString(" · "))
                     },
                     trailingContent = {
-                        IconButton(onClick = { onShowMember(GeoPoint(pos.lat, pos.lon)) }) { Icon(Icons.Filled.Map, contentDescription = "Show on map") }
+                        IconButton(onClick = { onShowMember(GeoPoint(pos.lat, pos.lon)) }) { Icon(Icons.Filled.Map, contentDescription = T.common.showOnMap) }
                     },
                 )
             }
@@ -464,10 +464,10 @@ private fun Connections(s: PartyState, onRadio: () -> Unit) {
     val party = LocalParty.current
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Connections", style = MaterialTheme.typography.titleSmall)
+            Text(T.party.connections, style = MaterialTheme.typography.titleSmall)
             if (party.watchOnly) {
-                StatusLine(Icons.Filled.Cloud, "Online", s.online) {}
-                if (!s.active) Text("Turn watching on to connect.", style = MaterialTheme.typography.bodySmall)
+                StatusLine(Icons.Filled.Cloud, T.party.online, s.online) {}
+                if (!s.active) Text(T.party.turnWatchingOnToConnect, style = MaterialTheme.typography.bodySmall)
             } else {
                 AppConnections(s, onRadio)
             }
@@ -480,28 +480,28 @@ private fun Connections(s: PartyState, onRadio: () -> Unit) {
 private fun AppConnections(s: PartyState, onRadio: () -> Unit) {
     val party = LocalParty.current
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        StatusLine(Icons.Filled.Cloud, "Online", if (s.onlineEnabled) s.online else TransportStatus(TransportStatus.State.OFF, "Off")) {
+        StatusLine(Icons.Filled.Cloud, T.party.online, if (s.onlineEnabled) s.online else TransportStatus(TransportStatus.State.OFF, T.party.off)) {
             Switch(checked = s.onlineEnabled, onCheckedChange = { party.setOnlineEnabled(it) })
         }
         StatusLine(
-            Icons.Filled.Bluetooth, "LoRa radio",
-            if (s.radioName == null) TransportStatus(TransportStatus.State.OFF, "No radio paired") else s.radio,
+            Icons.Filled.Bluetooth, T.party.loraRadio,
+            if (s.radioName == null) TransportStatus(TransportStatus.State.OFF, T.party.noRadioPaired) else s.radio,
         ) {
             if (s.radioName == null) {
-                OutlinedButton(onClick = onRadio) { Text("Pair") }
+                OutlinedButton(onClick = onRadio) { Text(T.party.pair) }
             } else {
-                TextButton(onClick = { party.forgetRadio() }) { Text("Forget") }
+                TextButton(onClick = { party.forgetRadio() }) { Text(T.party.forget) }
             }
         }
         if (s.radioName != null) {
             SwitchLine(
-                "Gateway",
-                "Relay between radio and online, so off-grid and online members see each other",
+                T.party.gateway,
+                T.party.gatewaySubtitle,
                 s.gateway,
             ) { party.setGateway(it) }
         }
         if (!s.active) {
-            Text("Turn the party on to connect.", style = MaterialTheme.typography.bodySmall)
+            Text(T.party.turnPartyOnToConnect, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -519,8 +519,15 @@ private fun StatusLine(icon: androidx.compose.ui.graphics.vector.ImageVector, ti
             Text(title, style = MaterialTheme.typography.bodyLarge)
             Text(
                 when (status.state) {
-                    TransportStatus.State.CONNECTED -> "Connected" + if (status.detail.isNotBlank()) " · ${status.detail}" else ""
-                    else -> status.detail.ifBlank { status.state.name.lowercase() }
+                    TransportStatus.State.CONNECTED -> if (status.detail.isNotBlank()) T.party.connectedTo(status.detail) else T.party.connected
+                    else -> status.detail.ifBlank {
+                        when (status.state) {
+                            TransportStatus.State.OFF -> T.party.stateOff
+                            TransportStatus.State.CONNECTING -> T.party.stateConnecting
+                            TransportStatus.State.CONNECTED -> T.party.stateConnected
+                            TransportStatus.State.ERROR -> T.party.stateError
+                        }
+                    }
                 },
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 2,
@@ -543,7 +550,7 @@ private fun MemberRow(m: Member, me: GeoFix?, now: Long, onShow: (GeoPoint) -> U
         leadingContent = { PartyAvatar(m.displayName, m.color, m.icon, 36.dp, sos = m.sos) },
         headlineContent = {
             Text(
-                (if (m.sos) "SOS · " else "") + m.displayName,
+                if (m.sos) T.party.sosName(m.displayName) else m.displayName,
                 color = if (m.sos) MaterialTheme.colorScheme.error else Color.Unspecified,
                 fontWeight = if (m.sos) FontWeight.Bold else null,
             )
@@ -553,16 +560,16 @@ private fun MemberRow(m: Member, me: GeoFix?, now: Long, onShow: (GeoPoint) -> U
             if (m.sos && m.sosText.isNotBlank()) parts += m.sosText
             p?.let { pos ->
                 distanceText(me, pos.lat, pos.lon)?.let(parts::add)
-                pos.speedKmh?.takeIf { it >= 3 }?.let { parts += "$it km/h" }
+                pos.speedKmh?.takeIf { it >= 3 }?.let { parts += "$it ${T.common.unitKmh}" }
                 pos.batteryPct?.let { parts += "🔋$it%" }
-            } ?: parts.add("no position yet")
+            } ?: parts.add(T.party.noPositionYet)
             ago(now, m.positionAt.takeIf { it > 0 } ?: m.lastHeard)?.let(parts::add)
             parts += m.heard.keys.joinToString("+") { it.label }
             Text(parts.joinToString(" · "), maxLines = 2, overflow = TextOverflow.Ellipsis)
         },
         trailingContent = {
             if (p != null) {
-                IconButton(onClick = { onRoute(GeoPoint(p.lat, p.lon)) }) { Icon(Icons.Filled.Route, contentDescription = "Route to ${m.displayName}") }
+                IconButton(onClick = { onRoute(GeoPoint(p.lat, p.lon)) }) { Icon(Icons.Filled.Route, contentDescription = T.party.routeTo(m.displayName)) }
             }
         },
     )
@@ -574,11 +581,11 @@ private fun Chat(s: PartyState) {
     var text by remember { mutableStateOf("") }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Messages", style = MaterialTheme.typography.titleSmall)
-            val names = s.members.associate { it.id to it.displayName } + (s.me?.let { mapOf(it.id to "You") } ?: emptyMap())
+            Text(T.party.messages, style = MaterialTheme.typography.titleSmall)
+            val names = s.members.associate { it.id to it.displayName } + (s.me?.let { mapOf(it.id to T.party.you) } ?: emptyMap())
             if (s.chat.isEmpty()) {
                 Text(
-                    if (party.watchOnly) "The party's messages show here." else "Short messages reach everyone, also over radio.",
+                    if (party.watchOnly) T.party.messagesShowHere else T.party.messagesHint,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -588,9 +595,9 @@ private fun Chat(s: PartyState) {
             if (!party.watchOnly) {
                 HorizontalDivider(Modifier.padding(vertical = 4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(text, { text = it.take(120) }, placeholder = { Text("Message") }, singleLine = true, modifier = Modifier.weight(1f))
+                    OutlinedTextField(text, { text = it.take(120) }, placeholder = { Text(T.party.messagePlaceholder) }, singleLine = true, modifier = Modifier.weight(1f))
                     IconButton(onClick = { party.sendText(text); text = "" }, enabled = text.isNotBlank() && s.active) {
-                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
+                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = T.party.send)
                     }
                 }
             }
@@ -605,27 +612,26 @@ private fun InviteDialog(key: PartyKey, onDismiss: () -> Unit) {
     val link = remember(key) { key.toLink() }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Invite to “${key.name}”") },
+        title = { Text(T.party.inviteTo(key.name)) },
         text = {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 partyPlatform.QrImage(link, Modifier.size(240.dp))
                 Text(
-                    "Others scan this with their phone's camera or in MapAround's Party tab, or open the link. " +
-                        "Anyone with it can see the party's positions, so share it only with your group.",
+                    T.party.inviteExplanation,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                platform.shareText("Join my MapAround party “${key.name}”: $link", "Share invite")
+                platform.shareText(T.party.inviteShareText(key.name, link), T.party.shareInvite)
             }) {
                 Icon(Icons.Filled.Share, contentDescription = null)
                 Spacer(Modifier.width(6.dp))
-                Text("Share link")
+                Text(T.party.shareLink)
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Done") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(T.common.done) } },
     )
 }
 
@@ -636,20 +642,20 @@ private fun EditMeDialog(name: String, color: Int, icon: Int, onDismiss: () -> U
     var i by remember { mutableStateOf(icon) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("You in this party") },
+        title = { Text(T.party.youInThisParty) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     PartyAvatar(n, c, i, 48.dp)
                     Spacer(Modifier.width(12.dp))
-                    OutlinedTextField(n, { n = it.take(24) }, label = { Text("Name") }, singleLine = true)
+                    OutlinedTextField(n, { n = it.take(24) }, label = { Text(T.party.nameLabel) }, singleLine = true)
                 }
-                Text("How the others see you on the map", style = MaterialTheme.typography.bodySmall)
+                Text(T.party.howOthersSeeYou, style = MaterialTheme.typography.bodySmall)
                 PartyLookPicker(n, c, i, onColor = { c = it }, onIcon = { i = it })
             }
         },
-        confirmButton = { TextButton(onClick = { onSave(n, c, i) }) { Text("Save") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        confirmButton = { TextButton(onClick = { onSave(n, c, i) }) { Text(T.common.save) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(T.common.cancel) } },
     )
 }
 
@@ -657,15 +663,15 @@ private fun distanceText(me: GeoFix?, lat: Double, lon: Double): String? {
     me ?: return null
     val from = GeoPoint(me.lat, me.lon)
     val to = GeoPoint(lat, lon)
-    return "${Fmt.distance(Geo.distance(from, to).toFloat())} ${Fmt.cardinal(Geodesy.bearing(from, to).toFloat())}"
+    return T.party.distanceDirection(Fmt.distance(Geo.distance(from, to).toFloat()), Fmt.cardinal(Geodesy.bearing(from, to).toFloat()))
 }
 
 private fun ago(now: Long, at: Long): String? {
     if (at <= 0) return null
     val s = (now - at) / 1000
     return when {
-        s < 45 -> "now"
-        s < 3600 -> "${(s / 60.0).roundToInt().coerceAtLeast(1)} min ago"
+        s < 45 -> T.party.agoNow
+        s < 3600 -> T.common.minutesAgo((s / 60.0).roundToInt().coerceAtLeast(1).toLong())
         else -> Fmt.relativeTime(at, now)
     }
 }

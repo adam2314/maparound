@@ -1,5 +1,10 @@
 package app.maparound.web
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import app.maparound.i18n.I18n
+import app.maparound.map.MapRegions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -49,6 +54,9 @@ private suspend fun fetchText(url: String): String? = suspendCoroutine { c -> js
 private suspend fun fetchBytes(url: String): ByteArray? = suspendCoroutine { c -> jsFetchBytes(url) { c.resume(it?.toByteArray()) } }
 
 private val UI_FONTS = listOf("NotoSansMath.ttf", "NotoSansSymbols2.ttf", "NotoSansHebrew.ttf", "NotoSansArabic.ttf")
+
+/** The right-to-left languages' fonts, loaded before the screens in such a language. */
+private val RTL_FONTS = listOf("NotoSansHebrew.ttf", "NotoSansArabic.ttf")
 
 /** The page's address up to its folder, e.g. "https://adam2314.github.io/maparound/app/". */
 private fun pageBase(): String = js("location.href.split('#')[0].split('?')[0].replace(/[^/]*$/, '')")
@@ -112,6 +120,9 @@ fun main() {
             base = pageBase(),
         )
         app.startTiles("tiles/tiles-worker.js")
+        // Which map is made for where the map looks (the offer of the one for it).
+        val regions = fetchBytes("regions.bin")
+        MapRegions.source = { regions }
         pinFromAddress()
         inviteFromAddress(app)
         onAddressChange { inviteFromAddress(app) }
@@ -119,14 +130,20 @@ fun main() {
         removeLoading()
         ComposeViewport("app") {
             // Fallback fonts for what the built-in one lacks (arrows, symbols, Hebrew, Arabic), loaded after the first frame.
+            // In a right-to-left language its letters come first, before any text: text laid out
+            // before its font arrives keeps empty boxes.
             val fonts = LocalFontFamilyResolver.current
+            val first = if (I18n.rtl) RTL_FONTS else emptyList()
+            var ready by remember { mutableStateOf(first.isEmpty()) }
             LaunchedEffect(Unit) {
-                for (name in UI_FONTS) {
-                    val bytes = fetchBytes("uifonts/$name") ?: continue
-                    runCatching { fonts.preload(FontFamily(Font(name, bytes))) }
+                for (name in first + UI_FONTS.filterNot { it in first }) {
+                    val bytes = fetchBytes("uifonts/$name")
+                    if (bytes != null) runCatching { fonts.preload(FontFamily(Font(name, bytes))) }
+                    if (name == first.lastOrNull()) ready = true
                 }
+                ready = true
             }
-            WebRoot(app)
+            if (ready) WebRoot(app)
         }
     }
 }

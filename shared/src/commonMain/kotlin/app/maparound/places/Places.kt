@@ -1,5 +1,6 @@
 package app.maparound.places
 
+import app.maparound.i18n.T
 import app.maparound.routing.Geo
 import app.maparound.routing.GeoPoint
 import app.maparound.shared.util.Xml
@@ -13,17 +14,31 @@ import kotlin.uuid.Uuid
 
 // Plain Kotlin: your saved places (points of interest), stored as GPX waypoints. Unit-tested.
 
-enum class PlaceCategory(val label: String, val emoji: String, val argb: Long, /** Garmin-style GPX symbol. */ val gpxSym: String) {
-    FAVORITE("Favourite", "⭐", 0xFFF9A825, "Flag, Blue"),
-    CAMP("Camp", "⛺", 0xFF2E7D32, "Campground"),
-    WATER("Water", "💧", 0xFF1E88E5, "Drinking Water"),
-    VIEW("Viewpoint", "🔭", 0xFF6A1B9A, "Scenic Area"),
-    PARKING("Parking", "🅿️", 0xFF455A64, "Parking Area"),
-    FUEL("Fuel", "⛽", 0xFFE65100, "Gas Station"),
-    FOOD("Food", "🍴", 0xFFD84315, "Restaurant"),
-    DANGER("Danger", "⚠️", 0xFFC62828, "Danger Area"),
-    OTHER("Other", "📍", 0xFF546E7A, "Waypoint"),
+enum class PlaceCategory(val emoji: String, val argb: Long, /** Garmin-style GPX symbol. */ val gpxSym: String) {
+    FAVORITE("⭐", 0xFFF9A825, "Flag, Blue"),
+    CAMP("⛺", 0xFF2E7D32, "Campground"),
+    WATER("💧", 0xFF1E88E5, "Drinking Water"),
+    VIEW("🔭", 0xFF6A1B9A, "Scenic Area"),
+    PARKING("🅿️", 0xFF455A64, "Parking Area"),
+    FUEL("⛽", 0xFFE65100, "Gas Station"),
+    FOOD("🍴", 0xFFD84315, "Restaurant"),
+    DANGER("⚠️", 0xFFC62828, "Danger Area"),
+    OTHER("📍", 0xFF546E7A, "Waypoint"),
     ;
+
+    /** The category's name in the app's language. */
+    val label: String
+        get() = when (this) {
+            FAVORITE -> T.library.categoryFavorite
+            CAMP -> T.library.categoryCamp
+            WATER -> T.library.categoryWater
+            VIEW -> T.library.categoryView
+            PARKING -> T.library.categoryParking
+            FUEL -> T.library.categoryFuel
+            FOOD -> T.library.categoryFood
+            DANGER -> T.library.categoryDanger
+            OTHER -> T.library.categoryOther
+        }
 
     companion object {
         /** Best guess from another app's GPX `<sym>` / `<type>` (Garmin, OsmAnd, …). */
@@ -65,7 +80,16 @@ data class Place(
 }
 
 object Places {
-    enum class Sort(val label: String) { NEAREST("Nearest"), NAME("Name"), NEWEST("Newest") }
+    enum class Sort {
+        NEAREST, NAME, NEWEST;
+
+        val label: String
+            get() = when (this) {
+                NEAREST -> T.library.sortNearest
+                NAME -> T.library.sortName
+                NEWEST -> T.library.sortNewest
+            }
+    }
 
     /** Filters by text (name and note) and category, then sorts. Nearest needs [from]. */
     fun filter(places: List<Place>, query: String, category: PlaceCategory?, sort: Sort, from: GeoPoint?): List<Place> {

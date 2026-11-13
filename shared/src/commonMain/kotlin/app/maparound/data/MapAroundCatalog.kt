@@ -1,5 +1,6 @@
 package app.maparound.data
 
+import app.maparound.i18n.T
 import app.maparound.shared.net.httpGetText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -41,7 +42,7 @@ class MapAroundCatalog(
     private var usingFallback = false
 
     override val attribution: String
-        get() = if (usingFallback) fallback.attribution else "OpenStreetMap data with marked trails, built by MapAround"
+        get() = if (usingFallback) fallback.attribution else T.offline.attributionMapAround
 
     override val alternative: CatalogSource? get() = fallback.takeIf { useMapsforge }
 
@@ -54,7 +55,7 @@ class MapAroundCatalog(
             null
         }
         if (all == null) {
-            if (!useMapsforge) throw IllegalStateException("Can't read MapAround's list of maps (no connection?)")
+            if (!useMapsforge) throw IllegalStateException(T.offline.cantReadMapList)
             usingFallback = true
             return fallback.list(path, forceRefresh)
         }

@@ -1,5 +1,6 @@
 package app.maparound.share
 
+import app.maparound.i18n.T
 import app.maparound.routing.RouteProfile
 import app.maparound.tracks.Track
 import app.maparound.tracks.TrackKind
@@ -13,14 +14,14 @@ object RouteText {
     fun of(track: Track): String = buildString {
         val s = track.stats
         append(track.name).append(" · ").append(Fmt.distance(s.distanceM.toFloat()))
-        s.ascentM?.let { append(" · ↑ ").append(it.roundToInt()).append(" m") }
+        s.ascentM?.let { append(" · ↑ ").append(it.roundToInt()).append(" ").append(T.common.unitM) }
         appendLine()
         if (hasRouteLink(track)) {
-            SharedLinks.brouterWebLink(track.waypoints, track.profile)?.let { appendLine("Open the route: $it") }
+            SharedLinks.brouterWebLink(track.waypoints, track.profile)?.let { appendLine(T.map.openTheRoute(it)) }
             SharedLinks.googleDirectionsLink(track.waypoints, track.profile ?: RouteProfile.HIKE)?.let { appendLine("Google Maps: $it") }
         } else {
-            track.points.firstOrNull()?.let { appendLine("Start: ${SharedLinks.googleLink(it.lat, it.lon)}") }
+            track.points.firstOrNull()?.let { appendLine(T.map.routeStartsAt(SharedLinks.googleLink(it.lat, it.lon))) }
         }
-        append("(GPX file attached, if your app received it)")
+        append(T.map.gpxAttached)
     }
 }

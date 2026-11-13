@@ -1,5 +1,6 @@
 package app.maparound.routing
 
+import app.maparound.i18n.T
 import app.maparound.sensors.GeoFix
 import app.maparound.shared.util.toRadians
 import kotlin.math.abs
@@ -142,7 +143,7 @@ class Navigator(
                 distance <= now && m.turn != Turn.ARRIVE -> { said[i] = ALL; muteAhead(i, following); Guidance.now(m) + then }
                 distance <= near -> { said[i] = FAR or NEAR; Guidance.ahead(m, distance) + then }
                 distance <= far * 1.5 -> { said[i] = FAR; Guidance.ahead(m, distance) }
-                else -> "Continue for ${Guidance.spokenDistance(distance)}"
+                else -> T.nav.continueFor(Guidance.spokenDistance(distance))
             }
         }
         val s = said[i]

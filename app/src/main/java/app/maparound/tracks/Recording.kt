@@ -24,6 +24,7 @@ import androidx.core.content.ContextCompat
 import app.maparound.AppGraph
 import app.maparound.MainActivity
 import app.maparound.R
+import app.maparound.i18n.T
 import app.maparound.routing.Geo
 import app.maparound.routing.GeoPoint
 import app.maparound.routing.TrackStats
@@ -76,7 +77,7 @@ class RecordingService : Service() {
         createChannel()
         try {
             ServiceCompat.startForeground(
-                this, NOTIFICATION_ID, notification("Waiting for GPS…"),
+                this, NOTIFICATION_ID, notification(T.library.waitingForGps),
                 if (Build.VERSION.SDK_INT >= 29) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0,
             )
         } catch (e: Exception) {
@@ -127,7 +128,7 @@ class RecordingService : Service() {
             lastNotified = now
             val s = TrackRecorder.state.value.stats
             getSystemService(NotificationManager::class.java)
-                .notify(NOTIFICATION_ID, notification("${Fmt.distance(s.distanceM.toFloat())} · ↑ ${s.ascentM?.toInt() ?: 0} m"))
+                .notify(NOTIFICATION_ID, notification("${Fmt.distance(s.distanceM.toFloat())} · ↑ ${s.ascentM?.toInt() ?: 0} ${T.common.unitM}"))
         }
     }
 
@@ -155,13 +156,13 @@ class RecordingService : Service() {
 
     private fun createChannel() {
         val nm = getSystemService(NotificationManager::class.java)
-        if (nm.getNotificationChannel(CHANNEL) == null) {
-            nm.createNotificationChannel(
-                NotificationChannel(CHANNEL, "Track recording", NotificationManager.IMPORTANCE_LOW).apply {
-                    description = "Shown while MapAround records your track"
-                },
-            )
-        }
+        // Created again each time: for an existing channel this only updates its name and
+        // description, to the app's language now.
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL, T.library.recordingChannel, NotificationManager.IMPORTANCE_LOW).apply {
+                description = T.library.recordingChannelDescription
+            },
+        )
     }
 
     private fun notification(text: String): Notification {
@@ -175,12 +176,12 @@ class RecordingService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_record)
-            .setContentTitle("Recording track")
+            .setContentTitle(T.library.recordingTrack)
             .setContentText(text)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(open)
-            .addAction(0, "Stop & save", stop)
+            .addAction(0, T.library.stopAndSave, stop)
             .build()
     }
 

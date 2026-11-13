@@ -1,6 +1,7 @@
 package app.maparound.tiles
 
 import app.maparound.map.BorderLines
+import app.maparound.map.MapRegions
 import app.maparound.map.WorldData
 import app.maparound.map.WorldTile
 import app.maparound.map.maplibre.TileService
@@ -31,7 +32,7 @@ private val sizes = HashMap<String, Long>()
 private fun read(name: String, at: Double, n: Int): JsAny = js("self.__mrRead(name, at, n)")
 
 private fun register(
-    init: (JsAny?, JsAny?) -> Unit,
+    init: (JsAny?, JsAny?, JsAny?) -> Unit,
     setMaps: (String) -> Unit,
     tile: (String) -> JsAny?,
     setDem: (String, JsAny?) -> Unit,
@@ -60,7 +61,10 @@ private class OpfsFile(private val name: String, private val length: Long) : Fil
 fun main() {
     openFileOverride = { path -> sizes[path]?.let { OpfsFile(path.removePrefix(PREFIX), it) } }
     register(
-        init = { world, borders ->
+        init = { world, borders, regions ->
+            // The regions' outlines: where each map really draws, so the world's borders go on around it.
+            val regionBytes = regions?.toByteArray()
+            MapRegions.source = { regionBytes }
             val worldData = world?.toByteArray()?.let(WorldData::decode)
             val borderLines = borders?.toByteArray()?.let(BorderLines::decode)
             service.world = WorldTile({ worldData }, { borderLines })

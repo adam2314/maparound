@@ -1,5 +1,10 @@
 package app.maparound.ui
 
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.runtime.CompositionLocalProvider
+import app.maparound.i18n.T
+import app.maparound.i18n.I18n
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -34,12 +39,23 @@ import app.maparound.party.PartyEvent
 import app.maparound.share.Incoming
 import kotlinx.coroutines.flow.Flow
 
-enum class Tab(val label: String, val icon: ImageVector) {
-    Map("Map", Icons.Filled.Map),
-    Routes("Library", Icons.Filled.Bookmarks),
-    Party("Party", Icons.Filled.Groups),
-    Offline("Offline", Icons.Filled.DownloadForOffline),
-    Sensors("Sensors", Icons.Filled.Explore),
+enum class Tab(val icon: ImageVector) {
+    Map(Icons.Filled.Map),
+    Routes(Icons.Filled.Bookmarks),
+    Party(Icons.Filled.Groups),
+    Offline(Icons.Filled.DownloadForOffline),
+    Sensors(Icons.Filled.Explore),
+    ;
+
+    /** Its name in the app's language. */
+    val label: String
+        get() = when (this) {
+            Map -> T.common.tabMap
+            Routes -> T.common.tabLibrary
+            Party -> T.common.tabParty
+            Offline -> T.common.tabOffline
+            Sensors -> T.common.tabSensors
+        }
 }
 
 /**
@@ -88,15 +104,17 @@ fun MapAroundRoot(
     LaunchedEffect(Unit) {
         party.events.collect { ev ->
             when (ev) {
-                is PartyEvent.Joined -> snackbar.showSnackbar("${ev.member.displayName} joined the party")
-                is PartyEvent.SosRaised -> snackbar.showSnackbar("SOS from ${ev.member.displayName}! ${ev.text}")
-                is PartyEvent.SosCancelled -> snackbar.showSnackbar("${ev.member.displayName} cancelled the SOS")
-                is PartyEvent.Left -> snackbar.showSnackbar("${ev.member.displayName} left the party")
+                is PartyEvent.Joined -> snackbar.showSnackbar(T.party.joinedParty(ev.member.displayName))
+                is PartyEvent.SosRaised -> snackbar.showSnackbar(T.party.sosFrom(ev.member.displayName, ev.text))
+                is PartyEvent.SosCancelled -> snackbar.showSnackbar(T.party.sosCancelled(ev.member.displayName))
+                is PartyEvent.Left -> snackbar.showSnackbar(T.party.leftParty(ev.member.displayName))
                 else -> Unit
             }
         }
     }
 
+    // Right to left in a right-to-left language (Hebrew), on every platform: the screens mirror.
+    CompositionLocalProvider(LocalLayoutDirection provides if (I18n.rtl) LayoutDirection.Rtl else LayoutDirection.Ltr) {
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
@@ -130,5 +148,6 @@ fun MapAroundRoot(
                 Tab.Sensors -> SensorsScreen(hasLocation, requestLocation, satellites = satellites?.let { s -> { s(hasLocation, requestLocation) } })
             }
         }
+    }
     }
 }

@@ -1,5 +1,6 @@
 package app.maparound.tracks
 
+import app.maparound.i18n.T
 import app.maparound.routing.GeoPoint
 import app.maparound.routing.RouteProfile
 import app.maparound.routing.TrackStats
@@ -11,11 +12,21 @@ import app.maparound.shared.util.parseIsoTime
 
 // Plain Kotlin (Android and iOS), unit-tested on both.
 
-enum class TrackKind(val label: String) {
-    PLANNED("Planned route"),
-    DRAWN("Drawn route"),
-    RECORDED("Recorded track"),
-    IMPORTED("Imported"),
+enum class TrackKind {
+    PLANNED,
+    DRAWN,
+    RECORDED,
+    IMPORTED,
+    ;
+
+    /** The kind's name in the app's language. */
+    val label: String
+        get() = when (this) {
+            PLANNED -> T.library.kindPlanned
+            DRAWN -> T.library.kindDrawn
+            RECORDED -> T.library.kindRecorded
+            IMPORTED -> T.library.kindImported
+        }
 }
 
 /**
@@ -103,7 +114,8 @@ object Gpx {
 
     fun toTrack(c: GpxContent, fallbackName: String, fallbackTime: Long): Track {
         val line = c.trackPoints.ifEmpty { c.routePoints }
-        require(line.isNotEmpty()) { "No track or route in this GPX file" }
+        // Shown to the user after "Import failed: ".
+        require(line.isNotEmpty()) { T.library.noTrackInGpx }
         val (kind, profile) = parseType(c.type)
         return Track(
             name = c.name ?: fallbackName,

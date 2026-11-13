@@ -1,5 +1,6 @@
 package app.maparound.party
 
+import app.maparound.i18n.T
 import app.maparound.routing.Geo
 import app.maparound.shared.util.hex
 import app.maparound.shared.util.nowMillis
@@ -9,7 +10,17 @@ import app.maparound.shared.util.nowMillis
 // state per member, and decides what to send and what a gateway should relay.
 
 /** How a packet travelled. */
-enum class Via(val label: String) { ONLINE("online"), LORA("radio"), NEARBY("nearby") }
+enum class Via {
+    ONLINE, LORA, NEARBY;
+
+    /** As shown ("online", "radio"), in the app's language. */
+    val label: String
+        get() = when (this) {
+            ONLINE -> T.party.viaOnline
+            LORA -> T.party.viaRadio
+            NEARBY -> T.party.viaNearby
+        }
+}
 
 data class Member(
     val id: Int,
@@ -28,7 +39,7 @@ data class Member(
     val sosText: String = "",
     val left: Boolean = false,
 ) {
-    val displayName: String get() = name.ifBlank { "Member " + hex(id).takeLast(4).uppercase() }
+    val displayName: String get() = name.ifBlank { T.party.memberFallbackName(hex(id).takeLast(4).uppercase()) }
     val lastHeard: Long get() = heard.values.maxOrNull() ?: 0
 }
 

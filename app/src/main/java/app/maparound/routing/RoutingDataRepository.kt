@@ -6,6 +6,7 @@ import android.net.Uri
 import android.text.format.Formatter
 import androidx.core.content.edit
 import app.maparound.USER_AGENT
+import app.maparound.i18n.T
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -86,8 +87,8 @@ class RoutingDataRepository(private val context: Context) : RoutingData {
         for (name in todo) {
             File(segmentsDir, "$name.rd5.part").delete()
             val request = DownloadManager.Request(Uri.parse("$SOURCE$name.rd5"))
-                .setTitle("Routing data $name")
-                .setDescription("MapAround offline routing")
+                .setTitle(T.offline.routingData(name))
+                .setDescription(T.offline.routingDownloadDescription)
                 .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
                 .setDestinationInExternalFilesDir(context, "brouter", "segments4/$name.rd5.part")
                 .setAllowedOverMetered(!wifiOnly)
@@ -96,7 +97,7 @@ class RoutingDataRepository(private val context: Context) : RoutingData {
             try {
                 remember(dm.enqueue(request), name)
             } catch (e: Exception) {
-                return "Could not start download: ${e.message}"
+                return T.offline.couldNotStartDownload(e.message)
             }
         }
         return null
@@ -153,10 +154,10 @@ class RoutingDataRepository(private val context: Context) : RoutingData {
         forget(id)
         val part = File(segmentsDir, "$name.rd5.part")
         if (status == DownloadManager.STATUS_SUCCESSFUL && part.length() > 1000 && part.renameTo(File(segmentsDir, "$name.rd5"))) {
-            _events.tryEmit("Offline routing ready for $name")
+            _events.tryEmit(T.offline.routingReady(name))
         } else {
             part.delete()
-            _events.tryEmit("Routing data $name failed to download")
+            _events.tryEmit(T.offline.routingFailed(name))
         }
         dm.remove(id)
         refresh()

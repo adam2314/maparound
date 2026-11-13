@@ -2,6 +2,13 @@
 
 ## 0.2.0 (not released yet)
 
+### Languages
+- **MapAround in Hebrew (עברית)**, right to left: every screen, message, notification, unit and
+  date, the turn instructions and the voice prompts (with a Hebrew voice on the phone), place
+  types, Android Auto, and the web app. It follows the phone's language, or choose it in
+  **Settings** (the gear in the Library): the phone's language, English or עברית. Wikipedia and
+  place names follow it too.
+
 ### Maps
 - **MapAround's own offline maps.** The download list is now MapAround's build of OpenStreetMap,
   updated every month, with marked hiking trails, cliffs and ridges, path difficulty (SAC scale),
@@ -34,6 +41,19 @@
   countries, seas, cities and towns (from Natural Earth), even with nothing downloaded. Before,
   it was blank beyond your maps. Downloaded maps keep their own, exact data. The 3 MB World
   overview download isn't needed any more; you can delete it.
+- **No offline map here? The map says which one to get.** Looking at a place none of your maps
+  covers, the map names the region whose map is made for it (a state of a big country, else the
+  country: "Bayern, Germany"), and *Get map* opens the download list right there. On Android
+  and the web.
+- **A legend for every map.** Layers → Legend: for the offline styles, made from the style itself
+  (roads, track grades, paths, marked trails, water, land, terrain, symbols, exactly as drawn,
+  with the style options that are on); for the online maps, their makers' legend.
+- **Borders around your maps.** From zoom 8, the world's borders, rivers and town names were cut
+  out of each downloaded map's whole rectangle, though the map only covers its region: a
+  neighbour's border inside the rectangle (the Rhine north of Liechtenstein) was missing. Now only
+  the region is cut (its outline, from the download list's regions).
+- **Place icons on Android.** The style's icons (huts, springs, viewpoints…) are SVGs with a size
+  but no view box; drawn small they showed only their top-left corner. They're whole now.
 - **Country borders at every zoom.** In Topo, disputed borders and lines of control are drawn
   with short dashes.
 - **Tap a place on the map.** Peaks, springs, huts, viewpoints, villages and the other places the

@@ -1,5 +1,6 @@
 package app.maparound.ui
 
+import app.maparound.i18n.T
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -81,12 +82,8 @@ fun InfoRow(label: String, value: String, modifier: Modifier = Modifier) {
 }
 
 object Fmt {
-    private val compass16 = arrayOf(
-        "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
-        "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW",
-    )
-
-    fun cardinal(deg: Float): String = compass16[(((deg % 360f + 360f) % 360f) / 22.5f + 0.5f).toInt() % 16]
+    /** The compass point of a direction in degrees, in the app's language ("NNE"; Hebrew: the eight main ones). */
+    fun cardinal(deg: Float): String = T.common.cardinal(deg)
 
     fun latLon(lat: Double, lon: Double): String = "${fixed(lat, 5)}, ${fixed(lon, 5)}"
 
@@ -102,9 +99,9 @@ object Fmt {
     }
 
     fun distance(meters: Float): String = when {
-        meters < 1000 -> "${meters.roundToInt()} m"
-        meters < 100_000 -> "${localFixed((meters / 1000).toDouble(), 1)} km"
-        else -> "${(meters / 1000).roundToInt()} km"
+        meters < 1000 -> "${meters.roundToInt()} ${T.common.unitM}"
+        meters < 100_000 -> "${localFixed((meters / 1000).toDouble(), 1)} ${T.common.unitKm}"
+        else -> "${(meters / 1000).roundToInt()} ${T.common.unitKm}"
     }
 
     fun oneDecimal(value: Number): String = localFixed(value.toDouble(), 1)
@@ -112,7 +109,8 @@ object Fmt {
     /** 754 s -> "13 min", 15000 s -> "4 h 10 min". */
     fun duration(seconds: Long): String {
         val minutes = (seconds + 30) / 60
-        return if (minutes < 60) "$minutes min" else "${minutes / 60} h ${minutes % 60} min"
+        val t = T.common
+        return if (minutes < 60) "$minutes ${t.unitMin}" else "${minutes / 60} ${t.unitH} ${minutes % 60} ${t.unitMin}"
     }
 
     /** "830 B", "4.2 kB", "530 MB", "1.2 GB": decimal units, like Android's short file sizes. */
@@ -135,15 +133,17 @@ object Fmt {
         val then = Instant.fromEpochMilliseconds(timeMs).toLocalDateTime(zone)
         val today = Instant.fromEpochMilliseconds(nowMs).toLocalDateTime(zone).date
         val days = then.date.daysUntil(today)
+        val t = T.common
+        val month = t.months[then.monthNumber - 1]
         return when {
-            ago < 0 -> "${MONTHS[then.monthNumber - 1]} ${then.dayOfMonth}, ${then.year}"
-            ago < 60_000 -> "Just now"
-            ago < 3_600_000 -> "${ago / 60_000} min ago"
-            days == 0 -> (ago / 3_600_000).let { if (it == 1L) "1 hour ago" else "$it hours ago" }
-            days == 1 -> "Yesterday"
-            days < 7 -> "$days days ago"
-            then.year == today.year -> "${MONTHS[then.monthNumber - 1]} ${then.dayOfMonth}"
-            else -> "${MONTHS[then.monthNumber - 1]} ${then.dayOfMonth}, ${then.year}"
+            ago < 0 -> t.monthDayYear(month, then.dayOfMonth, then.year)
+            ago < 60_000 -> t.justNow
+            ago < 3_600_000 -> t.minutesAgo(ago / 60_000)
+            days == 0 -> t.hoursAgo(ago / 3_600_000)
+            days == 1 -> t.yesterday
+            days < 7 -> t.daysAgo(days)
+            then.year == today.year -> t.monthDay(month, then.dayOfMonth)
+            else -> t.monthDayYear(month, then.dayOfMonth, then.year)
         }
     }
 
@@ -152,19 +152,20 @@ object Fmt {
         val zone = TimeZone.currentSystemDefault()
         val d = Instant.fromEpochMilliseconds(timeMs).toLocalDateTime(zone).date
         val thisYear = Instant.fromEpochMilliseconds(nowMs).toLocalDateTime(zone).year
-        return "${MONTHS[d.monthNumber - 1]} ${d.dayOfMonth}" + if (d.year != thisYear) ", ${d.year}" else ""
+        val month = T.common.months[d.monthNumber - 1]
+        return if (d.year != thisYear) T.common.monthDayYear(month, d.dayOfMonth, d.year) else T.common.monthDay(month, d.dayOfMonth)
     }
 
     /** "11 Nov" (local time), as route names use. */
     fun dayMonth(timeMs: Long): String {
         val d = Instant.fromEpochMilliseconds(timeMs).toLocalDateTime(TimeZone.currentSystemDefault())
-        return "${d.dayOfMonth} ${MONTHS[d.monthNumber - 1]}"
+        return T.common.dayMonth(d.dayOfMonth, T.common.months[d.monthNumber - 1])
     }
 
     /** "11 Nov 14:05" (local time). */
     fun dayMonthTime(timeMs: Long): String {
         val d = Instant.fromEpochMilliseconds(timeMs).toLocalDateTime(TimeZone.currentSystemDefault())
-        return "${d.dayOfMonth} ${MONTHS[d.monthNumber - 1]} ${padded(d.hour, 2)}:${padded(d.minute, 2)}"
+        return T.common.dayMonth(d.dayOfMonth, T.common.months[d.monthNumber - 1]) + " ${padded(d.hour, 2)}:${padded(d.minute, 2)}"
     }
 
     /** "14:05" (local time). */
@@ -172,8 +173,6 @@ object Fmt {
         val d = Instant.fromEpochMilliseconds(timeMs).toLocalDateTime(TimeZone.currentSystemDefault())
         return "${padded(d.hour, 2)}:${padded(d.minute, 2)}"
     }
-
-    private val MONTHS = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
     /** Running clock for recordings: "1:05:09". */
     fun clock(seconds: Long): String = "${seconds / 3600}:${padded((seconds / 60) % 60, 2)}:${padded(seconds % 60, 2)}"

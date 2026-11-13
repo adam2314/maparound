@@ -1,5 +1,6 @@
 package app.maparound.search
 
+import app.maparound.i18n.T
 import app.maparound.routing.Geo
 import app.maparound.routing.GeoPoint
 import app.maparound.shared.util.nfd
@@ -18,7 +19,18 @@ data class SearchResult(
     /** A saved place's id, for places. */
     val placeId: String? = null,
 ) {
-    enum class Source(val label: String) { COORDINATES("Coordinates"), PLACES("Your places"), MAP("Offline map"), ONLINE("Online (OpenStreetMap)") }
+    enum class Source {
+        COORDINATES, PLACES, MAP, ONLINE;
+
+        /** The heading of its results, in the app's language. */
+        val label: String
+            get() = when (this) {
+                COORDINATES -> T.poi.sourceCoordinates
+                PLACES -> T.poi.sourcePlaces
+                MAP -> T.poi.sourceOfflineMap
+                ONLINE -> T.poi.sourceOnline
+            }
+    }
 
     val point: GeoPoint get() = GeoPoint(lat, lon)
 }

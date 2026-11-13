@@ -23,6 +23,7 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import app.maparound.MainActivity
 import app.maparound.R
+import app.maparound.i18n.T
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -57,7 +58,7 @@ class PartyService : Service() {
         createChannel()
         try {
             ServiceCompat.startForeground(
-                this, NOTIFICATION_ID, notification("Connecting…"),
+                this, NOTIFICATION_ID, notification(T.party.connecting),
                 if (Build.VERSION.SDK_INT >= 29) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0,
             )
         } catch (e: Exception) {
@@ -104,23 +105,22 @@ class PartyService : Service() {
 
     private fun summary(s: PartyState): String {
         val links = listOfNotNull(
-            "online".takeIf { s.online.state == TransportStatus.State.CONNECTED },
-            "radio".takeIf { s.radio.state == TransportStatus.State.CONNECTED },
-        ).ifEmpty { listOf("connecting…") }.joinToString(" + ")
-        val who = "${s.members.size} other" + if (s.members.size == 1) "" else "s"
-        val sharing = if (s.sharing) "" else " · hidden"
-        return "$who · $links$sharing" + if (s.mySos) " · SOS ACTIVE" else ""
+            Via.ONLINE.label.takeIf { s.online.state == TransportStatus.State.CONNECTED },
+            Via.LORA.label.takeIf { s.radio.state == TransportStatus.State.CONNECTED },
+        ).ifEmpty { listOf(T.party.summaryConnecting) }.joinToString(" + ")
+        val who = T.party.others(s.members.size)
+        val sharing = if (s.sharing) "" else " · ${T.party.hidden}"
+        return "$who · $links$sharing" + if (s.mySos) " · ${T.party.sosActiveCaps}" else ""
     }
 
     private fun createChannel() {
         val nm = getSystemService(NotificationManager::class.java)
-        if (nm.getNotificationChannel(CHANNEL) == null) {
-            nm.createNotificationChannel(
-                NotificationChannel(CHANNEL, "Party location sharing", NotificationManager.IMPORTANCE_LOW).apply {
-                    description = "Shown while MapAround shares your location with your party"
-                },
-            )
-        }
+        // Each time, so an existing channel takes the name in the app's language now (only that changes).
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL, T.party.channelSharing, NotificationManager.IMPORTANCE_LOW).apply {
+                description = T.party.channelSharingDescription
+            },
+        )
     }
 
     private fun notification(text: String): Notification {
@@ -130,7 +130,7 @@ class PartyService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_party)
-            .setContentTitle("Party: ${PartySession.state.value.party?.name ?: ""}")
+            .setContentTitle(T.party.notificationTitle(PartySession.state.value.party?.name ?: ""))
             .setContentText(text)
             .setOngoing(true)
             .setOnlyAlertOnce(true)

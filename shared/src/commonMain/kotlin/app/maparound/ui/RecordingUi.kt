@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import app.maparound.i18n.T
 import app.maparound.shared.util.nowMillis
 import app.maparound.tracks.TrackRecorder
 import kotlin.math.roundToInt
@@ -50,14 +51,14 @@ fun RecordingBar(state: TrackRecorder.State, onStop: () -> Unit, modifier: Modif
             Text(Fmt.clock(elapsed), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
             if (state.points.isEmpty()) {
                 Text(
-                    state.accuracyM?.let { "GPS ±${it.roundToInt()} m…" } ?: "Waiting for GPS…",
+                    state.accuracyM?.let { T.map.gpsAccuracy(it.roundToInt()) } ?: T.map.waitingForGps,
                     style = MaterialTheme.typography.bodyMedium,
                 )
             } else {
                 Text(Fmt.distance(state.stats.distanceM.toFloat()), style = MaterialTheme.typography.bodyMedium)
-                state.stats.ascentM?.let { Text("↑ ${it.roundToInt()} m", style = MaterialTheme.typography.bodyMedium) }
+                state.stats.ascentM?.let { Text("↑ ${it.roundToInt()} ${T.common.unitM}", style = MaterialTheme.typography.bodyMedium) }
             }
-            TextButton(onClick = onStop) { Text("Stop") }
+            TextButton(onClick = onStop) { Text(T.common.stop) }
         }
     }
 }

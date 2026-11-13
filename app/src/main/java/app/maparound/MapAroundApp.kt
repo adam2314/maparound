@@ -1,5 +1,6 @@
 package app.maparound
 
+import app.maparound.map.MapRegions
 import app.maparound.places.PlaceRepository
 import app.maparound.raster.RasterMapRepository
 import android.app.Application
@@ -82,6 +83,8 @@ object AppGraph {
 
     fun init(app: Application) {
         this.app = app
+        // Which map is made for where the map looks (assets/regions.bin), read on first use.
+        MapRegions.source = { app.assets.open("regions.bin").use { it.readBytes() } }
         // Read the built-in world in the background, so the first map frame doesn't wait for it.
         MainScope().launch(Dispatchers.Default) {
             world

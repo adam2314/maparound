@@ -18,6 +18,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import app.maparound.MainActivity
 import app.maparound.R
+import app.maparound.i18n.T
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -91,7 +92,7 @@ object PartySession : PartyController {
         leaveSilently()
         // A new id per party; the look (icon, colour) carries over from the last one.
         val me = PartyMe(
-            SecureRandom().nextInt().let { if (it == 0) 1 else it }, myName.trim().ifEmpty { "Me" },
+            SecureRandom().nextInt().let { if (it == 0) 1 else it }, myName.trim().ifEmpty { T.party.defaultMyName },
             if (prefs.contains("my_rgb") || prefs.contains("my_color")) myColor() else PartyPalette.PRESETS.random(),
             prefs.getInt("my_icon", 0),
         )
@@ -303,7 +304,7 @@ object PartySession : PartyController {
                 }
             }).also { it.start() }
         } else if (address != null) {
-            update { it.copy(radio = TransportStatus(TransportStatus.State.ERROR, "Bluetooth permission needed")) }
+            update { it.copy(radio = TransportStatus(TransportStatus.State.ERROR, T.party.bluetoothPermissionNeeded)) }
         }
     }
 
@@ -415,23 +416,22 @@ object PartySession : PartyController {
 
     private fun notifyIfNeeded(ev: PartyEvent) {
         val (title, text, urgent) = when (ev) {
-            is PartyEvent.SosRaised -> Triple("SOS from ${ev.member.displayName}", ev.text.ifBlank { "Needs help. Tap to see where." }, true)
+            is PartyEvent.SosRaised -> Triple(T.party.sosNotificationTitle(ev.member.displayName), ev.text.ifBlank { T.party.sosNeedsHelp }, true)
             is PartyEvent.TextReceived -> Triple(ev.member.displayName, ev.text, false)
-            is PartyEvent.MeetingSet -> ev.meeting?.let { Triple("New meeting point", it.label.ifBlank { "Tap to see it on the map" }, false) } ?: return
+            is PartyEvent.MeetingSet -> ev.meeting?.let { Triple(T.party.newMeetingPoint, it.label.ifBlank { T.party.tapToSeeOnMap }, false) } ?: return
             else -> return
         }
         val nm = app.getSystemService(NotificationManager::class.java)
         val channel = if (urgent) CHANNEL_SOS else CHANNEL_MESSAGES
-        if (nm.getNotificationChannel(channel) == null) {
-            nm.createNotificationChannel(
-                if (urgent) {
-                    NotificationChannel(CHANNEL_SOS, "Party SOS alerts", NotificationManager.IMPORTANCE_HIGH)
-                        .apply { enableVibration(true) }
-                } else {
-                    NotificationChannel(CHANNEL_MESSAGES, "Party messages", NotificationManager.IMPORTANCE_DEFAULT)
-                },
-            )
-        }
+        // Each time, so an existing channel takes the name in the app's language now (only that changes).
+        nm.createNotificationChannel(
+            if (urgent) {
+                NotificationChannel(CHANNEL_SOS, T.party.channelSos, NotificationManager.IMPORTANCE_HIGH)
+                    .apply { enableVibration(true) }
+            } else {
+                NotificationChannel(CHANNEL_MESSAGES, T.party.channelMessages, NotificationManager.IMPORTANCE_DEFAULT)
+            },
+        )
         val open = PendingIntent.getActivity(
             app, 2, Intent(app, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE,

@@ -1,5 +1,6 @@
 package app.maparound.share
 
+import app.maparound.i18n.T
 import app.maparound.places.PlaceRepository
 import app.maparound.places.Places
 import app.maparound.routing.GeoPoint
@@ -62,7 +63,7 @@ object Incoming {
             hasLine -> Item.Track(tracks.save(Gpx.toTrack(content, baseName, nowMillis())), placesAdded = places.addAll(waypoints))
             waypoints.isNotEmpty() -> Item.Places(places.addAll(waypoints), waypoints.map { it.point })
             else -> {
-                val w = content.waypoints.firstOrNull() ?: error("No track, route or waypoint in this GPX file")
+                val w = content.waypoints.firstOrNull() ?: error(T.map.noTrackInGpx)
                 Item.Point(Shared.Point(w.lat, w.lon, w.name ?: baseName, null))
             }
         }

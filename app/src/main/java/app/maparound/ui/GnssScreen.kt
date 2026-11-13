@@ -52,6 +52,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.maparound.i18n.T
+import app.maparound.i18n.ltr
 import app.maparound.sensors.Constellations
 import app.maparound.sensors.GnssSource
 import app.maparound.sensors.GnssState
@@ -68,9 +70,9 @@ fun GnssScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
     if (!hasLocation) {
         MessageScreen(
             Icons.Filled.SatelliteAlt,
-            "Location permission needed",
-            "Satellite reception data comes from the phone's GNSS (GPS) receiver, which requires location access.",
-            "Allow location",
+            T.sensors.locationPermissionNeeded,
+            T.sensors.gnssNeedsLocation,
+            T.sensors.allowLocation,
             requestLocation,
         )
         return
@@ -100,9 +102,9 @@ fun GnssScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
             item {
                 MessageCard(
                     Icons.Filled.LocationOff,
-                    "Location is turned off",
-                    "Turn on location to start the satellite receiver.",
-                    "Open settings",
+                    T.sensors.locationOff,
+                    T.sensors.turnOnLocation,
+                    T.sensors.openSettings,
                     { context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) },
                 )
             }
@@ -111,11 +113,11 @@ fun GnssScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Sky view", style = MaterialTheme.typography.titleMedium, modifier = Modifier.fillMaxWidth())
+                    Text(T.sensors.skyView, style = MaterialTheme.typography.titleMedium, modifier = Modifier.fillMaxWidth())
                     SkyPlot(sats, Modifier.fillMaxWidth().widthIn(max = 420.dp).aspectRatio(1f).padding(8.dp))
                     ConstellationLegend(sats)
                     Text(
-                        "Filled = used in fix · rings at 0°, 30°, 60° elevation",
+                        T.sensors.skyViewLegend,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 8.dp),
@@ -124,15 +126,15 @@ fun GnssScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
             }
         }
         item {
-            Text("Signal strength (C/N₀, dB‑Hz)", style = MaterialTheme.typography.titleMedium)
+            Text(T.sensors.signalStrength, style = MaterialTheme.typography.titleMedium)
         }
         if (sats.isEmpty()) {
             item {
                 Text(
                     if (state.engineRunning) {
-                        "Searching… go outdoors with a clear view of the sky. A cold start can take a minute or two."
+                        T.sensors.searching
                     } else {
-                        "Starting the GNSS receiver…"
+                        T.sensors.startingReceiver
                     },
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -150,9 +152,9 @@ private fun FixCard(state: GnssState, nowNanos: Long) {
     val hasFix = ageSec != null && ageSec < 5
     val used = state.satellites.count { it.usedInFix }
     val fixLabel = when {
-        !hasFix -> "No fix"
-        loc?.hasAltitude() == true -> "3D fix"
-        else -> "2D fix"
+        !hasFix -> T.sensors.noFix
+        loc?.hasAltitude() == true -> T.sensors.fix3d
+        else -> T.sensors.fix2d
     }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
@@ -167,32 +169,32 @@ private fun FixCard(state: GnssState, nowNanos: Long) {
                 Text(fixLabel, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 Column(horizontalAlignment = Alignment.End) {
                     Text("$used / ${state.satellites.size}", style = MaterialTheme.typography.headlineSmall)
-                    Text("in use / in view", style = MaterialTheme.typography.labelSmall)
+                    Text(T.sensors.inUseInView, style = MaterialTheme.typography.labelSmall)
                 }
             }
             Spacer(Modifier.height(8.dp))
             if (loc != null) {
-                InfoRow("Position", Fmt.latLon(loc.latitude, loc.longitude))
-                InfoRow("", Fmt.dms(loc.latitude, loc.longitude))
+                InfoRow(T.sensors.position, ltr(Fmt.latLon(loc.latitude, loc.longitude)))
+                InfoRow("", ltr(Fmt.dms(loc.latitude, loc.longitude)))
                 loc.bestAltitude()?.let { alt ->
                     val msl = Build.VERSION.SDK_INT >= 34 && loc.hasMslAltitude()
-                    InfoRow("Altitude", "${alt.roundToInt()} m" + if (msl) " (MSL)" else " (GPS)")
+                    InfoRow(T.sensors.altitude, T.sensors.altitudeValue(alt.roundToInt(), msl))
                 }
                 if (loc.hasAccuracy()) {
-                    val vertical = if (loc.hasVerticalAccuracy()) " · ±${loc.verticalAccuracyMeters.roundToInt()} m vert." else ""
-                    InfoRow("Accuracy", "±${loc.accuracy.roundToInt()} m$vertical")
+                    val vertical = if (loc.hasVerticalAccuracy()) loc.verticalAccuracyMeters.roundToInt() else null
+                    InfoRow(T.sensors.accuracy, T.sensors.accuracyValue(loc.accuracy.roundToInt(), vertical))
                 }
                 if (loc.hasSpeed()) {
-                    InfoRow("Speed", String.format(Locale.getDefault(), "%.1f km/h", loc.speed * 3.6f))
+                    InfoRow(T.sensors.speed, "${String.format(Locale.getDefault(), "%.1f", loc.speed * 3.6f)} ${T.common.unitKmh}")
                 }
                 if (loc.hasBearing() && loc.hasSpeed() && loc.speed > 0.5f) {
-                    InfoRow("Course", "${loc.bearing.roundToInt()}° ${Fmt.cardinal(loc.bearing)}")
+                    InfoRow(T.sensors.course, "${ltr("${loc.bearing.roundToInt()}°")} ${Fmt.cardinal(loc.bearing)}")
                 }
-                ageSec?.let { InfoRow("Last fix", if (it < 1.5) "now" else "${it.roundToInt()} s ago") }
+                ageSec?.let { InfoRow(T.sensors.lastFix, if (it < 1.5) T.sensors.now else T.sensors.secondsAgo(it.roundToInt())) }
             }
-            state.ttffMs?.let { InfoRow("Time to first fix", String.format(Locale.getDefault(), "%.1f s", it / 1000f)) }
+            state.ttffMs?.let { InfoRow(T.sensors.timeToFirstFix, "${String.format(Locale.getDefault(), "%.1f", it / 1000f)} ${T.common.unitS}") }
             if (loc == null) {
-                Text("Waiting for the first fix…", style = MaterialTheme.typography.bodyMedium)
+                Text(T.sensors.waitingForFirstFix, style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
@@ -231,6 +233,7 @@ private fun SkyPlot(sats: List<Satellite>, modifier: Modifier) {
         fontWeight = FontWeight.Bold,
     )
     val svStyle = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White)
+    val cardinals = T.sensors.dialCardinals.zip(listOf(0f, 90f, 180f, 270f))
 
     Canvas(modifier) {
         val c = center
@@ -239,7 +242,7 @@ private fun SkyPlot(sats: List<Satellite>, modifier: Modifier) {
         listOf(1f, 2f / 3f, 1f / 3f).forEach { drawCircle(ring, r * it, c, style = Stroke(1.dp.toPx())) }
         drawLine(ring, Offset(c.x - r, c.y), Offset(c.x + r, c.y), 1.dp.toPx())
         drawLine(ring, Offset(c.x, c.y - r), Offset(c.x, c.y + r), 1.dp.toPx())
-        listOf("N" to 0f, "E" to 90f, "S" to 180f, "W" to 270f).forEach { (t, az) ->
+        cardinals.forEach { (t, az) ->
             val p = polar(c, r + 9.dp.toPx(), az)
             val layout = measurer.measure(t, labelStyle)
             drawText(layout, topLeft = Offset(p.x - layout.size.width / 2f, p.y - layout.size.height / 2f))
@@ -287,7 +290,7 @@ private fun SatelliteRow(s: Satellite) {
                 maxLines = 1,
             )
             Text(
-                "el ${s.elevation.roundToInt()}° · az ${s.azimuth.roundToInt()}°",
+                T.sensors.elevationAzimuth(s.elevation.roundToInt(), s.azimuth.roundToInt()),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -307,7 +310,7 @@ private fun SatelliteRow(s: Satellite) {
         )
         Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
             if (s.usedInFix) {
-                Icon(Icons.Filled.Check, contentDescription = "Used in fix", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                Icon(Icons.Filled.Check, contentDescription = T.sensors.usedInFix, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
             }
         }
     }

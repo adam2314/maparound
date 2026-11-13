@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.view.View
+import app.maparound.i18n.T
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.floor
@@ -78,11 +79,11 @@ class ScaleBarView(context: Context) : View(context) {
         }
     }
 
-    private fun metricLabel(m: Double) = if (m >= 1000) "${fmt(m / 1000)} km" else "${fmt(m)} m"
+    private fun metricLabel(m: Double) = if (m >= 1000) "${fmt(m / 1000)} ${T.common.unitKm}" else "${fmt(m)} ${T.common.unitM}"
 
     private fun imperialLabel(m: Double): String {
         val miles = m / 1609.344
-        return if (miles >= 0.999) "${fmt(miles)} mi" else "${fmt(m / 0.3048)} ft"
+        return if (miles >= 0.999) "${fmt(miles)} ${T.common.unitMi}" else "${fmt(m / 0.3048)} ${T.common.unitFt}"
     }
 
     private fun fmt(v: Double): String = if (v >= 1 || v == 0.0) v.toLong().toString() else "%.1f".format(v)

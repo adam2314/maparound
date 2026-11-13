@@ -469,6 +469,8 @@
   let scaleEl = null;
   let scaleMpp = 0;
   let scaleRatio = 0;
+  // Right to left (Hebrew): the scale bar on the right, where the app's buttons aren't.
+  let rtl = false;
 
   /** The largest 1, 2 or 5 × 10ⁿ not over v. */
   function nice(v) {
@@ -495,8 +497,10 @@
     if (!scaleEl) {
       scaleEl = document.createElement('canvas');
       // Over the map's own canvas; the app's screens (over the whole map) still cover it.
-      scaleEl.style.cssText = 'position:absolute;left:8px;top:8px;width:' + W + 'px;height:' + H + 'px;z-index:2;pointer-events:none';
+      scaleEl.style.cssText = 'position:absolute;top:8px;width:' + W + 'px;height:' + H + 'px;z-index:2;pointer-events:none';
     }
+    scaleEl.style.left = rtl ? '' : '8px';
+    scaleEl.style.right = rtl ? '8px' : '';
     if (scaleEl.parentNode !== container) container.appendChild(scaleEl);
     scaleEl.width = Math.ceil(W * d);
     scaleEl.height = Math.ceil(H * d);
@@ -703,6 +707,12 @@
   });
 
   window.MapAroundMap = {
+    /** Right to left: the map's own things (the scale bar) on the other side. */
+    setRtl(v) {
+      rtl = !!v;
+      scaleMpp = 0;
+      drawScale();
+    },
     create(containerId, styleJson, symbols, onTile, onUserGesture) {
       container = document.getElementById(containerId);
       symbolBase = symbols;

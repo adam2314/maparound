@@ -61,14 +61,7 @@ class MarkerBitmaps(private val density: Float) {
     /** A symbol of the map style (an SVG), [SYMBOL_HEIGHT] dp high. */
     private fun symbol(path: String, open: (String) -> InputStream?): Bitmap? {
         val svg = open(path)?.use { SVG.getFromInputStream(it) } ?: return null
-        val h = SYMBOL_HEIGHT * density
-        val ratio = svg.documentAspectRatio.takeIf { it > 0 } ?: 1f
-        val w = h * ratio
-        val bmp = Bitmap.createBitmap(max(1, ceil(w).toInt()), max(1, ceil(h).toInt()), Bitmap.Config.ARGB_8888)
-        svg.setDocumentWidth(w)
-        svg.setDocumentHeight(h)
-        svg.renderToCanvas(Canvas(bmp))
-        return bmp
+        return svgBitmap(svg, SYMBOL_HEIGHT * density)
     }
 
     /** A round marker with an optional label tag below; the circle's centre is the image's centre. */
@@ -232,4 +225,24 @@ class MarkerBitmaps(private val density: Float) {
         private fun withAlpha(color: Int, alpha: Float): Int =
             Color.argb((Color.alpha(color) * alpha).toInt(), Color.red(color), Color.green(color), Color.blue(color))
     }
+}
+
+/**
+ * [svg] drawn [height] pixels high, keeping its proportions. mapsforge's symbols give only a
+ * width and height (580×580), no view box: without one the drawing isn't scaled to the
+ * size asked for, and only its top-left corner shows. So it gets one from its own size.
+ */
+internal fun svgBitmap(svg: SVG, height: Float): Bitmap {
+    if (svg.documentViewBox == null) {
+        val w0 = svg.documentWidth
+        val h0 = svg.documentHeight
+        if (w0 > 0f && h0 > 0f) svg.setDocumentViewBox(0f, 0f, w0, h0)
+    }
+    val ratio = svg.documentAspectRatio.takeIf { it > 0 } ?: 1f
+    val w = height * ratio
+    val bmp = Bitmap.createBitmap(max(1, ceil(w).toInt()), max(1, ceil(height).toInt()), Bitmap.Config.ARGB_8888)
+    svg.setDocumentWidth(w)
+    svg.setDocumentHeight(height)
+    svg.renderToCanvas(Canvas(bmp))
+    return bmp
 }

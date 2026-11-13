@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.core.content.FileProvider
+import app.maparound.i18n.T
 import app.maparound.routing.RouteProfile
 import app.maparound.tracks.Gpx
 import app.maparound.tracks.Track
@@ -22,21 +23,21 @@ object Sharing {
         val send = Intent(Intent.ACTION_SEND)
             .setType("text/plain")
             .putExtra(Intent.EXTRA_TEXT, SharedLinks.pointText(lat, lon, label))
-            .putExtra(Intent.EXTRA_SUBJECT, label ?: "Location")
-        start(context, Intent.createChooser(send, "Share location"))
+            .putExtra(Intent.EXTRA_SUBJECT, label ?: T.map.location)
+        start(context, Intent.createChooser(send, T.map.shareLocation))
     }
 
     /** A GPX file with one waypoint, for GPS devices and apps like OsmAnd or Garmin. */
     fun sharePointGpx(context: Context, lat: Double, lon: Double, label: String?) {
         val file = File(sharedDir(context), slug(label ?: "location") + ".gpx")
         file.bufferedWriter().use { Gpx.writeWaypoint(label, lat, lon, it) }
-        shareFile(context, file, "application/gpx+xml", SharedLinks.pointText(lat, lon, label), label ?: "Location")
+        shareFile(context, file, "application/gpx+xml", SharedLinks.pointText(lat, lon, label), label ?: T.map.location)
     }
 
     /** Hands the point to another map or navigation app (geo: link). */
     fun openPointElsewhere(context: Context, lat: Double, lon: Double, label: String?) {
         val view = Intent(Intent.ACTION_VIEW, Uri.parse(SharedLinks.geoUri(lat, lon, label)))
-        start(context, Intent.createChooser(view, "Open with"))
+        start(context, Intent.createChooser(view, T.map.openWith))
     }
 
     /**
@@ -57,7 +58,7 @@ object Sharing {
         val text = if (places.size == 1) {
             SharedLinks.pointText(places[0].lat, places[0].lon, places[0].name)
         } else {
-            "$title: ${places.size} places (GPX attached)"
+            T.map.placesShareText(title, places.size)
         }
         shareFile(context, file, "application/gpx+xml", text, title)
     }
@@ -74,7 +75,7 @@ object Sharing {
         val send = Intent(Intent.ACTION_SEND).setType("text/plain")
             .putExtra(Intent.EXTRA_TEXT, routeText(track))
             .putExtra(Intent.EXTRA_SUBJECT, track.name)
-        start(context, Intent.createChooser(send, "Share route link"))
+        start(context, Intent.createChooser(send, T.map.shareRouteLink))
     }
 
     fun hasRouteLink(track: Track): Boolean = RouteText.hasRouteLink(track)
@@ -89,7 +90,7 @@ object Sharing {
             .putExtra(Intent.EXTRA_TEXT, text)
             .putExtra(Intent.EXTRA_SUBJECT, subject)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        start(context, Intent.createChooser(send, "Share").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+        start(context, Intent.createChooser(send, T.common.share).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
     }
 
     private fun sharedDir(context: Context): File = File(context.cacheDir, "shared").apply {
@@ -105,7 +106,7 @@ object Sharing {
         try {
             context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         } catch (e: ActivityNotFoundException) {
-            Toast.makeText(context, "No app can handle this", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, T.map.noAppForThis, Toast.LENGTH_SHORT).show()
         }
     }
 }

@@ -20,6 +20,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import app.maparound.i18n.T
+import app.maparound.i18n.ltr
 import app.maparound.share.SharedLinks
 
 /** "Share location" choices for one point. */
@@ -31,20 +33,20 @@ fun PointShareSheet(lat: Double, lon: Double, label: String?, onDismiss: () -> U
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(bottom = 24.dp)) {
             Text(
-                label ?: Fmt.latLon(lat, lon),
+                label ?: ltr(Fmt.latLon(lat, lon)),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(start = 24.dp, bottom = 8.dp),
             )
-            Option(Icons.Filled.Link, "Send as a link", "Google Maps and OpenStreetMap links; opens for anyone") {
+            Option(Icons.Filled.Link, T.map.sendAsLink, T.map.sendAsLinkHint) {
                 onDismiss(); platform.sharePointText(lat, lon, label)
             }
-            Option(Icons.Filled.Description, "Send as GPX waypoint", "For GPS devices and apps like OsmAnd or Garmin") {
+            Option(Icons.Filled.Description, T.map.sendAsGpx, T.map.sendAsGpxHint) {
                 onDismiss(); platform.sharePointGpx(lat, lon, label)
             }
-            Option(Icons.AutoMirrored.Filled.OpenInNew, "Open in another app", "Navigation or other map apps") {
+            Option(Icons.AutoMirrored.Filled.OpenInNew, T.map.openElsewhere, T.map.openElsewhereHint) {
                 onDismiss(); platform.openPointElsewhere(lat, lon, label)
             }
-            Option(Icons.Filled.ContentCopy, "Copy coordinates", Fmt.latLon(lat, lon)) {
+            Option(Icons.Filled.ContentCopy, T.map.copyCoordinates, ltr(Fmt.latLon(lat, lon))) {
                 onDismiss(); clipboard.setText(AnnotatedString(SharedLinks.pointText(lat, lon, label)))
             }
         }

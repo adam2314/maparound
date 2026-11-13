@@ -1,5 +1,6 @@
 package app.maparound.search
 
+import app.maparound.i18n.T
 import app.maparound.places.Place
 import app.maparound.routing.GeoPoint
 import app.maparound.share.Shared
@@ -36,7 +37,7 @@ object SearchEngine {
         Coords.parse(query, near)?.let {
             out += SearchResult(Coords.format(it.point, it.format) ?: query, it.format.label, it.point.lat, it.point.lon, SearchResult.Source.COORDINATES)
         } ?: (SharedLinks.parse(query) as? Shared.Point)?.let {
-            out += SearchResult(it.label ?: "Shared location", "From the link", it.lat, it.lon, SearchResult.Source.COORDINATES)
+            out += SearchResult(it.label ?: T.poi.sharedLocation, T.poi.fromTheLink, it.lat, it.lon, SearchResult.Source.COORDINATES)
         }
         val q = SearchText.normalize(query)
         for (p in places) {
@@ -135,7 +136,7 @@ object SearchEngine {
             val name = p.str("name") ?: street ?: p.str("city") ?: return@mapIndexedNotNull null
             val where = listOfNotNull(p.str("city")?.takeIf { it != name }, p.str("state"), p.str("country")).distinct().joinToString(", ")
             SearchResult(
-                name, listOfNotNull(p.str("osm_value")?.let(::humanize), where.ifEmpty { null }).joinToString(" · "),
+                name, listOfNotNull(p.str("osm_value")?.let { kindOf(p.str("osm_key"), it) }, where.ifEmpty { null }).joinToString(" · "),
                 c[1].jsonPrimitive.double, c[0].jsonPrimitive.double, SearchResult.Source.ONLINE, i,
             )
         }
@@ -148,7 +149,7 @@ object SearchEngine {
             val display = o.str("display_name") ?: ""
             SearchResult(
                 o.str("name") ?: display.substringBefore(','),
-                listOfNotNull(o.str("type")?.let(::humanize), display.substringAfter(", ", "").ifEmpty { null }).joinToString(" · "),
+                listOfNotNull(o.str("type")?.let { kindOf(o.str("category"), it) }, display.substringAfter(", ", "").ifEmpty { null }).joinToString(" · "),
                 o.getValue("lat").jsonPrimitive.content.toDouble(), o.getValue("lon").jsonPrimitive.content.toDouble(),
                 SearchResult.Source.ONLINE, i,
             )
@@ -189,27 +190,31 @@ object SearchEngine {
         return picked?.takeIf { it.isNotBlank() } ?: variants(raw).firstOrNull() ?: raw
     }
 
-    /** "Peak · 812 m", "Spring", "Village", "Path"… from the most telling tag. */
+    /** "Peak · 812 m", "Spring", "Village", "Path"… from the most telling tag, in the app's language. */
     fun describe(tags: List<MfTag>): String {
         val t = tags.associate { it.key to it.value }
+        val words = T.poi
         val kind = when {
-            t["place"] != null -> humanize(t.getValue("place"))
-            t["natural"] != null -> humanize(t.getValue("natural"))
-            t["tourism"] != null -> humanize(t.getValue("tourism"))
-            t["historic"] != null -> humanize(t.getValue("historic"))
-            t["amenity"] != null -> humanize(t.getValue("amenity"))
-            t["shop"] != null -> "Shop: " + humanize(t.getValue("shop"))
-            t["leisure"] != null -> humanize(t.getValue("leisure"))
-            t["waterway"] != null -> humanize(t.getValue("waterway"))
-            t["highway"] in setOf("path", "footway", "track", "bridleway", "steps") -> "Path"
-            t["highway"] != null -> "Street"
-            t["route"] != null -> "Trail"
-            t["landuse"] != null -> humanize(t.getValue("landuse"))
-            t["building"] != null -> "Building"
-            else -> "Place"
+            t["place"] != null -> kindOf("place", t.getValue("place"))
+            t["natural"] != null -> kindOf("natural", t.getValue("natural"))
+            t["tourism"] != null -> kindOf("tourism", t.getValue("tourism"))
+            t["historic"] != null -> kindOf("historic", t.getValue("historic"))
+            t["amenity"] != null -> kindOf("amenity", t.getValue("amenity"))
+            t["shop"] != null -> words.shop(kindOf("shop", t.getValue("shop")))
+            t["leisure"] != null -> kindOf("leisure", t.getValue("leisure"))
+            t["waterway"] != null -> kindOf("waterway", t.getValue("waterway"))
+            t["highway"] in setOf("path", "footway", "track", "bridleway", "steps") -> words.path
+            t["highway"] != null -> words.street
+            t["route"] != null -> words.trail
+            t["landuse"] != null -> kindOf("landuse", t.getValue("landuse"))
+            t["building"] != null -> words.building
+            else -> words.place
         }
-        return listOfNotNull(kind, t["ele"]?.toDoubleOrNull()?.let { "${it.toInt()} m" }).joinToString(" · ")
+        return listOfNotNull(kind, t["ele"]?.toDoubleOrNull()?.let { "${it.toInt()} ${T.common.unitM}" }).joinToString(" · ")
     }
+
+    /** What an OSM tag ([key]=[value]) says a place is, in the app's language ("Peak"; else the value in words). */
+    private fun kindOf(key: String?, value: String): String = T.poi.searchKind("$key=$value", humanize(value))
 
     fun humanize(v: String) = v.replace('_', ' ').replaceFirstChar { it.titlecase() }
 }

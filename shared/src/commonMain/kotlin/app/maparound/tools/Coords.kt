@@ -1,5 +1,6 @@
 package app.maparound.tools
 
+import app.maparound.i18n.T
 import app.maparound.routing.GeoPoint
 import app.maparound.shared.util.toDegrees
 import app.maparound.shared.util.toRadians
@@ -22,15 +23,29 @@ import kotlin.math.sqrt
 
 // Plain Kotlin: writing and reading coordinates in the formats people use. Unit-tested.
 
-enum class CoordFormat(val label: String, val example: String) {
-    DD("Decimal degrees", "31.776700, 35.234500"),
-    DDM("Degrees & minutes", "N31° 46.602′ E35° 14.070′"),
-    DMS("Degrees, minutes, seconds", "31°46′36.1″N 35°14′04.2″E"),
-    UTM("UTM", "36R 711594 3517858"),
-    MGRS("MGRS", "36R YA 11594 17858"),
-    ITM("Israel grid (ITM)", "222304 631558"),
-    PLUS("Plus Code", "8G3QQ6GM+MR"),
-    MAIDENHEAD("Maidenhead locator", "KM71os"),
+enum class CoordFormat(val example: String) {
+    DD("31.776700, 35.234500"),
+    DDM("N31° 46.602′ E35° 14.070′"),
+    DMS("31°46′36.1″N 35°14′04.2″E"),
+    UTM("36R 711594 3517858"),
+    MGRS("36R YA 11594 17858"),
+    ITM("222304 631558"),
+    PLUS("8G3QQ6GM+MR"),
+    MAIDENHEAD("KM71os"),
+    ;
+
+    /** The format's name, in the app's language. */
+    val label: String
+        get() = when (this) {
+            DD -> T.tools.formatDecimalDegrees
+            DDM -> T.tools.formatDegreesMinutes
+            DMS -> T.tools.formatDms
+            UTM -> "UTM"
+            MGRS -> "MGRS"
+            ITM -> T.tools.formatIsraelGrid
+            PLUS -> "Plus Code"
+            MAIDENHEAD -> T.tools.formatMaidenhead
+        }
 }
 
 object Coords {

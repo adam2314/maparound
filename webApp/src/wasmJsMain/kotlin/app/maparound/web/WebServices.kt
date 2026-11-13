@@ -1,5 +1,7 @@
 package app.maparound.web
 
+import app.maparound.shared.net.httpGetAsync
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -16,6 +18,7 @@ import app.maparound.data.RoutingData
 import app.maparound.data.RoutingDataState
 import app.maparound.data.TrailData
 import app.maparound.data.TrailState
+import app.maparound.i18n.T
 import app.maparound.map.MapTheme
 import app.maparound.map.MapThemeLibrary
 import app.maparound.map.MapThemes
@@ -61,7 +64,7 @@ import okio.Path.Companion.toPath
 import kotlin.math.PI
 import kotlin.math.floor
 
-internal const val LATER = "Coming to the web app in a later version"
+internal val LATER: String get() = T.offline.comingToWeb
 
 // ---- sharing: the browser's share sheet where there is one, else the clipboard or a download ------
 
@@ -88,11 +91,11 @@ object WebPlatformActions : PlatformActions {
             shareTextJs(title, text)
         } else {
             copyText(text)
-            Incoming.pending.value = Incoming.Item.Message("Copied to the clipboard")
+            Incoming.pending.value = Incoming.Item.Message(T.common.copied)
         }
     }
 
-    override fun sharePointText(lat: Double, lon: Double, label: String?) = shareText(SharedLinks.pointText(lat, lon, label), label ?: "Location")
+    override fun sharePointText(lat: Double, lon: Double, label: String?) = shareText(SharedLinks.pointText(lat, lon, label), label ?: T.map.location)
 
     override fun sharePointGpx(lat: Double, lon: Double, label: String?) =
         saveGpx(label ?: "location") { Gpx.writeWaypoint(label, lat, lon, it) }
@@ -123,7 +126,6 @@ object WebPlatformActions : PlatformActions {
 
 // ---- search ---------------------------------------------------------------------------------
 
-private fun browserLanguage(): String = js("(navigator.language || 'en').split('-')[0]")
 
 /** Search over the saved places and the downloaded maps; online through the browser (Photon, Nominatim). */
 class WebSearcher(private val places: PlaceRepository, private val maps: InstalledMaps) : Searcher {
@@ -133,7 +135,7 @@ class WebSearcher(private val places: PlaceRepository, private val maps: Install
     override fun offline(query: String, center: GeoPoint, isActive: () -> Boolean): List<SearchResult> = emptyList()
 
     override fun online(query: String, near: GeoPoint?): List<SearchResult> =
-        SearchEngine.online(query, near) { url -> httpGetText(url, mapOf("Accept-Language" to "${browserLanguage()},en;q=0.8"), 12_000) }
+        SearchEngine.online(query, near) { url -> httpGetText(url, mapOf("Accept-Language" to "${app.maparound.i18n.I18n.contentLanguage},en;q=0.8"), 12_000) }
 }
 
 // ---- sensors: geolocation, device orientation and motion -------------------------------------------
@@ -283,8 +285,8 @@ class WebSensors : DeviceSensors {
     }
 
     override fun motionInfo(sensor: MotionSensor): SensorInfo? = if (!hasMotionEvents()) null else when (sensor) {
-        MotionSensor.ACCELEROMETER -> SensorInfo("Accelerometer", "Browser", 0f, 0f, 60)
-        MotionSensor.GYROSCOPE -> SensorInfo("Gyroscope", "Browser", 0f, 0f, 60)
+        MotionSensor.ACCELEROMETER -> SensorInfo(T.sensors.accelerometer, "Browser", 0f, 0f, 60)
+        MotionSensor.GYROSCOPE -> SensorInfo(T.sensors.gyroscope, "Browser", 0f, 0f, 60)
     }
 
     override fun motion(periodMs: Long): Flow<MotionSample> = callbackFlow {
@@ -392,15 +394,24 @@ class WebInstalledMaps : InstalledMaps {
                         val map = name?.let { n -> _files.value.firstOrNull { it.fileName == n } }
                         done.value(
                             when {
-                                error != null -> Result.failure(Exception(error))
+                                error != null -> Result.failure(Exception(importError(error)))
                                 map != null -> Result.success(map)
-                                else -> Result.failure(Exception("The map wasn't stored"))
+                                else -> Result.failure(Exception(T.offline.mapNotStored))
                             },
                         )
                     },
                 )
             }
         }
+    }
+
+    /** The tile worker's import messages (tiles-worker.js, mapview.js: English) in the app's language. */
+    private fun importError(error: String): String = when (error) {
+        "Not a mapsforge .map file" -> T.offline.notMapsforgeFile
+        "The file is incomplete (still downloading?)" -> T.offline.fileIncomplete
+        "Not enough storage for this map in the browser" -> T.offline.browserStorageFull
+        "This browser has no file storage for maps" -> T.offline.browserNoFileStorage
+        else -> error
     }
 
     companion object {
@@ -416,8 +427,7 @@ class WebInstalledMaps : InstalledMaps {
 object WebDownloads : MapDownloads {
     override fun enqueue(entry: CatalogEntry, url: String, wifiOnly: Boolean): String {
         tilesDownload(url)
-        val size = entry.sizeLabel?.let { " (${it}B)" }.orEmpty()
-        return "Your browser is downloading ${entry.title}$size. When it's done, add it with the file button at the top."
+        return T.offline.browserDownloading(entry.title, entry.sizeLabel)
     }
 
     override fun cancel(id: Long) = Unit
@@ -437,7 +447,7 @@ object PendingTrails : TrailData {
     override val state: StateFlow<TrailState> = MutableStateFlow(TrailState())
     override fun cellsFor(bounds: GeoBounds) = cells(bounds)
     override fun missingCells(bounds: GeoBounds) = cells(bounds)
-    override fun download(label: String, bounds: GeoBounds): String = "Marked trails: $LATER"
+    override fun download(label: String, bounds: GeoBounds): String = T.offline.trailsLater(LATER)
     override fun cancel() = Unit
     override fun deleteAll() = Unit
 }
@@ -447,7 +457,7 @@ object PendingRouting : RoutingData {
     override fun isInstalled(name: String) = false
     override fun segmentsFor(bounds: GeoBounds): List<String> = Segments.namesFor(bounds.minLat, bounds.minLon, bounds.maxLat, bounds.maxLon)
     override suspend fun remoteSizes(): Map<String, Long> = emptyMap()
-    override fun download(names: List<String>, wifiOnly: Boolean): String = "Offline routing: $LATER"
+    override fun download(names: List<String>, wifiOnly: Boolean): String = T.offline.routingLater(LATER)
     override fun cancel(id: Long) = Unit
     override fun delete(name: String) = Unit
     override fun poll() = Unit
@@ -456,7 +466,7 @@ object PendingRouting : RoutingData {
 object PendingRecording : RecordingControl {
     @Composable
     override fun rememberStarter(hasLocation: Boolean, requestLocation: () -> Unit): () -> Unit =
-        remember { { Incoming.pending.value = Incoming.Item.Message("Recording tracks: $LATER") } }
+        remember { { Incoming.pending.value = Incoming.Item.Message(T.common.recordingLater(LATER)) } }
 
     override fun stop() = Unit
 }
@@ -470,7 +480,7 @@ object PendingRasters : RasterLibrary {
     @Composable
     override fun rememberPicker(onResult: (Result<RasterMap>) -> Unit): () -> Unit {
         val done = rememberUpdatedState(onResult)
-        return remember { { done.value(Result.failure(Exception("Raster maps: $LATER"))) } }
+        return remember { { done.value(Result.failure(Exception(T.offline.rastersLater(LATER)))) } }
     }
 }
 
@@ -494,13 +504,18 @@ object PendingPartyPlatform : PartyPlatform {
 }
 
 /** The styles on the web: Topo with its options (as on iPhone). */
-class WebMapThemes(topoXml: String?) : MapThemeLibrary {
+class WebMapThemes(private val topoXml: String?, private val symbolBase: String = "") : MapThemeLibrary {
     private val topoMenu = topoXml?.let { runCatching { StyleMenu.parse(it) }.getOrNull() }
     override val themes: StateFlow<List<MapTheme>> =
         MutableStateFlow(listOf(MapTheme(MapThemes.TOPO, "Topo", "MapAround's hiking style: contours, trails, peaks")))
     override fun menu(themeId: String): StyleMenu? = if (themeId == MapThemes.TOPO) topoMenu else null
     override val canImport = false
     override fun import(name: String?, bytes: ByteArray): Result<List<MapTheme>> =
-        Result.failure(UnsupportedOperationException("Importing map styles: $LATER"))
+        Result.failure(UnsupportedOperationException(T.common.styleImportLater(LATER)))
     override fun delete(themeId: String) = Unit
+
+    override fun themeXml(themeId: String): String? = if (themeId == MapThemes.TOPO) topoXml else null
+
+    override suspend fun symbol(themeId: String, path: String, heightPx: Int): ImageBitmap? =
+        if (".." in path) null else runCatching { app.maparound.ui.renderSvg(httpGetAsync(symbolBase + path), heightPx) }.getOrNull()
 }

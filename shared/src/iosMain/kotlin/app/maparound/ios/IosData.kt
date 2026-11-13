@@ -9,6 +9,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import app.maparound.data.InstalledMaps
 import app.maparound.data.LocalMap
 import app.maparound.data.mapBounds
+import app.maparound.i18n.T
 import app.maparound.shared.ioDispatcher
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -96,7 +97,7 @@ class IosInstalledMaps(val dir: String) : InstalledMaps {
     fun import(path: String, displayName: String?, move: Boolean): Result<LocalMap> = runCatching {
         var name = (displayName ?: "imported.map").replace(Regex("[^A-Za-z0-9._-]"), "_")
         if (!name.endsWith(".map")) name += ".map"
-        if (mapBounds(path) == null) error("Not a mapsforge .map file")
+        if (mapBounds(path) == null) error(T.offline.notMapsforgeFile)
         val source = path.toPath()
         val target = "$dir/$name".toPath()
         fileSystem.delete(target, mustExist = false)
@@ -124,10 +125,11 @@ class IosSearcher(private val places: PlaceRepository, private val maps: Install
     override fun online(query: String, near: GeoPoint?): List<SearchResult> =
         SearchEngine.online(query, near) { url -> httpGetText(url, mapOf("Accept-Language" to "${language()},en;q=0.8"), 12_000) }
 
-    private fun language(): String = NSLocale.currentLocale.languageCode
+    // The app's language when chosen, else the phone's (for place names and online search).
+    private fun language(): String = app.maparound.i18n.I18n.contentLanguage
 }
 
-private const val LATER = "Coming to iPhone in a later version"
+private val LATER: String get() = T.offline.comingToIphone
 
 // What phase 3 hasn't built yet on iOS: answers that say so instead of doing nothing.
 
@@ -143,7 +145,7 @@ object PendingTrails : TrailData {
     override val state: StateFlow<TrailState> = MutableStateFlow(TrailState())
     override fun cellsFor(bounds: GeoBounds) = cells(bounds)
     override fun missingCells(bounds: GeoBounds) = cells(bounds)
-    override fun download(label: String, bounds: GeoBounds): String = "Marked trails: $LATER"
+    override fun download(label: String, bounds: GeoBounds): String = T.offline.trailsLater(LATER)
     override fun cancel() = Unit
     override fun deleteAll() = Unit
 }
@@ -153,7 +155,7 @@ object PendingRouting : RoutingData {
     override fun isInstalled(name: String) = false
     override fun segmentsFor(bounds: GeoBounds): List<String> = Segments.namesFor(bounds.minLat, bounds.minLon, bounds.maxLat, bounds.maxLon)
     override suspend fun remoteSizes(): Map<String, Long> = emptyMap()
-    override fun download(names: List<String>, wifiOnly: Boolean): String = "Offline routing: $LATER"
+    override fun download(names: List<String>, wifiOnly: Boolean): String = T.offline.routingLater(LATER)
     override fun cancel(id: Long) = Unit
     override fun delete(name: String) = Unit
     override fun poll() = Unit

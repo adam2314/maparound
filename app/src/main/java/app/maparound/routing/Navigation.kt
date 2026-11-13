@@ -22,6 +22,9 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import app.maparound.MainActivity
 import app.maparound.R
+import app.maparound.i18n.I18n
+import app.maparound.i18n.Language
+import app.maparound.i18n.T
 import app.maparound.sensors.LocationSource
 import app.maparound.sensors.toGeoFix
 import app.maparound.ui.Fmt
@@ -54,6 +57,9 @@ class AndroidSpeaker(context: Context) : NavigationSession.Speaker {
     private var pending: String? = null
     private var count = 0
 
+    /** The app's language when the voice was chosen. */
+    private var voiceLanguage: Language? = null
+
     override fun speak(text: String) {
         if (unavailable) return
         if (tts == null) {
@@ -73,11 +79,7 @@ class AndroidSpeaker(context: Context) : NavigationSession.Speaker {
             stop()
             return
         }
-        // The words are English: an English voice even on a phone set to another language.
-        val device = Locale.getDefault()
-        val voice = listOfNotNull(device.takeIf { it.language == "en" }, Locale.UK, Locale.US, Locale.ENGLISH)
-            .firstOrNull { t.isLanguageAvailable(it) >= TextToSpeech.LANG_AVAILABLE } ?: Locale.ENGLISH
-        t.setLanguage(voice)
+        chooseVoice(t)
         t.setAudioAttributes(attributes)
         t.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) = Unit
@@ -97,7 +99,26 @@ class AndroidSpeaker(context: Context) : NavigationSession.Speaker {
         }
     }
 
+    /**
+     * The words are in the app's language, not the phone's: a voice for it even on a phone set to
+     * another language. Without one installed, an English voice as before.
+     */
+    private fun chooseVoice(t: TextToSpeech) {
+        val language = I18n.language
+        val device = Locale.getDefault()
+        val own = when (language) {
+            Language.EN -> emptyList<Locale>()
+            // Android calls Hebrew "iw" as well as "he" (older versions only "iw").
+            Language.HE -> listOf(Locale.forLanguageTag("he-IL"), Locale.forLanguageTag("iw-IL"), Locale.forLanguageTag("he"))
+        }
+        val voice = (listOfNotNull(device.takeIf { Language.of(it.language) == language }) + own + listOf(Locale.UK, Locale.US, Locale.ENGLISH))
+            .firstOrNull { t.isLanguageAvailable(it) >= TextToSpeech.LANG_AVAILABLE } ?: Locale.ENGLISH
+        t.setLanguage(voice)
+        voiceLanguage = language
+    }
+
     private fun say(text: String) {
+        tts?.let { if (voiceLanguage != I18n.language) chooseVoice(it) } // the app's language was changed
         audio.requestAudioFocus(focus)
         tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "nav${count++}")
     }
@@ -137,7 +158,7 @@ class NavigationService : Service() {
         try {
             // First thing, as startForegroundService requires (even when we stop again at once).
             ServiceCompat.startForeground(
-                this, NOTIFICATION_ID, notification("Navigating", "Waiting for GPS…"),
+                this, NOTIFICATION_ID, notification(T.nav.navigating, T.nav.waitingForGps),
                 if (Build.VERSION.SDK_INT >= 29) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0,
             )
         } catch (e: Exception) {
@@ -177,24 +198,24 @@ class NavigationService : Service() {
         val p = s.progress
         val m = p?.next
         val title = when {
-            s.rerouting -> "Recalculating…"
-            p == null -> "Navigating"
-            p.arrived -> "You have arrived"
-            p.offRoute -> "Off the route"
+            s.rerouting -> T.nav.recalculating
+            p == null -> T.nav.navigating
+            p.arrived -> T.nav.youHaveArrived
+            p.offRoute -> T.nav.offRoute
             m != null -> Guidance.instruction(m)
-            else -> "Navigating"
+            else -> T.nav.navigating
         }
         val now = System.currentTimeMillis()
         if (title == shownTitle && now - shownAt < 3000) return
         shownTitle = title
         shownAt = now
         val text = when {
-            p == null -> "Waiting for GPS…"
+            p == null -> T.nav.waitingForGps
             p.arrived -> ""
             else -> listOfNotNull(
-                if (m != null && !p.offRoute) "In ${Fmt.distance(Guidance.rounded(p.distanceToNextM).toFloat())}" else null,
-                "${Fmt.distance(p.remainingM.toFloat())} left",
-                p.remainingS?.let { "arrival ${Fmt.timeOfDay(now + it * 1000)}" },
+                if (m != null && !p.offRoute) T.nav.inDistanceShort(Fmt.distance(Guidance.rounded(p.distanceToNextM).toFloat())) else null,
+                T.nav.distanceLeft(Fmt.distance(p.remainingM.toFloat())),
+                p.remainingS?.let { T.nav.arrivalInLine(Fmt.timeOfDay(now + it * 1000)) },
             ).joinToString(" · ")
         }
         getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(title, text))
@@ -202,13 +223,12 @@ class NavigationService : Service() {
 
     private fun createChannel() {
         val nm = getSystemService(NotificationManager::class.java)
-        if (nm.getNotificationChannel(CHANNEL) == null) {
-            nm.createNotificationChannel(
-                NotificationChannel(CHANNEL, "Navigation", NotificationManager.IMPORTANCE_LOW).apply {
-                    description = "The next turn, shown while MapAround navigates"
-                },
-            )
-        }
+        // Also when it exists: that renames it, so its name follows the app's language.
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL, T.nav.channelName, NotificationManager.IMPORTANCE_LOW).apply {
+                description = T.nav.channelDescription
+            },
+        )
     }
 
     private fun notification(title: String, text: String): Notification {
@@ -228,7 +248,7 @@ class NavigationService : Service() {
             .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
             .setContentIntent(open)
-            .addAction(0, "Stop", stop)
+            .addAction(0, T.nav.stopNavigation, stop)
             .build()
     }
 

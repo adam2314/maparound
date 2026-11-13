@@ -42,6 +42,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.maparound.i18n.T
 import app.maparound.routing.Geo
 import app.maparound.routing.GeoPoint
 import app.maparound.search.SearchResult
@@ -97,7 +98,7 @@ fun SearchOverlay(mapCenter: GeoPoint, myLocation: GeoFix?, onPick: (SearchResul
             onlineError = null
             val r = withContext(Dispatchers.Default) { runCatching { searcher.online(query, mapCenter) } }
             online = r.getOrNull()
-            onlineError = r.exceptionOrNull()?.let { "Online search failed (no internet?)" }
+            onlineError = r.exceptionOrNull()?.let { T.poi.onlineSearchFailed }
             onlineBusy = false
         }
     }
@@ -105,13 +106,13 @@ fun SearchOverlay(mapCenter: GeoPoint, myLocation: GeoFix?, onPick: (SearchResul
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         Column(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Close search") }
+                IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = T.poi.closeSearch) }
                 OutlinedTextField(
                     query, { query = it },
-                    placeholder = { Text("Search places, coordinates…") },
+                    placeholder = { Text(T.poi.searchHint) },
                     singleLine = true,
                     trailingIcon = {
-                        if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, contentDescription = "Clear") }
+                        if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, contentDescription = T.poi.clearSearch) }
                     },
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { searchOnline() }),
@@ -135,7 +136,7 @@ fun SearchOverlay(mapCenter: GeoPoint, myLocation: GeoFix?, onPick: (SearchResul
                     if (!offlineBusy && offline.isEmpty() && quick.isEmpty()) {
                         item {
                             Text(
-                                "Nothing in your places or the offline maps within 25 km of the map centre.",
+                                T.poi.nothingNearby,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -147,12 +148,12 @@ fun SearchOverlay(mapCenter: GeoPoint, myLocation: GeoFix?, onPick: (SearchResul
                             ListItem(
                                 modifier = Modifier.clickable { searchOnline() },
                                 leadingContent = { Icon(Icons.Filled.Public, contentDescription = null) },
-                                headlineContent = { Text("Search online for “${query.trim()}”") },
-                                supportingContent = { Text(onlineError ?: "OpenStreetMap, anywhere in the world") },
+                                headlineContent = { Text(T.poi.searchOnlineFor(query.trim())) },
+                                supportingContent = { Text(onlineError ?: T.poi.searchOnlineWhere) },
                             )
                         }
                     } else if (online?.isEmpty() == true) {
-                        item { Text("Nothing found online.", Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium) }
+                        item { Text(T.poi.nothingFoundOnline, Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium) }
                     }
                 }
             }

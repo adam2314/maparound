@@ -2,6 +2,8 @@ package app.maparound.shared
 
 import app.maparound.data.MapNames
 import app.maparound.map.GeoBox
+import app.maparound.map.MapRegions
+import app.maparound.map.Coverage
 import app.maparound.map.WorldTile
 import app.maparound.shared.mapsforge.MapsforgeFile
 import app.maparound.shared.mvt.MapsforgeToMvt
@@ -19,13 +21,23 @@ expect fun openFile(path: String): FileHandle
  */
 class MapTiles(paths: List<String>, private val world: WorldTile? = null) {
     // With the built-in world, mapsforge's world overview map (land and sea only) isn't used.
-    private val maps: List<MapsforgeFile> = paths
+    private val opened: List<Pair<String, MapsforgeFile>> = paths
         .filterNot { world != null && MapNames.isWorld(it.substringAfterLast('/').substringAfterLast('\\')) }
-        .mapNotNull { p -> runCatching { MapsforgeFile(openFile(p)) }.getOrNull() }
+        .mapNotNull { p -> runCatching { p to MapsforgeFile(openFile(p)) }.getOrNull() }
+    private val maps: List<MapsforgeFile> = opened.map { it.second }
+
+    /** The maps' file names ("europe__liechtenstein.map"). */
+    private val names: List<String> = opened.map { it.first.substringAfterLast('/').substringAfterLast('\\') }
 
     private val areas = maps.map { m ->
         val h = m.header
         GeoBox((h.minLat * 1e6).toInt(), (h.minLon * 1e6).toInt(), (h.maxLat * 1e6).toInt(), (h.maxLon * 1e6).toInt())
+    }
+
+    /** Where each map really draws: its region's outline when the download list knows it. */
+    private val covers: List<Coverage> by lazy {
+        val regions = if (maps.isEmpty()) null else MapRegions.bundled
+        names.mapIndexed { i, name -> Coverage(areas[i], regions?.byFileName(name)) }
     }
 
     val mapCount: Int get() = maps.size
@@ -52,7 +64,8 @@ class MapTiles(paths: List<String>, private val world: WorldTile? = null) {
                 (MapsforgeFile.tileLat(y, z) * 1e6).toInt(), (MapsforgeFile.tileLon(x + 1, z) * 1e6).toInt(),
             )
             val holes = if (countries) areas.filter { it.intersects(box) } else emptyList()
-            world.draw(box, zoom, holes, WorldToMvt(t))
+            val inTile = if (countries) covers.filter { it.box.intersects(box) } else emptyList()
+            world.draw(box, zoom, holes, WorldToMvt(t), covers = inTile)
         }
         extra?.invoke(t, z, x, y)
         return t.encode()

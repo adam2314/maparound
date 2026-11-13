@@ -88,7 +88,7 @@ val uiFontFiles = layout.buildDirectory.dir("uifonts").also { dir ->
 val webAssets by tasks.registering(Sync::class) {
     into(assetsDir)
     from("../app/src/main/assets") {
-        include("themes/topo.xml", "fonts/**", "world.bin", "borders.bin")
+        include("themes/topo.xml", "fonts/**", "world.bin", "borders.bin", "regions.bin")
     }
     // The symbols topo.xml uses (jar:symbols/…), at mapsforge/symbols/….
     from({ zipTree(mapsforgeThemes.singleFile) }) {

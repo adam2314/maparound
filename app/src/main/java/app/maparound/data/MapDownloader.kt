@@ -9,6 +9,7 @@ import android.net.Uri
 import android.text.format.Formatter
 import app.maparound.AppGraph
 import app.maparound.USER_AGENT
+import app.maparound.i18n.T
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -34,17 +35,19 @@ class MapDownloader(
     /** Returns an error message, or null if the download was queued. */
     override fun enqueue(entry: CatalogEntry, url: String, wifiOnly: Boolean): String? {
         val fileName = entry.localFileName
-        if (prefs.downloads().containsValue(fileName)) return "${entry.title} is already downloading"
+        if (prefs.downloads().containsValue(fileName)) return T.offline.alreadyDownloading(entry.title)
         val needed = entry.sizeBytes ?: 0L
         val free = repo.dir.usableSpace
         if (needed > 0 && free < needed + (64L shl 20)) {
-            return "Not enough storage: ${Formatter.formatShortFileSize(context, needed)} needed, " +
-                "${Formatter.formatShortFileSize(context, free)} free"
+            return T.offline.notEnoughStorage(
+                Formatter.formatShortFileSize(context, needed),
+                Formatter.formatShortFileSize(context, free),
+            )
         }
         File(repo.dir, "$fileName.part").delete()
         val request = DownloadManager.Request(Uri.parse(url))
-            .setTitle("${entry.title} map")
-            .setDescription("MapAround offline map")
+            .setTitle(T.offline.mapDownloadTitle(entry.title))
+            .setDescription(T.offline.mapDownloadDescription)
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalFilesDir(context, "maps", "$fileName.part")
             .setAllowedOverMetered(!wifiOnly)
@@ -55,7 +58,7 @@ class MapDownloader(
             prefs.putDownload(id, fileName)
             null
         } catch (e: Exception) {
-            "Could not start download: ${e.message}"
+            T.offline.couldNotStartDownload(e.message)
         }
     }
 
@@ -92,14 +95,14 @@ class MapDownloader(
     }
 
     private fun statusText(status: Int, reason: Int): String = when (status) {
-        DownloadManager.STATUS_PENDING -> "Queued"
+        DownloadManager.STATUS_PENDING -> T.offline.queued
         DownloadManager.STATUS_PAUSED -> when (reason) {
-            DownloadManager.PAUSED_QUEUED_FOR_WIFI -> "Waiting for Wi‑Fi"
-            DownloadManager.PAUSED_WAITING_FOR_NETWORK -> "Waiting for network"
-            DownloadManager.PAUSED_WAITING_TO_RETRY -> "Retrying soon"
-            else -> "Paused"
+            DownloadManager.PAUSED_QUEUED_FOR_WIFI -> T.offline.waitingForWifi
+            DownloadManager.PAUSED_WAITING_FOR_NETWORK -> T.offline.waitingForNetwork
+            DownloadManager.PAUSED_WAITING_TO_RETRY -> T.offline.retryingSoon
+            else -> T.offline.paused
         }
-        else -> "Downloading"
+        else -> T.offline.downloading
     }
 
     @Synchronized
@@ -121,16 +124,16 @@ class MapDownloader(
             if (ok) {
                 dm.remove(id) // drop the system record; the file has already been moved away
                 repo.refresh()
-                _events.tryEmit("$title map installed")
+                _events.tryEmit(T.offline.mapInstalled(title))
             } else {
                 part.delete()
                 dm.remove(id)
-                _events.tryEmit("$title: downloaded file is not a valid map")
+                _events.tryEmit(T.offline.notValidMap(title))
             }
         } else {
             part.delete()
             dm.remove(id)
-            _events.tryEmit("$title download failed (code ${c.int(DownloadManager.COLUMN_REASON)})")
+            _events.tryEmit(T.offline.downloadFailedCode(title, c.int(DownloadManager.COLUMN_REASON)))
         }
     }
 

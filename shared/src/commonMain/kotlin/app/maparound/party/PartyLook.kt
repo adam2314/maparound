@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.vector.PathNode
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.graphics.vector.VectorGroup
 import androidx.compose.ui.graphics.vector.VectorPath
+import app.maparound.i18n.T
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.atan2
@@ -72,27 +73,60 @@ object PartyPalette {
 }
 
 /** What a member shows on their disc. [code] is what goes over the air: never reuse one. */
-enum class PartyIcon(val code: Int, val label: String, val group: Group) {
-    LETTER(0, "Initial", Group.LETTER),
-    WALK(1, "Walker", Group.PERSON),
-    HIKE(2, "Hiker", Group.PERSON),
-    RUN(3, "Runner", Group.PERSON),
-    NORDIC(4, "Nordic walker", Group.PERSON),
-    SKI(5, "Skier", Group.PERSON),
-    KAYAK(6, "Kayaker", Group.PERSON),
-    CYCLIST(20, "Cyclist", Group.BIKE),
-    BICYCLE(21, "Bicycle", Group.BIKE),
-    EBIKE(22, "E-bike", Group.BIKE),
-    MOTORCYCLE(23, "Motorcycle", Group.BIKE),
-    MOPED(24, "Moped", Group.BIKE),
-    CAR(40, "Car", Group.VEHICLE),
-    OFFROAD(41, "4×4", Group.VEHICLE),
-    VAN(42, "Van", Group.VEHICLE),
-    TRUCK(43, "Truck", Group.VEHICLE),
-    CARAVAN(44, "Caravan", Group.VEHICLE),
+enum class PartyIcon(val code: Int, val group: Group) {
+    LETTER(0, Group.LETTER),
+    WALK(1, Group.PERSON),
+    HIKE(2, Group.PERSON),
+    RUN(3, Group.PERSON),
+    NORDIC(4, Group.PERSON),
+    SKI(5, Group.PERSON),
+    KAYAK(6, Group.PERSON),
+    CYCLIST(20, Group.BIKE),
+    BICYCLE(21, Group.BIKE),
+    EBIKE(22, Group.BIKE),
+    MOTORCYCLE(23, Group.BIKE),
+    MOPED(24, Group.BIKE),
+    CAR(40, Group.VEHICLE),
+    OFFROAD(41, Group.VEHICLE),
+    VAN(42, Group.VEHICLE),
+    TRUCK(43, Group.VEHICLE),
+    CARAVAN(44, Group.VEHICLE),
     ;
 
-    enum class Group(val label: String) { LETTER("Initial"), PERSON("On foot"), BIKE("On two wheels"), VEHICLE("Vehicles") }
+    /** The icon's name, in the app's language. */
+    val label: String
+        get() = when (this) {
+            LETTER -> T.party.initial
+            WALK -> T.party.iconWalker
+            HIKE -> T.party.iconHiker
+            RUN -> T.party.iconRunner
+            NORDIC -> T.party.iconNordicWalker
+            SKI -> T.party.iconSkier
+            KAYAK -> T.party.iconKayaker
+            CYCLIST -> T.party.iconCyclist
+            BICYCLE -> T.party.iconBicycle
+            EBIKE -> T.party.iconEbike
+            MOTORCYCLE -> T.party.iconMotorcycle
+            MOPED -> T.party.iconMoped
+            CAR -> T.party.iconCar
+            OFFROAD -> T.party.iconOffroad
+            VAN -> T.party.iconVan
+            TRUCK -> T.party.iconTruck
+            CARAVAN -> T.party.iconCaravan
+        }
+
+    enum class Group {
+        LETTER, PERSON, BIKE, VEHICLE;
+
+        /** The group's name, in the app's language. */
+        val label: String
+            get() = when (this) {
+                LETTER -> T.party.initial
+                PERSON -> T.party.groupOnFoot
+                BIKE -> T.party.groupTwoWheels
+                VEHICLE -> T.party.groupVehicles
+            }
+    }
 
     companion object {
         /** Codes from newer versions that this one doesn't know show the initial. */

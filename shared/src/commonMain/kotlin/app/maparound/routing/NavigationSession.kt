@@ -1,5 +1,6 @@
 package app.maparound.routing
 
+import app.maparound.i18n.T
 import app.maparound.sensors.GeoFix
 import app.maparound.shared.util.nowMillis
 import kotlinx.coroutines.CancellationException
@@ -128,7 +129,7 @@ object NavigationSession {
         if (remaining.isEmpty()) return
         if (!offAnnounced) {
             offAnnounced = true
-            say("Recalculating the route")
+            say(T.nav.recalculatingRoute)
         }
         val here = GeoPoint(fix.lat, fix.lon)
         val profile = _state.value.profile
@@ -146,7 +147,7 @@ object NavigationSession {
             } catch (e: Exception) {
                 if (run != id) return@launch
                 nextRerouteAtMs = (lastFix?.elapsedMs ?: fix.elapsedMs) + RETRY_AFTER_FAILURE_MS
-                _state.value = _state.value.copy(rerouting = false, error = "Couldn't recalculate the route: ${e.message}")
+                _state.value = _state.value.copy(rerouting = false, error = T.nav.couldNotRecalculate(e.message))
             }
         }
     }

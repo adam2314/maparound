@@ -1,5 +1,7 @@
 package app.maparound.map
 
+import app.maparound.i18n.T
+
 // Plain Kotlin (Android and iOS): the online map tile services.
 
 /** An online XYZ raster tile service. `{s}` `{z}` `{x}` `{y}` and `{-y}` (TMS) are substituted. */
@@ -11,6 +13,7 @@ data class OnlineSource(
     val attribution: String,
     val subdomains: List<String> = listOf("a", "b", "c"),
     val custom: Boolean = false,
+    /** What it is; the built-in sources' come from the texts ([TileSources.description]). */
     val description: String = "",
     /** Overlay tiles with transparent background. */
     val transparent: Boolean = false,
@@ -35,7 +38,6 @@ object TileSources {
             urlTemplate = "https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png",
             maxZoom = 20,
             attribution = "$OSM · tiles OSM France",
-            description = "OpenStreetMap, OSM France's style",
         ),
         OnlineSource(
             id = "osmde",
@@ -43,7 +45,6 @@ object TileSources {
             urlTemplate = "https://tile.openstreetmap.de/{z}/{x}/{y}.png",
             maxZoom = 19,
             attribution = "$OSM · tiles openstreetmap.de",
-            description = "OpenStreetMap, the German community's style",
         ),
         OnlineSource(
             id = "opentopomap",
@@ -51,7 +52,6 @@ object TileSources {
             urlTemplate = "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
             maxZoom = 17,
             attribution = "$OSM, SRTM · © OpenTopoMap (CC-BY-SA)",
-            description = "Topographic, contour lines",
             kind = OnlineSource.Kind.TOPO,
         ),
         OnlineSource(
@@ -60,7 +60,6 @@ object TileSources {
             urlTemplate = "https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png",
             maxZoom = 19,
             attribution = "$OSM · CyclOSM, OSM France",
-            description = "Cycling & outdoor",
         ),
         OnlineSource(
             id = "hot",
@@ -69,7 +68,6 @@ object TileSources {
             maxZoom = 19,
             subdomains = listOf("a", "b"),
             attribution = "$OSM · HOT, OSM France",
-            description = "Humanitarian OSM style",
         ),
         OnlineSource(
             id = "esri_topo",
@@ -77,7 +75,6 @@ object TileSources {
             urlTemplate = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
             maxZoom = 19,
             attribution = ESRI,
-            description = "Topographic, worldwide",
             kind = OnlineSource.Kind.TOPO,
         ),
         OnlineSource(
@@ -86,7 +83,6 @@ object TileSources {
             urlTemplate = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
             maxZoom = 19,
             attribution = ESRI,
-            description = "Street map, worldwide",
         ),
         OnlineSource(
             id = "esri_imagery",
@@ -94,7 +90,6 @@ object TileSources {
             urlTemplate = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
             maxZoom = 19,
             attribution = "Imagery © Esri, Maxar, Earthstar Geographics, GIS User Community",
-            description = "Esri World Imagery (aerial / satellite)",
             kind = OnlineSource.Kind.IMAGERY,
         ),
         // National mapping agencies' open data: their own country only.
@@ -104,7 +99,6 @@ object TileSources {
             urlTemplate = "https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-farbe/default/current/3857/{z}/{x}/{y}.jpeg",
             maxZoom = 18,
             attribution = "© swisstopo",
-            description = "Switzerland · national topographic map",
             kind = OnlineSource.Kind.TOPO,
         ),
         OnlineSource(
@@ -113,7 +107,6 @@ object TileSources {
             urlTemplate = "https://mapsneu.wien.gv.at/basemap/geolandbasemap/normal/google3857/{z}/{y}/{x}.png",
             maxZoom = 19,
             attribution = "basemap.at (CC BY 4.0)",
-            description = "Austria · official base map",
         ),
         OnlineSource(
             id = "kartverket",
@@ -121,7 +114,6 @@ object TileSources {
             urlTemplate = "https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png",
             maxZoom = 18,
             attribution = "© Kartverket (CC BY 4.0)",
-            description = "Norway · topographic map",
             kind = OnlineSource.Kind.TOPO,
         ),
         OnlineSource(
@@ -131,7 +123,6 @@ object TileSources {
                 "&STYLE=normal&FORMAT=image/png&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}",
             maxZoom = 19,
             attribution = "© IGN – Géoplateforme",
-            description = "France · IGN's map",
         ),
         OnlineSource(
             id = "ign_ortho",
@@ -140,7 +131,6 @@ object TileSources {
                 "&STYLE=normal&FORMAT=image/jpeg&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}",
             maxZoom = 19,
             attribution = "© IGN – Géoplateforme",
-            description = "France · aerial photos",
             kind = OnlineSource.Kind.IMAGERY,
         ),
         OnlineSource(
@@ -149,7 +139,6 @@ object TileSources {
             urlTemplate = "https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}",
             maxZoom = 16,
             attribution = "USGS The National Map",
-            description = "United States · topographic map",
             kind = OnlineSource.Kind.TOPO,
         ),
     )
@@ -176,10 +165,37 @@ object TileSources {
     fun find(id: String, custom: List<OnlineSource>): OnlineSource? =
         builtIn.firstOrNull { it.id == id } ?: custom.firstOrNull { it.id == id }
 
+    /** A source's name as people see it: the built-in ones that aren't names of their own, in the app's language. */
+    fun title(source: OnlineSource): String = when (source.id) {
+        "hot" -> T.map.srcHumanitarian
+        "esri_imagery" -> T.map.srcSatellite
+        "ign_ortho" -> T.map.srcIgnAerial
+        else -> source.name
+    }
+
+    /** What a source is, in the app's language for the built-in ones. */
+    fun description(source: OnlineSource): String = when (source.id) {
+        "osmfr" -> T.map.srcOsmFrance
+        "osmde" -> T.map.srcOsmGermany
+        "opentopomap" -> T.map.srcOpenTopoMap
+        "cyclosm" -> T.map.srcCyclOsm
+        "hot" -> T.map.srcHot
+        "esri_topo" -> T.map.srcEsriTopo
+        "esri_street" -> T.map.srcEsriStreet
+        "esri_imagery" -> T.map.srcEsriImagery
+        "swisstopo" -> T.map.srcSwisstopo
+        "basemap_at" -> T.map.srcBasemapAt
+        "kartverket" -> T.map.srcKartverket
+        "ign_plan" -> T.map.srcIgnPlan
+        "ign_ortho" -> T.map.srcIgnOrtho
+        "usgs_topo" -> T.map.srcUsgsTopo
+        else -> source.description
+    }
+
     /** Returns an error message, or null when the template is usable. */
     fun validateTemplate(url: String): String? = when {
-        !url.startsWith("https://") && !url.startsWith("http://") -> "URL must start with https://"
-        "{z}" !in url || "{x}" !in url || ("{y}" !in url && "{-y}" !in url) -> "URL must contain {z}, {x} and {y}"
+        !url.startsWith("https://") && !url.startsWith("http://") -> T.map.urlMustStartHttps
+        "{z}" !in url || "{x}" !in url || ("{y}" !in url && "{-y}" !in url) -> T.map.urlMustHaveZxy
         else -> null
     }
 

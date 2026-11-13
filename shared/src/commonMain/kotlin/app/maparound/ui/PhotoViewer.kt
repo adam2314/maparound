@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import app.maparound.i18n.T
 import app.maparound.routing.GeoPoint
 import app.maparound.search.Commons
 import app.maparound.shared.util.urlEncode
@@ -66,7 +67,7 @@ fun PhotoViewer(photo: Commons.Photo, onDismiss: () -> Unit, onShowOnMap: ((GeoP
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f).padding(start = 16.dp),
                     )
-                    IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, contentDescription = "Close") }
+                    IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, contentDescription = T.common.close) }
                 }
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     // The small picture at once, the bigger one over it when it's in.
@@ -77,22 +78,22 @@ fun PhotoViewer(photo: Commons.Photo, onDismiss: () -> Unit, onShowOnMap: ((GeoP
                     details?.description?.let {
                         Text(it, style = MaterialTheme.typography.bodyMedium, maxLines = 4, overflow = TextOverflow.Ellipsis)
                     }
-                    val credit = listOfNotNull(details?.author?.let { "Photo: $it" }, details?.license).joinToString(" · ")
+                    val credit = listOfNotNull(details?.author?.let { T.map.photoBy(it) }, details?.license).joinToString(" · ")
                     Text(
                         when {
                             credit.isNotEmpty() -> "$credit · Wikimedia Commons"
-                            failed -> "From Wikimedia Commons; its author and licence need a connection."
-                            else -> "From Wikimedia Commons"
+                            failed -> T.map.fromCommonsOffline
+                            else -> T.map.fromCommons
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.White.copy(alpha = 0.75f),
                     )
                     Row {
-                        TextButton(onClick = { platform.openUrl(page) }, colors = light) { Text("Photo's page") }
+                        TextButton(onClick = { platform.openUrl(page) }, colors = light) { Text(T.map.photoPage) }
                         val lat = photo.lat
                         val lon = photo.lon
                         if (onShowOnMap != null && lat != null && lon != null) {
-                            TextButton(onClick = { onShowOnMap(GeoPoint(lat, lon), photo.name) }, colors = light) { Text("Where it was taken") }
+                            TextButton(onClick = { onShowOnMap(GeoPoint(lat, lon), photo.name) }, colors = light) { Text(T.map.whereTaken) }
                         }
                     }
                 }

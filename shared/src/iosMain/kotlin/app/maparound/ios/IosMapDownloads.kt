@@ -7,6 +7,7 @@ import app.maparound.data.DownloadInfo
 import app.maparound.data.MapDownloads
 import app.maparound.data.MapNames
 import app.maparound.data.mapBounds
+import app.maparound.i18n.T
 import app.maparound.shared.fileSystem
 import app.maparound.shared.net.userAgent
 import app.maparound.ui.Fmt
@@ -76,11 +77,11 @@ class IosMapDownloads(private val maps: IosInstalledMaps) : MapDownloads {
 
     override fun enqueue(entry: CatalogEntry, url: String, wifiOnly: Boolean): String? {
         val fileName = entry.localFileName
-        if (running.values.any { it.fileName == fileName }) return "${entry.title} is already downloading"
+        if (running.values.any { it.fileName == fileName }) return T.offline.alreadyDownloading(entry.title)
         val needed = entry.sizeBytes ?: 0L
         val free = maps.freeBytes()
         if (needed > 0 && free < needed + (64L shl 20)) {
-            return "Not enough storage: ${Fmt.fileSize(needed)} needed, ${Fmt.fileSize(free)} free"
+            return T.offline.notEnoughStorage(Fmt.fileSize(needed), Fmt.fileSize(free))
         }
         val request = NSMutableURLRequest(uRL = NSURL(string = url))
         request.setValue(userAgent, forHTTPHeaderField = "User-Agent")
@@ -106,7 +107,7 @@ class IosMapDownloads(private val maps: IosInstalledMaps) : MapDownloads {
     }
 
     private fun info(id: Long, fileName: String, done: Long, total: Long) =
-        DownloadInfo(id, fileName, done, total.coerceAtLeast(0), if (done > 0) "Downloading" else "Queued")
+        DownloadInfo(id, fileName, done, total.coerceAtLeast(0), if (done > 0) T.offline.downloading else T.offline.queued)
 
     private fun finished(task: NSURLSessionTask, location: NSURL) {
         val id = task.taskIdentifier.toLong()
@@ -114,7 +115,7 @@ class IosMapDownloads(private val maps: IosInstalledMaps) : MapDownloads {
         val title = MapNames.title(fileName)
         val status = (task.response as? NSHTTPURLResponse)?.statusCode?.toInt() ?: 0
         if (status !in 200..299) {
-            _events.tryEmit("$title download failed (HTTP $status)")
+            _events.tryEmit(T.offline.downloadFailedHttp(title, status))
             return
         }
         // The temporary file goes away when the delegate call returns: move it now.
@@ -122,18 +123,18 @@ class IosMapDownloads(private val maps: IosInstalledMaps) : MapDownloads {
         val files = NSFileManager.defaultManager
         files.removeItemAtPath(part, null)
         if (!files.moveItemAtURL(location, NSURL.fileURLWithPath(part), null)) {
-            _events.tryEmit("$title: could not store the download")
+            _events.tryEmit(T.offline.couldNotStoreDownload(title))
             return
         }
         if (mapBounds(part) == null) {
             fileSystem.delete(part.toPath(), mustExist = false)
-            _events.tryEmit("$title: downloaded file is not a valid map")
+            _events.tryEmit(T.offline.notValidMap(title))
             return
         }
         fileSystem.atomicMove(part.toPath(), "${maps.dir}/$fileName".toPath())
         maps.refresh()
         running = running - id
-        _events.tryEmit("$title map installed")
+        _events.tryEmit(T.offline.mapInstalled(title))
     }
 
     private fun completed(task: NSURLSessionTask, error: NSError?) {
@@ -141,8 +142,8 @@ class IosMapDownloads(private val maps: IosInstalledMaps) : MapDownloads {
         tasks.remove(id)
         running = running - id
         if (error != null && error.code != NSURLErrorCancelled) {
-            val title = task.taskDescription?.let(MapNames::title) ?: "Map"
-            _events.tryEmit("$title download failed: ${error.localizedDescription}")
+            val title = task.taskDescription?.let(MapNames::title) ?: T.offline.map
+            _events.tryEmit(T.offline.downloadFailedError(title, error.localizedDescription))
         }
     }
 }

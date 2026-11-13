@@ -2,6 +2,7 @@ package app.maparound.data
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
+import app.maparound.i18n.T
 import app.maparound.shared.mapsforge.MapsforgeFile
 import app.maparound.shared.openFile
 import app.maparound.terrain.GeoBounds
@@ -90,7 +91,7 @@ interface CatalogSource {
     fun urlFor(entry: CatalogEntry): String
 
     /** Where the listed maps come from, for the list's heading (after [list]). */
-    val attribution: String get() = "OpenStreetMap data via mapsforge.org"
+    val attribution: String get() = T.offline.attributionMapsforge
 
     /** Another list to offer instead (MapAround's catalog: the mapsforge.org maps), or null. */
     val alternative: CatalogSource? get() = null
@@ -138,7 +139,7 @@ interface TerrainData {
         val missing = missingCells(bounds)
         if (missing.isEmpty() || state.value.progress != null) return null
         if (missing.size > AUTO_MAX_CELLS) {
-            return "This area needs ${missing.size} terrain tiles: download them with the map (Offline maps \u2192 \u22ee \u2192 Terrain)."
+            return T.offline.areaNeedsTiles(missing.size)
         }
         return download(label, bounds, autoHighDetail)
     }

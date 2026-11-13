@@ -42,6 +42,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.maparound.data.LocalPrefs
 import app.maparound.data.Prefs
+import app.maparound.i18n.T
+import app.maparound.i18n.ltr
 import app.maparound.sensors.Barometric
 import app.maparound.sensors.GeoFix
 import app.maparound.sensors.LocalDeviceSensors
@@ -62,8 +64,8 @@ fun BarometerScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
     if (!available) {
         MessageScreen(
             Icons.Filled.Speed,
-            "No barometer",
-            "This device has no air‑pressure sensor. Many mid‑range and flagship phones have one; budget models often don't.",
+            T.sensors.noBarometer,
+            T.sensors.noBarometerBody,
         )
         return
     }
@@ -91,7 +93,7 @@ fun BarometerScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
     ) {
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(20.dp)) {
-                Text("Air pressure", style = MaterialTheme.typography.labelLarge)
+                Text(T.sensors.airPressure, style = MaterialTheme.typography.labelLarge)
                 Text(
                     pressure?.let { "${Fmt.oneDecimal(it)} hPa" } ?: "—",
                     style = MaterialTheme.typography.displayMedium,
@@ -99,7 +101,7 @@ fun BarometerScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
                 )
                 if (pressure != null) {
                     Text(
-                        "${localFixed(pressure * 0.02953, 2)} inHg · ${localFixed(pressure * 0.750062, 0)} mmHg",
+                        T.sensors.otherPressureUnits(localFixed(pressure * 0.02953, 2), localFixed(pressure * 0.750062, 0)),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -109,26 +111,26 @@ fun BarometerScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
 
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Barometric altitude", style = MaterialTheme.typography.labelLarge)
+                Text(T.sensors.barometricAltitude, style = MaterialTheme.typography.labelLarge)
                 Text(
-                    altitude?.let { "${it.roundToInt()} m" } ?: "—",
+                    altitude?.let { "${ltr(it.roundToInt().toString())} ${T.common.unitM}" } ?: "—",
                     style = MaterialTheme.typography.displaySmall,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    "Sea‑level reference ${Fmt.oneDecimal(seaLevel)} hPa " + if (calibrated) "(calibrated)" else "(standard atmosphere)",
+                    T.sensors.seaLevelReference(Fmt.oneDecimal(seaLevel), calibrated),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Button(onClick = { showCalibrate = true }, enabled = pressure != null) { Text("Calibrate") }
+                    Button(onClick = { showCalibrate = true }, enabled = pressure != null) { Text(T.sensors.calibrate) }
                     if (calibrated) {
-                        TextButton(onClick = { prefs.setSeaLevelPressure(Prefs.STANDARD_PRESSURE) }) { Text("Reset") }
+                        TextButton(onClick = { prefs.setSeaLevelPressure(Prefs.STANDARD_PRESSURE) }) { Text(T.sensors.reset) }
                     }
                 }
                 if (!calibrated) {
                     Text(
-                        "Uncalibrated altitude can be off by 100 m or more as the weather changes.",
+                        T.sensors.uncalibratedWarning,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -137,19 +139,19 @@ fun BarometerScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
 
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Trend", style = MaterialTheme.typography.labelLarge)
+                Text(T.sensors.trend, style = MaterialTheme.typography.labelLarge)
                 val trend = PressureHistory.trendPerHour(history)
                 Text(
                     if (trend == null) {
-                        "Collecting data… keep the app open for 10+ minutes to see a trend."
+                        T.sensors.collectingTrend
                     } else {
-                        "${localSigned(trend.toDouble(), 1)} hPa per hour · ${trendLabel(trend)}"
+                        T.sensors.trendPerHour(localSigned(trend.toDouble(), 1), trendLabel(trend))
                     },
                     style = MaterialTheme.typography.bodyLarge,
                 )
                 PressureChart(history, Modifier.fillMaxWidth().height(180.dp))
                 Text(
-                    "Falling more than ~1 hPa/h often means worsening weather; rising pressure usually means clearing.",
+                    T.sensors.trendHint,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -172,11 +174,11 @@ fun BarometerScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
 }
 
 private fun trendLabel(hPaPerHour: Float) = when {
-    hPaPerHour <= -2f -> "falling fast"
-    hPaPerHour <= -0.5f -> "falling"
-    hPaPerHour < 0.5f -> "steady"
-    hPaPerHour < 2f -> "rising"
-    else -> "rising fast"
+    hPaPerHour <= -2f -> T.sensors.fallingFast
+    hPaPerHour <= -0.5f -> T.sensors.falling
+    hPaPerHour < 0.5f -> T.sensors.steady
+    hPaPerHour < 2f -> T.sensors.rising
+    else -> T.sensors.risingFast
 }
 
 /** Sea-level pressure that makes the current reading correspond to [altitudeM] (inverse barometric formula). */
@@ -206,17 +208,16 @@ private fun CalibrateDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Calibrate altimeter") },
+        title = { Text(T.sensors.calibrateAltimeter) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "Enter the elevation where you are (from a signpost, summit or map), " +
-                        "or today's sea‑level pressure (QNH) from a weather report.",
+                    T.sensors.calibrateIntro,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 OutlinedTextField(
                     altitudeText, { altitudeText = it; qnhText = "" },
-                    label = { Text("Known elevation (m)") },
+                    label = { Text(T.sensors.knownElevation) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 )
@@ -224,22 +225,22 @@ private fun CalibrateDialog(
                     gpsAltitude != null -> TextButton(onClick = {
                         altitudeText = gpsAltitude.roundToInt().toString()
                         qnhText = ""
-                    }) { Text("Use GPS altitude (${gpsAltitude.roundToInt()} m)") }
-                    !hasLocation -> TextButton(onClick = requestLocation) { Text("Allow location to use GPS altitude") }
-                    else -> Text("Waiting for a GPS altitude…", style = MaterialTheme.typography.bodySmall)
+                    }) { Text(T.sensors.useGpsAltitude(gpsAltitude.roundToInt())) }
+                    !hasLocation -> TextButton(onClick = requestLocation) { Text(T.sensors.allowLocationForGpsAltitude) }
+                    else -> Text(T.sensors.waitingForGpsAltitude, style = MaterialTheme.typography.bodySmall)
                 }
                 OutlinedTextField(
                     qnhText, { qnhText = it; altitudeText = "" },
-                    label = { Text("or sea‑level pressure (hPa)") },
+                    label = { Text(T.sensors.orSeaLevelPressure) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 )
             }
         },
         confirmButton = {
-            TextButton(enabled = result != null, onClick = { result?.let(onApply) }) { Text("Apply") }
+            TextButton(enabled = result != null, onClick = { result?.let(onApply) }) { Text(T.sensors.apply) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(T.common.cancel) } },
     )
 }
 
@@ -249,10 +250,11 @@ private fun PressureChart(samples: List<PressureHistory.Sample>, modifier: Modif
     val lineColor = MaterialTheme.colorScheme.primary
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     val labelStyle = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val texts = T.sensors
 
     Canvas(modifier) {
         if (samples.size < 2) {
-            drawText(measurer, "Waiting for data…", topLeft = Offset(0f, size.height / 2f - 8.dp.toPx()), style = labelStyle)
+            drawText(measurer, texts.waitingForData, topLeft = Offset(0f, size.height / 2f - 8.dp.toPx()), style = labelStyle)
             return@Canvas
         }
         val minP = samples.minOf { it.hPa }
@@ -279,7 +281,7 @@ private fun PressureChart(samples: List<PressureHistory.Sample>, modifier: Modif
         drawText(measurer, Fmt.oneDecimal(hi), topLeft = Offset(4.dp.toPx(), 2.dp.toPx()), style = labelStyle)
         drawText(measurer, Fmt.oneDecimal(lo), topLeft = Offset(4.dp.toPx(), size.height - 16.dp.toPx()), style = labelStyle)
         val minutes = (span / 60_000f).roundToInt()
-        val spanLabel = if (minutes >= 90) "last ${Fmt.oneDecimal(minutes / 60f)} h" else "last $minutes min"
+        val spanLabel = if (minutes >= 90) texts.lastHours(Fmt.oneDecimal(minutes / 60f)) else texts.lastMinutes(minutes)
         val layout = measurer.measure(spanLabel, labelStyle)
         drawText(layout, topLeft = Offset(size.width - layout.size.width - 4.dp.toPx(), 2.dp.toPx()))
     }

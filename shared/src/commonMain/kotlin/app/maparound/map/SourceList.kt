@@ -1,5 +1,6 @@
 package app.maparound.map
 
+import app.maparound.i18n.T
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -58,7 +59,7 @@ object SourceList {
             is JsonArray -> json.mapNotNull(::entry)
             else -> trimmed.lines().mapNotNull(::line)
         }
-        if (found.isEmpty()) error("No tile sources found. Expected URL templates with {z}, {x} and {y}.")
+        if (found.isEmpty()) error(T.map.noTileSourcesFound)
         found
     }
 

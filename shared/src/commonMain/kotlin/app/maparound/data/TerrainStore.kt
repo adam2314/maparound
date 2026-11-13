@@ -1,5 +1,6 @@
 package app.maparound.data
 
+import app.maparound.i18n.T
 import app.maparound.shared.fileSystem
 import app.maparound.shared.gunzipFile
 import app.maparound.shared.ioDispatcher
@@ -105,17 +106,16 @@ class TerrainStore(
 
     /** Starts downloading the missing tiles for [bounds]. Returns an error message, or null. */
     override fun download(label: String, bounds: GeoBounds, highDetail: Boolean): String? {
-        if (job?.isActive == true) return "A terrain download is already running"
+        if (job?.isActive == true) return T.offline.terrainAlreadyRunning
         val cells = missingCells(bounds)
-        if (cells.isEmpty()) return "Terrain for $label is already installed"
+        if (cells.isEmpty()) return T.offline.terrainAlreadyInstalled(label)
         val needed = estimateBytes(cells.size, highDetail)
         if (needed > MAX_DOWNLOAD_BYTES) {
-            return "That's too much terrain for one download (${Fmt.fileSize(needed)}). " +
-                if (highDetail) "Choose standard detail or a smaller region." else "Choose a smaller region."
+            return T.offline.terrainTooMuch(Fmt.fileSize(needed), highDetail)
         }
         val free = freeBytes()
-        if (free < needed + (64L shl 20)) return "Not enough storage: up to ${Fmt.fileSize(needed)} needed, ${Fmt.fileSize(free)} free"
-        if (prefs.wifiOnly.value && isMetered()) return "Wi‑Fi only is on and you're on mobile data"
+        if (free < needed + (64L shl 20)) return T.offline.notEnoughStorageUpTo(Fmt.fileSize(needed), Fmt.fileSize(free))
+        if (prefs.wifiOnly.value && isMetered()) return T.offline.wifiOnlyOnMobileData
 
         prefs.terrainHighDetail = highDetail
         job = scope.launch {
@@ -138,11 +138,11 @@ class TerrainStore(
                 }
                 val f = failed.value
                 _events.tryEmit(
-                    if (f == 0) "Contours & hill shading ready for $label"
-                    else "Terrain for $label: $f of ${cells.size} tiles failed. Tap again to retry.",
+                    if (f == 0) T.offline.terrainReady(label)
+                    else T.offline.terrainFailed(label, f, cells.size),
                 )
             } catch (e: CancellationException) {
-                _events.tryEmit("Terrain download stopped")
+                _events.tryEmit(T.offline.terrainStopped)
                 throw e
             } finally {
                 masks?.close()

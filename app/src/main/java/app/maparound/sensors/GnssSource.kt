@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import androidx.compose.ui.graphics.Color
+import app.maparound.i18n.T
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -110,7 +111,7 @@ object Constellations {
         GnssStatus.CONSTELLATION_QZSS -> "QZSS"
         GnssStatus.CONSTELLATION_SBAS -> "SBAS"
         GnssStatus.CONSTELLATION_IRNSS -> "NavIC"
-        else -> "Other"
+        else -> T.sensors.otherConstellation
     }
 
     fun flag(type: Int): String = when (type) {

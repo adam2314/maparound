@@ -1,6 +1,7 @@
 package app.maparound.web
 
 import app.maparound.data.KeyValueStore
+import app.maparound.i18n.T
 import app.maparound.party.Member
 import app.maparound.party.MqttWire
 import app.maparound.party.PartyController
@@ -35,7 +36,7 @@ private fun wsOpen(url: String, onOpen: () -> Unit, onData: (JsAny) -> Unit, onC
     ws.binaryType = 'arraybuffer';
     ws.onopen = () => onOpen();
     ws.onmessage = (e) => { if (e.data instanceof ArrayBuffer) onData(new Uint8Array(e.data)); };
-    ws.onclose = (e) => onClose(e.reason || 'connection closed');
+    ws.onclose = (e) => onClose(e.reason || '');
     return ws;
 })()""",
 )
@@ -142,24 +143,24 @@ class WebPartyWatcher(private val store: KeyValueStore) : PartyController {
             url,
             onOpen = { if (gen == generation) send(MqttWire.connect(clientId, KEEP_ALIVE_S)) },
             onData = { data -> if (gen == generation) onData(data.toByteArray(), host) },
-            onClose = { why -> if (gen == generation) lost("$host: $why") },
+            onClose = { why -> if (gen == generation) lost(T.party.hostProblem(host, why.ifEmpty { T.party.connectionClosed })) },
         )
         if (socket == null) {
-            lost("$host: can't connect")
+            lost(T.party.hostProblem(host, T.party.cantConnect))
             return
         }
         watchdog = scope.launch {
             delay(CONNECT_TIMEOUT_MS)
             if (gen != generation) return@launch
             if (!subscribed) {
-                lost("$host: no answer")
+                lost(T.party.hostProblem(host, T.party.noAnswer))
                 return@launch
             }
             while (gen == generation) {
                 delay(PING_MS)
                 if (gen != generation) break
                 if (nowMillis() - lastHeard > 2 * PING_MS + 15_000) {
-                    lost("$host: no answer")
+                    lost(T.party.hostProblem(host, T.party.noAnswer))
                     break
                 }
                 send(MqttWire.PINGREQ)
@@ -172,7 +173,7 @@ class WebPartyWatcher(private val store: KeyValueStore) : PartyController {
         val packets = try {
             reader.feed(bytes)
         } catch (e: Exception) {
-            lost("$host: ${e.message}")
+            lost(T.party.hostProblem(host, "${e.message}"))
             return
         }
         for (p in packets) {
@@ -181,12 +182,12 @@ class WebPartyWatcher(private val store: KeyValueStore) : PartyController {
                     if (p.code == 0) {
                         send(MqttWire.subscribe(1, PartyRelays.allOf(engine?.key?.tagHex ?: return)))
                     } else {
-                        lost("$host refused the connection (code ${p.code})")
+                        lost(T.party.refusedConnection(host, p.code))
                         return
                     }
                 is MqttWire.Packet.SubAck ->
                     if (p.codes.any { it >= 0x80 }) {
-                        lost("$host refused the subscription")
+                        lost(T.party.refusedSubscription(host))
                         return
                     } else {
                         subscribed = true
@@ -209,7 +210,7 @@ class WebPartyWatcher(private val store: KeyValueStore) : PartyController {
         if (!_state.value.active) return
         val gen = ++generation
         val pause = if (wasSubscribed) {
-            update { it.copy(online = TransportStatus(TransportStatus.State.CONNECTING, "Reconnecting… ($why)")) }
+            update { it.copy(online = TransportStatus(TransportStatus.State.CONNECTING, T.party.reconnectingBecause(why))) }
             RETRY_MS
         } else {
             broker++

@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.maparound.i18n.T
 import app.maparound.routing.Guidance
 import app.maparound.routing.NavigationSession
 import app.maparound.routing.Turn
@@ -86,20 +87,20 @@ fun NavigationBanner(nav: NavigationSession.State, modifier: Modifier = Modifier
                 nav.rerouting -> {
                     CircularProgressIndicator(Modifier.size(40.dp), color = LocalContentColor.current)
                     Spacer(Modifier.width(16.dp))
-                    Text("Recalculating…", style = MaterialTheme.typography.titleLarge)
+                    Text(T.nav.recalculating, style = MaterialTheme.typography.titleLarge)
                 }
                 p?.arrived == true -> {
                     TurnIcon(Turn.ARRIVE, 0, Modifier.size(56.dp))
                     Spacer(Modifier.width(12.dp))
-                    Text("You have arrived", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(T.nav.youHaveArrived, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 }
                 p?.offRoute == true -> {
                     Icon(Icons.Filled.WrongLocation, contentDescription = null, Modifier.size(48.dp))
                     Spacer(Modifier.width(12.dp))
                     Column {
-                        Text("Off the route", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text(T.nav.offRoute, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Text(
-                            nav.error ?: "${Fmt.distance(Guidance.rounded(p.offsetM).toFloat())} away",
+                            nav.error ?: T.nav.offRouteBy(Fmt.distance(Guidance.rounded(p.offsetM).toFloat())),
                             style = MaterialTheme.typography.bodyMedium,
                             maxLines = 3,
                             overflow = TextOverflow.Ellipsis,
@@ -111,7 +112,7 @@ fun NavigationBanner(nav: NavigationSession.State, modifier: Modifier = Modifier
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(
-                            if (p == null) "Waiting for GPS…" else Fmt.distance(Guidance.rounded(p.distanceToNextM).toFloat()),
+                            if (p == null) T.nav.waitingForGps else Fmt.distance(Guidance.rounded(p.distanceToNextM).toFloat()),
                             style = if (p == null) MaterialTheme.typography.titleMedium else MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
                         )
@@ -124,7 +125,7 @@ fun NavigationBanner(nav: NavigationSession.State, modifier: Modifier = Modifier
                     }
                     p?.then?.let { t ->
                         Column(Modifier.padding(start = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("then", style = MaterialTheme.typography.labelSmall)
+                            Text(T.nav.thenLabel, style = MaterialTheme.typography.labelSmall)
                             TurnIcon(t.turn, t.exit, Modifier.size(28.dp))
                         }
                     }
@@ -159,7 +160,7 @@ fun NavigationPanel(nav: NavigationSession.State, voice: Boolean, onVoice: (Bool
                 )
                 if (leftS != null && p?.arrived != true) {
                     Text(
-                        "Arrival ${Fmt.timeOfDay(nowMillis() + leftS * 1000)}",
+                        T.nav.arrival(Fmt.timeOfDay(nowMillis() + leftS * 1000)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -168,7 +169,7 @@ fun NavigationPanel(nav: NavigationSession.State, voice: Boolean, onVoice: (Bool
             IconButton(onClick = { onVoice(!voice) }) {
                 Icon(
                     if (voice) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff,
-                    contentDescription = if (voice) "Mute voice guidance" else "Turn voice guidance on",
+                    contentDescription = if (voice) T.nav.muteVoice else T.nav.unmuteVoice,
                 )
             }
             Button(
@@ -178,7 +179,7 @@ fun NavigationPanel(nav: NavigationSession.State, voice: Boolean, onVoice: (Bool
                     contentColor = MaterialTheme.colorScheme.onError,
                 ),
                 contentPadding = PaddingValues(horizontal = 20.dp),
-            ) { Text("Stop") }
+            ) { Text(T.nav.stopNavigation) }
         }
     }
 }

@@ -12,6 +12,7 @@ import android.view.MotionEvent
 import android.view.VelocityTracker
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import app.maparound.i18n.T
 import app.maparound.ui.Scene3DControl
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -530,7 +531,7 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
 
         evict(sel)
         val loading = engine.pending
-        status = if (loading > 0) "Loading $loading tiles…" else ""
+        status = if (loading > 0) T.map.loadingTiles(loading) else ""
         onFrame?.invoke(FrameState(eye, viewProj, e, viewWidth, viewHeight, alt, d, labelTiles.keys.toList()))
         // More to show: motion, tiles fading in, or more finished tiles than one frame uploads.
         again = again || fading || !engine.readyTiles.isEmpty() || !engine.readyBuildings.isEmpty()

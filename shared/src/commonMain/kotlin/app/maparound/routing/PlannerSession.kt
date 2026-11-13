@@ -1,5 +1,6 @@
 package app.maparound.routing
 
+import app.maparound.i18n.T
 import app.maparound.tracks.SavedTrack
 import app.maparound.tracks.Track
 import app.maparound.tracks.TrackKind
@@ -36,7 +37,7 @@ object PlannerSession {
     val state: StateFlow<State> = _state.asStateFlow()
 
     /** Calculates a route; set by the platform at start-up (Android: offline BRouter, else online). */
-    var router: suspend (List<GeoPoint>, RouteProfile) -> RouteResult = { _, _ -> throw RoutingException("No router on this device") }
+    var router: suspend (List<GeoPoint>, RouteProfile) -> RouteResult = { _, _ -> throw RoutingException(T.nav.noRouter) }
 
     /** Where saved routes go; set by the platform at start-up. */
     var library: TrackRepository? = null
@@ -189,7 +190,7 @@ object PlannerSession {
             } catch (e: RoutingException) {
                 _state.value = _state.value.copy(route = null, busy = false, error = e.message)
             } catch (e: Exception) {
-                _state.value = _state.value.copy(route = null, busy = false, error = "Routing failed: ${e.message}")
+                _state.value = _state.value.copy(route = null, busy = false, error = T.nav.routingFailed(e.message))
             }
         }
     }

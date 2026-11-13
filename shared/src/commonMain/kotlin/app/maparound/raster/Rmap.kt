@@ -1,5 +1,6 @@
 package app.maparound.raster
 
+import app.maparound.i18n.T
 import app.maparound.routing.GeoPoint
 import app.maparound.shared.util.ByteReader
 import app.maparound.shared.util.latin1
@@ -48,7 +49,7 @@ class RmapFile(private val source: RandomRead, val sizeBytes: Long) {
     init {
         val h = le(source.read(0, 71))
         val magic = h.bytes(19)
-        if (latin1(magic) != "CompeGPSRasterImage") throw RmapException("Not an RMAP file")
+        if (latin1(magic) != "CompeGPSRasterImage") throw RmapException(T.offline.notRmapFile)
         val tag1 = h.int()
         val tag2 = h.int()
         if (tag1 != 10 || tag2 != 7) throw RmapException("Unsupported RMAP sub-format ($tag1/$tag2)")
@@ -261,7 +262,7 @@ object Projections {
                 override fun forward(lat: Double, lon: Double) = doubleArrayOf(lon, lat)
                 override fun inverse(x: Double, y: Double) = GeoPoint(y, x)
             }
-            else -> throw RmapException("Unsupported map projection: $text")
+            else -> throw RmapException(T.offline.unsupportedProjection(text))
         }
     }
 

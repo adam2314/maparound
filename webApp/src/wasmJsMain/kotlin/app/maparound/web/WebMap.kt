@@ -20,6 +20,7 @@ import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import app.maparound.i18n.T
 import app.maparound.map.maplibre.MapLibreSurface
 import app.maparound.map.maplibre.NativeCamera
 import app.maparound.map.maplibre.NativeMap
@@ -37,6 +38,8 @@ import kotlin.math.pow
 
 private fun mlCreate(containerId: String, style: String, symbols: String, onTile: (String) -> JsAny?, onGesture: () -> Unit): Unit =
     js("{ MapAroundMap.create(containerId, style, symbols, onTile, onGesture); }")
+
+private fun mlSetRtl(rtl: Boolean): Unit = js("{ MapAroundMap.setRtl(rtl); }")
 
 private fun mlSetStyle(json: String): Unit = js("{ MapAroundMap.setStyle(json); }")
 private fun mlSetGeoJson(id: String, json: String): Unit = js("{ MapAroundMap.setGeoJson(id, json); }")
@@ -64,6 +67,7 @@ class WebNativeMap(style: String, symbolsUrl: String, tiles: (String) -> JsAny?)
 
     init {
         mlCreate("map", style, symbolsUrl, tiles) { callbacks?.onUserGesture() }
+        mlSetRtl(app.maparound.i18n.I18n.rtl)
     }
 
     override fun setStyle(json: String) = mlSetStyle(json)
@@ -267,7 +271,7 @@ private class WebScene3DControl : Scene3DControl {
             return Camera3D(v[0], v[1], distance.toFloat(), yaw = v[3].toFloat(), pitch = (90 - v[4]).toFloat())
         }
 
-    override val status: String get() = if (ml3dLoading()) "Loading the relief\u2026" else ""
+    override val status: String get() = if (ml3dLoading()) T.map.loadingRelief else ""
 
     override fun faceNorth() = ml3dNorth()
 

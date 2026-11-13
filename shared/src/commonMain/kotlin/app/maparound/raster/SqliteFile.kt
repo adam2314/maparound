@@ -1,5 +1,6 @@
 package app.maparound.raster
 
+import app.maparound.i18n.T
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
 
@@ -29,7 +30,7 @@ class SqliteFile(private val source: RandomRead, val sizeBytes: Long) {
 
     init {
         val h = source.read(0, 100)
-        if (h.size < 100 || h.copyOf(16).decodeToString() != "SQLite format 3\u0000") throw SqliteException("Not an SQLite database")
+        if (h.size < 100 || h.copyOf(16).decodeToString() != "SQLite format 3\u0000") throw SqliteException(T.offline.notSqliteDatabase)
         val ps = u16(h, 16)
         pageSize = if (ps == 1) 65_536 else ps
         if (pageSize < 512 || pageSize and (pageSize - 1) != 0) throw SqliteException("Bad page size $pageSize")

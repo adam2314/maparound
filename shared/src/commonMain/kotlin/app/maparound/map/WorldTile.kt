@@ -32,7 +32,16 @@ class WorldTile(private val world: () -> WorldData?, private val borders: () -> 
      * [marginPx] beyond the tile and [seamPx] into the holes, so no hairline shows where pieces
      * meet; lines and labels stop exactly at the holes.
      */
-    fun draw(tile: GeoBox, zoom: Int, holes: List<GeoBox>, sink: Sink, marginPx: Int = 8, seamPx: Int = 2) {
+    fun draw(
+        tile: GeoBox,
+        zoom: Int,
+        holes: List<GeoBox>,
+        sink: Sink,
+        marginPx: Int = 8,
+        seamPx: Int = 2,
+        /** Where the maps in [holes] really draw (their regions' outlines): lines and names are cut by these. */
+        covers: List<Coverage> = holes.map { Coverage(it) },
+    ) {
         val w = world()
         val margin = (marginPx * 2 * halfPixel(zoom)).toInt()
         val seam = (seamPx * 2 * halfPixel(zoom)).toInt()
@@ -59,7 +68,7 @@ class WorldTile(private val world: () -> WorldData?, private val borders: () -> 
         val clip = tile.grow(margin, margin)
         fun pieces(coords: IntArray): List<IntArray> {
             var out = listOf(coords)
-            for (h in holes) out = out.flatMap { cutOutBox(it, h) }
+            for (c in covers) out = out.flatMap { c.cutOut(it) }
             return out
         }
         w?.rivers(zoom, clip) { name, coords -> for (p in pieces(coords)) sink.river(name, p) }
@@ -76,12 +85,12 @@ class WorldTile(private val world: () -> WorldData?, private val borders: () -> 
             }
             joiner.flush()
         }
-        labels(tile, zoom, holes, sink)
+        labels(tile, zoom, covers, sink)
     }
 
-    /** Only the names in [tile] (outside the [holes]). */
-    fun labels(tile: GeoBox, zoom: Int, holes: List<GeoBox>, sink: Sink) {
-        world()?.labels(zoom, tile) { l -> if (holes.none { it.contains(l.lat, l.lon) }) sink.label(l) }
+    /** Only the names in [tile] (outside the maps' [covers]). */
+    fun labels(tile: GeoBox, zoom: Int, covers: List<Coverage>, sink: Sink) {
+        world()?.labels(zoom, tile) { l -> if (covers.none { it.contains(l.lat, l.lon) }) sink.label(l) }
     }
 
     companion object {
@@ -107,4 +116,16 @@ object WorldLabels {
         if (l.population > 0 && l.kind != WorldData.Kind.COUNTRY) tags += "population" to l.population.toString()
         return tags
     }
+}
+
+/**
+ * Where an installed map draws itself: its [box], and finer, when it's one of the download list's
+ * regions, the region's outline ([region]). Beyond the outline the map has nothing (a country's
+ * neighbours are in its box), so the world's borders, rivers and names stay there.
+ */
+class Coverage(val box: GeoBox, val region: MapRegions.Region? = null) {
+    fun contains(lat: Int, lon: Int): Boolean = box.contains(lat, lon) && (region?.containsMicro(lat.toDouble(), lon.toDouble()) ?: true)
+
+    /** The parts of a line outside it. */
+    fun cutOut(coords: IntArray): List<IntArray> = region?.cutOut(coords) ?: cutOutBox(coords, box)
 }

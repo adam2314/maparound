@@ -1,5 +1,6 @@
 package app.maparound.routing
 
+import app.maparound.i18n.T
 import app.maparound.shared.util.toRadians
 import kotlin.math.asin
 import kotlin.math.cos
@@ -14,12 +15,22 @@ import kotlin.math.sqrt
 /** A point of a route or track. [ele] in metres, [time] in epoch millis, both optional. */
 data class GeoPoint(val lat: Double, val lon: Double, val ele: Double? = null, val time: Long? = null)
 
-enum class RouteProfile(val label: String, val brouterProfile: String?) {
-    HIKE("Hike", "hiking-mountain"),
-    BIKE("Bike", "trekking"),
-    CAR("Car", "car-vario"),
+enum class RouteProfile(val brouterProfile: String?) {
+    HIKE("hiking-mountain"),
+    BIKE("trekking"),
+    CAR("car-vario"),
     /** Straight lines between the tapped points: "draw & measure". */
-    LINE("Line", null),
+    LINE(null),
+    ;
+
+    /** The name people see, in the app's language. */
+    val label: String
+        get() = when (this) {
+            HIKE -> T.nav.profileHike
+            BIKE -> T.nav.profileBike
+            CAR -> T.nav.profileCar
+            LINE -> T.nav.profileLine
+        }
 }
 
 data class RouteResult(

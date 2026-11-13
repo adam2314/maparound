@@ -59,6 +59,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.maparound.i18n.T
 import app.maparound.routing.Geo
 import app.maparound.routing.MapFocus
 import app.maparound.routing.PlannerSession
@@ -80,7 +81,7 @@ fun RoutesScreen(
     requestLocation: () -> Unit,
     snackbar: SnackbarHostState,
     onShowMap: () -> Unit,
-    header: @Composable () -> Unit = { Text("Routes & tracks") },
+    header: @Composable () -> Unit = { Text(T.library.routesAndTracks) },
 ) {
     val platform = LocalPlatform.current
     val recording = LocalRecordingControl.current
@@ -98,7 +99,7 @@ fun RoutesScreen(
         if (file != null) {
             scope.launch {
                 val result = withContext(Dispatchers.Default) { repo.importGpx(file.bytes, file.name) }
-                snackbar.showSnackbar(result.fold({ "Imported ${it.track.name}" }, { "Import failed: ${it.message}" }))
+                snackbar.showSnackbar(result.fold({ T.library.importedTrack(it.track.name) }, { T.library.importFailed(it.message) }))
             }
         }
     }
@@ -116,8 +117,9 @@ fun RoutesScreen(
             title = header,
             actions = {
                 IconButton(onClick = { importer() }) {
-                    Icon(Icons.Filled.FileOpen, contentDescription = "Import a GPX file")
+                    Icon(Icons.Filled.FileOpen, contentDescription = T.library.importGpxFile)
                 }
+                SettingsButton()
             },
             windowInsets = WindowInsets(0, 0, 0, 0),
         )
@@ -126,10 +128,10 @@ fun RoutesScreen(
                 Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         if (recorder.recording) {
-                            Text("Recording your track", style = MaterialTheme.typography.titleMedium)
+                            Text(T.library.recordingYourTrack, style = MaterialTheme.typography.titleMedium)
                             RecordingBar(recorder, onStop = { recording.stop() })
                             Text(
-                                "Keeps recording with the screen off. Stop to save it here.",
+                                T.library.recordingKeepsGoing,
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         } else {
@@ -137,7 +139,7 @@ fun RoutesScreen(
                                 Button(onClick = startRecording) {
                                     Icon(Icons.Filled.FiberManualRecord, contentDescription = null, tint = Color(0xFFFF8A80))
                                     Spacer(Modifier.width(6.dp))
-                                    Text("Record")
+                                    Text(T.library.record)
                                 }
                                 FilledTonalButton(onClick = {
                                     PlannerSession.open()
@@ -145,12 +147,11 @@ fun RoutesScreen(
                                 }) {
                                     Icon(Icons.Filled.Route, contentDescription = null)
                                     Spacer(Modifier.width(6.dp))
-                                    Text("Plan a route")
+                                    Text(T.library.planARoute)
                                 }
                             }
                             Text(
-                                "Plan: tap points on the map for a hiking, bike or car route, or choose Line to measure. " +
-                                    "Routes are calculated on the phone where routing data is downloaded, otherwise online.",
+                                T.library.planHint,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -160,7 +161,7 @@ fun RoutesScreen(
             }
             item {
                 Text(
-                    if (tracks.isEmpty()) "Nothing saved yet" else "Saved (${tracks.size})",
+                    if (tracks.isEmpty()) T.library.nothingSavedYet else T.library.savedCount(tracks.size),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp),
@@ -169,7 +170,7 @@ fun RoutesScreen(
             if (tracks.isEmpty()) {
                 item {
                     Text(
-                        "Saved routes and recorded tracks appear here. You can also import GPX files from other apps.",
+                        T.library.nothingSavedHint,
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(horizontal = 16.dp),
                     )
@@ -199,7 +200,7 @@ fun RoutesScreen(
                 ElevationProfile(t.track.points, Modifier.fillMaxWidth().height(140.dp))
                 t.track.stats.maxEleM?.let { hi ->
                     Text(
-                        "Highest ${hi.roundToInt()} m · lowest ${t.track.stats.minEleM?.roundToInt()} m",
+                        T.library.highestLowest(hi.roundToInt(), t.track.stats.minEleM?.roundToInt()),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -207,8 +208,8 @@ fun RoutesScreen(
                     Button(onClick = {
                         detail = null
                         showOnMap(t)
-                    }) { Text("Show on map") }
-                    TextButton(onClick = { share(t) }) { Text("Share") }
+                    }) { Text(T.common.showOnMap) }
+                    TextButton(onClick = { share(t) }) { Text(T.common.share) }
                 }
             }
         }
@@ -218,30 +219,30 @@ fun RoutesScreen(
         var name by remember(t.id) { mutableStateOf(t.track.name) }
         AlertDialog(
             onDismissRequest = { renaming = null },
-            title = { Text("Rename") },
+            title = { Text(T.common.rename) },
             text = { OutlinedTextField(name, { name = it }, singleLine = true) },
             confirmButton = {
                 TextButton(onClick = {
                     repo.rename(t.id, name.trim().ifEmpty { t.track.name })
                     renaming = null
-                }) { Text("Save") }
+                }) { Text(T.common.save) }
             },
-            dismissButton = { TextButton(onClick = { renaming = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { renaming = null }) { Text(T.common.cancel) } },
         )
     }
 
     deleting?.let { t ->
         AlertDialog(
             onDismissRequest = { deleting = null },
-            title = { Text("Delete ${t.track.name}?") },
-            text = { Text("The GPX file is removed from this phone.") },
+            title = { Text(T.library.confirmDeleteTrack(t.track.name)) },
+            text = { Text(T.library.gpxFileRemoved) },
             confirmButton = {
                 TextButton(onClick = {
                     repo.delete(t.id)
                     deleting = null
-                }) { Text("Delete") }
+                }) { Text(T.common.delete) }
             },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text(T.common.cancel) } },
         )
     }
 }
@@ -269,20 +270,20 @@ private fun TrackRow(
                 IconButton(onClick = onToggle) {
                     Icon(
                         if (shown) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
-                        contentDescription = if (shown) "Hide on map" else "Show on map",
+                        contentDescription = if (shown) T.library.hideOnMap else T.common.showOnMap,
                         tint = if (shown) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 Box {
-                    IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More") }
+                    IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = T.common.more) }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                        DropdownMenuItem(text = { Text("Show on map") }, leadingIcon = { Icon(Icons.Filled.Map, null) }, onClick = { menu = false; onShowOnMap() })
-                        DropdownMenuItem(text = { Text("Share (GPX + links)") }, leadingIcon = { Icon(Icons.Filled.Share, null) }, onClick = { menu = false; onShare() })
+                        DropdownMenuItem(text = { Text(T.common.showOnMap) }, leadingIcon = { Icon(Icons.Filled.Map, null) }, onClick = { menu = false; onShowOnMap() })
+                        DropdownMenuItem(text = { Text(T.library.shareGpxAndLinks) }, leadingIcon = { Icon(Icons.Filled.Share, null) }, onClick = { menu = false; onShare() })
                         if (RouteText.hasRouteLink(t.track)) {
-                            DropdownMenuItem(text = { Text("Share link only") }, leadingIcon = { Icon(Icons.Filled.Link, null) }, onClick = { menu = false; platform.shareRouteLink(t.track) })
+                            DropdownMenuItem(text = { Text(T.library.shareLinkOnly) }, leadingIcon = { Icon(Icons.Filled.Link, null) }, onClick = { menu = false; platform.shareRouteLink(t.track) })
                         }
-                        DropdownMenuItem(text = { Text("Rename") }, leadingIcon = { Icon(Icons.Filled.Edit, null) }, onClick = { menu = false; onRename() })
-                        DropdownMenuItem(text = { Text("Delete") }, leadingIcon = { Icon(Icons.Filled.Delete, null) }, onClick = { menu = false; onDelete() })
+                        DropdownMenuItem(text = { Text(T.common.rename) }, leadingIcon = { Icon(Icons.Filled.Edit, null) }, onClick = { menu = false; onRename() })
+                        DropdownMenuItem(text = { Text(T.common.delete) }, leadingIcon = { Icon(Icons.Filled.Delete, null) }, onClick = { menu = false; onDelete() })
                     }
                 }
             }
@@ -311,7 +312,7 @@ private fun durationOf(t: SavedTrack): Long? {
 private fun subtitle(t: SavedTrack): String {
     val s = t.track.stats
     val parts = mutableListOf(Fmt.distance(s.distanceM.toFloat()))
-    s.ascentM?.let { parts += "↑ ${it.roundToInt()} m" }
+    s.ascentM?.let { parts += "↑ ${it.roundToInt()} ${T.common.unitM}" }
     durationOf(t)?.let { parts += Fmt.duration(it) }
     t.track.profile?.takeIf { it != RouteProfile.LINE }?.let { parts += it.label.lowercase() }
     parts += Fmt.relativeTime(t.track.created)

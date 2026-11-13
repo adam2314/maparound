@@ -20,6 +20,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.runtime.mutableStateListOf
+import app.maparound.map.MapRegions
 import androidx.compose.material3.CircularProgressIndicator
 import app.maparound.data.mapBounds
 import app.maparound.terrain.GeoBounds
@@ -108,6 +113,9 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.maparound.data.LocalOfflineData
 import app.maparound.data.LocalPrefs
+import app.maparound.i18n.I18n
+import app.maparound.i18n.T
+import app.maparound.i18n.ltr
 import app.maparound.data.MapAroundMaps
 import app.maparound.data.MapPos
 import app.maparound.map.BaseMap
@@ -117,6 +125,7 @@ import app.maparound.map.MapThemeLibrary
 import app.maparound.map.MapThemes
 import app.maparound.map.SourceList
 import app.maparound.map.StyleChoice
+import app.maparound.map.StyleMenu
 import app.maparound.map.categories
 import app.maparound.map.MapListener
 import app.maparound.map.MapSurface
@@ -245,6 +254,32 @@ fun MapScreen(
     val mapAreas by produceState(emptyList<GeoBounds>(), localMaps) {
         value = withContext(Dispatchers.Default) { localMaps.filterNot { it.isWorld }.mapNotNull { mapBounds(it.path) } }
     }
+    // Where no installed map reaches: the map made for what the map shows (a state of a big country,
+    // else the country), offered; "not now" for the rest of the visit.
+    var offerRegion by remember { mutableStateOf<MapRegions.Region?>(null) }
+    val declinedRegions = remember { mutableStateListOf<String>() }
+    LaunchedEffect(showingOffline, localMaps, onOpenOffline != null) {
+        offerRegion = null
+        if (!showingOffline || onOpenOffline == null) return@LaunchedEffect
+        val regions = withContext(Dispatchers.Default) { MapRegions.bundled } ?: return@LaunchedEffect
+        val installed = localMaps.map { it.fileName }.toSet()
+        // Maps from elsewhere (not one of the regions): their areas.
+        val others = withContext(Dispatchers.Default) {
+            localMaps.filterNot { it.isWorld || regions.byFileName(it.fileName) != null }.mapNotNull { mapBounds(it.path) }
+        }
+        while (true) {
+            val pos = controller.position()
+            offerRegion = if (pos.zoom < OFFER_ZOOM || others.any { overlap(around(pos, 1.0), it) != null }) {
+                null
+            } else {
+                val here = regions.at(pos.lat, pos.lon)
+                if (here.any { it.fileName in installed }) null else here.firstOrNull()
+            }
+            delay(OFFER_CHECK_MS)
+        }
+    }
+    val offer = offerRegion?.takeIf { it.path !in declinedRegions }
+
     // Tiles asked for already (the sea has none: not again and again).
     val terrainAsked = remember { HashSet<Pair<Int, Int>>() }
     LaunchedEffect(showingOffline, contours || hillshade, mapAreas) {
@@ -392,7 +427,7 @@ fun MapScreen(
         val place = pinPoi?.takeIf { it.hasArticle } ?: return@LaunchedEffect
         if (pinArticle?.first == place) return@LaunchedEffect
         // Which article (in the user's language when there is one), then its picture.
-        val a = app.maparound.search.Wikipedia.articleOf(place, app.maparound.shared.util.deviceLanguage()) ?: return@LaunchedEffect
+        val a = app.maparound.search.Wikipedia.articleOf(place, I18n.contentLanguage) ?: return@LaunchedEffect
         pinArticle = place to a
         pinArticle = place to app.maparound.search.Wikipedia.withPicture(a)
     }
@@ -501,17 +536,14 @@ fun MapScreen(
                 Incoming.consume()
                 follow = false
                 controller.showPoints(i.saved.track.points)
-                snackbar.showSnackbar(
-                    "Imported “${i.saved.track.name}” into Library" +
-                        if (i.placesAdded > 0) " and ${i.placesAdded} waypoint${if (i.placesAdded == 1) "" else "s"} into Places" else "",
-                )
+                snackbar.showSnackbar(T.map.importedTrack(i.saved.track.name, i.placesAdded))
             }
             is Incoming.Item.Places -> {
                 Incoming.consume()
                 follow = false
                 prefs.setPlacesOnMap(true)
                 controller.showPoints(i.points)
-                snackbar.showSnackbar(if (i.added == 0) "Those places are already saved" else "Added ${i.added} place${if (i.added == 1) "" else "s"} to Library → Places")
+                snackbar.showSnackbar(if (i.added == 0) T.map.placesAlreadySaved else T.map.placesAdded(i.added))
             }
             else -> Unit
         }
@@ -519,6 +551,7 @@ fun MapScreen(
 
 
     var showLayers by remember { mutableStateOf(false) }
+    var showLegend by remember { mutableStateOf(false) }
     var scene3d by remember { mutableStateOf<app.maparound.three.Camera3D?>(null) }
     var searching by remember { mutableStateOf(false) }
 
@@ -530,12 +563,42 @@ fun MapScreen(
                 Modifier.align(Alignment.TopCenter).padding(top = 56.dp, start = 16.dp, end = 72.dp),
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("No offline maps yet", style = MaterialTheme.typography.titleMedium)
+                    Text(T.map.noOfflineMapsYet, style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Download a country to browse without internet, or pick an online map in Layers.",
+                        T.map.noOfflineMapsHint,
                         style = MaterialTheme.typography.bodyMedium,
                     )
-                    Button(onClick = onOpenOffline) { Text("Get offline maps") }
+                    if (offer != null) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Button(onClick = { OfflineFocus.show(offer.path); onOpenOffline() }) {
+                                Text(T.map.getRegion(offer.title), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            TextButton(onClick = onOpenOffline) { Text(T.map.allMaps) }
+                        }
+                    } else {
+                        Button(onClick = onOpenOffline) { Text(T.map.getOfflineMaps) }
+                    }
+                }
+            }
+        } else if (onOpenOffline != null && offer != null && !planner.active && !tools.active && !nav.active) {
+            // Looking where no installed map reaches: the one made for it.
+            ElevatedCard(
+                Modifier.align(Alignment.TopCenter).padding(top = 56.dp, start = 16.dp, end = 72.dp),
+            ) {
+                Row(Modifier.padding(start = 16.dp, top = 6.dp, bottom = 6.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(T.map.noOfflineMapHere, style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            offer.label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    TextButton(onClick = { OfflineFocus.show(offer.path); onOpenOffline() }) { Text(T.map.getMap) }
+                    IconButton(onClick = { declinedRegions += offer.path }) { Icon(Icons.Filled.Close, contentDescription = T.common.notNow) }
                 }
             }
         }
@@ -545,10 +608,10 @@ fun MapScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             SmallFloatingActionButton(onClick = { searching = true }) {
-                Icon(Icons.Filled.Search, contentDescription = "Search places")
+                Icon(Icons.Filled.Search, contentDescription = T.map.searchPlaces)
             }
             SmallFloatingActionButton(onClick = { showLayers = true }) {
-                Icon(Icons.Filled.Layers, contentDescription = "Map layers")
+                Icon(Icons.Filled.Layers, contentDescription = T.map.mapLayers)
             }
             if (!nav.active) SmallFloatingActionButton(
                 onClick = {
@@ -562,7 +625,7 @@ fun MapScreen(
                 containerColor = if (planner.active) MaterialTheme.colorScheme.primary else FloatingActionButtonDefaults.containerColor,
                 contentColor = if (planner.active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
             ) {
-                Icon(Icons.Filled.Route, contentDescription = "Plan a route")
+                Icon(Icons.Filled.Route, contentDescription = T.map.planRoute)
             }
             if (!nav.active) SmallFloatingActionButton(
                 onClick = {
@@ -576,13 +639,13 @@ fun MapScreen(
                 containerColor = if (tools.active) MaterialTheme.colorScheme.primary else FloatingActionButtonDefaults.containerColor,
                 contentColor = if (tools.active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
             ) {
-                Icon(Icons.Filled.Straighten, contentDescription = "Map tools: azimuth, line of sight, viewshed, coordinates")
+                Icon(Icons.Filled.Straighten, contentDescription = T.map.mapToolsButton)
             }
             SmallFloatingActionButton(onClick = {
                 follow = false
                 controller.camera3D()?.let { scene3d = it }
             }) {
-                Icon(Icons.Filled.ViewInAr, contentDescription = "3D view of this area")
+                Icon(Icons.Filled.ViewInAr, contentDescription = T.map.view3dHere)
             }
         }
 
@@ -615,7 +678,7 @@ fun MapScreen(
                         CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            "Getting terrain for contours" + (if (p.total > 1) " (${minOf(p.done + 1, p.total)} of ${p.total})" else "") + "…",
+                            T.map.gettingTerrain(minOf(p.done + 1, p.total), p.total),
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
@@ -629,10 +692,10 @@ fun MapScreen(
             if (showMe) {
                 location?.let { me ->
                     PinCard(
-                        GeoPoint(me.lat, me.lon), "My location" + (me.accuracyM?.let { " (±${it.roundToInt()} m)" } ?: ""),
+                        GeoPoint(me.lat, me.lon), T.map.myLocationWithin(me.accuracyM?.roundToInt()),
                         null, onClose = { showMe = false },
                         onRoute = null,
-                        onShare = { shareTarget = Triple(me.lat, me.lon, "My location") },
+                        onShare = { shareTarget = Triple(me.lat, me.lon, T.map.myLocation) },
                         onSavePlace = { newPlace(me.lat, me.lon, null) },
                         onTool = { mode ->
                             showMe = false
@@ -691,7 +754,7 @@ fun MapScreen(
                                 platform.openUrl(known)
                             } else {
                                 scope.launch {
-                                    app.maparound.search.Wikipedia.linkFor(place, app.maparound.shared.util.deviceLanguage())?.let(platform::openUrl)
+                                    app.maparound.search.Wikipedia.linkFor(place, I18n.contentLanguage)?.let(platform::openUrl)
                                 }
                             }
                         }
@@ -712,7 +775,7 @@ fun MapScreen(
                         ToolsSession.open(mode, p)
                     },
                     onMeetHere = if (party.active && !partyControl.watchOnly) ({
-                        partyControl.setMeeting(p.lat, p.lon, pinLabel ?: "Meeting point")
+                        partyControl.setMeeting(p.lat, p.lon, pinLabel ?: T.map.meetingPoint)
                         pin = null
                     }) else null,
                 )
@@ -720,9 +783,9 @@ fun MapScreen(
             Spacer(Modifier.padding(top = 6.dp))
             Text(
                 text = listOfNotNull(
-                    if (!showingOffline) onlineSource?.attribution else "© OpenStreetMap contributors · mapsforge",
+                    if (!showingOffline) onlineSource?.attribution else T.map.osmAttribution,
                     if (showingOffline) backgroundAttribution(background, rasterMaps) else null,
-                    if (terrainShown) "terrain: Mapzen, AWS Terrain Tiles" else null,
+                    if (terrainShown) T.map.terrainAttribution else null,
                     if (trailOverlay) TileSources.trailsOverlay.attribution else null,
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.labelSmall,
@@ -740,7 +803,7 @@ fun MapScreen(
         ) {
             if (!recorder.recording) {
                 SmallFloatingActionButton(onClick = startRecording) {
-                    Icon(Icons.Filled.FiberManualRecord, contentDescription = "Record a track", tint = Color(0xFFD50000))
+                    Icon(Icons.Filled.FiberManualRecord, contentDescription = T.map.recordTrack, tint = Color(0xFFD50000))
                 }
             }
             FloatingActionButton(
@@ -753,7 +816,7 @@ fun MapScreen(
                         if (loc != null) {
                             controller.animateTo(loc.lat, loc.lon, minZoom = 15)
                         } else {
-                            scope.launch { snackbar.showSnackbar("Waiting for a location fix…") }
+                            scope.launch { snackbar.showSnackbar(T.map.waitingForFix) }
                         }
                     }
                 },
@@ -762,7 +825,7 @@ fun MapScreen(
             ) {
                 Icon(
                     if (follow) Icons.Filled.MyLocation else Icons.Filled.LocationSearching,
-                    contentDescription = "My location",
+                    contentDescription = T.map.myLocation,
                 )
             }
         }
@@ -782,7 +845,7 @@ fun MapScreen(
                 planner,
                 onSave = { saveDialog = true },
                 onShare = {
-                    PlannerSession.currentTrack("Route " + Fmt.dayMonth(nowMillis()))?.let { platform.shareRoute(it, null) }
+                    PlannerSession.currentTrack(T.map.routeName(Fmt.dayMonth(nowMillis())))?.let { platform.shareRoute(it, null) }
                 },
                 onNavigate = {
                     val route = planner.route
@@ -873,21 +936,22 @@ fun MapScreen(
                 pin = null
                 showMe = false
                 prefs.setPlacesOnMap(true)
-                scope.launch { snackbar.showSnackbar("Saved “${it.name}” to Places") }
+                scope.launch { snackbar.showSnackbar(T.map.savedToPlaces(it.name)) }
             }
         })
     }
 
     if (saveDialog) {
         SaveRouteDialog(
-            suggested = (if (planner.profile == RouteProfile.LINE) "Drawn route " else "Route ") +
-                Fmt.dayMonthTime(nowMillis()),
+            suggested = Fmt.dayMonthTime(nowMillis()).let {
+                if (planner.profile == RouteProfile.LINE) T.map.drawnRouteName(it) else T.map.routeName(it)
+            },
             onDismiss = { saveDialog = false },
             onSave = { name ->
                 saveDialog = false
                 PlannerSession.save(name)
                 PlannerSession.close()
-                scope.launch { snackbar.showSnackbar("Saved \"$name\" to Routes") }
+                scope.launch { snackbar.showSnackbar(T.map.savedToRoutes(name)) }
             },
         )
     }
@@ -925,7 +989,31 @@ fun MapScreen(
                 showLayers = false
             },
             onRemoveCustom = { prefs.removeCustomSource(it) },
+            onLegend = {
+                showLayers = false
+                showLegend = true
+            },
             onDismiss = { showLayers = false },
+        )
+    }
+
+    if (showLegend) {
+        // The legend of what's on screen: the offline style (with its options), or the online map.
+        val legendThemes = LocalMapThemes.current
+        val sections by produceState<List<app.maparound.map.legend.MapLegend.Section>?>(null, showingOffline, theme, categories, I18n.language) {
+            value = if (!showingOffline) null else withContext(Dispatchers.Default) {
+                legendThemes.themeXml(theme)?.let { app.maparound.map.legend.MapLegend.build(it, categories) }
+            }
+        }
+        val symbolPx = with(LocalDensity.current) { 22.dp.roundToPx() }
+        val src = onlineSource
+        LegendSheet(
+            mapName = if (src != null) TileSources.title(src) else themes.firstOrNull { it.id == theme }?.let(MapThemes::title) ?: theme,
+            sections = sections,
+            online = src?.let { app.maparound.map.legend.OnlineLegends.of(it) },
+            trailOverlay = trailOverlay,
+            symbol = { path -> legendThemes.symbol(theme, path, symbolPx) },
+            onDismiss = { showLegend = false },
         )
     }
 }
@@ -947,7 +1035,7 @@ fun partyMapMarkers(party: PartyState, now: Long): List<PartyMarker> = buildList
         }
     }
     party.meeting?.let {
-        add(PartyMarker("meet", it.lat, it.lon, it.label.ifBlank { "Meet" }, 0, PartyMarker.Kind.MEET, false))
+        add(PartyMarker("meet", it.lat, it.lon, it.label.ifBlank { T.map.meetMarker }, 0, PartyMarker.Kind.MEET, false))
     }
     party.meshNodes.forEach { n ->
         n.position?.let {
@@ -974,39 +1062,39 @@ private fun PartyMarkerCard(
     val memberAt = member?.position
     val radioAt = radio?.position
     val (title, lat, lon, at) = when {
-        member != null && memberAt != null -> Quad(member.displayName + if (member.sos) " · SOS" else "", memberAt.lat, memberAt.lon, member.positionAt)
-        radio != null && radioAt != null -> Quad("Radio ${radio.name}", radioAt.lat, radioAt.lon, radio.heardAt)
-        meet != null -> Quad("Meeting point", meet.lat, meet.lon, 0L)
+        member != null && memberAt != null -> Quad(if (member.sos) T.party.sosName(member.displayName) else member.displayName, memberAt.lat, memberAt.lon, member.positionAt)
+        radio != null && radioAt != null -> Quad(T.map.radioNamed(radio.name), radioAt.lat, radioAt.lon, radio.heardAt)
+        meet != null -> Quad(T.map.meetingPoint, meet.lat, meet.lon, 0L)
         else -> return
     }
     Card(Modifier.widthIn(max = 360.dp).padding(bottom = 6.dp)) {
         Column(Modifier.padding(start = 16.dp, top = 8.dp, end = 4.dp, bottom = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = "Close") }
+                IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = T.common.close) }
             }
             val parts = mutableListOf<String>()
             myLocation?.let { me ->
                 val from = GeoPoint(me.lat, me.lon)
                 val to = GeoPoint(lat, lon)
-                parts += "${Fmt.distance(Geo.distance(from, to).toFloat())} ${Fmt.cardinal(Geodesy.bearing(from, to).toFloat())}"
+                parts += T.map.distanceToward(Fmt.distance(Geo.distance(from, to).toFloat()), Fmt.cardinal(Geodesy.bearing(from, to).toFloat()))
             }
             if (at > 0) parts += Fmt.relativeTime(at)
-            member?.position?.speedKmh?.takeIf { it >= 3 }?.let { parts += "$it km/h" }
-            member?.position?.batteryPct?.let { parts += "battery $it%" }
-            member?.let { parts += "via " + it.heard.keys.joinToString(" + ") { v -> v.label } }
+            member?.position?.speedKmh?.takeIf { it >= 3 }?.let { parts += "$it ${T.common.unitKmh}" }
+            member?.position?.batteryPct?.let { parts += T.map.battery(it) }
+            member?.let { parts += T.map.via(it.heard.keys.joinToString(" + ") { v -> v.label }) }
             if (member?.sos == true && member.sosText.isNotBlank()) parts.add(0, member.sosText)
             Text(parts.joinToString(" · "), style = MaterialTheme.typography.bodyMedium)
             Row {
                 TextButton(onClick = { onRoute(GeoPoint(lat, lon)) }) {
                     Icon(Icons.Filled.Route, contentDescription = null)
                     Spacer(Modifier.width(6.dp))
-                    Text("Route here")
+                    Text(T.map.routeHere)
                 }
                 TextButton(onClick = { onShare(lat, lon, title) }) {
                     Icon(Icons.Filled.Share, contentDescription = null)
                     Spacer(Modifier.width(6.dp))
-                    Text("Share")
+                    Text(T.common.share)
                 }
             }
         }
@@ -1056,18 +1144,18 @@ private fun PinCard(
                     if (label != null) Text(label, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     if (details != null) Text(details, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
                     Text(
-                        primary,
+                        ltr(primary),
                         style = if (label == null) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium,
                     )
-                    Text(secondary, style = MaterialTheme.typography.bodySmall)
+                    Text(ltr(secondary), style = MaterialTheme.typography.bodySmall)
                 }
-                IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = "Close") }
+                IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = T.common.close) }
             }
             if (myLocation != null) {
                 val from = GeoPoint(myLocation.lat, myLocation.lon)
                 val bearing = Geodesy.bearing(from, pin).toFloat()
                 Text(
-                    "${Fmt.distance(Geo.distance(from, pin).toFloat())} from you · ${bearing.roundToInt()}° ${Fmt.cardinal(bearing)}",
+                    T.map.fromYou(Fmt.distance(Geo.distance(from, pin).toFloat()), bearing.roundToInt(), Fmt.cardinal(bearing)),
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
@@ -1077,36 +1165,36 @@ private fun PinCard(
                         TextButton(onClick = onWhatsHere) {
                             Icon(Icons.Filled.TravelExplore, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("What's here?")
+                            Text(T.map.whatsHere)
                         }
                     }
                     if (onWikipedia != null) {
                         TextButton(onClick = onWikipedia) {
                             Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("Wikipedia")
+                            Text(T.map.wikipedia)
                         }
                     }
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (onRoute != null) {
-                    IconButton(onClick = onRoute) { Icon(Icons.Filled.Route, contentDescription = "Route here") }
+                    IconButton(onClick = onRoute) { Icon(Icons.Filled.Route, contentDescription = T.map.routeHere) }
                 }
-                IconButton(onClick = onShare) { Icon(Icons.Filled.Share, contentDescription = "Share location") }
+                IconButton(onClick = onShare) { Icon(Icons.Filled.Share, contentDescription = T.map.shareLocation) }
                 IconButton(onClick = { clipboard.setText(AnnotatedString(primary)) }) {
-                    Icon(Icons.Filled.ContentCopy, contentDescription = "Copy coordinates")
+                    Icon(Icons.Filled.ContentCopy, contentDescription = T.map.copyCoordinates)
                 }
                 if (onSavePlace != null) {
-                    IconButton(onClick = onSavePlace) { Icon(Icons.Filled.BookmarkAdd, contentDescription = "Save as a place") }
+                    IconButton(onClick = onSavePlace) { Icon(Icons.Filled.BookmarkAdd, contentDescription = T.map.saveAsPlace) }
                 }
                 if (onTool != null) {
                     IconButton(onClick = { onTool(ToolsSession.Mode.VIEW) }) {
-                        Icon(Icons.Filled.Visibility, contentDescription = "What can be seen from here")
+                        Icon(Icons.Filled.Visibility, contentDescription = T.map.whatCanBeSeen)
                     }
                 }
                 if (onMeetHere != null) {
-                    TextButton(onClick = onMeetHere) { Text("Meet here") }
+                    TextButton(onClick = onMeetHere) { Text(T.map.meetHere) }
                 }
             }
         }
@@ -1135,6 +1223,7 @@ private fun LayersSheet(
     onSelect: (String) -> Unit,
     onAddCustom: (OnlineSource) -> Unit,
     onRemoveCustom: (String) -> Unit,
+    onLegend: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val prefs = LocalPrefs.current
@@ -1154,9 +1243,9 @@ private fun LayersSheet(
             withContext(ioDispatcher) { themeLib.import(file.name, file.bytes) }.fold(
                 { added ->
                     showStyle(added.first().id)
-                    onMessage(if (added.size == 1) "Added the style \"${added[0].name}\"" else "Added ${added.size} styles")
+                    onMessage(T.map.stylesAdded(added.size, added[0].name))
                 },
-                { onMessage(it.message ?: "Couldn't import that style") },
+                { onMessage(it.message ?: T.map.couldntImportStyle) },
             )
         }
     }
@@ -1166,28 +1255,30 @@ private fun LayersSheet(
             { found ->
                 val added = prefs.addCustomSources(found, "custom_${nowMillis()}")
                 onMessage(
-                    when {
-                        added.isEmpty() -> "Those tile sources are already in the list"
-                        added.size == 1 -> "Added the tile source \"${added[0].name}\""
-                        else -> "Added ${added.size} tile sources"
-                    },
+                    if (added.isEmpty()) T.map.tileSourcesAlreadyListed else T.map.tileSourcesAdded(added.size, added[0].name),
                 )
             },
-            { onMessage(it.message ?: "Couldn't read that list") },
+            { onMessage(it.message ?: T.map.couldntReadList) },
         )
     }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
-            SheetHeader("Offline")
+            // What the map on screen shows: its legend.
+            OutlinedButton(onClick = onLegend, modifier = Modifier.padding(horizontal = 16.dp)) {
+                Icon(Icons.Filled.Info, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(T.legend.legend)
+            }
+            SheetHeader(T.map.sectionOffline)
             LayerRow(
                 selected = selectedId == TileSources.OFFLINE_ID,
-                title = "Offline vector maps",
-                subtitle = if (offlineCount == 0) "No maps downloaded yet" else "$offlineCount map file(s) on this device",
+                title = T.map.offlineVectorMaps,
+                subtitle = if (offlineCount == 0) T.map.noMapsDownloadedYet else T.map.mapFilesOnDevice(offlineCount),
                 icon = Icons.Filled.DownloadForOffline,
                 onClick = { onSelect(TileSources.OFFLINE_ID) },
             )
             Column(Modifier.padding(start = 56.dp, end = 16.dp)) {
-                Text("Style", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(start = 16.dp, top = 4.dp))
+                Text(T.map.style, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(start = 16.dp, top = 4.dp))
                 themes.forEach { t ->
                     StyleRow(
                         theme = t,
@@ -1196,7 +1287,7 @@ private fun LayersSheet(
                         onRemove = if (!t.imported) null else {
                             {
                                 themeLib.delete(t.id)
-                                onMessage("Removed the style \"${t.name}\"")
+                                onMessage(T.map.styleRemoved(t.name))
                             }
                         },
                     )
@@ -1205,27 +1296,27 @@ private fun LayersSheet(
                     TextButton(onClick = importTheme) {
                         Icon(Icons.Filled.FileOpen, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Import a style (.xml or .zip)")
+                        Text(T.map.importStyle)
                     }
                 }
             }
             Column(Modifier.padding(start = 72.dp, end = 16.dp)) {
                 StyleOptions(theme, themeLib)
-                Text("Terrain", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
+                Text(T.map.terrain, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
                 SwitchRow(
-                    "Contour lines",
-                    if (!MapThemes.drawsTerrain(theme)) "Drawn by the Topo style and imported styles" else null,
+                    T.map.contourLines,
+                    if (!MapThemes.drawsTerrain(theme)) T.map.contoursOnlyIn else null,
                     checked = contours,
                     enabled = MapThemes.drawsTerrain(theme),
                 ) { prefs.setContours(it) }
-                SwitchRow("Hill shading", null, checked = hillshade) { prefs.setHillshade(it) }
+                SwitchRow(T.map.hillShading, null, checked = hillshade) { prefs.setHillshade(it) }
                 if (terrainTiles == 0 && onOpenOffline != null) {
                     TextButton(onClick = onOpenOffline, contentPadding = PaddingValues(0.dp)) {
-                        Text("Terrain for contours & shading comes by itself as you look closer at your maps. All of a map's: Offline maps →")
+                        Text(T.map.terrainComesByItself)
                     }
                 }
             }
-            SheetHeader("Background of the offline map")
+            SheetHeader(T.map.backgroundHeader)
             val addRaster = rasters.rememberPicker { r -> r.fold({ showRasterOnMap(prefs, it); onDismiss() }, onRasterError) }
             fun pick(bg: String) {
                 prefs.setBaseLayer(TileSources.OFFLINE_ID)
@@ -1236,15 +1327,15 @@ private fun LayersSheet(
             val offlineSelected = selectedId == TileSources.OFFLINE_ID
             LayerRow(
                 selected = offlineSelected && background == app.maparound.data.Prefs.BACKGROUND_NONE,
-                title = "Map colours",
-                subtitle = "The vector map as it is",
+                title = T.map.mapColours,
+                subtitle = T.map.vectorAsItIs,
                 icon = Icons.Filled.Map,
                 onClick = { pick(app.maparound.data.Prefs.BACKGROUND_NONE) },
             )
             LayerRow(
                 selected = offlineSelected && background == app.maparound.data.Prefs.BACKGROUND_SATELLITE,
-                title = "Satellite imagery",
-                subtitle = "Esri World Imagery under roads, trails & labels (online, cached)",
+                title = T.map.satelliteImagery,
+                subtitle = T.map.satelliteUnder,
                 icon = Icons.Filled.SatelliteAlt,
                 onClick = { pick(app.maparound.data.Prefs.BACKGROUND_SATELLITE) },
             )
@@ -1252,7 +1343,7 @@ private fun LayersSheet(
                 LayerRow(
                     selected = offlineSelected && background == app.maparound.data.Prefs.BACKGROUND_RASTER + m.id,
                     title = m.name,
-                    subtitle = "Raster map · ${m.projection}",
+                    subtitle = T.map.rasterMap(m.projection),
                     icon = Icons.Filled.Image,
                     onClick = { pick(app.maparound.data.Prefs.BACKGROUND_RASTER + m.id) },
                     onRemove = { removeRaster(prefs, rasters, m) },
@@ -1261,31 +1352,31 @@ private fun LayersSheet(
             TextButton(onClick = addRaster, modifier = Modifier.padding(horizontal = 12.dp)) {
                 Icon(Icons.Filled.AddPhotoAlternate, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Add a raster map (.rmap, .mbtiles, .sqlitedb)")
+                Text(T.map.addRasterMap)
             }
             Column(Modifier.padding(start = 24.dp, end = 16.dp)) {
                 SwitchRow(
-                    "Roads, trails & labels on top",
-                    "From the offline vector map, drawn over the background",
+                    T.map.vectorOnTop,
+                    T.map.vectorOnTopHint,
                     checked = vectorOnBackground,
                     enabled = background != app.maparound.data.Prefs.BACKGROUND_NONE,
                 ) { prefs.setVectorOnBackground(it) }
             }
-            SheetHeader("Overlays")
+            SheetHeader(T.map.overlays)
             Column(Modifier.padding(start = 24.dp, end = 16.dp)) {
                 SwitchRow(
-                    "Marked hiking trails",
-                    if (localTrails) "Offline in the Topo style; online overlay on other maps" else "Online overlay (waymarkedtrails.org). Download them per map for offline use.",
+                    T.map.markedTrails,
+                    if (localTrails) T.map.trailsOfflineInTopo else T.map.trailsOnline,
                     checked = trails,
                 ) { prefs.setTrails(it) }
-                SwitchRow("Saved places", "Your places from Library → Places", checked = places) { prefs.setPlacesOnMap(it) }
+                SwitchRow(T.map.savedPlaces, T.map.savedPlacesHint, checked = places) { prefs.setPlacesOnMap(it) }
             }
-            SheetHeader("Online")
+            SheetHeader(T.map.sectionOnline)
             TileSources.builtIn.forEach { src ->
                 LayerRow(
                     selected = selectedId == src.id,
-                    title = src.name,
-                    subtitle = src.description,
+                    title = TileSources.title(src),
+                    subtitle = TileSources.description(src),
                     icon = when (src.kind) {
                         OnlineSource.Kind.IMAGERY -> Icons.Filled.SatelliteAlt
                         OnlineSource.Kind.TOPO -> Icons.Filled.Terrain
@@ -1307,21 +1398,21 @@ private fun LayersSheet(
             TextButton(onClick = { showAdd = true }, modifier = Modifier.padding(horizontal = 12.dp)) {
                 Icon(Icons.Filled.Add, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Add custom tile source")
+                Text(T.map.addCustomSource)
             }
             Row(Modifier.padding(horizontal = 12.dp)) {
                 TextButton(onClick = importSources) {
                     Icon(Icons.Filled.FileOpen, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Import list")
+                    Text(T.map.importList)
                 }
                 TextButton(
-                    onClick = { platform.shareTextFile(SourceList.FILE_NAME, "application/json", SourceList.encode(custom), "MapAround tile sources") },
+                    onClick = { platform.shareTextFile(SourceList.FILE_NAME, "application/json", SourceList.encode(custom), T.map.tileSourcesFileTitle) },
                     enabled = custom.isNotEmpty(),
                 ) {
                     Icon(Icons.Filled.Share, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Export list")
+                    Text(T.map.exportList)
                 }
             }
         }
@@ -1338,10 +1429,10 @@ private fun StyleRow(theme: MapTheme, selected: Boolean, onClick: () -> Unit, on
     ) {
         RadioButton(selected = selected, onClick = null, modifier = Modifier.padding(horizontal = 12.dp))
         Column(Modifier.weight(1f)) {
-            Text(theme.name, style = MaterialTheme.typography.bodyLarge)
-            Text(theme.description, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(MapThemes.title(theme), style = MaterialTheme.typography.bodyLarge)
+            Text(MapThemes.about(theme), style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        if (onRemove != null) IconButton(onClick = onRemove) { Icon(Icons.Filled.Delete, contentDescription = "Remove ${theme.name}") }
+        if (onRemove != null) IconButton(onClick = onRemove) { Icon(Icons.Filled.Delete, contentDescription = T.map.removeNamed(MapThemes.title(theme))) }
     }
 }
 
@@ -1353,23 +1444,26 @@ private fun StyleOptions(themeId: String, lib: MapThemeLibrary) {
     val choices by prefs.styleChoices.collectAsState()
     val choice = choices[themeId] ?: StyleChoice()
     val style = menu.style(choice.style) ?: return
+    // In the app's language: the theme's own name in it if it has one, Topo's from the texts.
+    fun nameOf(layer: StyleMenu.Layer): String =
+        layer.names[I18n.language.code] ?: T.map.topoOption(layer.id)?.takeIf { themeId == MapThemes.TOPO } ?: menu.name(layer)
     if (menu.styles.size > 1) {
-        Text("Variant", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
+        Text(T.map.variant, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
         menu.styles.forEach { s ->
             Row(
                 Modifier.fillMaxWidth().clickable { prefs.setStyleChoice(themeId, choice.copy(style = s.id)) }.padding(vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 RadioButton(selected = s.id == style.id, onClick = null, modifier = Modifier.padding(end = 12.dp))
-                Text(menu.name(s), style = MaterialTheme.typography.bodyLarge)
+                Text(nameOf(s), style = MaterialTheme.typography.bodyLarge)
             }
         }
     }
     val overlays = menu.overlays(style)
     if (overlays.isNotEmpty()) {
-        Text("Show", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
+        Text(T.map.show, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
         overlays.forEach { o ->
-            SwitchRow(menu.name(o), null, checked = menu.isOn(o, choice)) { on ->
+            SwitchRow(nameOf(o), null, checked = menu.isOn(o, choice)) { on ->
                 prefs.setStyleChoice(themeId, choice.copy(overlays = choice.overlays + (o.id to on)))
             }
         }
@@ -1423,7 +1517,7 @@ private fun LayerRow(
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (onRemove != null) {
-                    IconButton(onClick = onRemove) { Icon(Icons.Filled.Delete, contentDescription = "Remove $title") }
+                    IconButton(onClick = onRemove) { Icon(Icons.Filled.Delete, contentDescription = T.map.removeNamed(title)) }
                 }
                 RadioButton(selected = selected, onClick = null)
             }
@@ -1442,25 +1536,24 @@ private fun AddSourceDialog(onDismiss: () -> Unit, onAdd: (OnlineSource) -> Unit
     val valid = name.isNotBlank() && urlError == null && zoom != null && zoom in 1..22
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Custom tile source") },
+        title = { Text(T.map.customSource) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "Any XYZ raster tile service, e.g. https://{s}.example.com/{z}/{x}/{y}.png. " +
-                        "Check the provider's usage terms.",
+                    T.map.customSourceHelp,
                     style = MaterialTheme.typography.bodySmall,
                 )
-                OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true)
+                OutlinedTextField(name, { name = it }, label = { Text(T.map.nameField) }, singleLine = true)
                 OutlinedTextField(
                     url, { url = it },
-                    label = { Text("URL template") },
+                    label = { Text(T.map.urlTemplate) },
                     isError = url.length > 8 && urlError != null,
                     supportingText = { if (url.length > 8 && urlError != null) Text(urlError) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 )
                 OutlinedTextField(
                     maxZoom, { maxZoom = it.filter(Char::isDigit).take(2) },
-                    label = { Text("Max zoom") },
+                    label = { Text(T.map.maxZoom) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 )
@@ -1481,9 +1574,9 @@ private fun AddSourceDialog(onDismiss: () -> Unit, onAdd: (OnlineSource) -> Unit
                         ),
                     )
                 },
-            ) { Text("Add") }
+            ) { Text(T.common.add) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(T.common.cancel) } },
     )
 }
 
@@ -1514,16 +1607,16 @@ private fun PlannerPanel(
                         ) { Text(p.label, maxLines = 1) }
                     }
                 }
-                IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = "Close route planner") }
+                IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = T.map.closePlanner) }
             }
             val route = state.route
             when {
                 state.waypoints.isEmpty() -> Text(
-                    "Tap the map to set the start. Tap a numbered point to remove it.",
+                    T.map.plannerTapStart,
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 state.waypoints.size == 1 -> Text(
-                    "Now tap the destination, then more stops. To change the route, hold a stop or the line and drag it.",
+                    T.map.plannerTapNext,
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 state.error != null -> Text(state.error.orEmpty(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
@@ -1531,11 +1624,11 @@ private fun PlannerPanel(
                     StatsLine(route.stats, route.durationS)
                     Text(
                         when (route.source) {
-                            RouteResult.Source.OFFLINE -> "Routed on this phone (BRouter)"
-                            RouteResult.Source.ONLINE -> "Routed online by brouter.de"
+                            RouteResult.Source.OFFLINE -> T.map.routedOffline
+                            RouteResult.Source.ONLINE -> T.map.routedOnline
                             RouteResult.Source.STRAIGHT ->
-                                if (route.points.any { it.ele != null }) "Straight lines · heights from terrain data"
-                                else "Straight lines · add terrain data in Offline maps for heights"
+                                if (route.points.any { it.ele != null }) T.map.straightWithHeights
+                                else T.map.straightNoHeights
                         },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1546,25 +1639,25 @@ private fun PlannerPanel(
             if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { PlannerSession.undo() }, enabled = PlannerSession.canUndo) {
-                    Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo")
+                    Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = T.common.undo)
                 }
                 IconButton(onClick = { PlannerSession.reverse() }, enabled = state.waypoints.size >= 2) {
-                    Icon(Icons.Filled.SwapVert, contentDescription = "Reverse direction")
+                    Icon(Icons.Filled.SwapVert, contentDescription = T.map.reverseDirection)
                 }
                 IconButton(onClick = { PlannerSession.clear() }, enabled = state.waypoints.isNotEmpty()) {
-                    Icon(Icons.Filled.Delete, contentDescription = "Clear all points")
+                    Icon(Icons.Filled.Delete, contentDescription = T.map.clearAllPoints)
                 }
                 IconButton(onClick = onShare, enabled = route != null && !state.busy) {
-                    Icon(Icons.Filled.Share, contentDescription = "Share route")
+                    Icon(Icons.Filled.Share, contentDescription = T.map.shareRoute)
                 }
                 Spacer(Modifier.weight(1f))
                 TextButton(onClick = onSave, enabled = route != null && !state.busy, contentPadding = PaddingValues(horizontal = 8.dp)) {
-                    Text("Save")
+                    Text(T.common.save)
                 }
                 Button(onClick = onNavigate, enabled = route != null && !state.busy, contentPadding = PaddingValues(horizontal = 12.dp)) {
                     Icon(Icons.Filled.Navigation, contentDescription = null, Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Start")
+                    Text(T.common.start)
                 }
             }
         }
@@ -1576,10 +1669,10 @@ private fun SaveRouteDialog(suggested: String, onDismiss: () -> Unit, onSave: (S
     var name by remember { mutableStateOf(suggested) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Save route") },
-        text = { OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true) },
-        confirmButton = { TextButton(onClick = { onSave(name.trim().ifEmpty { suggested }) }) { Text("Save") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        title = { Text(T.map.saveRoute) },
+        text = { OutlinedTextField(name, { name = it }, label = { Text(T.map.nameField) }, singleLine = true) },
+        confirmButton = { TextButton(onClick = { onSave(name.trim().ifEmpty { suggested }) }) { Text(T.common.save) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(T.common.cancel) } },
     )
 }
 
@@ -1587,7 +1680,7 @@ private fun SaveRouteDialog(suggested: String, onDismiss: () -> Unit, onSave: (S
 private const val WHATS_HERE_RADIUS_DP = 140.0
 
 /** The terrain download the map starts by itself (its label). */
-private const val AUTO_TERRAIN_LABEL = "contours here"
+private val AUTO_TERRAIN_LABEL: String get() = T.map.contoursHere
 
 /** How often the map looks for terrain it lacks, and from which zoom (the contours'). */
 private const val AUTO_TERRAIN_CHECK_MS = 2_500L
@@ -1611,3 +1704,7 @@ private fun overlap(a: GeoBounds, b: GeoBounds): GeoBounds? {
     val e = minOf(a.maxLon, b.maxLon)
     return if (s < n && w < e) GeoBounds(s, w, n, e) else null
 }
+
+/** From which zoom the map offers the map made for where it looks, and how often it looks. */
+private const val OFFER_ZOOM = 7
+private const val OFFER_CHECK_MS = 1_500L

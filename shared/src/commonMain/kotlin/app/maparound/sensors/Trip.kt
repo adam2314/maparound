@@ -1,15 +1,26 @@
 package app.maparound.sensors
 
+import app.maparound.i18n.T
 import app.maparound.routing.Geo
 import app.maparound.routing.GeoPoint
 
 // Plain Kotlin: ground speed and trip statistics from GPS fixes. Unit-tested.
 
-enum class SpeedUnit(val label: String, val perMps: Double) {
-    KMH("km/h", 3.6),
-    MPH("mph", 2.2369363),
-    KNOTS("kn", 1.9438445),
-    MS("m/s", 1.0),
+enum class SpeedUnit(val perMps: Double) {
+    KMH(3.6),
+    MPH(2.2369363),
+    KNOTS(1.9438445),
+    MS(1.0),
+    ;
+
+    /** The unit's symbol in the app's language ("km/h"). */
+    val label: String
+        get() = when (this) {
+            KMH -> T.common.unitKmh
+            MPH -> T.common.unitMph
+            KNOTS -> T.common.unitKnots
+            MS -> T.common.unitMps
+        }
 }
 
 /**

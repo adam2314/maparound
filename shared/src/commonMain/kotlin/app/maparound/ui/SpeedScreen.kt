@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.maparound.data.LocalPrefs
+import app.maparound.i18n.T
 import app.maparound.sensors.LocalDeviceSensors
 import app.maparound.sensors.SpeedSession
 import app.maparound.sensors.SpeedUnit
@@ -55,9 +56,9 @@ fun SpeedScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
     if (!hasLocation) {
         MessageScreen(
             Icons.Filled.LocationOff,
-            "Location needed",
-            "Ground speed comes from GPS. Allow location to see it.",
-            action = "Allow location",
+            T.sensors.locationNeeded,
+            T.sensors.speedNeedsLocation,
+            action = T.sensors.allowLocation,
             onAction = requestLocation,
         )
         return
@@ -93,7 +94,7 @@ fun SpeedScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
     ) {
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(20.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Ground speed (GPS)", style = MaterialTheme.typography.labelLarge)
+                Text(T.sensors.groundSpeedGps, style = MaterialTheme.typography.labelLarge)
                 val speed = s.speedMps?.takeIf { fresh }
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
@@ -106,13 +107,13 @@ fun SpeedScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
                 }
                 Text(
                     when {
-                        !fresh && s.fixAtElapsedMs == 0L -> "Waiting for GPS… go outside with a view of the sky."
-                        !fresh -> "GPS fix lost ${(now - s.fixAtElapsedMs) / 1000} s ago"
+                        !fresh && s.fixAtElapsedMs == 0L -> T.sensors.waitingForGps
+                        !fresh -> T.sensors.gpsFixLost((now - s.fixAtElapsedMs) / 1000)
                         else -> listOfNotNull(
-                            s.courseDeg?.let { "heading ${it.roundToInt()}° ${Fmt.cardinal(it)}" },
+                            s.courseDeg?.let { T.sensors.heading(it.roundToInt(), Fmt.cardinal(it)) },
                             s.speedAccuracyMps?.let { "±${fmtSpeed(it.toDouble(), unit)} ${unit.label}" },
-                            speed?.takeIf { it in 0.3..8.0 }?.let { "pace ${pace(it)}" },
-                        ).joinToString(" · ").ifEmpty { "stopped" }
+                            speed?.takeIf { it in 0.3..8.0 }?.let { T.sensors.pace(pace(it)) },
+                        ).joinToString(" · ").ifEmpty { T.sensors.stopped }
                     },
                     style = MaterialTheme.typography.bodyLarge,
                 )
@@ -132,16 +133,16 @@ fun SpeedScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Trip", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { SpeedSession.reset() }) { Text("Reset") }
+                    Text(T.sensors.trip, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { SpeedSession.reset() }) { Text(T.sensors.reset) }
                 }
-                InfoRow("Distance", Fmt.distance(s.distanceM.toFloat()))
-                InfoRow("Max speed", "${fmtSpeed(s.maxMps, unit)} ${unit.label}")
-                InfoRow("Average while moving", s.averageMovingMps?.let { "${fmtSpeed(it, unit)} ${unit.label}" } ?: "—")
-                InfoRow("Moving time", Fmt.clock(s.movingMs / 1000))
-                InfoRow("Total time", Fmt.clock(s.elapsedMs / 1000))
+                InfoRow(T.sensors.distance, Fmt.distance(s.distanceM.toFloat()))
+                InfoRow(T.sensors.maxSpeed, "${fmtSpeed(s.maxMps, unit)} ${unit.label}")
+                InfoRow(T.sensors.averageWhileMoving, s.averageMovingMps?.let { "${fmtSpeed(it, unit)} ${unit.label}" } ?: "—")
+                InfoRow(T.sensors.movingTime, Fmt.clock(s.movingMs / 1000))
+                InfoRow(T.sensors.totalTime, Fmt.clock(s.elapsedMs / 1000))
                 Text(
-                    "Counts while MapAround is open. Below 1.8 km/h counts as stopped. To keep a full log, record a track on the map.",
+                    T.sensors.tripHint,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 6.dp),
@@ -151,7 +152,7 @@ fun SpeedScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
 
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Speed, last 10 minutes", style = MaterialTheme.typography.labelLarge)
+                Text(T.sensors.speedLast10Minutes, style = MaterialTheme.typography.labelLarge)
                 SpeedChart(s.history, unit, now, Modifier.fillMaxWidth().height(160.dp))
             }
         }
@@ -166,7 +167,7 @@ private fun fmtSpeed(mps: Double, unit: SpeedUnit): String {
 /** Minutes per kilometre, e.g. "12:30 /km". */
 private fun pace(mps: Double): String {
     val secPerKm = (1000 / mps).roundToInt()
-    return "${secPerKm / 60}:${padded(secPerKm % 60, 2)} /km"
+    return T.sensors.perKm("${secPerKm / 60}:${padded(secPerKm % 60, 2)}")
 }
 
 @Composable
@@ -175,9 +176,11 @@ private fun SpeedChart(history: List<Pair<Long, Float>>, unit: SpeedUnit, now: L
     val grid = MaterialTheme.colorScheme.outlineVariant
     val measurer = rememberTextMeasurer()
     val label = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val waiting = T.sensors.waitingForData
+    val nowLabel = T.sensors.now
     Canvas(modifier) {
         if (history.size < 2) {
-            drawText(measurer, "Waiting for data…", topLeft = Offset(0f, size.height / 2 - 8.dp.toPx()), style = label)
+            drawText(measurer, waiting, topLeft = Offset(0f, size.height / 2 - 8.dp.toPx()), style = label)
             return@Canvas
         }
         val window = 10 * 60_000f
@@ -196,7 +199,7 @@ private fun SpeedChart(history: List<Pair<Long, Float>>, unit: SpeedUnit, now: L
         drawPath(fill, Brush.verticalGradient(listOf(line.copy(alpha = 0.3f), line.copy(alpha = 0.03f))))
         drawPath(path, line, style = Stroke(2.dp.toPx(), join = StrokeJoin.Round))
         drawText(measurer, "${top.roundToInt()} ${unit.label}", topLeft = Offset(4.dp.toPx(), 2.dp.toPx()), style = label)
-        val t = measurer.measure("now", label)
+        val t = measurer.measure(nowLabel, label)
         drawText(t, topLeft = Offset(size.width - t.size.width - 4.dp.toPx(), size.height - t.size.height))
     }
 }

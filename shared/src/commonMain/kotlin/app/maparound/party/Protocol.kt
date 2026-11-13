@@ -2,6 +2,7 @@
 
 package app.maparound.party
 
+import app.maparound.i18n.T
 import app.maparound.shared.crypto.aesGcmOpen
 import app.maparound.shared.crypto.aesGcmSeal
 import app.maparound.shared.crypto.hmacSha256
@@ -61,7 +62,7 @@ class PartyKey(val id: ByteArray, val secret: ByteArray, val name: String) {
         private val B64 = Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT_OPTIONAL)
 
         fun create(name: String): PartyKey =
-            PartyKey(randomBytes(16), randomBytes(32), name.trim().ifEmpty { "Party" })
+            PartyKey(randomBytes(16), randomBytes(32), name.trim().ifEmpty { T.party.defaultPartyName })
 
         /** True if [text] contains an invite link (web or app link). */
         fun hasLink(text: String): Boolean = LINK_STARTS.any { it in text }
@@ -80,7 +81,7 @@ class PartyKey(val id: ByteArray, val secret: ByteArray, val name: String) {
             val raw = B64.decode(code)
             if (raw.size != 48) return null
             val name = link.substringAfter("?n=", "").substringBefore('&').substringBefore('#')
-                .let(::urlDecode).ifEmpty { "Party" }
+                .let(::urlDecode).ifEmpty { T.party.defaultPartyName }
             PartyKey(raw.copyOfRange(0, 16), raw.copyOfRange(16, 48), name)
         }.getOrNull()
     }

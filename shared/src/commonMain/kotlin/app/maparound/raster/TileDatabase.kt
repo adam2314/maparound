@@ -1,5 +1,6 @@
 package app.maparound.raster
 
+import app.maparound.i18n.T
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
 import kotlin.math.PI
@@ -92,7 +93,7 @@ class TileDatabase(private val file: SqliteFile, private val onClose: AutoClosea
     private val flipY: Boolean
 
     init {
-        val tiles = file.entry("tiles") ?: throw TileDatabaseException("No tiles in this database: it isn't an MBTiles or SQLiteDB map")
+        val tiles = file.entry("tiles") ?: throw TileDatabaseException(T.offline.noTilesNotTileDb)
         val tileCols = if (tiles.type == "table") file.columns("tiles").first.map { it.lowercase() } else emptyList()
         val keyed: Keyed
         var meta = emptyMap<String, String?>()
@@ -127,7 +128,7 @@ class TileDatabase(private val file: SqliteFile, private val onClose: AutoClosea
             meta = m
             val format = meta["format"]?.lowercase()
             if (format == "pbf" || format == "mvt") {
-                throw TileDatabaseException("This MBTiles holds vector map data, not images; MapAround reads raster MBTiles")
+                throw TileDatabaseException(T.offline.vectorMbtiles)
             }
         }
         if (kind == Kind.SQLITEDB) {
@@ -140,7 +141,7 @@ class TileDatabase(private val file: SqliteFile, private val onClose: AutoClosea
                 value("tilenumbering")?.let { inverse = it.equals("BigPlanet", ignoreCase = true) }
                 invY = value("inverted_y")?.trim() == "1"
                 if (value("ellipsoid")?.trim() == "1") {
-                    throw TileDatabaseException("This map uses the elliptical Mercator projection (Yandex), which MapAround can't show")
+                    throw TileDatabaseException(T.offline.ellipticalMercator)
                 }
             }
         }
@@ -168,7 +169,7 @@ class TileDatabase(private val file: SqliteFile, private val onClose: AutoClosea
                 if (ri < r[2]) r[2] = ri
                 if (ri > r[3]) r[3] = ri
             }
-            if (ranges.isEmpty()) throw TileDatabaseException("The database has no tiles")
+            if (ranges.isEmpty()) throw TileDatabaseException(T.offline.dbHasNoTiles)
             val zooms = ranges.keys.map { if (inverse) 17 - it else it }
             zMin = zMin ?: zooms.min()
             zMax = zMax ?: zooms.max()

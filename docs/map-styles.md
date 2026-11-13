@@ -142,11 +142,20 @@ built-in ones only the country borders. Style them to show them:
 | Contour lines | `contour=minor` or `contour=major`, `ele=<metres>` | the terrain download, traced on the phone; intervals depend on the zoom |
 | Marked hiking trails | `trail=hiking`, `trail_colour=red\|blue\|green\|yellow\|black\|white\|orange\|purple…`, `trail_offset=0\|l05\|r05…`, and on the first colour of a way `trail_n=<colours on it>`, `name`, `ref` | the marked-trails download; one way per waymark colour, offset side by side |
 | Cliffs, arêtes, ridges, earth banks | `natural=cliff\|arete\|ridge\|earth_bank`, as in OSM | the marked-trails download (the mapsforge maps leave these out); from zoom 13, also when the trail lines are switched off |
-| The world map: sea and land, lakes, rivers | `natural=sea` (the tile) and `natural=nosea` (land) like the mapsforge maps, `natural=water`, `waterway=river` with `name` | built into the app (Natural Earth): up to zoom 7 everywhere (the country maps start at 8), and outside the downloaded maps' areas above that. Every style gets these, built-in ones too |
+| The world map: sea and land, lakes, rivers | `natural=sea` (the tile) and `natural=nosea` (land) like the mapsforge maps, `natural=water`, `waterway=river` with `name` | built into the app (Natural Earth): up to zoom 7 everywhere (the country maps start at 8), and above that outside the downloaded maps (their rectangles for sea, land and lakes; their regions' outlines for rivers, borders and names). Every style gets these, built-in ones too |
 | Country borders | `boundary=administrative`, `admin_level=2`, and `disputed=yes` on disputed borders, lines of control and undefined frontiers | the same |
 | Names (points) | `place=country`, `place=city` (`capital=yes` for capitals), `place=town`, with `population`; `place=ocean`, `place=sea` (also gulfs, bays, straits); `natural=water` for lakes; all with `name` | the same, each from the zoom Natural Earth suggests for it |
 
 See the contour and trail sections of `topo.xml` for working examples.
+
+### The legend
+
+Layers → Legend shows any style's legend, imported ones too, made from the style's own rules:
+sample features (a road of each kind, a track of each `tracktype`, a path of each `sac_scale`, a
+trail of each colour, water, land cover, terrain, borders, huts and other places) are matched
+against the rules as the map does, close up, with the style options that are on. Whatever the
+style draws for one is its sample; a variant (a track grade, a path's difficulty) shows only when
+the style draws it differently from the plain kind. Nothing to add to a style for it.
 
 To check a style on a PC, `tools/topo-preview` renders any theme file with the same engine (see
 the README).

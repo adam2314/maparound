@@ -16,6 +16,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import app.maparound.AppGraph
 import app.maparound.data.MapPos
+import app.maparound.i18n.T
 import app.maparound.map.AndroidMapSurface
 import app.maparound.map.BaseMap
 import app.maparound.map.MapThemes
@@ -59,7 +60,7 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
     /** What the template shows above the map. */
     data class Status(val title: String, val text: String, val following: Boolean, val satellite: Boolean)
 
-    private val _status = MutableStateFlow(Status("MapAround", "Starting…", following = true, satellite = false))
+    private val _status = MutableStateFlow(Status("MapAround", T.nav.carStarting, following = true, satellite = false))
     val status: StateFlow<Status> = _status.asStateFlow()
 
     private var virtualDisplay: VirtualDisplay? = null
@@ -319,24 +320,24 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
         val gpsSpeed = loc?.takeIf { it.provider == LocationManager.GPS_PROVIDER && it.hasSpeed() }?.speed
         val title = when {
             !carContext.hasLocationPermission() -> "MapAround"
-            loc == null -> "Waiting for GPS…"
+            loc == null -> T.nav.waitingForGps
             gpsSpeed != null -> "${(gpsSpeed * speedUnit.perMps).roundToInt()} ${speedUnit.label}"
             else -> "MapAround"
         }
         val parts = mutableListOf<String>()
-        if (!carContext.hasLocationPermission()) parts += "Allow location in MapAround on your phone"
-        loc?.bestAltitude()?.let { parts += "${it.roundToInt()} m" }
+        if (!carContext.hasLocationPermission()) parts += T.nav.carAllowLocation
+        loc?.bestAltitude()?.let { parts += "${it.roundToInt()} ${T.common.unitM}" }
         if (loc != null && loc.hasBearing() && (gpsSpeed ?: 0f) > 1f) parts += Fmt.cardinal(loc.bearing)
-        PlannerSession.state.value.route?.let { parts += "route ${Fmt.distance(it.stats.distanceM.toFloat())}" }
+        PlannerSession.state.value.route?.let { parts += T.nav.carRoute(Fmt.distance(it.stats.distanceM.toFloat())) }
         PartySession.state.value.takeIf { it.active }?.let { p ->
             val n = p.members.count { it.position != null }
-            parts += if (p.members.any { it.sos }) "SOS in party!" else "party: $n on map"
+            parts += if (p.members.any { it.sos }) T.nav.carPartySos else T.nav.carPartyOnMap(n)
         }
-        if (TrackRecorder.state.value.recording) parts += "recording"
+        if (TrackRecorder.state.value.recording) parts += T.nav.carRecording
         if (AppGraph.mapFiles.files.value.isEmpty() && TileSources.find(AppGraph.prefs.baseLayer.value, AppGraph.prefs.customSources.value) == null && !satellite) {
-            parts += "no offline maps: download them on the phone"
+            parts += T.nav.carNoOfflineMaps
         }
-        _status.value = Status(title, parts.joinToString(" · ").ifEmpty { "Map" }, following, satellite)
+        _status.value = Status(title, parts.joinToString(" · ").ifEmpty { T.nav.carMap }, following, satellite)
     }
 
     private fun release() {

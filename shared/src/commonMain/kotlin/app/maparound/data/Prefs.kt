@@ -1,5 +1,6 @@
 package app.maparound.data
 
+import app.maparound.i18n.I18n
 import app.maparound.map.MapThemes
 import app.maparound.map.OnlineSource
 import app.maparound.map.StyleChoice
@@ -26,6 +27,19 @@ data class MapPos(val lat: Double, val lon: Double, val zoom: Int)
 
 /** The app's settings, saved in [sp] (the same keys as before on Android). */
 class Prefs(private val sp: KeyValueStore) {
+
+    // ---- the app's language: a code ("he"), or "" for the device's ----
+    private val _language = MutableStateFlow(sp.getString(K_LANGUAGE) ?: "")
+    val language: StateFlow<String> = _language.asStateFlow()
+    fun setLanguage(code: String) {
+        _language.value = code
+        sp.putString(K_LANGUAGE, code)
+        I18n.apply(code)
+    }
+
+    init {
+        I18n.apply(_language.value)
+    }
 
     private val _baseLayer = MutableStateFlow(sp.getString(K_BASE)?.let(TileSources::current) ?: TileSources.DEFAULT_ID)
     val baseLayer: StateFlow<String> = _baseLayer.asStateFlow()
@@ -200,6 +214,7 @@ class Prefs(private val sp: KeyValueStore) {
     companion object {
         const val STANDARD_PRESSURE = 1013.25f
         private const val K_BASE = "base_layer"
+        private const val K_LANGUAGE = "language"
         private const val K_CUSTOM = "custom_sources"
         private const val K_QNH = "sea_level_pressure"
         private const val K_TRUE_NORTH = "true_north"

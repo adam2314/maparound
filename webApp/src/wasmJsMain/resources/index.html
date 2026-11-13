@@ -20,12 +20,24 @@
 <div id="app">
     <div id="loading">
         <img src="icon-192.png" alt="" width="96" height="96">
-        <p>Loading MapAround…</p>
+        <p id="loading-text">Loading MapAround…</p>
         <noscript><p>MapAround needs JavaScript.</p></noscript>
         <p id="unsupported" hidden>This browser is too old for MapAround. It needs a recent Chrome, Edge, Firefox or Safari (2024 or newer).</p>
     </div>
 </div>
 <script>
+    // The loading screen in the app's language (its setting, else the browser's), as the app will be.
+    (function () {
+        let lang = '';
+        try { lang = localStorage.getItem('maparound.prefs.language') || ''; } catch (e) { /* no storage */ }
+        if (!lang) lang = (navigator.language || 'en').split('-')[0];
+        if (lang !== 'he' && lang !== 'iw') return;
+        document.documentElement.lang = 'he';
+        document.getElementById('loading').dir = 'rtl';
+        document.getElementById('loading-text').textContent = 'MapAround נטען…';
+        document.getElementById('unsupported').textContent =
+            'הדפדפן הזה ישן מדי בשביל MapAround. צריך Chrome, Edge, Firefox או Safari עדכניים (מ־2024 ואילך).';
+    })();
     // Kotlin/Wasm needs WebAssembly garbage collection (Chrome 119, Firefox 120, Safari 18.2).
     if (typeof WebAssembly === 'undefined' || !WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 95, 1, 120, 0]))) {
         document.getElementById('unsupported').hidden = false;

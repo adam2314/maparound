@@ -1,7 +1,7 @@
 package app.maparound.map.maplibre
 
-import app.maparound.shared.util.deviceLanguage
 import app.maparound.data.MapPos
+import app.maparound.i18n.I18n
 import app.maparound.map.BaseMap
 import app.maparound.map.MapListener
 import app.maparound.map.MapPoi
@@ -122,7 +122,7 @@ class MapLibreSurface(
     }
 
     override fun poisNear(point: GeoPoint, radiusDp: Double): List<MapPoi> =
-        MapPoi.parseList(runCatching { native.poisNear(point.lat, point.lon, radiusDp) }.getOrDefault("[]"), point.lat, point.lon, deviceLanguage())
+        MapPoi.parseList(runCatching { native.poisNear(point.lat, point.lon, radiusDp) }.getOrDefault("[]"), point.lat, point.lon, I18n.contentLanguage)
 
     override fun showFrom3D(camera: Camera3D) {
         val h = native.viewHeight()

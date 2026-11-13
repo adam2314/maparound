@@ -8,6 +8,8 @@ import android.os.Build
 import android.provider.OpenableColumns
 import app.maparound.AppGraph
 import app.maparound.USER_AGENT
+import app.maparound.i18n.T
+import app.maparound.i18n.ltr
 import app.maparound.party.PartyKey
 import app.maparound.party.PartySession
 import app.maparound.tracks.SavedTrack
@@ -77,10 +79,10 @@ object IncomingShare {
         Incoming.fromText(text, near)?.let { Incoming.pending.value = it; return }
         val short = SharedLinks.shortLink(text)
         if (short == null) {
-            Incoming.pending.value = Item.Message("No location found in what was shared")
+            Incoming.pending.value = Item.Message(T.map.noLocationShared)
             return
         }
-        Incoming.pending.value = Item.Message("Opening the shared link…")
+        Incoming.pending.value = Item.Message(T.map.openingSharedLink)
         scope.launch {
             val resolved = withContext(Dispatchers.IO) { runCatching { resolve(short) }.getOrNull() }
             // Keep a label from the original text (e.g. the place name above the link).
@@ -90,7 +92,7 @@ object IncomingShare {
             }
             if (shared != null) Incoming.pending.value = Incoming.of(shared)
             else Incoming.pending.value = Item.Message(
-                if (resolved == null) "Couldn't open the link (no internet?)" else "That link has an address but no coordinates",
+                if (resolved == null) T.map.couldntOpenLink else T.map.linkWithoutCoordinates,
             )
         }
     }
@@ -103,19 +105,19 @@ object IncomingShare {
         scope.launch {
             val name = withContext(Dispatchers.IO) { displayName(context, uri) }
             if (name?.endsWith(".map", ignoreCase = true) == true) {
-                Incoming.pending.value = Item.Message("Importing map ${name}…")
+                Incoming.pending.value = Item.Message(T.map.importingMap(ltr(name.orEmpty())))
                 val r = AppGraph.mapFiles.import(uri)
-                Incoming.pending.value = Item.Message(r.fold({ "Offline map ${it.title} added" }, { "Couldn't add the map: ${it.message}" }))
+                Incoming.pending.value = Item.Message(r.fold({ T.map.offlineMapAdded(it.title) }, { T.map.couldntAddMap(it.message) }))
                 return@launch
             }
             val result = withContext(Dispatchers.IO) {
                 runCatching {
-                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Can't open the file")
-                    Incoming.importGpx(bytes, name?.substringBeforeLast('.') ?: "Imported", AppGraph.tracks, AppGraph.places)
+                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error(T.map.cantOpenFile)
+                    Incoming.importGpx(bytes, name?.substringBeforeLast('.') ?: T.map.imported, AppGraph.tracks, AppGraph.places)
                 }
             }
             Incoming.pending.value = result.getOrElse {
-                Item.Message(if (mime?.contains("gpx") == true || name?.endsWith(".gpx", true) == true) "Couldn't read the GPX: ${it.message}" else "That file isn't a GPX file")
+                Item.Message(if (mime?.contains("gpx") == true || name?.endsWith(".gpx", true) == true) T.map.couldntReadGpx(it.message) else T.map.notGpx)
             }
         }
     }

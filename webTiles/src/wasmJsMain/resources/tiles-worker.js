@@ -158,7 +158,7 @@ async function bytes(url) {
 // maptiles.js calls this when Kotlin is ready: the world map, the stored maps, then the requests.
 self.__mrReady = async () => {
   kotlin = self.__mrKotlin;
-  kotlin.init(await bytes('../world.bin'), await bytes('../borders.bin'));
+  kotlin.init(await bytes('../world.bin'), await bytes('../borders.bin'), await bytes('../regions.bin'));
   try {
     await openAll();
   } catch (e) {

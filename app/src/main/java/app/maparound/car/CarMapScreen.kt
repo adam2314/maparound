@@ -14,6 +14,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import app.maparound.AppGraph
 import app.maparound.R
+import app.maparound.i18n.T
 import app.maparound.routing.NavigationSession
 import app.maparound.routing.PlannerSession
 import kotlinx.coroutines.delay
@@ -48,11 +49,11 @@ class CarMapScreen(
         val planner = PlannerSession.state.value
         val actions = ActionStrip.Builder()
         if (nav.active) {
-            actions.addAction(Action.Builder().setTitle("Stop").setOnClickListener { NavigationSession.stop() }.build())
+            actions.addAction(Action.Builder().setTitle(T.nav.stopNavigation).setOnClickListener { NavigationSession.stop() }.build())
             val voice = AppGraph.prefs.navVoice.value
             actions.addAction(
                 Action.Builder()
-                    .setTitle(if (voice) "Mute" else "Voice")
+                    .setTitle(if (voice) T.nav.mute else T.nav.voice)
                     .setOnClickListener {
                         AppGraph.prefs.setNavVoice(!voice)
                         NavigationSession.voiceChanged(!voice)
@@ -60,12 +61,12 @@ class CarMapScreen(
                     .build(),
             )
         } else if (planner.active && planner.route != null && !planner.busy) {
-            actions.addAction(Action.Builder().setTitle("Start").setOnClickListener { renderer.startNavigation() }.build())
+            actions.addAction(Action.Builder().setTitle(T.common.start).setOnClickListener { renderer.startNavigation() }.build())
         }
         actions
             .addAction(
                 Action.Builder()
-                    .setTitle(if (s.satellite) "Map" else "Satellite")
+                    .setTitle(if (s.satellite) T.nav.carMap else T.nav.carSatellite)
                     .setOnClickListener { renderer.toggleSatellite() }
                     .build(),
             )

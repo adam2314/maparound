@@ -35,12 +35,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.maparound.i18n.I18n
+import app.maparound.i18n.T
+import app.maparound.i18n.ltr
 import app.maparound.map.MapPoi
 import app.maparound.routing.Geo
 import app.maparound.routing.GeoPoint
 import app.maparound.search.Commons
 import app.maparound.search.Wikipedia
-import app.maparound.shared.util.deviceLanguage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -62,7 +64,7 @@ fun WhatsHereSheet(
     known: Wikipedia.Article? = null,
 ) {
     val platform = LocalPlatform.current
-    val userLang = remember { Wikipedia.language(deviceLanguage()) }
+    val userLang = remember { Wikipedia.language(I18n.contentLanguage) }
     var articles by remember(point) { mutableStateOf<List<Wikipedia.Article>?>(null) }
     var problem by remember(point) { mutableStateOf<String?>(null) }
     // The place's own article (its tags), in the user's language when there is one.
@@ -84,11 +86,11 @@ fun WhatsHereSheet(
             }
         }
         try {
-            articles = Wikipedia.nearby(point.lat, point.lon, deviceLanguage())
+            articles = Wikipedia.nearby(point.lat, point.lon, I18n.contentLanguage)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            problem = "Wikipedia needs a connection."
+            problem = T.map.wikipediaNeedsConnection
         }
     }
     val own = tagged ?: poi?.let { Wikipedia.about(it, articles.orEmpty()) }
@@ -100,10 +102,10 @@ fun WhatsHereSheet(
         LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
             item {
                 Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(poi?.title ?: "What's here", style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(poi?.title ?: T.map.whatsHereTitle, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 Text(
-                    listOfNotNull(poi?.details, Fmt.latLon(point.lat, point.lon)).joinToString(" · "),
+                    listOfNotNull(poi?.details, ltr(Fmt.latLon(point.lat, point.lon))).joinToString(" · "),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp),
@@ -124,19 +126,19 @@ fun WhatsHereSheet(
                     ListItem(
                         modifier = Modifier.clickable { platform.openUrl(a.url) },
                         leadingContent = { Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                        headlineContent = { Text("About ${a.title} on Wikipedia") },
-                        trailingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open") },
+                        headlineContent = { Text(T.map.aboutOnWikipedia(a.title)) },
+                        trailingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = T.common.open) },
                     )
                 }
             }
 
-            item { Header("Photos around here") }
+            item { Header(T.map.photosAround) }
             item {
                 val list = photos
                 when {
-                    photosFailed -> Note("Photos need a connection.")
-                    list == null -> Loading("Looking for photos taken around here…")
-                    list.isEmpty() -> Note("No photos taken within 10 km on Wikimedia Commons.")
+                    photosFailed -> Note(T.map.photosNeedConnection)
+                    list == null -> Loading(T.map.lookingForPhotos)
+                    list.isEmpty() -> Note(T.map.noPhotosAround)
                     else -> LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
                         items(list, key = { it.file }) { photo ->
                             RemoteImage(
@@ -149,9 +151,9 @@ fun WhatsHereSheet(
                 }
             }
 
-            item { Header("Around here on the map") }
+            item { Header(T.map.aroundOnMap) }
             if (places.isEmpty()) {
-                item { Note("No other named places on the map here at this zoom.") }
+                item { Note(T.map.noPlacesAround) }
             }
             items(places.take(MAX_PLACES), key = { "p-${it.lat}-${it.lon}-${it.title}" }) { p ->
                 ListItem(
@@ -164,11 +166,11 @@ fun WhatsHereSheet(
                 )
             }
 
-            item { Header("On Wikipedia, nearby") }
+            item { Header(T.map.onWikipediaNearby) }
             when {
                 problem != null -> item { Note(problem!!) }
-                articles == null -> item { Loading("Looking for articles about places around here…") }
-                nearby.isEmpty() -> item { Note("No articles about places within ${Wikipedia.RADIUS_M / 1000} km.") }
+                articles == null -> item { Loading(T.map.lookingForArticles) }
+                nearby.isEmpty() -> item { Note(T.map.noArticlesWithin(Wikipedia.RADIUS_M / 1000)) }
                 else -> items(nearby.take(MAX_ARTICLES), key = { "w-${it.lang}-${it.title}" }) { a ->
                     ListItem(
                         modifier = Modifier.clickable { platform.openUrl(a.url) },
@@ -184,7 +186,7 @@ fun WhatsHereSheet(
                         supportingContent = {
                             Text(Fmt.distance(Geo.distance(point, GeoPoint(a.lat, a.lon)).toFloat()) + if (a.lang == userLang) "" else " · ${a.lang.uppercase()}")
                         },
-                        trailingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open") },
+                        trailingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = T.common.open) },
                     )
                 }
             }
@@ -201,7 +203,7 @@ fun WhatsHereSheet(
 
 /** The place's own article, or null when it has none or Wikidata can't be asked. */
 private suspend fun articleOrNull(poi: MapPoi): Wikipedia.Article? = try {
-    Wikipedia.articleOf(poi, deviceLanguage())
+    Wikipedia.articleOf(poi, I18n.contentLanguage)
 } catch (e: CancellationException) {
     throw e
 } catch (e: Exception) {

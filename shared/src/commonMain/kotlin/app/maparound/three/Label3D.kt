@@ -1,5 +1,6 @@
 package app.maparound.three
 
+import app.maparound.i18n.T
 import app.maparound.map.WorldData
 
 /** A name the 3D view stands up over the terrain: a place, a peak with its height, a hut… */
@@ -11,8 +12,8 @@ class Label3D(val lat: Double, val lon: Double, val name: String, val kind: Kind
     /** Lower goes first; higher peaks before lower ones. */
     val priority: Double = kind.rank + if (kind == Kind.PEAK && ele != null) -ele / 10_000.0 else 0.0
 
-    /** The text shown: the name, and a peak's or pass's height. */
-    val text: String = if (ele != null && (kind == Kind.PEAK || kind == Kind.PASS)) "$name  $ele m" else name
+    /** The text shown: the name, and a peak's or pass's height (labels live as long as the 3D view, which the language can't change under). */
+    val text: String = if (ele != null && (kind == Kind.PEAK || kind == Kind.PASS)) "$name  $ele ${T.common.unitM}" else name
 
     companion object {
         /** Zoom from which the offline maps' names are read (the world's below). */

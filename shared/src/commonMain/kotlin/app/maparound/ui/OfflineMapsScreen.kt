@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
@@ -81,6 +82,8 @@ import app.maparound.data.MapAroundMaps
 import app.maparound.data.MapNames
 import app.maparound.data.MapPos
 import app.maparound.data.mapBounds
+import app.maparound.i18n.T
+import app.maparound.i18n.ltr
 import app.maparound.map.TileSources
 import app.maparound.raster.LocalRasters
 import app.maparound.routing.Segments
@@ -145,10 +148,33 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Listing.Failed(e.message ?: "Network error")
+            Listing.Failed(e.message ?: T.offline.networkError)
         }
     }
-    var filter by rememberSaveable(path) { mutableStateOf("") }
+    // Cleared whenever another folder opens.
+    var filter by rememberSaveable { mutableStateOf("") }
+    fun openFolder(p: String) {
+        path = p
+        filter = ""
+    }
+    val listState = rememberLazyListState()
+    // A region the map asked for: its folder, filtered down to it, scrolled to.
+    val focus by OfflineFocus.region.collectAsState()
+    var scrollToList by remember { mutableStateOf(false) }
+    LaunchedEffect(focus) {
+        val region = focus ?: return@LaunchedEffect
+        OfflineFocus.region.value = null
+        path = region.substringBeforeLast('/', "").let { if (it.isEmpty()) "" else "$it/" }
+        filter = MapNames.pretty(region.substringAfterLast('/'))
+        scrollToList = true
+    }
+    LaunchedEffect(listing, scrollToList) {
+        if (scrollToList && listing !is Listing.Loading) {
+            scrollToList = false
+            val n = listState.layoutInfo.totalItemsCount
+            if (n > 0) listState.animateScrollToItem(n - 1)
+        }
+    }
     var confirmEntry by remember { mutableStateOf<CatalogEntry?>(null) }
     var deleteTarget by remember { mutableStateOf<LocalMap?>(null) }
     var terrainTarget by remember { mutableStateOf<LocalMap?>(null) }
@@ -179,20 +205,20 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
         }
     }
 
-    PlatformBackHandler(enabled = path.isNotEmpty()) { path = parentPath(path) }
+    PlatformBackHandler(enabled = path.isNotEmpty()) { openFolder(parentPath(path)) }
 
     val importLauncher = repo.rememberImporter(onStart = { importing = true }) { result ->
         importing = false
         scope.launch {
             snackbar.showSnackbar(
-                result.fold({ "Imported ${it.title}" }, { "Import failed: ${it.message}" }),
+                result.fold({ T.offline.imported(it.title) }, { T.offline.importFailed(it.message) }),
             )
         }
     }
 
     fun startDownload(entry: CatalogEntry) {
         val error = downloader.enqueue(entry, catalog.urlFor(entry), wifiOnly)
-        scope.launch { snackbar.showSnackbar(error ?: "Downloading ${entry.title}…") }
+        scope.launch { snackbar.showSnackbar(error ?: T.offline.downloadingMap(entry.title)) }
     }
 
     fun requestDownload(entry: CatalogEntry) {
@@ -218,14 +244,14 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
 
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
-            title = { Text("Offline maps") },
+            title = { Text(T.offline.screenTitle) },
             actions = {
                 IconButton(onClick = { importLauncher() }) {
-                    Icon(Icons.Filled.FileOpen, contentDescription = "Import a .map file")
+                    Icon(Icons.Filled.FileOpen, contentDescription = T.offline.importMapFile)
                 }
                 if (rasters.available) {
                     IconButton(onClick = addRaster) {
-                        Icon(Icons.Filled.AddPhotoAlternate, contentDescription = "Add a raster map")
+                        Icon(Icons.Filled.AddPhotoAlternate, contentDescription = T.offline.addRasterMap)
                     }
                 }
             },
@@ -233,7 +259,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
         )
         if (importing) LinearProgressIndicator(Modifier.fillMaxWidth())
 
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
             val hasWorld = installed.any { it.isWorld } || downloads.any { MapNames.isWorld(it.fileName) }
             if (!hasWorld && !offline.builtInWorld) {
                 item {
@@ -242,13 +268,13 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                             Icon(Icons.Filled.Public, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.width(16.dp))
                             Column(Modifier.weight(1f)) {
-                                Text("World overview", style = MaterialTheme.typography.titleMedium)
+                                Text(T.offline.worldOverview, style = MaterialTheme.typography.titleMedium)
                                 Text(
-                                    "3 MB background map for zoomed-out views. Recommended.",
+                                    T.offline.worldOverviewText,
                                     style = MaterialTheme.typography.bodySmall,
                                 )
                             }
-                            Button(onClick = { requestDownload(WORLD_ENTRY) }) { Text("Get") }
+                            Button(onClick = { requestDownload(WORLD_ENTRY) }) { Text(T.offline.getWorldMap) }
                         }
                     }
                 }
@@ -256,15 +282,14 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
 
             item {
                 SectionHeader(
-                    "On this device",
+                    T.offline.onThisDevice,
                     if (installed.isEmpty()) null else Fmt.fileSize(installed.sumOf { it.sizeBytes }),
                 )
             }
             if (installed.isEmpty()) {
                 item {
                     Text(
-                        "No offline maps yet. Pick a region below, or import a mapsforge .map file " +
-                            "(e.g. from OpenAndroMaps) with the folder button above.",
+                        T.offline.noMapsYet,
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     )
@@ -282,22 +307,22 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                             listOfNotNull(
                                 map.region,
                                 Fmt.fileSize(map.sizeBytes),
-                                "not needed any more, the app has its own".takeIf { map.isWorld && offline.builtInWorld },
-                                "terrain ✓".takeIf { ex?.terrain == true },
-                                "routing ✓".takeIf { ex?.routing == true },
-                                "trails ✓".takeIf { ex?.trails == true },
+                                T.offline.worldNotNeeded.takeIf { map.isWorld && offline.builtInWorld },
+                                T.offline.terrainTag.takeIf { ex?.terrain == true },
+                                T.offline.routingTag.takeIf { ex?.routing == true },
+                                T.offline.trailsTag.takeIf { ex?.trails == true },
                             ).joinToString(" · "),
                         )
                     },
                     trailingContent = {
                         Box {
                             IconButton(onClick = { menu = true }) {
-                                Icon(Icons.Filled.MoreVert, contentDescription = "Options for ${map.title}")
+                                Icon(Icons.Filled.MoreVert, contentDescription = T.offline.optionsFor(map.title))
                             }
                             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                                 if (!map.isWorld && offline.terrainAddOn) {
                                     DropdownMenuItem(
-                                        text = { Text("Contours & hill shading") },
+                                        text = { Text(T.offline.contoursAndHillShading) },
                                         leadingIcon = { Icon(Icons.Filled.Terrain, null) },
                                         trailingIcon = { if (ex?.terrain == true) Icon(Icons.Filled.Check, null) },
                                         onClick = { menu = false; terrainTarget = map },
@@ -305,13 +330,13 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                                 }
                                 if (!map.isWorld && offline.addOns) {
                                     DropdownMenuItem(
-                                        text = { Text("Offline routing") },
+                                        text = { Text(T.offline.offlineRouting) },
                                         leadingIcon = { Icon(Icons.Filled.Route, null) },
                                         trailingIcon = { if (ex?.routing == true) Icon(Icons.Filled.Check, null) },
                                         onClick = { menu = false; routingTarget = map },
                                     )
                                     DropdownMenuItem(
-                                        text = { Text(if (ex?.builtInTrails == true) "Marked trails: in this map" else "Marked trails") },
+                                        text = { Text(if (ex?.builtInTrails == true) T.offline.markedTrailsInMap else T.offline.markedTrails) },
                                         leadingIcon = { Icon(Icons.Filled.Hiking, null) },
                                         trailingIcon = { if (ex?.trails == true) Icon(Icons.Filled.Check, null) },
                                         enabled = ex?.builtInTrails != true,
@@ -319,7 +344,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                                     )
                                 }
                                 DropdownMenuItem(
-                                    text = { Text("Delete map") },
+                                    text = { Text(T.offline.deleteMap) },
                                     leadingIcon = { Icon(Icons.Filled.Delete, null) },
                                     onClick = { menu = false; deleteTarget = map },
                                 )
@@ -332,7 +357,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
             // ---- raster maps (RMAP), read in place ----
             if (rasters.available) {
                 rasterMapsSection(rasterMaps, addRaster, { showRasterOnMap(prefs, it); onShowOnMap() }, { removeRaster(prefs, rasters, it) }) {
-                    SectionHeader("Raster maps", if (rasterMaps.isEmpty()) null else Fmt.fileSize(rasterMaps.sumOf { it.sizeBytes }))
+                    SectionHeader(T.offline.rasterMaps, if (rasterMaps.isEmpty()) null else Fmt.fileSize(rasterMaps.sumOf { it.sizeBytes }))
                 }
             }
 
@@ -341,28 +366,26 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
             if (terrainState.tiles > 0 || progress != null) {
                 item {
                     SectionHeader(
-                        "Terrain",
+                        T.offline.terrain,
                         if (terrainState.tiles > 0) Fmt.fileSize(terrainState.bytes) else null,
                     )
                 }
                 if (progress != null) {
                     item {
                         ListItem(
-                            headlineContent = { Text("Downloading terrain · ${progress.label}") },
+                            headlineContent = { Text(T.offline.downloadingTerrain(progress.label)) },
                             supportingContent = {
                                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     LinearProgressIndicator(progress = { progress.fraction }, modifier = Modifier.fillMaxWidth())
                                     Text(
-                                        "${progress.done} / ${progress.total} tiles" +
-                                            (if (progress.failed > 0) " · ${progress.failed} failed" else "") +
-                                            " · keep MapAround open",
+                                        T.offline.terrainProgress(progress.done, progress.total, progress.failed),
                                         style = MaterialTheme.typography.bodySmall,
                                     )
                                 }
                             },
                             trailingContent = {
                                 IconButton(onClick = { offline.terrain.cancel() }) {
-                                    Icon(Icons.Filled.Close, contentDescription = "Stop terrain download")
+                                    Icon(Icons.Filled.Close, contentDescription = T.offline.stopTerrainDownload)
                                 }
                             },
                         )
@@ -372,11 +395,11 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                     item {
                         ListItem(
                             leadingContent = { Icon(Icons.Filled.Terrain, contentDescription = null) },
-                            headlineContent = { Text("Elevation data") },
-                            supportingContent = { Text("${terrainState.tiles} tiles (1°×1°) · contour lines & hill shading") },
+                            headlineContent = { Text(T.offline.elevationData) },
+                            supportingContent = { Text(T.offline.elevationTiles(terrainState.tiles)) },
                             trailingContent = {
                                 IconButton(onClick = { confirmDeleteTerrain = true }) {
-                                    Icon(Icons.Filled.Delete, contentDescription = "Delete all terrain data")
+                                    Icon(Icons.Filled.Delete, contentDescription = T.offline.deleteAllTerrain)
                                 }
                             },
                         )
@@ -385,11 +408,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
             } else if ((offline.addOns || offline.terrainAddOn) && installed.any { !it.isWorld }) {
                 item {
                     Text(
-                        if (offline.addOns) {
-                            "Tip: use ⋮ next to a map to add contour lines & hill shading, offline routing and marked trails."
-                        } else {
-                            "Tip: use ⋮ next to a map to add contour lines & hill shading for all of it (they also come by themselves where you look closer)."
-                        },
+                        if (offline.addOns) T.offline.tipAddOns else T.offline.tipTerrain,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
@@ -401,13 +420,13 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
             if (routingState.installed.isNotEmpty() || routingState.downloads.isNotEmpty()) {
                 item {
                     SectionHeader(
-                        "Offline routing",
+                        T.offline.offlineRouting,
                         Fmt.fileSize(routingState.installed.sumOf { it.bytes }).takeIf { routingState.installed.isNotEmpty() },
                     )
                 }
                 items(routingState.downloads, key = { "rd-${it.id}" }) { d ->
                     ListItem(
-                        headlineContent = { Text("Routing data ${d.name}") },
+                        headlineContent = { Text(T.offline.routingData(d.name)) },
                         supportingContent = {
                             val f = d.fraction
                             if (f != null) LinearProgressIndicator(progress = { f }, modifier = Modifier.fillMaxWidth())
@@ -415,7 +434,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                         },
                         trailingContent = {
                             IconButton(onClick = { offline.routing.cancel(d.id) }) {
-                                Icon(Icons.Filled.Close, contentDescription = "Cancel download")
+                                Icon(Icons.Filled.Close, contentDescription = T.offline.cancelDownload)
                             }
                         },
                     )
@@ -423,11 +442,11 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                 items(routingState.installed, key = { "rs-${it.name}" }) { s ->
                     ListItem(
                         leadingContent = { Icon(Icons.Filled.Route, contentDescription = null) },
-                        headlineContent = { Text("Routing data ${s.name}") },
-                        supportingContent = { Text("5°×5° block · ${Fmt.fileSize(s.bytes)}") },
+                        headlineContent = { Text(T.offline.routingData(s.name)) },
+                        supportingContent = { Text(T.offline.routingBlock(Fmt.fileSize(s.bytes))) },
                         trailingContent = {
                             IconButton(onClick = { offline.routing.delete(s.name) }) {
-                                Icon(Icons.Filled.Delete, contentDescription = "Delete routing data ${s.name}")
+                                Icon(Icons.Filled.Delete, contentDescription = T.offline.deleteRoutingData(s.name))
                             }
                         },
                     )
@@ -439,28 +458,26 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
             if (trailState.cells > 0 || trailProgress != null) {
                 item {
                     SectionHeader(
-                        "Marked trails",
+                        T.offline.markedTrails,
                         Fmt.fileSize(trailState.bytes).takeIf { trailState.cells > 0 },
                     )
                 }
                 if (trailProgress != null) {
                     item {
                         ListItem(
-                            headlineContent = { Text("Downloading trails · ${trailProgress.label}") },
+                            headlineContent = { Text(T.offline.downloadingTrails(trailProgress.label)) },
                             supportingContent = {
                                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     LinearProgressIndicator(progress = { trailProgress.fraction }, modifier = Modifier.fillMaxWidth())
                                     Text(
-                                        "${trailProgress.done} / ${trailProgress.total} areas" +
-                                            (if (trailProgress.failed > 0) " · ${trailProgress.failed} failed" else "") +
-                                            " · keep MapAround open",
+                                        T.offline.trailsProgress(trailProgress.done, trailProgress.total, trailProgress.failed),
                                         style = MaterialTheme.typography.bodySmall,
                                     )
                                 }
                             },
                             trailingContent = {
                                 IconButton(onClick = { offline.trails.cancel() }) {
-                                    Icon(Icons.Filled.Close, contentDescription = "Stop trail download")
+                                    Icon(Icons.Filled.Close, contentDescription = T.offline.stopTrailDownload)
                                 }
                             },
                         )
@@ -470,11 +487,11 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                     item {
                         ListItem(
                             leadingContent = { Icon(Icons.Filled.Hiking, contentDescription = null) },
-                            headlineContent = { Text("Trail data") },
-                            supportingContent = { Text("${trailState.cells} areas (1°×1°) · shown in the Topo style") },
+                            headlineContent = { Text(T.offline.trailData) },
+                            supportingContent = { Text(T.offline.trailAreas(trailState.cells)) },
                             trailingContent = {
                                 IconButton(onClick = { confirmDeleteTrails = true }) {
-                                    Icon(Icons.Filled.Delete, contentDescription = "Delete all trail data")
+                                    Icon(Icons.Filled.Delete, contentDescription = T.offline.deleteAllTrails)
                                 }
                             },
                         )
@@ -483,18 +500,18 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
             }
 
             if (downloads.isNotEmpty()) {
-                item { SectionHeader("Downloading", null) }
+                item { SectionHeader(T.offline.downloading, null) }
                 items(downloads, key = { "dl-${it.id}" }) { d -> DownloadRow(d, onCancel = { downloader.cancel(d.id) }) }
             }
 
-            item { SectionHeader("Download maps", (listing as? Listing.Ready)?.attribution) }
+            item { SectionHeader(T.offline.downloadMaps, (listing as? Listing.Ready)?.attribution) }
             if (downloader.canWaitForWifi) {
                 item {
                     Row(
                         Modifier.fillMaxWidth().clickable { prefs.setWifiOnly(!wifiOnly) }.padding(horizontal = 16.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("Download over Wi‑Fi only", Modifier.weight(1f))
+                        Text(T.offline.downloadOverWifiOnly, Modifier.weight(1f))
                         Switch(checked = wifiOnly, onCheckedChange = { prefs.setWifiOnly(it) })
                     }
                 }
@@ -506,9 +523,9 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(Modifier.weight(1f)) {
-                            Text("Basic maps from mapsforge.org")
+                            Text(T.offline.basicMaps)
                             Text(
-                                "The older maps, without the marked trails and outdoor details",
+                                T.offline.basicMapsText,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -517,13 +534,13 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                     }
                 }
             }
-            item { Breadcrumbs(path, onNavigate = { path = it }) }
+            item { Breadcrumbs(path, onNavigate = { openFolder(it) }) }
             item {
                 OutlinedTextField(
                     value = filter,
                     onValueChange = { filter = it },
                     leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                    placeholder = { Text("Filter") },
+                    placeholder = { Text(T.offline.filter) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                 )
@@ -537,9 +554,9 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                 is Listing.Failed -> item {
                     MessageCard(
                         icon = Icons.Filled.CloudOff,
-                        title = "Can't load the map list",
+                        title = T.offline.cantLoadMapList,
                         body = l.message,
-                        action = "Retry",
+                        action = T.offline.retry,
                         onAction = { retryToken++ },
                         modifier = Modifier.padding(16.dp),
                     )
@@ -549,10 +566,10 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                     items(visible, key = { it.path }) { entry ->
                         if (entry.isDirectory) {
                             ListItem(
-                                modifier = Modifier.clickable { path = entry.path },
+                                modifier = Modifier.clickable { openFolder(entry.path) },
                                 leadingContent = { Icon(Icons.Filled.Folder, contentDescription = null) },
                                 headlineContent = { Text(entry.title) },
-                                supportingContent = { Text(if (path.isEmpty()) "Continent" else "Regions") },
+                                supportingContent = { Text(if (path.isEmpty()) T.offline.continent else T.offline.regions) },
                                 trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
                             )
                         } else {
@@ -575,20 +592,17 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
         val free = Fmt.fileSize(repo.freeBytes())
         AlertDialog(
             onDismissRequest = { confirmEntry = null },
-            title = { Text("Download ${entry.title}?") },
+            title = { Text(T.offline.confirmDownloadTitle(entry.title)) },
             text = {
-                Text(
-                    "This map is ${entry.sizeLabel ?: "large"}B ($free free on the device). " +
-                        if (wifiOnly && downloader.canWaitForWifi) "It will download over Wi‑Fi." else "Consider using Wi‑Fi.",
-                )
+                Text(T.offline.confirmDownloadText(entry.sizeLabel, free, overWifi = wifiOnly && downloader.canWaitForWifi))
             },
             confirmButton = {
                 TextButton(onClick = {
                     confirmEntry = null
                     startDownload(entry)
-                }) { Text("Download") }
+                }) { Text(T.common.download) }
             },
-            dismissButton = { TextButton(onClick = { confirmEntry = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { confirmEntry = null }) { Text(T.common.cancel) } },
         )
     }
 
@@ -599,7 +613,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
             onStart = { names ->
                 routingTarget = null
                 val error = offline.routing.download(names, wifiOnly)
-                scope.launch { snackbar.showSnackbar(error ?: "Downloading routing data for ${map.title}…") }
+                scope.launch { snackbar.showSnackbar(error ?: T.offline.downloadingRoutingFor(map.title)) }
             },
         )
     }
@@ -611,7 +625,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
             onStart = { bbox ->
                 trailsTarget = null
                 val error = offline.trails.download(map.title, bbox)
-                scope.launch { snackbar.showSnackbar(error ?: "Downloading marked trails for ${map.title}…") }
+                scope.launch { snackbar.showSnackbar(error ?: T.offline.downloadingTrailsFor(map.title)) }
             },
         )
     }
@@ -619,15 +633,15 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
     if (confirmDeleteTrails) {
         AlertDialog(
             onDismissRequest = { confirmDeleteTrails = false },
-            title = { Text("Delete trail data?") },
-            text = { Text("Marked trails are then shown only online, as an overlay.") },
+            title = { Text(T.offline.confirmDeleteTrailsTitle) },
+            text = { Text(T.offline.confirmDeleteTrailsText) },
             confirmButton = {
                 TextButton(onClick = {
                     offline.trails.deleteAll()
                     confirmDeleteTrails = false
-                }) { Text("Delete") }
+                }) { Text(T.common.delete) }
             },
-            dismissButton = { TextButton(onClick = { confirmDeleteTrails = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { confirmDeleteTrails = false }) { Text(T.common.cancel) } },
         )
     }
 
@@ -638,7 +652,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
             onStart = { bbox, high ->
                 terrainTarget = null
                 val error = offline.terrain.download(map.title, bbox, high)
-                scope.launch { snackbar.showSnackbar(error ?: "Downloading terrain for ${map.title}…") }
+                scope.launch { snackbar.showSnackbar(error ?: T.offline.downloadingTerrainFor(map.title)) }
             },
         )
     }
@@ -646,35 +660,32 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
     if (confirmDeleteTerrain) {
         AlertDialog(
             onDismissRequest = { confirmDeleteTerrain = false },
-            title = { Text("Delete terrain data?") },
+            title = { Text(T.offline.confirmDeleteTerrainTitle) },
             text = {
-                Text(
-                    "Removes contour lines and hill shading for all maps and frees " +
-                        "${Fmt.fileSize(terrainState.bytes)}.",
-                )
+                Text(T.offline.confirmDeleteTerrainText(Fmt.fileSize(terrainState.bytes)))
             },
             confirmButton = {
                 TextButton(onClick = {
                     offline.terrain.deleteAll()
                     confirmDeleteTerrain = false
-                }) { Text("Delete") }
+                }) { Text(T.common.delete) }
             },
-            dismissButton = { TextButton(onClick = { confirmDeleteTerrain = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { confirmDeleteTerrain = false }) { Text(T.common.cancel) } },
         )
     }
 
     deleteTarget?.let { map ->
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
-            title = { Text("Delete ${map.title}?") },
-            text = { Text("Frees ${Fmt.fileSize(map.sizeBytes)}. You can download it again later.") },
+            title = { Text(T.offline.confirmDeleteMapTitle(map.title)) },
+            text = { Text(T.offline.confirmDeleteMapText(Fmt.fileSize(map.sizeBytes))) },
             confirmButton = {
                 TextButton(onClick = {
                     repo.delete(map)
                     deleteTarget = null
-                }) { Text("Delete") }
+                }) { Text(T.common.delete) }
             },
-            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text(T.common.cancel) } },
         )
     }
 }
@@ -708,7 +719,7 @@ private fun Breadcrumbs(path: String, onNavigate: (String) -> Unit) {
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        TextButton(onClick = { onNavigate("") }, enabled = segments.isNotEmpty()) { Text("All regions") }
+        TextButton(onClick = { onNavigate("") }, enabled = segments.isNotEmpty()) { Text(T.offline.allRegions) }
         segments.forEachIndexed { i, s ->
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(18.dp))
             TextButton(
@@ -732,7 +743,7 @@ private fun DownloadRow(d: DownloadInfo, onCancel: () -> Unit) {
                     LinearProgressIndicator(Modifier.fillMaxWidth())
                 }
                 val amount = if (d.totalBytes > 0) {
-                    "${Fmt.fileSize(d.downloadedBytes)} / ${Fmt.fileSize(d.totalBytes)}"
+                    ltr("${Fmt.fileSize(d.downloadedBytes)} / ${Fmt.fileSize(d.totalBytes)}")
                 } else {
                     Fmt.fileSize(d.downloadedBytes)
                 }
@@ -740,7 +751,7 @@ private fun DownloadRow(d: DownloadInfo, onCancel: () -> Unit) {
             }
         },
         trailingContent = {
-            IconButton(onClick = onCancel) { Icon(Icons.Filled.Close, contentDescription = "Cancel download") }
+            IconButton(onClick = onCancel) { Icon(Icons.Filled.Close, contentDescription = T.offline.cancelDownload) }
         },
     )
 }
@@ -763,9 +774,8 @@ private fun CatalogMapRow(
         headlineContent = { Text(entry.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = {
             val why = when (entry.unavailable) {
-                CatalogEntry.Unavailable.NEEDS_FUNDING ->
-                    if (entry.basic) "Too big for the free build machines yet (needs funding)" else "Not available: too big for the free build machines, needs funding"
-                CatalogEntry.Unavailable.NOT_BUILT -> if (entry.basic) "Not built by MapAround yet" else "Not available yet"
+                CatalogEntry.Unavailable.NEEDS_FUNDING -> if (entry.basic) T.offline.tooBigBasic else T.offline.tooBig
+                CatalogEntry.Unavailable.NOT_BUILT -> if (entry.basic) T.offline.notBuiltBasic else T.offline.notAvailableYet
                 null -> null
             }
             if (!downloadable) {
@@ -775,9 +785,9 @@ private fun CatalogMapRow(
                 Text(
                     listOfNotNull(
                         why,
-                        "basic map from mapsforge.org, no marked trails".takeIf { entry.basic },
+                        T.offline.basicMapNote.takeIf { entry.basic },
                         entry.sizeLabel?.let { "${it}B" },
-                        date?.let { "updated $it" },
+                        date?.let { T.offline.updated(it) },
                     ).joinToString(" · "),
                 )
             }
@@ -787,7 +797,7 @@ private fun CatalogMapRow(
                 !downloadable -> if (local != null) {
                     Icon(
                         Icons.Filled.CheckCircle,
-                        contentDescription = "Installed",
+                        contentDescription = T.offline.installed,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(12.dp),
                     )
@@ -800,15 +810,15 @@ private fun CatalogMapRow(
                         CircularProgressIndicator(Modifier.size(28.dp))
                     }
                 }
-                updateAvailable -> TextButton(onClick = onDownload) { Text("Update") }
+                updateAvailable -> TextButton(onClick = onDownload) { Text(T.offline.update) }
                 local != null -> Icon(
                     Icons.Filled.CheckCircle,
-                    contentDescription = "Installed",
+                    contentDescription = T.offline.installed,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(12.dp),
                 )
                 else -> IconButton(onClick = onDownload) {
-                    Icon(Icons.Filled.Download, contentDescription = "Download ${entry.title}")
+                    Icon(Icons.Filled.Download, contentDescription = T.offline.downloadMap(entry.title))
                 }
             }
         },
@@ -829,42 +839,41 @@ private fun TerrainDialog(map: LocalMap, onDismiss: () -> Unit, onStart: (GeoBou
     val current = info
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Contours & hill shading") },
+        title = { Text(T.offline.contoursAndHillShading) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "Elevation data for ${map.title}, in 1°×1° tiles from the open Terrain Tiles dataset. " +
-                        "Contour lines are drawn from it on your device, so they work offline.",
+                    T.offline.terrainDialogText(map.title),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 when {
                     current == null -> LinearProgressIndicator(Modifier.fillMaxWidth())
                     current.third == 0 -> Text(
-                        "Installed ✓ (${current.second} tiles)",
+                        T.offline.installedTiles(current.second),
                         color = MaterialTheme.colorScheme.primary,
                         style = MaterialTheme.typography.titleSmall,
                     )
                     else -> {
                         Text(
-                            "${current.third} of ${current.second} tiles to download",
+                            T.offline.tilesToDownload(current.third, current.second),
                             style = MaterialTheme.typography.titleSmall,
                         )
                         if (terrain.offersHighDetail) {
                             DetailOption(
                                 selected = high,
-                                title = "High detail (30 m)",
-                                subtitle = "Up to ${Fmt.fileSize(terrain.estimateBytes(current.third, true))}",
+                                title = T.offline.highDetail,
+                                subtitle = T.offline.upTo(Fmt.fileSize(terrain.estimateBytes(current.third, true))),
                                 onClick = { high = true },
                             )
                             DetailOption(
                                 selected = !high,
-                                title = "Standard (90 m)",
-                                subtitle = "Up to ${Fmt.fileSize(terrain.estimateBytes(current.third, false))} · 9× smaller, less detail",
+                                title = T.offline.standardDetail,
+                                subtitle = T.offline.upToSmaller(Fmt.fileSize(terrain.estimateBytes(current.third, false))),
                                 onClick = { high = false },
                             )
                         } else {
                             Text(
-                                "Standard detail (90 m) · about ${Fmt.fileSize(terrain.estimateBytes(current.third, false))} to download",
+                                T.offline.standardOnly(Fmt.fileSize(terrain.estimateBytes(current.third, false))),
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                         }
@@ -874,13 +883,13 @@ private fun TerrainDialog(map: LocalMap, onDismiss: () -> Unit, onStart: (GeoBou
         },
         confirmButton = {
             if (current != null && current.third > 0) {
-                TextButton(onClick = { onStart(current.first, high) }) { Text("Download") }
+                TextButton(onClick = { onStart(current.first, high) }) { Text(T.common.download) }
             } else {
-                TextButton(onClick = onDismiss) { Text("Close") }
+                TextButton(onClick = onDismiss) { Text(T.common.close) }
             }
         },
         dismissButton = {
-            if (current != null && current.third > 0) TextButton(onClick = onDismiss) { Text("Cancel") }
+            if (current != null && current.third > 0) TextButton(onClick = onDismiss) { Text(T.common.cancel) }
         },
     )
 }
@@ -919,18 +928,17 @@ private fun RoutingDialog(map: LocalMap, onDismiss: () -> Unit, onStart: (List<S
     val current = info
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Offline routing") },
+        title = { Text(T.offline.offlineRouting) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "Lets the route planner work without internet in ${map.title}. Without it, routes are " +
-                        "calculated online by brouter.de. The data comes in 5°×5° blocks, so one block can cover several countries.",
+                    T.offline.routingDialogText(map.title),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 when {
                     current == null -> LinearProgressIndicator(Modifier.fillMaxWidth())
                     current.first.isEmpty() -> Text(
-                        "Installed ✓", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleSmall,
+                        T.offline.installedCheck, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleSmall,
                     )
                     else -> {
                         val sizes = current.second
@@ -942,11 +950,11 @@ private fun RoutingDialog(map: LocalMap, onDismiss: () -> Unit, onStart: (List<S
                         }
                         if (sizes != null) {
                             Text(
-                                "Total ${Fmt.fileSize(current.first.sumOf { sizes[it] ?: 0L })}",
+                                T.offline.total(Fmt.fileSize(current.first.sumOf { sizes[it] ?: 0L })),
                                 style = MaterialTheme.typography.titleSmall,
                             )
                         } else {
-                            Text("Couldn't check sizes: no connection to brouter.de.", style = MaterialTheme.typography.bodySmall)
+                            Text(T.offline.cantCheckSizes, style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
@@ -954,13 +962,13 @@ private fun RoutingDialog(map: LocalMap, onDismiss: () -> Unit, onStart: (List<S
         },
         confirmButton = {
             if (current != null && current.first.isNotEmpty()) {
-                TextButton(onClick = { onStart(current.first) }) { Text("Download") }
+                TextButton(onClick = { onStart(current.first) }) { Text(T.common.download) }
             } else {
-                TextButton(onClick = onDismiss) { Text("Close") }
+                TextButton(onClick = onDismiss) { Text(T.common.close) }
             }
         },
         dismissButton = {
-            if (current != null && current.first.isNotEmpty()) TextButton(onClick = onDismiss) { Text("Cancel") }
+            if (current != null && current.first.isNotEmpty()) TextButton(onClick = onDismiss) { Text(T.common.cancel) }
         },
     )
 }
@@ -977,28 +985,23 @@ private fun TrailsDialog(map: LocalMap, onDismiss: () -> Unit, onStart: (GeoBoun
     val current = info
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Marked trails") },
+        title = { Text(T.offline.markedTrails) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "Waymarked hiking routes from OpenStreetMap (for example red-white-red or the colour-marked trails), " +
-                        "drawn in their colours with their names in the Topo style. Without this download, they are " +
-                        "shown only online, as an overlay.\n\n" +
-                        "It also brings the cliffs, arêtes and ridges, which the downloaded maps leave out. " +
-                        "Areas fetched before they came along are downloaded again.",
+                    T.offline.trailsDialogText,
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 when {
                     current == null -> LinearProgressIndicator(Modifier.fillMaxWidth())
                     current.third == 0 -> Text(
-                        "Installed ✓ (${current.second} areas)", color = MaterialTheme.colorScheme.primary,
+                        T.offline.installedAreas(current.second), color = MaterialTheme.colorScheme.primary,
                         style = MaterialTheme.typography.titleSmall,
                     )
                     else -> {
-                        Text("${current.third} of ${current.second} areas (1°×1°) to download", style = MaterialTheme.typography.titleSmall)
+                        Text(T.offline.areasToDownload(current.third, current.second), style = MaterialTheme.typography.titleSmall)
                         Text(
-                            "Downloaded from the Overpass API one area at a time. Busy hiking regions like the Alps can take " +
-                                "several minutes and up to ~50 MB per area; on the phone it is about 10× smaller.",
+                            T.offline.trailsDownloadNote,
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
@@ -1007,13 +1010,13 @@ private fun TrailsDialog(map: LocalMap, onDismiss: () -> Unit, onStart: (GeoBoun
         },
         confirmButton = {
             if (current != null && current.third > 0) {
-                TextButton(onClick = { onStart(current.first) }) { Text("Download") }
+                TextButton(onClick = { onStart(current.first) }) { Text(T.common.download) }
             } else {
-                TextButton(onClick = onDismiss) { Text("Close") }
+                TextButton(onClick = onDismiss) { Text(T.common.close) }
             }
         },
         dismissButton = {
-            if (current != null && current.third > 0) TextButton(onClick = onDismiss) { Text("Cancel") }
+            if (current != null && current.third > 0) TextButton(onClick = onDismiss) { Text(T.common.cancel) }
         },
     )
 }

@@ -22,6 +22,7 @@ import androidx.core.graphics.drawable.IconCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
+import app.maparound.i18n.T
 import app.maparound.routing.Guidance
 import app.maparound.routing.NavigationSession
 import app.maparound.routing.Turn
@@ -87,9 +88,9 @@ class CarNavigation(private val carContext: CarContext, lifecycle: Lifecycle) : 
         val next = p?.next ?: state.maneuvers.firstOrNull()
         return when {
             state.rerouting || next == null -> RoutingInfo.Builder().setLoading(true).build()
-            p?.arrived == true -> MessageInfo.Builder("You have arrived").setImage(icon(Turn.ARRIVE, 0)).build()
-            p?.offRoute == true -> MessageInfo.Builder("Off the route")
-                .setText(state.error ?: "${Guidance.rounded(p.offsetM).roundToInt()} m away")
+            p?.arrived == true -> MessageInfo.Builder(T.nav.youHaveArrived).setImage(icon(Turn.ARRIVE, 0)).build()
+            p?.offRoute == true -> MessageInfo.Builder(T.nav.offRoute)
+                .setText(state.error ?: T.nav.offRouteBy("${Guidance.rounded(p.offsetM).roundToInt()} ${T.common.unitM}"))
                 .build()
             else -> RoutingInfo.Builder()
                 .setCurrentStep(step(next), distance(p?.distanceToNextM ?: 0.0))
@@ -126,7 +127,7 @@ class CarNavigation(private val carContext: CarContext, lifecycle: Lifecycle) : 
             ).build()
             Trip.Builder()
                 .addStep(step(next), stepEstimate)
-                .addDestination(Destination.Builder().setName("Destination").build(), estimate)
+                .addDestination(Destination.Builder().setName(T.nav.destination).build(), estimate)
                 .build()
         }
         runCatching { manager.updateTrip(trip) }

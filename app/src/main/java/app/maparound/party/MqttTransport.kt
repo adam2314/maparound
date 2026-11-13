@@ -1,5 +1,6 @@
 package app.maparound.party
 
+import app.maparound.i18n.T
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken
 import org.eclipse.paho.client.mqttv3.MqttCallbackExtended
 import org.eclipse.paho.client.mqttv3.MqttClient
@@ -71,7 +72,7 @@ class MqttTransport(
                 }
 
                 override fun connectionLost(cause: Throwable?) {
-                    onStatus(TransportStatus(TransportStatus.State.CONNECTING, "Reconnecting to ${host(uri)}…"))
+                    onStatus(TransportStatus(TransportStatus.State.CONNECTING, T.party.reconnectingTo(host(uri))))
                 }
 
                 override fun messageArrived(topic: String, message: MqttMessage) {
@@ -93,7 +94,7 @@ class MqttTransport(
         } catch (e: Exception) {
             if (stopped) return
             brokerIndex++ // try the next public broker
-            onStatus(TransportStatus(TransportStatus.State.ERROR, "${host(uri)}: ${e.message ?: e.javaClass.simpleName}"))
+            onStatus(TransportStatus(TransportStatus.State.ERROR, T.party.hostProblem(host(uri), e.message ?: e.javaClass.simpleName)))
             // (stop() may have shut the executor down meanwhile)
             runCatching { io.schedule({ connect() }, if (brokerIndex % brokers.size == 0) 30L else 2L, TimeUnit.SECONDS) }
         }
@@ -104,7 +105,7 @@ class MqttTransport(
             c.subscribe("$base/+/+", 0)
             onStatus(TransportStatus(TransportStatus.State.CONNECTED, host(serverUri)))
         } catch (e: Exception) {
-            onStatus(TransportStatus(TransportStatus.State.ERROR, "Subscribe failed: ${e.message}"))
+            onStatus(TransportStatus(TransportStatus.State.ERROR, T.party.subscribeFailed(e.message)))
         }
     }
 

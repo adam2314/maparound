@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import app.maparound.USER_AGENT
+import app.maparound.i18n.T
 import app.maparound.terrain.DemIndex
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -24,7 +25,7 @@ class RoutePlanner(
     private val demDir: File,
 ) {
     suspend fun plan(points: List<GeoPoint>, profile: RouteProfile): RouteResult = withContext(Dispatchers.Default) {
-        if (points.size < 2) throw RoutingException("Add at least two points")
+        if (points.size < 2) throw RoutingException(T.nav.addTwoPoints)
         if (profile == RouteProfile.LINE) return@withContext straight(points)
 
         val missing = data.offlineRouter.missingSegments(points)
@@ -36,10 +37,7 @@ class RoutePlanner(
                 if (!isOnline()) throw e
             }
         } else if (!isOnline()) {
-            throw RoutingException(
-                "No internet, and no offline routing data here (${missing.joinToString()}). " +
-                    "Download it in Offline maps, or use Line mode.",
-            )
+            throw RoutingException(T.nav.noInternetNoRoutingData(missing.joinToString()))
         }
         withContext(Dispatchers.IO) { online(points, profile) }
     }
@@ -70,10 +68,10 @@ class RoutePlanner(
                 val err = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
                 throw RoutingException(
                     when {
-                        "not mapped" in err || "position not" in err -> "A point is not near a road or path."
-                        "datafile" in err -> "There is no routing data for one of the points (open sea?)."
+                        "not mapped" in err || "position not" in err -> T.nav.pointNotNearRoad
+                        "datafile" in err -> T.nav.noRoutingDataForPoint
                         err.isNotBlank() -> err.lineSequence().first().take(160)
-                        else -> "Routing server error (HTTP ${conn.responseCode})"
+                        else -> T.nav.routingServerError(conn.responseCode)
                     },
                 )
             }
@@ -81,7 +79,7 @@ class RoutePlanner(
         } catch (e: RoutingException) {
             throw e
         } catch (e: Exception) {
-            throw RoutingException("Couldn't reach the routing server: ${e.message}")
+            throw RoutingException(T.nav.couldNotReachServer(e.message))
         } finally {
             conn.disconnect()
         }

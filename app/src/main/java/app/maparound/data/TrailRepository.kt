@@ -3,6 +3,7 @@ package app.maparound.data
 import android.content.Context
 import android.net.ConnectivityManager
 import app.maparound.USER_AGENT
+import app.maparound.i18n.T
 import app.maparound.trails.TrailCellIO
 import app.maparound.terrain.DemIndex
 import kotlinx.coroutines.CancellationException
@@ -76,11 +77,11 @@ class TrailRepository(private val context: Context, private val prefs: Prefs) : 
 
     /** Returns an error message, or null when the download started. */
     override fun download(label: String, bounds: GeoBounds): String? {
-        if (job?.isActive == true) return "A trail download is already running"
+        if (job?.isActive == true) return T.offline.trailsAlreadyRunning
         val cells = missingCells(bounds)
-        if (cells.isEmpty()) return "Trails for $label are already installed"
-        if (cells.size > MAX_CELLS) return "That area is too large for one trail download (${cells.size} cells)"
-        if (prefs.wifiOnly.value && isMetered()) return "Wi‑Fi only is on and you're on mobile data"
+        if (cells.isEmpty()) return T.offline.trailsAlreadyInstalled(label)
+        if (cells.size > MAX_CELLS) return T.offline.trailsTooLarge(cells.size)
+        if (prefs.wifiOnly.value && isMetered()) return T.offline.wifiOnlyOnMobileData
 
         job = scope.launch {
             var failed = 0
@@ -91,11 +92,11 @@ class TrailRepository(private val context: Context, private val prefs: Prefs) : 
                     _state.update { it.copy(progress = DownloadProgress(label, i + 1, cells.size, failed)) }
                 }
                 _events.tryEmit(
-                    if (failed == 0) "Marked trails and cliffs ready for $label"
-                    else "Trails for $label: $failed of ${cells.size} areas failed. Tap again to retry.",
+                    if (failed == 0) T.offline.trailsReady(label)
+                    else T.offline.trailsFailed(label, failed, cells.size),
                 )
             } catch (e: CancellationException) {
-                _events.tryEmit("Trail download stopped")
+                _events.tryEmit(T.offline.trailsStopped)
                 throw e
             } finally {
                 _state.update { it.copy(progress = null) }

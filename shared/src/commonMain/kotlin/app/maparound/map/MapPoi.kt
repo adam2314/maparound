@@ -1,5 +1,6 @@
 package app.maparound.map
 
+import app.maparound.i18n.T
 import app.maparound.routing.Geo
 import app.maparound.routing.GeoPoint
 import kotlinx.serialization.json.Json
@@ -28,20 +29,20 @@ data class MapPoi(val lat: Double, val lon: Double, val tags: Map<String, String
     /** Its name in [language], if the map has it. */
     fun nameIn(language: String): String? = tags["name_$language"]?.trim()?.takeIf { it.isNotEmpty() }
 
-    /** What it is, in words ("Peak", "Alpine hut"), or null. */
+    /** What it is, in words in the app's language ("Peak", "Alpine hut"), or null. */
     val kind: String? get() = PoiKinds.label(tags)
 
     val elevationM: Int? get() = tags["ele"]?.replace(',', '.')?.toDoubleOrNull()?.roundToInt()
 
     /** Its name in the user's language, or where it is, or what it is. */
-    val title: String get() = nameIn(lang) ?: name ?: kind ?: "Point of interest"
+    val title: String get() = nameIn(lang) ?: name ?: kind ?: T.poi.pointOfInterest
 
     /** "Peak · 2085 m" (and its local name, when [title] is another), without what [title] says. */
     val details: String?
         get() = listOfNotNull(
             name?.takeIf { it != title },
             kind?.takeIf { it != title },
-            elevationM?.let { "$it m" },
+            elevationM?.let { "$it ${T.common.unitM}" },
         ).joinToString(" · ").ifEmpty { null }
 
     /** Its Wikipedia article from its own `wikipedia` tag ("de:Drei Schwestern"): language and title. */
@@ -100,47 +101,7 @@ object PoiKinds {
         "military", "power", "barrier", "highway", "landuse", "building",
     )
 
-    private val NAMES = mapOf(
-        "mountain_pass=yes" to "Mountain pass",
-        "natural=peak" to "Peak", "natural=volcano" to "Volcano", "natural=saddle" to "Saddle",
-        "natural=spring" to "Spring", "natural=hot_spring" to "Hot spring", "natural=geyser" to "Geyser",
-        "natural=cave_entrance" to "Cave", "natural=glacier" to "Glacier", "natural=cliff" to "Cliff",
-        "natural=rock" to "Rock", "natural=stone" to "Boulder", "natural=tree" to "Tree", "natural=water" to "Water",
-        "natural=beach" to "Beach", "natural=wood" to "Wood", "natural=ridge" to "Ridge", "natural=arete" to "Arête",
-        "natural=sinkhole" to "Sinkhole", "natural=bay" to "Bay", "natural=cape" to "Cape", "natural=island" to "Island",
-        "tourism=alpine_hut" to "Alpine hut", "tourism=wilderness_hut" to "Wilderness hut",
-        "tourism=viewpoint" to "Viewpoint", "tourism=camp_site" to "Campsite", "tourism=caravan_site" to "Caravan site",
-        "tourism=picnic_site" to "Picnic site", "tourism=information" to "Information", "tourism=hotel" to "Hotel",
-        "tourism=hostel" to "Hostel", "tourism=guest_house" to "Guest house", "tourism=chalet" to "Chalet",
-        "tourism=attraction" to "Attraction", "tourism=museum" to "Museum", "tourism=artwork" to "Artwork",
-        "tourism=zoo" to "Zoo", "tourism=theme_park" to "Theme park",
-        "historic=castle" to "Castle", "historic=ruins" to "Ruins", "historic=memorial" to "Memorial",
-        "historic=monument" to "Monument", "historic=archaeological_site" to "Archaeological site",
-        "historic=wayside_cross" to "Wayside cross", "historic=wayside_shrine" to "Wayside shrine",
-        "historic=fort" to "Fort", "historic=battlefield" to "Battlefield",
-        "amenity=drinking_water" to "Drinking water", "amenity=water_point" to "Water point",
-        "amenity=shelter" to "Shelter", "amenity=fuel" to "Fuel station", "amenity=charging_station" to "Charging station",
-        "amenity=parking" to "Parking", "amenity=toilets" to "Toilets", "amenity=place_of_worship" to "Place of worship",
-        "amenity=cafe" to "Café", "amenity=restaurant" to "Restaurant", "amenity=fast_food" to "Fast food",
-        "amenity=bar" to "Bar", "amenity=pub" to "Pub", "amenity=pharmacy" to "Pharmacy", "amenity=hospital" to "Hospital",
-        "amenity=doctors" to "Doctor", "amenity=police" to "Police", "amenity=fire_station" to "Fire station",
-        "amenity=bench" to "Bench", "amenity=fountain" to "Fountain", "amenity=atm" to "ATM", "amenity=bank" to "Bank",
-        "amenity=school" to "School", "amenity=library" to "Library", "amenity=townhall" to "Town hall",
-        "amenity=post_office" to "Post office", "amenity=hunting_stand" to "Hunting stand", "amenity=bbq" to "Barbecue",
-        "leisure=picnic_table" to "Picnic table", "leisure=firepit" to "Fire pit", "leisure=park" to "Park",
-        "leisure=nature_reserve" to "Nature reserve", "leisure=playground" to "Playground", "leisure=swimming_pool" to "Swimming pool",
-        "man_made=tower" to "Tower", "man_made=water_well" to "Well", "man_made=cairn" to "Cairn",
-        "man_made=cross" to "Cross", "man_made=lighthouse" to "Lighthouse", "man_made=mast" to "Mast",
-        "man_made=survey_point" to "Survey point", "man_made=windmill" to "Windmill", "man_made=water_tower" to "Water tower",
-        "waterway=waterfall" to "Waterfall", "waterway=dam" to "Dam", "waterway=weir" to "Weir",
-        "place=city" to "City", "place=town" to "Town", "place=village" to "Village", "place=hamlet" to "Hamlet",
-        "place=suburb" to "Suburb", "place=neighbourhood" to "Neighbourhood", "place=locality" to "Place",
-        "place=isolated_dwelling" to "Isolated dwelling", "place=farm" to "Farm",
-        "shop=supermarket" to "Supermarket", "shop=bakery" to "Bakery", "shop=convenience" to "Shop",
-        "railway=station" to "Railway station", "railway=halt" to "Railway halt", "railway=tram_stop" to "Tram stop",
-        "aerialway=station" to "Cable car station", "highway=bus_stop" to "Bus stop",
-        "emergency=phone" to "Emergency phone", "emergency=defibrillator" to "Defibrillator",
-    )
+    // The words for kinds, in the app's language: [app.maparound.i18n.PoiTexts.kinds].
 
     /** Kinds that say little ("an attraction"): only when nothing more telling is there. */
     private val GENERIC = setOf("tourism=attraction", "historic=yes", "building=yes", "landuse=yes", "amenity=yes")
@@ -150,7 +111,7 @@ object PoiKinds {
         for (k in KEYS) {
             val v = tags[k]?.trim() ?: continue
             if (v.isEmpty() || v == "no") continue
-            val word = NAMES["$k=$v"] ?: humanize(if (v == "yes") k else v)
+            val word = T.poi.kinds["$k=$v"] ?: humanize(if (v == "yes") k else v)
             if ("$k=$v" in GENERIC) {
                 if (generic == null) generic = word
                 continue

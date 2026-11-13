@@ -1,6 +1,8 @@
 package app.maparound
 
 import app.maparound.data.MapAroundCatalog
+import app.maparound.i18n.T
+import app.maparound.i18n.ltr
 import app.maparound.data.MapPos
 import app.maparound.data.OfflineData
 import app.maparound.data.Prefs
@@ -122,14 +124,14 @@ object IosApp {
     fun open(url: String) {
         if (!url.startsWith("file:")) {
             val near = prefs.lastPosition()?.let { GeoPoint(it.lat, it.lon) }
-            Incoming.pending.value = Incoming.fromText(url, near) ?: Incoming.Item.Message("No location found in what was shared")
+            Incoming.pending.value = Incoming.fromText(url, near) ?: Incoming.Item.Message(T.map.noLocationShared)
             return
         }
         val nsUrl = NSURL(string = url)
         val path = nsUrl.path ?: return
-        val name = nsUrl.lastPathComponent ?: "Imported"
+        val name = nsUrl.lastPathComponent ?: T.map.imported
         scope.launch {
-            Incoming.pending.value = Incoming.Item.Message("Opening $name…")
+            Incoming.pending.value = Incoming.Item.Message(T.map.opening(ltr(name)))
             Incoming.pending.value = withContext(ioDispatcher) {
                 // Files opened in place (from Files) need permission for the time we read them.
                 val scoped = nsUrl.startAccessingSecurityScopedResource()
@@ -147,14 +149,14 @@ object IosApp {
     private fun openFile(path: String, name: String): Incoming.Item {
         if (name.endsWith(".map", ignoreCase = true)) {
             return maps.import(path, name, move = false).fold(
-                { Incoming.Item.Message("Offline map ${it.title} added") },
-                { Incoming.Item.Message("Couldn't add the map: ${it.message}") },
+                { Incoming.Item.Message(T.map.offlineMapAdded(it.title)) },
+                { Incoming.Item.Message(T.map.couldntAddMap(it.message)) },
             )
         }
         return runCatching {
             Incoming.importGpx(fileSystem.read(path.toPath()) { readByteArray() }, name.substringBeforeLast('.'), tracks, places)
         }.getOrElse {
-            Incoming.Item.Message(if (name.endsWith(".gpx", ignoreCase = true)) "Couldn't read the GPX: ${it.message}" else "That file isn't a GPX file")
+            Incoming.Item.Message(if (name.endsWith(".gpx", ignoreCase = true)) T.map.couldntReadGpx(it.message) else T.map.notGpx)
         }
     }
 
@@ -164,13 +166,17 @@ object IosApp {
 }
 
 /** The styles on iPhone: Topo with its options. */
-private class IosMapThemes(topoXml: String?) : MapThemeLibrary {
+private class IosMapThemes(private val topoXml: String?) : MapThemeLibrary {
+
+    override fun themeXml(themeId: String): String? = if (themeId == MapThemes.TOPO) topoXml else null
+
     private val topoMenu = topoXml?.let { runCatching { StyleMenu.parse(it) }.getOrNull() }
     override val themes: StateFlow<List<MapTheme>> =
-        MutableStateFlow(listOf(MapTheme(MapThemes.TOPO, "Topo", "MapAround's hiking style: contours, trails, peaks")))
+        // Its description in the app's language: MapThemes.about.
+        MutableStateFlow(listOf(MapTheme(MapThemes.TOPO, "Topo", "")))
     override fun menu(themeId: String): StyleMenu? = if (themeId == MapThemes.TOPO) topoMenu else null
     override val canImport = false
     override fun import(name: String?, bytes: ByteArray): Result<List<MapTheme>> =
-        Result.failure(UnsupportedOperationException("Importing map styles comes to iPhone in a later version"))
+        Result.failure(UnsupportedOperationException(T.map.styleImportOnIphoneLater))
     override fun delete(themeId: String) = Unit
 }

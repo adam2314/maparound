@@ -43,6 +43,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import app.maparound.i18n.T
+import app.maparound.i18n.ltr
 import app.maparound.party.MeshtasticTransport
 import app.maparound.party.PartyPlatform
 import com.google.zxing.BarcodeFormat
@@ -60,7 +62,7 @@ object AndroidPartyPlatform : PartyPlatform {
         }
         return {
             scanner.launch(
-                ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt("Scan the party QR code")
+                ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt(T.party.scanPartyQrPrompt)
                     .setBeepEnabled(false).setOrientationLocked(false),
             )
         }
@@ -69,7 +71,7 @@ object AndroidPartyPlatform : PartyPlatform {
     @Composable
     override fun QrImage(text: String, modifier: Modifier) {
         val qr = remember(text) { runCatching { BarcodeEncoder().encodeBitmap(text, BarcodeFormat.QR_CODE, 720, 720) }.getOrNull() }
-        qr?.let { Image(it.asImageBitmap(), contentDescription = "Party QR code", modifier = modifier) }
+        qr?.let { Image(it.asImageBitmap(), contentDescription = T.party.partyQrCode, modifier = modifier) }
     }
 
     @Composable
@@ -107,10 +109,10 @@ private fun BleRadioPicker(onPick: (String, String) -> Unit, onDismiss: () -> Un
     if (!permitted) {
         AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text("Bluetooth permission") },
-            text = { Text("MapAround needs Bluetooth access to find and talk to your Meshtastic radio.") },
-            confirmButton = { TextButton(onClick = { launcher.launch(needed) }) { Text("Allow") } },
-            dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+            title = { Text(T.party.bluetoothPermission) },
+            text = { Text(T.party.bluetoothPermissionExplanation) },
+            confirmButton = { TextButton(onClick = { launcher.launch(needed) }) { Text(T.party.allow) } },
+            dismissButton = { TextButton(onClick = onDismiss) { Text(T.common.cancel) } },
         )
         return
     }
@@ -125,11 +127,11 @@ private fun BleRadioPicker(onPick: (String, String) -> Unit, onDismiss: () -> Un
             }
 
             override fun onScanFailed(errorCode: Int) {
-                error = "Scan failed ($errorCode)"
+                error = T.party.scanFailed(errorCode)
             }
         }
         if (scanner == null) {
-            error = "Turn on Bluetooth first"
+            error = T.party.turnOnBluetoothFirst
         } else {
             // Already-paired radios may not advertise while connected elsewhere; list them too.
             adapter.bondedDevices.orEmpty()
@@ -146,12 +148,11 @@ private fun BleRadioPicker(onPick: (String, String) -> Unit, onDismiss: () -> Un
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Pair a Meshtastic radio") },
+        title = { Text(T.party.pairMeshtasticRadio) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    "Switch the radio on. All radios in the party must use the same Meshtastic region and channel (the default one works; " +
-                        "party messages are encrypted separately). Close the official Meshtastic app if it is connected to the radio.",
+                    T.party.pairRadioInstructions,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -159,7 +160,7 @@ private fun BleRadioPicker(onPick: (String, String) -> Unit, onDismiss: () -> Un
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                         Spacer(Modifier.width(8.dp))
-                        Text("Searching…")
+                        Text(T.party.searching)
                     }
                 }
                 found.forEach { (addr, name) ->
@@ -167,12 +168,12 @@ private fun BleRadioPicker(onPick: (String, String) -> Unit, onDismiss: () -> Un
                         modifier = Modifier.clickable { onPick(addr, name) },
                         leadingContent = { Icon(Icons.Filled.Router, contentDescription = null) },
                         headlineContent = { Text(name) },
-                        supportingContent = { Text(addr) },
+                        supportingContent = { Text(ltr(addr)) },
                     )
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(T.common.cancel) } },
     )
 }
 

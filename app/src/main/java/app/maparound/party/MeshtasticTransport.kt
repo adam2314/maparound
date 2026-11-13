@@ -16,6 +16,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import androidx.core.content.ContextCompat
+import app.maparound.i18n.T
 import java.util.UUID
 import kotlin.random.Random
 
@@ -89,12 +90,12 @@ class MeshtasticTransport(
     private fun connect() {
         val a = adapter
         if (a == null || !a.isEnabled) {
-            status(TransportStatus.State.ERROR, "Bluetooth is off")
+            status(TransportStatus.State.ERROR, T.party.bluetoothOff)
             retryLater()
             return
         }
         val device = a.getRemoteDevice(address)
-        status(TransportStatus.State.CONNECTING, "Connecting to ${device.name ?: address}…")
+        status(TransportStatus.State.CONNECTING, T.party.connectingToRadio(device.name ?: address))
         gatt = device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
     }
 
@@ -118,7 +119,7 @@ class MeshtasticTransport(
     /** Meshtastic radios require pairing (PIN on the radio's screen, or 123456 on boards without one). */
     private fun ensureBond(device: BluetoothDevice) {
         if (device.bondState != BluetoothDevice.BOND_NONE || bondReceiver != null) return
-        status(TransportStatus.State.CONNECTING, "Pair with the radio: enter the PIN on its screen (or 123456)")
+        status(TransportStatus.State.CONNECTING, T.party.pairWithRadioPin)
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context, intent: Intent) {
                 val d: BluetoothDevice? = if (Build.VERSION.SDK_INT >= 33) {
@@ -137,7 +138,7 @@ class MeshtasticTransport(
                     BluetoothDevice.BOND_NONE -> {
                         runCatching { context.unregisterReceiver(this) }
                         bondReceiver = null
-                        status(TransportStatus.State.ERROR, "Pairing failed or was cancelled")
+                        status(TransportStatus.State.ERROR, T.party.pairingFailed)
                     }
                 }
             }
@@ -249,7 +250,7 @@ class MeshtasticTransport(
                     val wasConfigured = configured
                     closeGatt()
                     if (!stopped) {
-                        status(TransportStatus.State.CONNECTING, if (wasConfigured) "Radio out of range, reconnecting…" else "Couldn't connect, retrying…")
+                        status(TransportStatus.State.CONNECTING, if (wasConfigured) T.party.radioOutOfRange else T.party.couldntConnectRetrying)
                         retryLater()
                     }
                 }
@@ -264,7 +265,7 @@ class MeshtasticTransport(
             if (g != gatt) return@post
             val service = g.getService(SERVICE)
             if (service == null) {
-                status(TransportStatus.State.ERROR, "This device is not a Meshtastic radio")
+                status(TransportStatus.State.ERROR, T.party.notAMeshtasticRadio)
                 stopped = true
                 closeGatt()
                 return@post

@@ -2,7 +2,7 @@ MapAround is an offline map for hiking, biking and off-road driving. Download ma
 
 NO SIGNAL NEEDED
 • Offline maps of any country, from OpenStreetMap, in a detailed topo style
-• Contour lines and hill shading
+• Contour lines and hill shading, with the terrain data fetched as you need it
 • Marked hiking trails and cliffs
 • Offline search: towns, peaks, springs, streets and paths
 • Offline routing for hiking, cycling and driving
@@ -26,6 +26,8 @@ TRAVEL AS A GROUP
 • End-to-end encrypted: only your party can read it
 
 MAPS YOUR WAY
+• Tap a peak, hut or spring to see what it is, its Wikipedia article and photos taken around it
+• A legend for every map
 • Topo, Classic and other styles, or import your own mapsforge theme
 • Satellite imagery under the offline map's trails and labels
 • Online maps: OpenTopoMap, CyclOSM, satellite imagery, national maps (swisstopo, basemap.at, Kartverket, IGN, USGS) and your own tile servers
@@ -42,6 +44,9 @@ TOOLS FOR THE FIELD
 • Inclinometer for 4x4s (pitch and roll) and a G-meter
 • Barometer with altitude and pressure trend
 • GPS satellite view with sky plot and signal strength
+
+IN ENGLISH AND HEBREW
+The whole app, voice prompts included, also in Hebrew, right to left.
 
 PRIVATE
 No account, no ads, no tracking. Your maps, tracks and places stay on your phone. MapAround is open source under the GPL-3.0 licence.

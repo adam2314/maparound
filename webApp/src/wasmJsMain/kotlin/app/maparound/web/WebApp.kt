@@ -5,6 +5,7 @@ import app.maparound.data.MapAroundCatalog
 import app.maparound.data.OfflineData
 import app.maparound.data.Prefs
 import app.maparound.data.WebStorageStore
+import app.maparound.i18n.T
 import app.maparound.map.BorderLines
 import app.maparound.map.WorldData
 import app.maparound.map.WorldTile
@@ -67,7 +68,7 @@ class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: Str
         }
     } ?: MapStyle(BasicLayers.layers, glyphs)
 
-    val themes = WebMapThemes(topoXml)
+    val themes = WebMapThemes(topoXml, symbols)
     val maps = WebInstalledMaps()
     val places = PlaceRepository(WebFiles.ROOT)
     val tracks = TrackRepository(WebFiles.ROOT, WebStorageStore("tracks"))
@@ -161,7 +162,7 @@ private fun tilesTerrain(name: String, bytes: JsAny?): Unit = js("{ MapAroundTil
 
 /** Routes from the public brouter.de server (as Android's online fallback); "Line" measures straight lines. */
 private fun route(points: List<GeoPoint>, profile: RouteProfile): RouteResult {
-    if (points.size < 2) throw RoutingException("Add at least two points")
+    if (points.size < 2) throw RoutingException(T.offline.addTwoPoints)
     if (profile == RouteProfile.LINE) {
         val stats = TrackStats.of(points)
         return RouteResult(points, stats, Geo.hikingTimeSeconds(stats.distanceM, stats.ascentM, stats.descentM), RouteResult.Source.STRAIGHT)
@@ -172,9 +173,9 @@ private fun route(points: List<GeoPoint>, profile: RouteProfile): RouteResult {
     val body = try {
         httpGetText(url, timeoutMs = 60_000)
     } catch (e: HttpException) {
-        throw RoutingException("No route here (a point may be away from roads and paths, or at sea)")
+        throw RoutingException(T.offline.noRouteHere)
     } catch (e: Exception) {
-        throw RoutingException("Couldn't reach the routing server: ${e.message}")
+        throw RoutingException(T.offline.cantReachRoutingServer(e.message))
     }
     val feature = Json.parseToJsonElement(body).jsonObject["features"]!!.jsonArray[0].jsonObject
     val pts = feature["geometry"]!!.jsonObject["coordinates"]!!.jsonArray.map { c ->

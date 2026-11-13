@@ -1,5 +1,6 @@
 package app.maparound.routing
 
+import app.maparound.i18n.T
 import btools.router.FormatJson
 import btools.router.OsmNodeNamed
 import btools.router.RoutingContext
@@ -26,7 +27,7 @@ class OfflineRouter(private val segmentsDir: File, private val profilesDir: File
         val brf = profile.brouterProfile ?: throw IllegalArgumentException("$profile is not routed")
         require(waypoints.size >= 2) { "Need a start and an end point" }
         val profileFile = File(profilesDir, "$brf.brf")
-        if (!profileFile.isFile) throw RoutingException("Routing profile $brf is missing")
+        if (!profileFile.isFile) throw RoutingException(T.nav.routingProfileMissing(brf))
 
         val rc = RoutingContext()
         rc.localFunction = profileFile.absolutePath
@@ -47,7 +48,7 @@ class OfflineRouter(private val segmentsDir: File, private val profilesDir: File
         engine.quite = true
         engine.doRun(timeoutMs)
         engine.errorMessage?.let { throw RoutingException(friendly(it)) }
-        val track = engine.foundTrack ?: throw RoutingException("No route found")
+        val track = engine.foundTrack ?: throw RoutingException(T.nav.noRouteFound)
 
         val points = track.nodes.map { n ->
             GeoPoint(
@@ -78,10 +79,8 @@ class OfflineRouter(private val segmentsDir: File, private val profilesDir: File
     }
 
     private fun friendly(message: String): String = when {
-        "not mapped" in message || "datafile" in message ->
-            "A point is outside the downloaded routing data, or not near a road or path."
-        "target island" in message || "no track found" in message.lowercase() ->
-            "No route found between these points."
+        "not mapped" in message || "datafile" in message -> T.nav.pointOutsideRoutingData
+        "target island" in message || "no track found" in message.lowercase() -> T.nav.noRouteBetweenPoints
         else -> message
     }
 }

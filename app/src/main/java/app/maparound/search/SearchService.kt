@@ -3,12 +3,12 @@ package app.maparound.search
 import app.maparound.AppGraph
 import app.maparound.USER_AGENT
 import app.maparound.data.MapNames
+import app.maparound.i18n.I18n
 import app.maparound.routing.GeoPoint
 import app.maparound.ui.Searcher
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
-import java.util.Locale
 import app.maparound.data.file
 
 /** The shared [SearchEngine] with this phone's places, offline maps and internet connection. */
@@ -27,7 +27,7 @@ object SearchService : Searcher {
         files: List<File> = AppGraph.mapFiles.files.value.map { it.file }.filterNot { MapNames.isWorld(it.name) },
         isActive: () -> Boolean = { true },
     ): List<SearchResult> =
-        SearchEngine.offline(query, center, files.map { it.path }, app.maparound.shared.util.deviceLanguage(), radiusKm, isActive)
+        SearchEngine.offline(query, center, files.map { it.path }, I18n.contentLanguage, radiusKm, isActive)
 
     /** Blocking. */
     override fun online(query: String, near: GeoPoint?): List<SearchResult> = SearchEngine.online(query, near, ::get)
@@ -38,7 +38,7 @@ object SearchService : Searcher {
             conn.connectTimeout = 12_000
             conn.readTimeout = 12_000
             conn.setRequestProperty("User-Agent", USER_AGENT)
-            conn.setRequestProperty("Accept-Language", Locale.getDefault().toLanguageTag() + ",en;q=0.8")
+            conn.setRequestProperty("Accept-Language", I18n.contentLanguage + ",en;q=0.8")
             if (conn.responseCode != 200) throw IllegalStateException("HTTP ${conn.responseCode}")
             return conn.inputStream.bufferedReader().use { it.readText() }
         } finally {

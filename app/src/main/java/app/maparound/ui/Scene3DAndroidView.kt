@@ -14,6 +14,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import app.maparound.AppGraph
+import app.maparound.i18n.T
 import app.maparound.map.BaseMap
 import app.maparound.map.TileSources
 import app.maparound.map.categories
@@ -52,13 +53,13 @@ fun Scene3DAndroidView(args: Scene3DViewArgs) {
                     val terrain = AppGraph.terrain
                     val fresh = terrain.missingCells(area).filterNot { it in tried }
                     if (fresh.isNotEmpty()) {
-                        problem = terrain.ensure("the 3D view", area)
+                        problem = terrain.ensure(T.map.the3dView, area)
                         if (problem == null) tried += fresh
                     }
                 }
                 val progress = AppGraph.terrain.state.value.progress
                 view.note = when {
-                    progress != null -> "Getting the relief data (${progress.done} of ${progress.total})\u2026"
+                    progress != null -> T.map.gettingRelief(progress.done, progress.total)
                     else -> problem.orEmpty()
                 }
             }

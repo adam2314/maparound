@@ -2,6 +2,7 @@ package app.maparound.tracks
 
 import androidx.compose.runtime.staticCompositionLocalOf
 import app.maparound.data.KeyValueStore
+import app.maparound.i18n.T
 import app.maparound.routing.GeoPoint
 import app.maparound.shared.fileSystem
 import app.maparound.shared.util.nowMillis
@@ -95,7 +96,7 @@ class TrackRepository(baseDir: String, private val store: KeyValueStore) {
 
     /** Adds a GPX file's track (or route) under [fileName]'s name. Blocking. */
     fun importGpx(bytes: ByteArray, fileName: String?): Result<SavedTrack> = runCatching {
-        val name = fileName?.substringBeforeLast('.')?.takeIf { it.isNotBlank() } ?: "Imported"
+        val name = fileName?.substringBeforeLast('.')?.takeIf { it.isNotBlank() } ?: T.library.importedTrackName
         save(Gpx.read(bytes, name, nowMillis()))
     }
 
@@ -129,7 +130,8 @@ class TrackRepository(baseDir: String, private val store: KeyValueStore) {
         val modified = runCatching { fileSystem.metadata(journal).lastModifiedAtMillis }.getOrNull() ?: nowMillis()
         if (points.size >= 2) {
             val start = points.first().time ?: modified
-            write(uniqueFile(defaultName(start) + " (recovered)"), Track(defaultName(start) + " (recovered)", TrackKind.RECORDED, points, start))
+            val name = T.library.recoveredTrackName(defaultName(start))
+            write(uniqueFile(name), Track(name, TrackKind.RECORDED, points, start))
         }
         runCatching { fileSystem.delete(journal) }
         refresh()
@@ -154,10 +156,12 @@ class TrackRepository(baseDir: String, private val store: KeyValueStore) {
 
         private fun keepInFileName(c: Char) = c.isLetter() || c.category in NUMBERS || c == ' ' || c == '_' || c == '-'
 
-        /** "Track 2026-11-11 14:05" in local time. */
+        /** "Track 2026-11-11 14:05" in local time (in the app's language). */
         fun defaultName(time: Long): String {
             val t = Instant.fromEpochMilliseconds(time).toLocalDateTime(TimeZone.currentSystemDefault())
-            return "Track ${t.year}-${padded(t.monthNumber, 2)}-${padded(t.dayOfMonth, 2)} ${padded(t.hour, 2)}:${padded(t.minute, 2)}"
+            return T.library.recordedTrackName(
+                "${t.year}-${padded(t.monthNumber, 2)}-${padded(t.dayOfMonth, 2)} ${padded(t.hour, 2)}:${padded(t.minute, 2)}",
+            )
         }
     }
 }

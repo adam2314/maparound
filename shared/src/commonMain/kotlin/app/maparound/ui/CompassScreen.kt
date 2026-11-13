@@ -45,6 +45,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.maparound.data.LocalPrefs
+import app.maparound.i18n.T
+import app.maparound.i18n.ltr
 import app.maparound.sensors.GeoFix
 import app.maparound.sensors.LocalDeviceSensors
 import app.maparound.sensors.Orientation
@@ -65,7 +67,7 @@ fun CompassScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
     val sensors = LocalDeviceSensors.current
     val available = remember { sensors.hasCompass }
     if (!available) {
-        MessageScreen(Icons.Filled.Explore, "No compass sensor", "This device has no magnetometer, so a compass isn't available.")
+        MessageScreen(Icons.Filled.Explore, T.sensors.noCompass, T.sensors.noCompassBody)
         return
     }
     val prefs = LocalPrefs.current
@@ -102,13 +104,13 @@ fun CompassScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            heading?.let { "${it.roundToInt() % 360}°" } ?: "—",
+            heading?.let { ltr("${it.roundToInt() % 360}°") } ?: "—",
             style = MaterialTheme.typography.displayLarge,
             fontWeight = FontWeight.Bold,
         )
         Text(
-            heading?.let { Fmt.cardinal(it) + if (trueNorth && declination != null) " · true" else " · magnetic" }
-                ?: "Waiting for sensor…",
+            heading?.let { T.sensors.headingFrom(Fmt.cardinal(it), trueNorth && declination != null) }
+                ?: T.sensors.waitingForSensor,
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -119,26 +121,26 @@ fun CompassScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
                 selected = !trueNorth,
                 onClick = { prefs.setTrueNorth(false) },
                 shape = SegmentedButtonDefaults.itemShape(0, 2),
-            ) { Text("Magnetic") }
+            ) { Text(T.sensors.magneticNorth) }
             SegmentedButton(
                 selected = trueNorth,
                 onClick = { prefs.setTrueNorth(true) },
                 shape = SegmentedButtonDefaults.itemShape(1, 2),
-            ) { Text("True north") }
+            ) { Text(T.sensors.trueNorth) }
         }
         if (trueNorth && declination == null) {
             Text(
-                "True north needs your location to compute magnetic declination.",
+                T.sensors.trueNorthNeedsLocation,
                 style = MaterialTheme.typography.bodySmall,
             )
-            if (!hasLocation) TextButton(onClick = requestLocation) { Text("Allow location") }
+            if (!hasLocation) TextButton(onClick = requestLocation) { Text(T.sensors.allowLocation) }
         }
 
         val r = reading
         if (r != null && r.accuracy <= SensorAccuracy.LOW) {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
                 Text(
-                    "Compass needs calibration: wave your phone in a figure‑8 a few times, away from metal and magnets.",
+                    T.sensors.needsCalibration,
                     modifier = Modifier.padding(16.dp),
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
@@ -147,16 +149,16 @@ fun CompassScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
 
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp)) {
-                InfoRow("Sensor accuracy", r?.let { accuracyLabel(it.accuracy) } ?: "—")
+                InfoRow(T.sensors.sensorAccuracy, r?.let { accuracyLabel(it.accuracy) } ?: "—")
                 InfoRow(
-                    "Declination",
-                    declination?.let { "${localFixed(abs(it).toDouble(), 1)}° ${if (it >= 0) "E" else "W"}" }
-                        ?: "needs location",
+                    T.sensors.declination,
+                    declination?.let { T.sensors.declinationValue(localFixed(abs(it).toDouble(), 1), east = it >= 0) }
+                        ?: T.sensors.needsLocation,
                 )
             }
         }
         Text(
-            "Hold the phone flat for the most accurate reading.",
+            T.sensors.holdFlat,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -164,11 +166,11 @@ fun CompassScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
 }
 
 private fun accuracyLabel(accuracy: Int) = when (accuracy) {
-    SensorAccuracy.HIGH -> "High"
-    SensorAccuracy.MEDIUM -> "Medium"
-    SensorAccuracy.LOW -> "Low"
-    SensorAccuracy.UNRELIABLE -> "Unreliable"
-    else -> "Unknown"
+    SensorAccuracy.HIGH -> T.sensors.accuracyHigh
+    SensorAccuracy.MEDIUM -> T.sensors.accuracyMedium
+    SensorAccuracy.LOW -> T.sensors.accuracyLow
+    SensorAccuracy.UNRELIABLE -> T.sensors.accuracyUnreliable
+    else -> T.sensors.accuracyUnknown
 }
 
 @Composable
@@ -182,6 +184,7 @@ private fun CompassDial(rotation: Float, modifier: Modifier) {
     val cardinalStyle = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, color = ink)
     val northStyle = cardinalStyle.copy(color = north)
     val degreeStyle = MaterialTheme.typography.labelMedium.copy(color = minor, fontSize = 12.sp)
+    val cardinals = listOf(0, 90, 180, 270).zip(T.sensors.dialCardinals)
 
     Canvas(modifier) {
         val c = center
@@ -208,7 +211,7 @@ private fun CompassDial(rotation: Float, modifier: Modifier) {
                     strokeWidth = (if (deg % 30 == 0) 2.5f else 1.2f).dp.toPx(),
                 )
             }
-            listOf(0 to "N", 90 to "E", 180 to "S", 270 to "W").forEach { (deg, label) ->
+            cardinals.forEach { (deg, label) ->
                 rotate(deg.toFloat(), c) {
                     val layout = measurer.measure(label, if (deg == 0) northStyle else cardinalStyle)
                     drawText(layout, topLeft = Offset(c.x - layout.size.width / 2f, c.y - r * 0.80f))

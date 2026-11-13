@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import app.maparound.data.Prefs
+import app.maparound.i18n.T
 import app.maparound.map.TileSources
 import app.maparound.raster.RasterLibrary
 import app.maparound.raster.RasterMap
@@ -63,9 +64,9 @@ fun LazyListScope.rasterMapsSection(
             ListItem(
                 modifier = Modifier.clickable(onClick = onAdd),
                 leadingContent = { Icon(Icons.Filled.AddPhotoAlternate, contentDescription = null) },
-                headlineContent = { Text("Add a raster map (.rmap, .mbtiles, .sqlitedb)") },
+                headlineContent = { Text(T.offline.addRasterMapFormats) },
                 supportingContent = {
-                    Text("TwoNav / CompeGPS maps (e.g. scanned 1:50,000 topo sheets) and tile databases from QGIS, GDAL, MOBAC, Locus or OsmAnd. Shown under or instead of the vector map; large files are read in place, not copied.")
+                    Text(T.offline.rasterHelp)
                 },
             )
         }
@@ -77,17 +78,18 @@ fun LazyListScope.rasterMapsSection(
             leadingContent = { Icon(Icons.Filled.Image, contentDescription = null) },
             headlineContent = { Text(m.name) },
             supportingContent = {
+                val projection = T.offline.projection(m.projection)
                 Text(
-                    if (m.format == RasterMap.FORMAT_RMAP) "${Fmt.fileSize(m.sizeBytes)} · ${m.width}×${m.height} px · ${m.levels} levels · ${m.projection}"
-                    else "${Fmt.fileSize(m.sizeBytes)} · ${m.projection} · ${m.levels} zoom levels",
+                    if (m.format == RasterMap.FORMAT_RMAP) T.offline.rmapInfo(Fmt.fileSize(m.sizeBytes), m.width, m.height, m.levels, projection)
+                    else T.offline.tileDbInfo(Fmt.fileSize(m.sizeBytes), projection, m.levels),
                 )
             },
             trailingContent = {
                 Box {
-                    IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More for ${m.name}") }
+                    IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = T.offline.moreFor(m.name)) }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                        DropdownMenuItem(text = { Text("Show on map") }, leadingIcon = { Icon(Icons.Filled.Map, null) }, onClick = { menu = false; onShow(m) })
-                        DropdownMenuItem(text = { Text("Remove") }, leadingIcon = { Icon(Icons.Filled.Delete, null) }, onClick = { menu = false; onRemove(m) })
+                        DropdownMenuItem(text = { Text(T.common.showOnMap) }, leadingIcon = { Icon(Icons.Filled.Map, null) }, onClick = { menu = false; onShow(m) })
+                        DropdownMenuItem(text = { Text(T.common.remove) }, leadingIcon = { Icon(Icons.Filled.Delete, null) }, onClick = { menu = false; onRemove(m) })
                     }
                 }
             },
@@ -98,12 +100,12 @@ fun LazyListScope.rasterMapsSection(
             TextButton(onClick = onAdd, modifier = Modifier.padding(horizontal = 12.dp)) {
                 Icon(Icons.Filled.AddPhotoAlternate, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Add another raster map")
+                Text(T.offline.addAnotherRasterMap)
             }
         }
     }
 }
 
 /** Message for a failed add. */
-fun rasterError(e: Throwable): String = "Couldn't add the map: " + (e.message ?: e::class.simpleName ?: "error")
+fun rasterError(e: Throwable): String = T.offline.couldNotAddMap(e.message ?: e::class.simpleName ?: T.offline.error)
 

@@ -4,6 +4,7 @@ import app.maparound.data.DownloadProgress
 import app.maparound.data.TerrainData
 import app.maparound.data.TerrainState
 import app.maparound.data.TerrainStore
+import app.maparound.i18n.T
 import app.maparound.shared.fileSystem
 import app.maparound.shared.toByteArray
 import app.maparound.terrain.DemIndex
@@ -91,9 +92,9 @@ class WebTerrain(demDir: String) : TerrainData {
 
     /** Standard detail only, here (kept in the browser's memory and storage). */
     override fun download(label: String, bounds: GeoBounds, highDetail: Boolean): String? {
-        if (_state.value.progress != null) return "A terrain download is already running"
+        if (_state.value.progress != null) return T.offline.terrainAlreadyRunning
         val cells = missingCells(bounds)
-        if (cells.isEmpty()) return "Terrain for $label is already installed"
+        if (cells.isEmpty()) return T.offline.terrainAlreadyInstalled(label)
         val id = ++run
         var failed = 0
         _state.update { it.copy(progress = DownloadProgress(label, 0, cells.size, 0)) }

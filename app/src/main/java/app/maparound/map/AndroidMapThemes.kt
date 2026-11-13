@@ -1,6 +1,14 @@
 package app.maparound.map
 
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import com.caverock.androidsvg.SVG
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
+import android.graphics.Canvas
+import android.graphics.Bitmap
 import android.content.Context
+import app.maparound.i18n.T
 import app.maparound.shared.util.Xml
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,12 +29,13 @@ class AndroidMapThemes(context: Context) : MapThemeLibrary {
     private val assets = context.applicationContext.assets
     val dir = File(context.getExternalFilesDir(null) ?: context.filesDir, "themes").apply { mkdirs() }
 
+    // Their descriptions (and Classic's name) in the app's language: MapThemes.about / title.
     private val builtIn = listOf(
-        MapTheme(MapThemes.TOPO, "Topo", "MapAround's hiking style: contours, trails, peaks"),
-        MapTheme(MapThemes.CLASSIC, "Classic", "mapsforge's default style"),
-        MapTheme(OSMARENDER, "Osmarender", "The classic OpenStreetMap look"),
-        MapTheme(BIKER, "Biker", "Cycle routes and cycleways first"),
-        MapTheme(MOTORIDER, "Motorider", "Roads by type, for riding and driving"),
+        MapTheme(MapThemes.TOPO, "Topo", ""),
+        MapTheme(MapThemes.CLASSIC, "Classic", ""),
+        MapTheme(OSMARENDER, "Osmarender", ""),
+        MapTheme(BIKER, "Biker", ""),
+        MapTheme(MOTORIDER, "Motorider", ""),
     )
 
     private val _themes = MutableStateFlow(builtIn + scan())
@@ -45,6 +54,15 @@ class AndroidMapThemes(context: Context) : MapThemeLibrary {
     fun xml(themeId: String): String {
         val id = themeId.takeIf { exists(it) } ?: MapThemes.TOPO
         return open(id).use { Xml.decode(it.readBytes()) }
+    }
+
+    override fun themeXml(themeId: String): String? = runCatching { xml(themeId) }.getOrNull()
+
+    override suspend fun symbol(themeId: String, path: String, heightPx: Int): ImageBitmap? = withContext(Dispatchers.IO) {
+        runCatching {
+            val svg = openSymbol(themeId, path)?.use { SVG.getFromInputStream(it) } ?: return@runCatching null
+            app.maparound.map.gl.svgBitmap(svg, heightPx.coerceAtLeast(1).toFloat()).asImageBitmap()
+        }.getOrNull()
     }
 
     /** One of the style's symbol files ("symbols/peak.svg"), or null. */
@@ -103,7 +121,8 @@ class AndroidMapThemes(context: Context) : MapThemeLibrary {
                     MapTheme(
                         id = MapThemes.IMPORTED + f.relativeTo(dir).invariantSeparatorsPath,
                         name = f.nameWithoutExtension.replace('_', ' '),
-                        description = "Imported · ${folder.name}",
+                        // Shown as "Imported · <folder>" (MapThemes.about).
+                        description = folder.name,
                         imported = true,
                     )
                 }.toList()
@@ -121,13 +140,13 @@ class AndroidMapThemes(context: Context) : MapThemeLibrary {
         folder.mkdirs()
         try {
             if (zip) unzip(bytes, folder) else {
-                if (!Xml.decode(bytes.copyOf(minOf(bytes.size, 8192))).contains("<rendertheme")) error("That isn't a mapsforge map style (render theme XML)")
+                if (!Xml.decode(bytes.copyOf(minOf(bytes.size, 8192))).contains("<rendertheme")) error(T.map.notAStyle)
                 File(folder, "$base.xml").writeBytes(bytes)
             }
             val before = _themes.value.map { it.id }.toSet()
             refresh()
             val added = _themes.value.filter { it.id !in before }
-            if (added.isEmpty()) error("No map style (render theme XML) in that file")
+            if (added.isEmpty()) error(T.map.noStyleInFile)
             // Keep only what the map can draw; the error of the first that fails tells why.
             var problem: Throwable? = null
             val good = added.filter { t ->
@@ -135,7 +154,7 @@ class AndroidMapThemes(context: Context) : MapThemeLibrary {
                     .onFailure { problem = problem ?: it }.isSuccess
             }
             (added - good.toSet()).forEach { fileOf(it.id)?.delete() }
-            if (good.isEmpty()) error("The map style can't be read: ${problem?.message ?: "unknown error"}")
+            if (good.isEmpty()) error(T.map.styleUnreadable(problem?.message ?: T.map.unknownError))
             refresh()
             good
         } catch (e: Throwable) {
@@ -154,9 +173,9 @@ class AndroidMapThemes(context: Context) : MapThemeLibrary {
             while (true) {
                 val entry = zip.nextEntry ?: break
                 val out = File(folder, entry.name)
-                if (!out.canonicalPath.startsWith(root)) error("The zip has a file outside its folder: ${entry.name}")
+                if (!out.canonicalPath.startsWith(root)) error(T.map.zipFileOutside(entry.name))
                 if (entry.isDirectory) { out.mkdirs(); continue }
-                if (++count > MAX_ENTRIES) error("The zip has too many files")
+                if (++count > MAX_ENTRIES) error(T.map.zipTooManyFiles)
                 out.parentFile?.mkdirs()
                 out.outputStream().use { o ->
                     val buf = ByteArray(1 shl 16)
@@ -164,7 +183,7 @@ class AndroidMapThemes(context: Context) : MapThemeLibrary {
                         val n = zip.read(buf)
                         if (n < 0) break
                         total += n
-                        if (total > MAX_UNZIPPED) error("The zip is too large once unpacked")
+                        if (total > MAX_UNZIPPED) error(T.map.zipTooLarge)
                         o.write(buf, 0, n)
                     }
                 }
@@ -183,9 +202,9 @@ class AndroidMapThemes(context: Context) : MapThemeLibrary {
     }
 
     companion object {
-        const val OSMARENDER = "osmarender"
-        const val BIKER = "biker"
-        const val MOTORIDER = "motorider"
+        const val OSMARENDER = MapThemes.OSMARENDER
+        const val BIKER = MapThemes.BIKER
+        const val MOTORIDER = MapThemes.MOTORIDER
         private const val MAX_ENTRIES = 5000
         private const val MAX_UNZIPPED = 200L shl 20
     }

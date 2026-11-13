@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.maparound.i18n.T
 import app.maparound.party.PartyIcon
 import app.maparound.party.PartyIcons
 import app.maparound.party.PartyPalette
@@ -99,7 +100,7 @@ fun PartyLookPicker(name: String, color: Int, icon: Int, onColor: (Int) -> Unit,
                 }
             }
         }
-        Text("Colour", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 6.dp))
+        Text(T.party.colour, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 6.dp))
         PartyPalette.PRESETS.toList().chunked(8).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 row.forEach { c ->
@@ -125,11 +126,11 @@ private fun ColourMixer(color: Int, onColor: (Int) -> Unit) {
     var shade by remember(color) { mutableFloatStateOf(hsl[2].coerceIn(MIN_SHADE, MAX_SHADE)) }
     fun mix() = Color.hsl(hue, 0.75f, shade).toArgb()
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("Hue", Modifier.size(width = 48.dp, height = 20.dp), style = MaterialTheme.typography.bodySmall)
+        Text(T.party.hue, Modifier.size(width = 48.dp, height = 20.dp), style = MaterialTheme.typography.bodySmall)
         Slider(hue, { hue = it; onColor(mix()) }, valueRange = 0f..359f, modifier = Modifier.weight(1f))
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("Shade", Modifier.size(width = 48.dp, height = 20.dp), style = MaterialTheme.typography.bodySmall)
+        Text(T.party.shade, Modifier.size(width = 48.dp, height = 20.dp), style = MaterialTheme.typography.bodySmall)
         Slider(shade, { shade = it; onColor(mix()) }, valueRange = MIN_SHADE..MAX_SHADE, modifier = Modifier.weight(1f))
     }
 }

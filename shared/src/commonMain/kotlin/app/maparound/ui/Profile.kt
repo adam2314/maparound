@@ -17,6 +17,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
+import app.maparound.i18n.T
 import app.maparound.routing.Geo
 import app.maparound.routing.GeoPoint
 import app.maparound.routing.TrackStats
@@ -43,6 +44,7 @@ fun ElevationProfile(points: List<GeoPoint>, modifier: Modifier = Modifier) {
     val line = MaterialTheme.colorScheme.primary
     val grid = MaterialTheme.colorScheme.outlineVariant
     val label = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
+    val unitM = T.common.unitM
 
     Canvas(modifier) {
         val total = series.last().first.coerceAtLeast(1.0)
@@ -68,8 +70,8 @@ fun ElevationProfile(points: List<GeoPoint>, modifier: Modifier = Modifier) {
         drawPath(fill, Brush.verticalGradient(listOf(line.copy(alpha = 0.35f), line.copy(alpha = 0.05f))))
         drawPath(path, line, style = Stroke(width = 2.dp.toPx(), join = StrokeJoin.Round))
 
-        drawText(measurer, "${hi.roundToInt()} m", topLeft = Offset(4.dp.toPx(), y(hi) + 1.dp.toPx()), style = label)
-        drawText(measurer, "${lo.roundToInt()} m", topLeft = Offset(4.dp.toPx(), y(lo) - 15.dp.toPx()), style = label)
+        drawText(measurer, "${hi.roundToInt()} $unitM", topLeft = Offset(4.dp.toPx(), y(hi) + 1.dp.toPx()), style = label)
+        drawText(measurer, "${lo.roundToInt()} $unitM", topLeft = Offset(4.dp.toPx(), y(lo) - 15.dp.toPx()), style = label)
         val km = measurer.measure(Fmt.distance(total.toFloat()), label)
         drawText(km, topLeft = Offset(size.width - km.size.width - 4.dp.toPx(), size.height - km.size.height))
     }
@@ -81,7 +83,8 @@ fun StatsLine(stats: TrackStats, durationS: Long?, modifier: Modifier = Modifier
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(Fmt.distance(stats.distanceM.toFloat()), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         stats.ascentM?.let { ascent ->
-            Text("↑ ${ascent.roundToInt()} m  ↓ ${stats.descentM?.roundToInt() ?: 0} m", style = MaterialTheme.typography.titleMedium)
+            val m = T.common.unitM
+            Text("↑ ${ascent.roundToInt()} $m  ↓ ${stats.descentM?.roundToInt() ?: 0} $m", style = MaterialTheme.typography.titleMedium)
         }
         if (durationS != null && durationS > 0) {
             Text(Fmt.duration(durationS), style = MaterialTheme.typography.titleMedium)

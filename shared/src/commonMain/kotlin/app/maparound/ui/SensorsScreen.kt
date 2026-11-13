@@ -14,6 +14,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import app.maparound.i18n.T
 
 /**
  * Compass, speed, motion (tilt, accelerometer, gyroscope), barometer and, where the platform
@@ -23,7 +24,10 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun SensorsScreen(hasLocation: Boolean, requestLocation: () -> Unit, satellites: (@Composable () -> Unit)? = null) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
-    val titles = listOfNotNull("Compass", "Speed", "Motion", "Barometer", if (satellites != null) "Satellites" else null)
+    val titles = listOfNotNull(
+        T.sensors.compass, T.sensors.speed, T.sensors.motion, T.sensors.barometer,
+        if (satellites != null) T.sensors.satellites else null,
+    )
     Column(Modifier.fillMaxSize()) {
         PrimaryScrollableTabRow(selectedTabIndex = tab, edgePadding = 8.dp) {
             titles.forEachIndexed { i, title ->

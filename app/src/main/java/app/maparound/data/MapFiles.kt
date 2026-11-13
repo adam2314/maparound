@@ -18,6 +18,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import kotlinx.coroutines.launch
 import app.maparound.data.InstalledMaps
+import app.maparound.i18n.T
 
 /** The map's file (Android code works with files). */
 val LocalMap.file: File get() = File(path)
@@ -90,15 +91,15 @@ class MapFilesRepository(private val context: Context) : InstalledMaps {
             name = name.replace(Regex("[^A-Za-z0-9._-]"), "_")
             if (!name.endsWith(".map")) name += ".map"
             val tmp = File(dir, "$name.import")
-            val input = resolver.openInputStream(uri) ?: error("Cannot open file")
+            val input = resolver.openInputStream(uri) ?: error(T.offline.cannotOpenFile)
             input.use { inp -> tmp.outputStream().use { out -> inp.copyTo(out, 1 shl 16) } }
             if (!isValidMapFile(tmp)) {
                 tmp.delete()
-                error("Not a mapsforge .map file")
+                error(T.offline.notMapsforgeFile)
             }
             val target = File(dir, name)
             target.delete()
-            if (!tmp.renameTo(target)) error("Could not store file")
+            if (!tmp.renameTo(target)) error(T.offline.couldNotStoreFile)
             refresh()
             LocalMap(target.path, target.length(), target.lastModified())
         }

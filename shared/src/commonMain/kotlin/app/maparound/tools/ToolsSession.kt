@@ -1,6 +1,7 @@
 package app.maparound.tools
 
 import app.maparound.data.TerrainData
+import app.maparound.i18n.T
 import app.maparound.routing.GeoPoint
 import app.maparound.terrain.DemIndex
 import app.maparound.terrain.GeoBounds
@@ -25,7 +26,18 @@ import kotlin.math.cos
  * the UI so it survives tab switches; terrain work runs off the main thread.
  */
 object ToolsSession {
-    enum class Mode(val label: String) { MEASURE("Azimuth"), SIGHT("Sight"), VIEW("Viewshed"), COORDS("Coords") }
+    enum class Mode {
+        MEASURE, SIGHT, VIEW, COORDS;
+
+        /** The mode's name on its button, in the app's language. */
+        val label: String
+            get() = when (this) {
+                MEASURE -> T.tools.modeAzimuth
+                SIGHT -> T.tools.modeSight
+                VIEW -> T.tools.modeViewshed
+                COORDS -> T.tools.modeCoords
+            }
+    }
     enum class Slot { A, B }
 
     data class State(
@@ -258,11 +270,11 @@ object ToolsSession {
         if (fresh.isEmpty()) {
             // Tried and they didn't come (no connection?): compute with what there is.
             if (_state.value.terrainProblem == null) {
-                _state.value = _state.value.copy(terrainProgress = null, terrainProblem = "Couldn't get the terrain data for this area (no connection?).")
+                _state.value = _state.value.copy(terrainProgress = null, terrainProblem = T.tools.terrainNoConnection)
             }
             return false
         }
-        val problem = t.ensure("this area", area)
+        val problem = t.ensure(T.tools.thisArea, area)
         if (problem != null) {
             _state.value = _state.value.copy(terrainProgress = null, terrainProblem = problem)
             return false
@@ -344,16 +356,17 @@ object ToolsSession {
     const val MIN_MHZ = 1.0
     const val MAX_MHZ = 100_000.0
 
-    /** Common bands for the frequency picker: label and MHz. */
-    val BANDS = listOf(
-        "VHF 2 m (amateur)" to 145.0,
-        "Marine VHF" to 156.8,
-        "LoRa 433 MHz (EU433)" to 433.0,
-        "PMR446" to 446.0,
-        "FRS / GMRS" to 462.6,
-        "LoRa 868 MHz (EU868)" to 868.0,
-        "LoRa 915 MHz (US / ANZ)" to 915.0,
-        "2.4 GHz (LoRa 2.4, Wi-Fi)" to 2_440.0,
-        "5.8 GHz (Wi-Fi, video)" to 5_800.0,
-    )
+    /** Common bands for the frequency picker: label (in the app's language) and MHz. */
+    val BANDS: List<Pair<String, Double>>
+        get() = listOf(
+            T.tools.bandVhfAmateur to 145.0,
+            T.tools.bandMarineVhf to 156.8,
+            "LoRa 433 MHz (EU433)" to 433.0,
+            "PMR446" to 446.0,
+            "FRS / GMRS" to 462.6,
+            "LoRa 868 MHz (EU868)" to 868.0,
+            "LoRa 915 MHz (US / ANZ)" to 915.0,
+            "2.4 GHz (LoRa 2.4, Wi-Fi)" to 2_440.0,
+            T.tools.band5800 to 5_800.0,
+        )
 }

@@ -7,6 +7,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import app.maparound.i18n.T
 import app.maparound.party.PartyController
 import app.maparound.party.PartyEvent
 import app.maparound.party.PartyKey
@@ -48,7 +49,7 @@ object IosPlatformActions : PlatformActions {
     }
 
     override fun openPointElsewhere(lat: Double, lon: Double, label: String?) {
-        val q = urlEncode(label ?: "Location")
+        val q = urlEncode(label ?: T.map.location)
         val url = NSURL(string = "https://maps.apple.com/?ll=$lat,$lon&q=$q")
         UIApplication.sharedApplication.openURL(url, emptyMap<Any?, Any?>(), null)
     }
@@ -61,7 +62,7 @@ object IosPlatformActions : PlatformActions {
     override fun sharePlaces(places: List<Place>, title: String) {
         val file = writeShared(title) { Places.writeGpx(places, it, title) }
         val text = if (places.size == 1) SharedLinks.pointText(places[0].lat, places[0].lon, places[0].name)
-        else "$title: ${places.size} places (GPX attached)"
+        else T.map.placesShareText(title, places.size)
         share(listOf(text, file))
     }
 
@@ -109,8 +110,6 @@ fun topViewController(): UIViewController? {
     return vc
 }
 
-private const val LATER = "Coming to iPhone in a later version"
-
 /** Track recording in the background comes in phase 4. */
 object PendingRecording : RecordingControl {
     @Composable
@@ -127,7 +126,7 @@ object PendingRasters : RasterLibrary {
     @Composable
     override fun rememberPicker(onResult: (Result<RasterMap>) -> Unit): () -> Unit {
         val done = rememberUpdatedState(onResult)
-        return remember { { done.value(Result.failure(Exception("Raster maps: $LATER"))) } }
+        return remember { { done.value(Result.failure(Exception(T.map.rasterMapsOnIphoneLater))) } }
     }
 }
 

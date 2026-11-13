@@ -1,5 +1,6 @@
 package app.maparound.routing
 
+import app.maparound.i18n.T
 import app.maparound.shared.util.toRadians
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -184,72 +185,58 @@ object Guidance {
     }
 
     // ---- words ---------------------------------------------------------------------------------
+    // In the app's language ([T]): the screen's and the voice's.
 
     /** What to do, for the screen: "Turn left", "At the roundabout, take the 2nd exit". */
     fun instruction(m: Maneuver): String = when (m.turn) {
-        Turn.ARRIVE -> "Arrive at your destination"
-        Turn.STOP -> "Reach ${stopName(m.stop)}"
-        else -> action(m) + (m.stop?.let { " at ${stopName(it)}" } ?: "")
+        Turn.ARRIVE -> T.nav.arriveAtDestination
+        Turn.STOP -> T.nav.reachStop(m.stop)
+        else -> m.stop?.let { T.nav.actionAtStop(action(m), it) } ?: action(m)
     }
 
     /** What is said a while before the maneuver: "In 300 metres, turn left". */
-    fun ahead(m: Maneuver, distanceM: Double): String {
-        val what = when (m.turn) {
-            Turn.ARRIVE -> "you arrive at your destination"
-            Turn.STOP -> "you reach ${stopName(m.stop)}"
-            else -> lowerFirst(instruction(m))
-        }
-        return "In ${spokenDistance(distanceM)}, $what"
-    }
+    fun ahead(m: Maneuver, distanceM: Double): String = T.nav.inDistance(spokenDistance(distanceM), inSentence(m))
 
     /** What is said at the maneuver: "Turn left". */
     fun now(m: Maneuver): String = when (m.turn) {
-        Turn.ARRIVE -> "You have arrived at your destination"
-        Turn.STOP -> "You have reached ${stopName(m.stop)}"
+        Turn.ARRIVE -> T.nav.arrivedAtDestination
+        Turn.STOP -> T.nav.reachedStop(m.stop)
         else -> instruction(m)
     }
 
     /** Joined to an announcement when the next maneuver follows closely: "then turn right". */
-    fun then(m: Maneuver): String = "then " + when (m.turn) {
-        Turn.ARRIVE -> "you arrive at your destination"
-        Turn.STOP -> "you reach ${stopName(m.stop)}"
+    fun then(m: Maneuver): String = T.nav.then(inSentence(m))
+
+    /** The maneuver inside a longer sentence: "turn left", "you arrive at your destination". */
+    private fun inSentence(m: Maneuver): String = when (m.turn) {
+        Turn.ARRIVE -> T.nav.youArrive
+        Turn.STOP -> T.nav.youReachStop(m.stop)
         else -> lowerFirst(instruction(m))
     }
 
     private fun action(m: Maneuver): String = when (m.turn) {
-        Turn.STRAIGHT -> "Continue straight"
-        Turn.SLIGHT_LEFT -> "Turn slightly left"
-        Turn.LEFT -> "Turn left"
-        Turn.SHARP_LEFT -> "Turn sharply left"
-        Turn.SLIGHT_RIGHT -> "Turn slightly right"
-        Turn.RIGHT -> "Turn right"
-        Turn.SHARP_RIGHT -> "Turn sharply right"
-        Turn.KEEP_LEFT -> "Keep left"
-        Turn.KEEP_RIGHT -> "Keep right"
-        Turn.EXIT_LEFT -> "Take the exit on the left"
-        Turn.EXIT_RIGHT -> "Take the exit on the right"
-        Turn.U_TURN_LEFT, Turn.U_TURN_RIGHT -> "Make a U-turn"
+        Turn.STRAIGHT -> T.nav.continueStraight
+        Turn.SLIGHT_LEFT -> T.nav.turnSlightLeft
+        Turn.LEFT -> T.nav.turnLeft
+        Turn.SHARP_LEFT -> T.nav.turnSharpLeft
+        Turn.SLIGHT_RIGHT -> T.nav.turnSlightRight
+        Turn.RIGHT -> T.nav.turnRight
+        Turn.SHARP_RIGHT -> T.nav.turnSharpRight
+        Turn.KEEP_LEFT -> T.nav.keepLeft
+        Turn.KEEP_RIGHT -> T.nav.keepRight
+        Turn.EXIT_LEFT -> T.nav.exitLeft
+        Turn.EXIT_RIGHT -> T.nav.exitRight
+        Turn.U_TURN_LEFT, Turn.U_TURN_RIGHT -> T.nav.uTurn
         Turn.ROUNDABOUT, Turn.ROUNDABOUT_CW ->
-            if (m.exit > 0) "At the roundabout, take the ${ordinal(m.exit)} exit" else "Enter the roundabout"
-        Turn.STOP -> "Continue"
-        Turn.ARRIVE -> "Arrive"
+            if (m.exit > 0) T.nav.roundaboutExit(m.exit) else T.nav.enterRoundabout
+        Turn.STOP -> T.nav.continueOn
+        Turn.ARRIVE -> T.nav.arrive
     }
 
-    private fun stopName(stop: Int?): String = when (stop) {
-        null -> "the stop"
-        0 -> "the start of your route"
-        else -> "stop $stop"
-    }
-
+    /** English sentences go on in lower case (a no-op in Hebrew). */
     private fun lowerFirst(s: String) = s.replaceFirstChar { it.lowercaseChar() }
 
-    fun ordinal(n: Int): String = n.toString() + when {
-        n % 100 in 11..13 -> "th"
-        n % 10 == 1 -> "st"
-        n % 10 == 2 -> "nd"
-        n % 10 == 3 -> "rd"
-        else -> "th"
-    }
+    fun ordinal(n: Int): String = T.nav.ordinal(n)
 
     /** A distance rounded the way it is shown and said: 5 m steps up to 100 m, then 10, 50, 100 m. */
     fun rounded(m: Double): Double = when {
@@ -259,15 +246,15 @@ object Guidance {
         else -> (m / 100).roundToInt() * 100.0
     }
 
-    /** "50 metres", "1 kilometre", "2.5 kilometres" (always a dot: the voice is English). */
+    /** "50 metres", "1 kilometre", "2.5 kilometres" (always a dot: English and Hebrew both say it so). */
     fun spokenDistance(m: Double): String {
         val r = when {
             m < 100 -> maxOf(10.0, (m / 10).roundToInt() * 10.0)
             else -> rounded(m)
         }
-        if (r < 1000) return "${r.toInt()} metres"
+        if (r < 1000) return T.nav.spokenMetres(r.toInt())
         val tenths = (r / 100).roundToInt()
         val km = if (tenths % 10 == 0) "${tenths / 10}" else "${tenths / 10}.${tenths % 10}"
-        return if (km == "1") "1 kilometre" else "$km kilometres"
+        return T.nav.spokenKilometres(km)
     }
 }

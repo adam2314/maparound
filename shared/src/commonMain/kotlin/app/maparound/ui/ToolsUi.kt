@@ -80,6 +80,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import app.maparound.data.LocalPrefs
+import app.maparound.i18n.T
+import app.maparound.i18n.ltr
 import app.maparound.routing.Geo
 import androidx.compose.ui.text.style.TextOverflow
 import app.maparound.routing.GeoPoint
@@ -148,7 +150,7 @@ fun ToolsPanel(
                         ) { Text(m.label, maxLines = 1, style = MaterialTheme.typography.labelMedium) }
                     }
                 }
-                IconButton(onClick = { ToolsSession.close() }) { Icon(Icons.Filled.Close, contentDescription = "Close map tools") }
+                IconButton(onClick = { ToolsSession.close() }) { Icon(Icons.Filled.Close, contentDescription = T.tools.closeTools) }
             }
             when (state.mode) {
                 Mode.MEASURE -> MeasureBody(state, myLocation)
@@ -171,13 +173,13 @@ private fun PointsRow(state: ToolsSession.State, myLocation: GeoFix?, onProject:
         IconButton(
             onClick = { myLocation?.let { val p = GeoPoint(it.lat, it.lon); if (state.next == Slot.A) ToolsSession.setA(p) else ToolsSession.setB(p) } },
             enabled = myLocation != null,
-        ) { Icon(Icons.Filled.MyLocation, contentDescription = "Put ${state.next} at my location") }
+        ) { Icon(Icons.Filled.MyLocation, contentDescription = T.tools.putAtMyLocation(state.next.name)) }
         IconButton(onClick = { ToolsSession.swap() }, enabled = state.a != null || state.b != null) {
-            Icon(Icons.Filled.SwapHoriz, contentDescription = "Swap A and B")
+            Icon(Icons.Filled.SwapHoriz, contentDescription = T.tools.swapAB)
         }
         if (onProject != null) {
             IconButton(onClick = onProject, enabled = state.a != null) {
-                Icon(Icons.Filled.Explore, contentDescription = "Place B by bearing and distance from A")
+                Icon(Icons.Filled.Explore, contentDescription = T.tools.placeBByBearing)
             }
         }
     }
@@ -191,8 +193,8 @@ private fun PointChip(name: String, p: GeoPoint?, ground: Double?, selected: Boo
         label = {
             Text(
                 when {
-                    p == null -> "$name: tap map"
-                    ground != null -> "$name · ${ground.roundToInt()} m"
+                    p == null -> T.tools.chipTapMap(name)
+                    ground != null -> T.tools.chipHeight(name, ground.roundToInt())
                     else -> name
                 },
                 maxLines = 1,
@@ -216,7 +218,7 @@ private fun MeasureBody(state: ToolsSession.State, myLocation: GeoFix?) {
     val a = state.a
     val b = state.b
     if (a == null || b == null) {
-        Hint(if (a == null) "Tap the map to place A, the point you measure from." else "Now tap B. Further taps move B; tap a chip to move A instead.")
+        Hint(if (a == null) T.tools.measureTapA else T.tools.measureTapB)
     } else {
         val dist = Geo.distance(a, b)
         val az = Geodesy.bearing(a, b)
@@ -227,7 +229,7 @@ private fun MeasureBody(state: ToolsSession.State, myLocation: GeoFix?) {
             Text("${deg(az)} ${Fmt.cardinal(az.toFloat())}", style = MaterialTheme.typography.headlineSmall)
         }
         Text(
-            "Magnetic ${deg(mag)} · ${Geodesy.mils(az)} mil · back ${deg(back)}",
+            T.tools.magneticMilsBack(deg(mag), Geodesy.mils(az), deg(back)),
             style = MaterialTheme.typography.bodyMedium,
         )
         val ga = state.aGround
@@ -236,14 +238,15 @@ private fun MeasureBody(state: ToolsSession.State, myLocation: GeoFix?) {
             val dh = gb - ga
             val angle = toDegrees(atan2(dh, dist))
             Text(
-                "Height ${ga.roundToInt()} → ${gb.roundToInt()} m · Δ ${signed(dh.roundToInt())} m · " +
-                    "${localSigned(angle, 1)}°" +
-                    if (abs(dh) > dist * 0.05) " · slant ${Fmt.distance(sqrt(dist * dist + dh * dh).toFloat())}" else "",
+                T.tools.heightChange(
+                    ga.roundToInt(), gb.roundToInt(), signed(dh.roundToInt()), localSigned(angle, 1),
+                    if (abs(dh) > dist * 0.05) Fmt.distance(sqrt(dist * dist + dh * dh).toFloat()) else null,
+                ),
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
         Text(
-            "True north bearing along the great circle; magnetic from the WMM declination at A (${localSigned(declinationAt(sensors, a).toDouble(), 1)}°).",
+            T.tools.bearingNote(localSigned(declinationAt(sensors, a).toDouble(), 1)),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -269,26 +272,26 @@ private fun ProjectDialog(from: GeoPoint, onDismiss: () -> Unit, onPlace: (GeoPo
     val valid = b != null && b >= 0 && b < max && d != null && d > 0 && d <= 2_000_000
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Place B from A") },
+        title = { Text(T.tools.placeBTitle) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                    SegmentedButton(selected = !mils, onClick = { mils = false }, shape = SegmentedButtonDefaults.itemShape(0, 2), icon = {}) { Text("Degrees") }
-                    SegmentedButton(selected = mils, onClick = { mils = true }, shape = SegmentedButtonDefaults.itemShape(1, 2), icon = {}) { Text("Mils (6400)") }
+                    SegmentedButton(selected = !mils, onClick = { mils = false }, shape = SegmentedButtonDefaults.itemShape(0, 2), icon = {}) { Text(T.tools.degrees) }
+                    SegmentedButton(selected = mils, onClick = { mils = true }, shape = SegmentedButtonDefaults.itemShape(1, 2), icon = {}) { Text(T.tools.mils6400) }
                 }
                 OutlinedTextField(
                     bearing, { bearing = it.take(8) },
-                    label = { Text(if (mils) "Bearing (mil)" else "Bearing (°)") },
+                    label = { Text(if (mils) T.tools.bearingMils else T.tools.bearingDegrees) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Magnetic bearing (compass)", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                    Text(T.tools.magneticBearing, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                     Switch(checked = magnetic, onCheckedChange = { magnetic = it })
                 }
                 OutlinedTextField(
                     distance, { distance = it.take(12) },
-                    label = { Text("Distance (m, or e.g. 2.5 km)") },
+                    label = { Text(T.tools.distanceField) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                 )
@@ -299,9 +302,9 @@ private fun ProjectDialog(from: GeoPoint, onDismiss: () -> Unit, onPlace: (GeoPo
                 var trueBearing = if (mils) b!! * 360 / 6400 else b!!
                 if (magnetic) trueBearing += declinationAt(sensors, from)
                 onPlace(Geodesy.destination(from, (trueBearing + 360) % 360, d!!))
-            }) { Text("Place B") }
+            }) { Text(T.tools.placeB) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(T.common.cancel) } },
     )
 }
 
@@ -325,23 +328,23 @@ private fun SightBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTerra
         Icon(Icons.Filled.CellTower, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f)) {
-            Text("Radio link", style = MaterialTheme.typography.bodyLarge)
-            Text("Antennas at A and B, Fresnel zone and path loss", style = MaterialTheme.typography.bodySmall)
+            Text(T.tools.radioLink, style = MaterialTheme.typography.bodyLarge)
+            Text(T.tools.radioLinkDetail, style = MaterialTheme.typography.bodySmall)
         }
         Switch(state.radio, ToolsSession::setRadio)
     }
     if (state.radio) {
-        HeightsRow(state, "Antenna at A (m)", "Antenna at B (m)")
+        HeightsRow(state, T.tools.antennaA, T.tools.antennaB)
         FrequencyPicker(state.frequencyMHz)
     } else {
-        HeightsRow(state, "Eye at A (m)", "Target at B (m)")
+        HeightsRow(state, T.tools.eyeA, T.tools.targetB)
     }
     HigherGroundHint(state)
     val a = state.a
     val b = state.b
     when {
-        a == null -> Hint(if (state.radio) "Tap the map to place A, the first antenna." else "Tap the map to place A, where you stand.")
-        b == null -> Hint(if (state.radio) "Now tap B, the other antenna. Further taps move B." else "Now tap B, what you want to see. Further taps move B.")
+        a == null -> Hint(if (state.radio) T.tools.radioTapA else T.tools.sightTapA)
+        b == null -> Hint(if (state.radio) T.tools.radioTapB else T.tools.sightTapB)
         state.needsTerrain -> TerrainNeeded(state, onGetTerrain)
         state.los?.fresnel != null -> RadioResult(state.los, a, b)
         state.los != null -> {
@@ -353,7 +356,7 @@ private fun SightBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTerra
                     tint = if (los.targetVisible) Visible else Hidden,
                 )
                 Text(
-                    if (los.targetVisible) "B is in sight from A" else "B is hidden from A",
+                    if (los.targetVisible) T.tools.bInSight else T.tools.bHidden,
                     style = MaterialTheme.typography.titleMedium,
                     color = if (los.targetVisible) Visible else Hidden,
                     fontWeight = FontWeight.Bold,
@@ -364,18 +367,17 @@ private fun SightBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTerra
             val o = los.obstacle
             Text(
                 if (los.targetVisible) {
-                    "The sight line clears the terrain by at least ${max(0, los.marginM.roundToInt())} m."
+                    T.tools.clearsBy(max(0, los.marginM.roundToInt()))
                 } else if (o != null) {
-                    "Blocked ${Fmt.distance(o.distanceM.toFloat())} from A by ground at ${o.groundM.roundToInt()} m, " +
-                        "${(-los.marginM).roundToInt()} m above the sight line."
+                    T.tools.blockedAt(Fmt.distance(o.distanceM.toFloat()), o.groundM.roundToInt(), (-los.marginM).roundToInt())
                 } else {
-                    "Blocked by terrain."
+                    T.tools.blockedByTerrain
                 },
                 style = MaterialTheme.typography.bodyMedium,
             )
             SightProfile(los, Modifier.fillMaxWidth().height(110.dp))
             Text(
-                "Bare terrain with Earth curvature and refraction; trees and buildings aren't included.",
+                T.tools.sightNote,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -390,9 +392,9 @@ private fun RadioResult(los: LineOfSight, a: GeoPoint, b: GeoPoint) {
     val f = los.fresnel ?: return
     val t = f.tightest
     val (title, color) = when {
-        !los.targetVisible -> "Radio path blocked" to Hidden
-        f.clearance >= LineOfSight.Fresnel.RULE -> "Clear radio path" to Visible
-        else -> "Fresnel zone partly blocked" to Partial
+        !los.targetVisible -> T.tools.radioBlocked to Hidden
+        f.clearance >= LineOfSight.Fresnel.RULE -> T.tools.radioClear to Visible
+        else -> T.tools.fresnelPartlyBlocked to Partial
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Icon(Icons.Filled.CellTower, contentDescription = null, tint = color)
@@ -400,34 +402,28 @@ private fun RadioResult(los: LineOfSight, a: GeoPoint, b: GeoPoint) {
         Spacer(Modifier.weight(1f))
         Text("${Fmt.distance(los.distanceM.toFloat())} · ${deg(Geodesy.bearing(a, b))}", style = MaterialTheme.typography.bodyMedium)
     }
-    val where = t?.let { Fmt.distance(it.distanceM.toFloat()) + " from A" }
+    // The tightest point's distance from A.
+    val where = t?.let { Fmt.distance(it.distanceM.toFloat()) } ?: ""
     val extra = f.obstructionLossDb.roundToInt()
     Text(
         when {
-            t == null || f.clearance >= 1 -> "The whole first Fresnel zone is clear of the terrain."
-            f.clearance >= LineOfSight.Fresnel.RULE ->
-                "At least ${percent(f.clearance)} of the first Fresnel zone is clear (the rule of thumb is 60%); tightest $where."
-            f.clearance > 0 ->
-                "The ground $where reaches into the Fresnel zone: only ${percent(f.clearance)} of it is clear. " +
-                    "Expect about $extra dB of extra loss."
+            t == null || f.clearance >= 1 -> T.tools.fresnelAllClear
+            f.clearance >= LineOfSight.Fresnel.RULE -> T.tools.fresnelMostlyClear(percent(f.clearance), where)
+            f.clearance > 0 -> T.tools.fresnelPartly(where, percent(f.clearance), extra)
             else -> {
                 val above = -f.clearance * f.radiusAt(t.distanceM, los.distanceM)
-                "The ground $where rises ${above.roundToInt()} m above the direct line between the antennas. " +
-                    "Expect about $extra dB of extra loss (diffraction over it); the signal may still get through."
+                T.tools.fresnelAbove(where, above.roundToInt(), extra)
             }
         },
         style = MaterialTheme.typography.bodyMedium,
     )
     Text(
-        "Path loss about ${f.totalLossDb.roundToInt()} dB: free space ${f.freeSpaceLossDb.roundToInt()} dB" +
-            (if (extra > 0) " + terrain $extra dB" else "") +
-            ". The first Fresnel zone is ${f.midRadiusM.roundToInt()} m in radius halfway.",
+        T.tools.pathLoss(f.totalLossDb.roundToInt(), f.freeSpaceLossDb.roundToInt(), extra.takeIf { it > 0 }, f.midRadiusM.roundToInt()),
         style = MaterialTheme.typography.bodyMedium,
     )
     SightProfile(los, Modifier.fillMaxWidth().height(130.dp))
     Text(
-        "Bare terrain, with radio's 4/3 Earth radius; trees, buildings, antenna gain and cable loss aren't " +
-            "included. Terrain loss is the tightest point as a single knife edge (ITU-R P.526).",
+        T.tools.radioNote,
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -456,7 +452,7 @@ private fun FrequencyPicker(mhz: Double) {
                     (band?.first?.let { "$it · " } ?: "") + frequencyText(mhz),
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                 )
-                Icon(Icons.Filled.ArrowDropDown, contentDescription = "Choose a frequency")
+                Icon(Icons.Filled.ArrowDropDown, contentDescription = T.tools.chooseFrequency)
             }
             DropdownMenu(open, onDismissRequest = { open = false }) {
                 ToolsSession.BANDS.forEach { (label, f) ->
@@ -465,7 +461,7 @@ private fun FrequencyPicker(mhz: Double) {
                         onClick = { open = false; other = false; ToolsSession.setFrequency(f) },
                     )
                 }
-                DropdownMenuItem(text = { Text("Other frequency…") }, onClick = { open = false; other = true })
+                DropdownMenuItem(text = { Text(T.tools.otherFrequency) }, onClick = { open = false; other = true })
             }
         }
         if (other || band == null) {
@@ -515,13 +511,12 @@ private fun HigherGroundHint(state: ToolsSession.State) {
     val ground = state.aGround ?: return
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            "Ground ${(z - ground).roundToInt()} m higher is ${Geo.distance(a, p).roundToInt()} m away and may block the view " +
-                "(terrain data rounds off summits).",
+            T.tools.higherGround((z - ground).roundToInt(), Geo.distance(a, p).roundToInt()),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),
         )
-        TextButton(onClick = { ToolsSession.setA(p) }) { Text("Move A up") }
+        TextButton(onClick = { ToolsSession.setA(p) }) { Text(T.tools.moveAUp) }
     }
 }
 
@@ -538,8 +533,7 @@ private fun TerrainNeeded(state: ToolsSession.State, onGetTerrain: (() -> Unit)?
                 Icon(Icons.Filled.Terrain, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "Getting the terrain data for this area" +
-                        (if (progress.second > 1) " (${progress.first} of ${progress.second})" else "") + "…",
+                    T.tools.gettingTerrain(progress.first, progress.second),
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
@@ -555,14 +549,14 @@ private fun TerrainNeeded(state: ToolsSession.State, onGetTerrain: (() -> Unit)?
         Icon(Icons.Filled.Terrain, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.width(8.dp))
         Text(
-            state.terrainProblem ?: "This needs terrain data for the area. Download it with the map (Offline maps → ⋮ → Terrain).",
+            state.terrainProblem ?: T.tools.terrainNeeded,
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(1f),
         )
         if (state.terrainProblem != null) {
-            TextButton(onClick = { ToolsSession.retryTerrain() }) { Text("Try again") }
+            TextButton(onClick = { ToolsSession.retryTerrain() }) { Text(T.common.retry) }
         } else if (onGetTerrain != null) {
-            TextButton(onClick = onGetTerrain) { Text("Get") }
+            TextButton(onClick = onGetTerrain) { Text(T.tools.getTerrain) }
         }
     }
 }
@@ -656,8 +650,8 @@ private fun SightProfile(los: LineOfSight, modifier: Modifier = Modifier) {
         mark?.let { o ->
             drawCircle(lineColor, 4.dp.toPx(), Offset(x(o.distanceM), y(o.groundM - los.drop(o.distanceM))), style = Stroke(2.dp.toPx()))
         }
-        drawText(measurer, "${hi.roundToInt()} m", topLeft = Offset(10.dp.toPx(), 0f), style = label)
-        drawText(measurer, "${lo.roundToInt()} m", topLeft = Offset(10.dp.toPx(), y(lo) - 15.dp.toPx()), style = label)
+        drawText(measurer, "${hi.roundToInt()} ${T.common.unitM}", topLeft = Offset(10.dp.toPx(), 0f), style = label)
+        drawText(measurer, "${lo.roundToInt()} ${T.common.unitM}", topLeft = Offset(10.dp.toPx(), y(lo) - 15.dp.toPx()), style = label)
         val km = measurer.measure(Fmt.distance(total.toFloat()), label)
         drawText(km, topLeft = Offset(size.width - km.size.width - 10.dp.toPx(), size.height - km.size.height))
     }
@@ -668,10 +662,10 @@ private fun SightProfile(los: LineOfSight, modifier: Modifier = Modifier) {
 @Composable
 private fun ViewshedBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTerrain: (() -> Unit)?) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        PointChip("Observer", state.a, state.aGround, true) {}
+        PointChip(T.tools.observer, state.a, state.aGround, true) {}
         Spacer(Modifier.weight(1f))
         IconButton(onClick = { myLocation?.let { ToolsSession.setA(GeoPoint(it.lat, it.lon)) } }, enabled = myLocation != null) {
-            Icon(Icons.Filled.MyLocation, contentDescription = "Observe from my location")
+            Icon(Icons.Filled.MyLocation, contentDescription = T.tools.observeFromMyLocation)
         }
     }
     // Logarithmic slider: fine control at short range, up to 25 km.
@@ -684,7 +678,7 @@ private fun ViewshedBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTe
         return (r / step).roundToInt() * step
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("Radius ${Fmt.distance(radiusOf(slider).toFloat())}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(110.dp))
+        Text(T.tools.radius(Fmt.distance(radiusOf(slider).toFloat())), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(110.dp))
         Slider(
             value = slider,
             onValueChange = { slider = it },
@@ -692,27 +686,29 @@ private fun ViewshedBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTe
             modifier = Modifier.weight(1f),
         )
     }
-    HeightsRow(state, "Eye height (m)", "Target height (m)")
+    HeightsRow(state, T.tools.eyeHeight, T.tools.targetHeight)
     HigherGroundHint(state)
     when {
-        state.a == null -> Hint("Tap the map where you'll stand. Green ground is in sight, red is hidden.")
+        state.a == null -> Hint(T.tools.viewshedTap)
         state.needsTerrain -> TerrainNeeded(state, onGetTerrain)
         state.viewshed != null -> {
             val vs = state.viewshed
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "${(vs.visibleFraction * 100).roundToInt()}% in sight",
+                    T.tools.percentInSight((vs.visibleFraction * 100).roundToInt()),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                 )
-                Text("within ${Fmt.distance(vs.radiusM.toFloat())}", style = MaterialTheme.typography.bodyMedium)
+                Text(T.tools.within(Fmt.distance(vs.radiusM.toFloat())), style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.weight(1f))
-                Legend(Visible, "seen")
-                Legend(Hidden, "hidden")
+                Legend(Visible, T.tools.seen)
+                Legend(Hidden, T.tools.hidden)
             }
             Text(
-                (if (state.targetHeightM > 0) "Where something ${heightText(state.targetHeightM)} tall would be seen" else "Ground in sight") +
-                    " from ${heightText(state.observerHeightM)} above A. Bare terrain only; trees and buildings aren't included.",
+                T.tools.viewshedNote(
+                    if (state.targetHeightM > 0) heightText(state.targetHeightM) else null,
+                    heightText(state.observerHeightM),
+                ),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -721,7 +717,8 @@ private fun ViewshedBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTe
     if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
 }
 
-private fun heightText(m: Double) = if (m == m.roundToInt().toDouble()) "${m.roundToInt()} m" else "${localFixed(m, 1)} m"
+private fun heightText(m: Double) =
+    if (m == m.roundToInt().toDouble()) "${m.roundToInt()} ${T.common.unitM}" else "${localFixed(m, 1)} ${T.common.unitM}"
 
 @Composable
 private fun Legend(color: Color, text: String) {
@@ -757,7 +754,7 @@ private fun CoordsBody(
         val parsed = Coords.parse(text, reference = state.a ?: mapCenter())
         val point = parsed?.point ?: (SharedLinks.parse(text) as? Shared.Point)?.let { GeoPoint(it.lat, it.lon) }
         if (point == null) {
-            message = "Couldn't read that. Try 31.7767 35.2345, N31 46.602 E35 14.070, 36R YA 11594 17858, 222304 631558 or 8G3QQ6GM+MR."
+            message = T.tools.couldntReadCoords
             return
         }
         message = null
@@ -770,14 +767,14 @@ private fun CoordsBody(
     Row(verticalAlignment = Alignment.CenterVertically) {
         OutlinedTextField(
             input, { input = it; message = null },
-            placeholder = { Text("Type or paste coordinates, any format") },
+            placeholder = { Text(T.tools.coordsPlaceholder) },
             singleLine = true,
             modifier = Modifier.weight(1f),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Go),
             keyboardActions = KeyboardActions(onGo = { go() }),
             isError = message != null,
         )
-        IconButton(onClick = { go() }) { Icon(Icons.Filled.Search, contentDescription = "Find these coordinates") }
+        IconButton(onClick = { go() }) { Icon(Icons.Filled.Search, contentDescription = T.tools.findCoords) }
     }
     message?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
 
@@ -785,27 +782,27 @@ private fun CoordsBody(
         TextButton(onClick = { myLocation?.let { ToolsSession.setA(GeoPoint(it.lat, it.lon)) } }, enabled = myLocation != null) {
             Icon(Icons.Filled.MyLocation, contentDescription = null)
             Spacer(Modifier.width(6.dp))
-            Text("My location")
+            Text(T.tools.myLocation)
         }
         TextButton(onClick = { ToolsSession.setA(mapCenter()) }) {
             Icon(Icons.Filled.CenterFocusStrong, contentDescription = null)
             Spacer(Modifier.width(6.dp))
-            Text("Map centre")
+            Text(T.tools.mapCentre)
         }
         Spacer(Modifier.weight(1f))
         state.a?.let { a ->
-            IconButton(onClick = { onShare(a) }) { Icon(Icons.Filled.Share, contentDescription = "Share this point") }
+            IconButton(onClick = { onShare(a) }) { Icon(Icons.Filled.Share, contentDescription = T.tools.sharePoint) }
         }
     }
 
     val a = state.a
     if (a == null) {
-        Hint("Tap the map, use your location or the map centre, or type coordinates above.")
+        Hint(T.tools.coordsHint)
         return
     }
     val details = listOfNotNull(
-        readAs?.takeIf { it.first == a }?.let { "Read as ${it.second.label}" },
-        state.aGround?.let { "height ${it.roundToInt()} m" },
+        readAs?.takeIf { it.first == a }?.let { T.tools.readAs(it.second.label) },
+        state.aGround?.let { T.tools.groundHeight(it.roundToInt()) },
     )
     if (details.isNotEmpty()) Hint(details.joinToString(" · "))
     for (f in CoordFormat.entries) {
@@ -817,15 +814,16 @@ private fun CoordsBody(
             RadioButton(selected = preferred == f, onClick = { prefs.setCoordFormat(f) })
             Column(Modifier.weight(1f)) {
                 Text(f.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(value, style = MaterialTheme.typography.bodyLarge, fontFamily = FontFamily.Monospace)
+                // Left to right in a right-to-left language too (display only: the copy stays plain).
+                Text(ltr(value), style = MaterialTheme.typography.bodyLarge, fontFamily = FontFamily.Monospace)
             }
             IconButton(onClick = { clipboard.setText(AnnotatedString(value)) }) {
-                Icon(Icons.Filled.ContentCopy, contentDescription = "Copy ${f.label}")
+                Icon(Icons.Filled.ContentCopy, contentDescription = T.tools.copyFormat(f.label))
             }
         }
     }
     Text(
-        "The selected format is used on pins and cards. ITM uses the EPSG Israel 1993 transformation (±0.5 m).",
+        T.tools.coordsNote,
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
