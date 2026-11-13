@@ -43,6 +43,9 @@ interface RasterLibrary {
 
     fun remove(id: String)
 
+    /** Raster maps can be added (not in the web app yet). */
+    val available: Boolean get() = true
+
     /** The platform's file picker for an .rmap; the file is read where it is, never copied. */
     @Composable
     fun rememberPicker(onResult: (Result<RasterMap>) -> Unit): () -> Unit

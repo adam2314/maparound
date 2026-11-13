@@ -10,6 +10,7 @@ on:
     paths:
       - "docs/**"
       - "webApp/**"
+      - "webTiles/**"
       - "shared/**"
       - "app/src/main/assets/**"
       - "*.gradle.kts"

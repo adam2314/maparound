@@ -3,9 +3,8 @@ package app.maparound.shared.crypto
 import app.maparound.shared.toByteArray
 
 // The party's encryption needs AES and HMAC as blocking calls; the browser's Web Crypto only has
-// asynchronous ones. The party isn't in the web app yet (its tab is hidden), so these say so.
-
-private const val LATER = "The party comes to the web app in a later version"
+// asynchronous ones, so they're plain Kotlin here (PureCrypto, checked against the platforms'
+// in the tests). Random bytes come from the browser's secure generator.
 
 private fun jsRandomBytes(n: Int): JsAny = js("crypto.getRandomValues(new Uint8Array(n))")
 
@@ -21,12 +20,10 @@ actual fun randomBytes(n: Int): ByteArray {
     return out
 }
 
-actual fun hmacSha256(key: ByteArray, data: ByteArray): ByteArray = throw UnsupportedOperationException(LATER)
+actual fun hmacSha256(key: ByteArray, data: ByteArray): ByteArray = PureCrypto.hmacSha256(key, data)
 
-actual fun aesEncryptBlocks(key: ByteArray, blocks: ByteArray): ByteArray = throw UnsupportedOperationException(LATER)
+actual fun aesEncryptBlocks(key: ByteArray, blocks: ByteArray): ByteArray = PureCrypto.aesEncryptBlocks(key, blocks)
 
-actual fun aesGcmSeal(key: ByteArray, nonce: ByteArray, aad: ByteArray, plain: ByteArray): ByteArray =
-    throw UnsupportedOperationException(LATER)
+actual fun aesGcmSeal(key: ByteArray, nonce: ByteArray, aad: ByteArray, plain: ByteArray): ByteArray = Gcm.seal(key, nonce, aad, plain)
 
-actual fun aesGcmOpen(key: ByteArray, nonce: ByteArray, aad: ByteArray, sealed: ByteArray): ByteArray? =
-    throw UnsupportedOperationException(LATER)
+actual fun aesGcmOpen(key: ByteArray, nonce: ByteArray, aad: ByteArray, sealed: ByteArray): ByteArray? = Gcm.open(key, nonce, aad, sealed)

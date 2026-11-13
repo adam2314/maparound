@@ -165,6 +165,13 @@ object SharedLinks {
     fun osmLink(lat: Double, lon: Double, zoom: Int = 16): String =
         "https://www.openstreetmap.org/?mlat=${f(lat)}&mlon=${f(lon)}#map=$zoom/${f(lat)}/${f(lon)}"
 
+    /** MapAround's web app. */
+    const val WEB_APP = "https://adam2314.github.io/maparound/app/"
+
+    /** The point in MapAround's web app: the same pinpoint link as openstreetmap.org's, on MapAround's site. */
+    fun webAppLink(lat: Double, lon: Double, zoom: Int = 16): String =
+        "$WEB_APP?mlat=${f(lat)}&mlon=${f(lon)}#map=$zoom/${f(lat)}/${f(lon)}"
+
     fun geoUri(lat: Double, lon: Double, label: String?): String =
         "geo:${f(lat)},${f(lon)}?q=${f(lat)},${f(lon)}" +
             (label?.takeIf { it.isNotBlank() }?.let { "(" + urlEncode(it).replace("+", "%20") + ")" } ?: "")
@@ -201,6 +208,7 @@ object SharedLinks {
         label?.takeIf { it.isNotBlank() }?.let { appendLine(it) }
         appendLine("${f(lat)}, ${f(lon)}")
         appendLine("Google Maps: ${googleLink(lat, lon)}")
-        append("OpenStreetMap: ${osmLink(lat, lon)}")
+        appendLine("OpenStreetMap: ${osmLink(lat, lon)}")
+        append("MapAround: ${webAppLink(lat, lon)}")
     }
 }

@@ -21,8 +21,8 @@ Licence: **GPL-3.0** (see [LICENSE](LICENSE)); bundled components keep their own
 | **3D view** (on the map, cube button) | The map in 3D on the whole globe, streamed as you move: terrain relief with the map draped on it (drawn by MapLibre like the 2D map: your offline style, or the online layer, or satellite), detailed near you and coarser to the horizon, a sky with haze, names standing up over the terrain (places, peaks with their heights, huts; hidden behind ridges), and buildings extruded from the offline map close up (heights from OSM `height` / `building:levels`). Zoom out and it's the Earth in space. One finger pans and flings, pinch zooms, two fingers turn and tilt; relief exaggeration ×1–4, buildings on/off, face north. |
 | **Places** (Library → Places) | Your own points of interest: save from any pin or your location with a name, category (⭐ favourite, ⛺ camp, 💧 water, 🔭 viewpoint, 🅿️ parking, ⛽ fuel, 🍴 food, ⚠️ danger, 📍 other) and a note. Shown on the map (Layers → Saved places); tap one for route here, share, viewshed, edit, delete. The list searches names and notes, filters by category and sorts by distance, name or date. Import waypoints from any GPX file, share or export places as GPX. |
 | **Library** | Routes & tracks, and Places. Library of saved routes and tracks (GPX files): show/hide on the map, elevation profile & stats, share as GPX, rename, delete, **import GPX** from other apps. **Record** a track with GPS; it keeps recording with the screen off. |
-| **Party** | Live location sharing for a group (hiking, convoys). Create a party and invite with a QR code or link; members appear on the map with name, their chosen icon (initial; walker, hiker, runner, Nordic walker, skier, kayaker; cyclist, bicycle, e-bike, motorcycle, moped; car, 4×4, van, truck, caravan) on their colour (16 presets or any mix), age and how their update arrived. Works **online** (MQTT) and **off-grid over LoRa** through Meshtastic radios paired by Bluetooth; a phone with both acts as a **gateway** between them. SOS alerts, meeting point, route to a member, short messages, "hidden" mode. End-to-end encrypted. |
-| **Sharing** | Share any point (long-press pin, your location dot, party members, meeting point) as a **link** (Google Maps + OpenStreetMap), a **GPX waypoint**, or open it in another app. Share routes as **GPX + links** (BRouter-Web rebuilds the route in any browser; Google Maps directions). MapAround also **opens** what others send: `geo:` links, Google/OSM/Apple/Waze/BRouter links, text with coordinates (also degrees-minutes-seconds), GPX files, mapsforge `.map` files, and party invites. |
+| **Party** | Live location sharing for a group (hiking, convoys). Create a party and invite with a QR code or link; members appear on the map with name, their chosen icon (initial; walker, hiker, runner, Nordic walker, skier, kayaker; cyclist, bicycle, e-bike, motorcycle, moped; car, 4×4, van, truck, caravan) on their colour (16 presets or any mix), age and how their update arrived. Works **online** (MQTT) and **off-grid over LoRa** through Meshtastic radios paired by Bluetooth; a phone with both acts as a **gateway** between them. SOS alerts, meeting point, route to a member, short messages, "hidden" mode. End-to-end encrypted. Anyone with the invite can also **watch** the group in a browser (the web app), without sharing a position. |
+| **Sharing** | Share any point (long-press pin, your location dot, party members, meeting point) as a **link** (Google Maps, OpenStreetMap, and MapAround's web app in OpenStreetMap's pinpoint form), a **GPX waypoint**, or open it in another app. Share routes as **GPX + links** (BRouter-Web rebuilds the route in any browser; Google Maps directions). MapAround also **opens** what others send: `geo:` links, Google/OSM/Apple/Waze/BRouter links, text with coordinates (also degrees-minutes-seconds), GPX files, mapsforge `.map` files, and party invites. |
 | **Offline** | Browse MapAround's own map catalog (continents → countries → regions): OpenStreetMap as mapsforge maps with the marked trails, cliffs, path and track grades, surfaces and 4×4-only tracks built in, rebuilt every month by [my-pipeline](https://github.com/adam2314/my-pipeline). While it fills up, regions it hasn't built (yet), and the whole countries too big for its free build machines, are offered from mapsforge.org as basic maps (no marked trails), and a switch shows the whole mapsforge.org list; it's also the list when MapAround's can't be read. An installed mapsforge.org map is offered MapAround's version as an update. Download with the system DownloadManager (background, resumable, Wi‑Fi-only option, storage check), update when the server has a newer file, delete, or import any mapsforge `.map` file (e.g. OpenAndroMaps). A built-in world map (coastlines, lakes, rivers, borders and names from Natural Earth) is drawn when zoomed out and around the downloaded maps, so the map is never blank; the iPhone app still uses mapsforge's 3 MB world overview download. Each map's **⋮** menu adds extras for its area: **contours & hill shading**, **offline routing** and **marked trails**; they keep downloading with the app in the background, with their progress in a notification. **Raster maps**: add TwoNav / CompeGPS **`.rmap`** files (e.g. scanned 1:50,000 topo sheets) and tile databases, **MBTiles** (from QGIS, GDAL, MOBAC, MapTiler…) and **SQLiteDB** (Locus, OsmAnd, RMaps); big files are read where they are, not copied. |
 | **Layers** (on the map) | *Offline vector* (all installed maps rendered together) in a **style**: Topo, Classic, Osmarender, Biker, Motorider or one you **import** (a mapsforge render theme, `.xml` or `.zip`), each with its own **options** to show or hide parts of the map (Topo: land cover, buildings, boundaries, railways and lifts, names, peaks and springs, points of interest); switches for **contour lines** and **hill shading**; a **marked hiking trails** overlay. Or **online** raster sources: OpenStreetMap France and Germany, OpenTopoMap, CyclOSM, Humanitarian, Esri World Topo and Street, **Satellite** (Esri World Imagery), and national maps (swisstopo, basemap.at, Kartverket, IGN plan and aerial, USGS Topo), plus your own XYZ URL templates (`{s} {z} {x} {y} {-y}`); **import and export** the list of your own. Online tiles are cached on disk. See [docs/map-styles.md](docs/map-styles.md). **Background of the offline map**: its own colours, **satellite imagery**, or one of your **raster maps**, with the vector map's roads, trails, contours and labels drawn on top (switchable). |
 | **Android Auto** | The map on the car screen: the same offline/online map, contours, hill shading and trails as the phone, your position (follow mode), the planned route, shown tracks, the recording and party members. Speed, altitude, heading and party status at the top; **Satellite** toggle, re-centre, pan and zoom. "Navigate to" a place from the car routes there and starts **turn-by-turn navigation**: the next maneuver, time and distance left, voice through the car's speakers, and the trip on the car's own displays; Start / Stop / Mute on the car screen. |
@@ -63,7 +63,9 @@ Requirements: Android Studio (Ladybug or newer) **or** JDK 17 + Android SDK 35.
 
 On Windows the production build's optimiser (Binaryen's wasm-opt) can crash; the development build
 (`:webApp:wasmJsBrowserDevelopmentExecutableDistribution`) works there, and GitHub Actions builds
-the production one (`.github/workflows/pages.yml`, which publishes the website and the app).
+the production one (`.github/workflows/pages.yml`, which publishes the website and the app). Both
+include the tile worker (`webTiles/`, put in `tiles/`), which is always a production build: it is
+small enough for wasm-opt, and only that build drops the UI code the worker can't load.
 
 The shared tests also run on the iOS simulator in GitHub Actions (`.github/workflows/ios.yml`,
 macOS runners); its latest log is on the `ci-ios-shared` branch and a simulator screenshot of the
@@ -178,6 +180,7 @@ on Windows, prefix the commands with `MSYS_NO_PATHCONV=1`.
     once. For now it uses free public brokers (broker.emqx.io, test.mosquitto.org,
     broker.hivemq.com, tried in that order). They only ever see ciphertext, but they do see the
     party's topic, member ids, timing and IP addresses; move to your own Mosquitto for real use.
+    The web app reaches the same brokers over secure WebSockets (`PartyRelays`).
   - **LoRa** (`MeshtasticTransport`): talks to a Meshtastic radio over Bluetooth LE with the
     official phone API. Party packets travel as `PRIVATE_APP` (port 256) broadcasts on the radio's
     primary channel. Positions broadcast by other Meshtastic radios (e.g. a standalone tracker in
@@ -185,6 +188,14 @@ on Windows, prefix the commands with `MSYS_NO_PATHCONV=1`.
 - **Router** (`PartyEngine`, `PartySession`): drops duplicates (the same update can arrive online
   and by radio), keeps the newest position per member, and on a **gateway** phone relays packets
   between online and radio unchanged (they stay encrypted).
+- **Watching in the browser** (`webApp/.../WebParty.kt`): the invite page's *Watch in your
+  browser* opens the web app with `app/#party=<code>?n=<name>`; the app takes the code out of the
+  address and asks before watching. It subscribes to the party's topics over a secure WebSocket
+  (`MqttWire`: the few MQTT 3.1.1 packets a listener needs), decrypts with the same
+  `PartyEngine`, and shows the members, meeting point, SOS alerts and messages on the map and the
+  Party tab. It sends nothing: no position, name or messages, so the members don't see it. The
+  browser's Web Crypto is asynchronous only, so the web app's AES and HMAC are plain Kotlin
+  (`PureCrypto`, checked against the platforms' in the tests).
 - **Send rates** (`SendPolicy`; above 15 km/h counts as driving):
 
   | | Online | LoRa |
@@ -410,11 +421,23 @@ phone locked depends on how the Android Auto host keeps the app running.
 The same app at [adam2314.github.io/maparound/app](https://adam2314.github.io/maparound/app/):
 the shared Compose screens compiled to WebAssembly (Kotlin/Wasm), the map drawn by MapLibre GL JS.
 It installs like an app ("Add to Home screen" / "Install") and opens without internet (its service
-worker keeps its files). So far it has the map (online maps, and offline the built-in world
-map), search, the route planner with online routes (brouter.de), the library (routes and places,
-GPX import and export), the map tools and the sensors the browser offers (position, compass,
-motion). Downloaded maps, terrain, recording, the 3D view and the party come next; the browser
-can't record with the screen off, and has no barometer or satellite list.
+worker keeps its files). So far it has the map (online maps, the built-in world map and
+downloaded maps), search, the route planner with online routes (brouter.de), the library (routes
+and places, GPX import and export), the map tools and the sensors the browser offers (position,
+compass, motion), and **watching a party** (members, meeting point, SOS and messages; it doesn't
+share your position). Terrain, offline routing and search, recording and the 3D view come next;
+the browser can't record with the screen off, and has no barometer or satellite list.
+
+Downloading a map takes two steps in the browser: **Offline → ⤓** has the browser download the
+`.map` file (GitHub's download servers don't let a web page fetch it itself), then the file
+button at the top adds it to the app. MapAround's maps have the marked trails built in.
+
+The page's address follows the map, as openstreetmap.org's does (`…/app/#map=15/35.8985/14.5125`:
+zoom, latitude, longitude, with OpenStreetMap's zoom levels), so a reload, a bookmark or a link
+opens the same view. A pin is in the address too, in OpenStreetMap's pinpoint form
+(`…/app/?mlat=35.8985&mlon=14.5125#map=16/35.8985/14.5125`): a shared point opens with its pin, and
+any openstreetmap.org pinpoint link works with `www.openstreetmap.org/` changed to
+`adam2314.github.io/maparound/app/`.
 
 How it fits together (`webApp/`, `shared/src/wasmJsMain/`):
 - **The map behind the screens.** MapLibre GL JS draws into `#map` under the Compose canvas; the map
@@ -422,18 +445,26 @@ How it fits together (`webApp/`, `shared/src/wasmJsMain/`):
   over it. Compose gets the touches first; a press that reaches the map "claims" it, and
   `mapview.js` moves the map from the browser's own pointer events (Compose's web input reports
   one finger, so pinch and twist are done there). Taps, double taps and long presses come back
-  through Compose.
-- **Tiles from the shared code.** The offline map's tiles (`maparound://…`) are answered by the
-  shared `TileService`, as Android's interceptor and iOS's local server do: the built-in world now,
-  downloaded maps next. Marker images are drawn by `mapview.js` (as `MarkerBitmaps` on Android),
-  the style's symbols are mapsforge's SVGs.
+  through Compose. The scale bar (as Android's) and the view in the address (`#map=…`) are
+  `mapview.js`'s too; the map screen makes a new map each time it's shown, which replaces the old
+  one.
+- **Tiles from the shared code, in a worker.** The offline map's tiles (`maparound://…`) are made
+  by the shared `TileService`, as Android's interceptor and iOS's local server do, in a Web Worker
+  (`webTiles/`: the shared code without the UI, and `tiles-worker.js`). Downloaded maps are kept in
+  the browser's file storage (OPFS, folder `maps`), which only a worker can read synchronously, as
+  the map reader needs; an import copies the picked file there in pieces and checks it's whole
+  (the size in its header). The page sends tile requests and imports by `postMessage` and gets the
+  tiles and the list of maps back; the screens get a copy of each map's header (its area, whether
+  it has trails) under `/maps`. Marker images are drawn by `mapview.js` (as `MarkerBitmaps` on
+  Android), the style's symbols are mapsforge's SVGs.
 - **Files and settings.** The browser has no file system for the shared code: files live in memory
   (Okio's FakeFileSystem) and everything under `/data` is saved to IndexedDB and read back at
-  start (`WebFiles`); settings are in localStorage. Downloaded maps will need the browser's file
-  storage (OPFS) instead.
+  start (`WebFiles`); settings are in localStorage. Downloaded maps are in OPFS (above).
 - **Network.** The shared code's blocking HTTP calls are synchronous XMLHttpRequests; the services
-  must allow other sites (CORS). Map tiles, Photon, Nominatim and brouter.de do; GitHub's release
-  downloads don't, so the offline map downloads will need another host.
+  must allow other sites (CORS). Map tiles, Photon, Nominatim, brouter.de and
+  raw.githubusercontent.com (the map list, from my-pipeline's `catalog` branch) do; GitHub's
+  release downloads and download.mapsforge.org don't, so the browser downloads the maps itself and
+  the mapsforge.org maps aren't offered on the web.
 - **Fonts.** Compose draws its own text: Noto fallback fonts for symbols, Hebrew and Arabic are
   loaded at start (emoji aren't yet).
 
@@ -478,6 +509,8 @@ webApp/                    the web app (Kotlin/Wasm): WebApp (its objects), the 
                            behind the Compose canvas (WebMap.kt, mapview.js: tiles from the shared
                            tile service, marker images, multi-touch gestures), browser sensors,
                            sharing and online routing, index.html, the service worker (offline)
+webTiles/                  the web app's tile worker (Kotlin/Wasm, no UI): the shared tile service on
+                           the downloaded maps in the browser's file storage (tiles-worker.js)
 iosApp/                    the iOS app shell (Swift, XcodeGen project): MLNMapView wrapper, marker
                            images, the local tile server; fetch-fonts.sh / fetch-symbols.sh get the
                            label fonts and map symbols before a build. Built and run in CI
@@ -540,7 +573,8 @@ The app's privacy policy (also for the stores) is [docs/privacy.md](docs/privacy
   the app show its map on a car screen as a navigation app. Nothing is sent to the car maker or
   Google beyond what Android Auto itself handles.
 - **Party sharing**: your position goes only to the party (encrypted with its key). Anyone you give
-  the invite link or QR code to can see the party's positions; "Share my location" off hides you.
+  the invite link or QR code to can see the party's positions, also by watching in the web app
+  without appearing in the members list; "Share my location" off hides you.
 - **Internet**: used for map, terrain, routing-data and trail downloads, online tiles (2D and 3D),
   online route calculation, and online search (the search text and the map centre go to
   photon.komoot.io, or nominatim.openstreetmap.org as a fallback; offline search sends nothing).

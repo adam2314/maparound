@@ -15,9 +15,65 @@
 
   function dpr() { return window.devicePixelRatio || 1; }
 
-  // ---- tiles from Kotlin ------------------------------------------------------------------------
+  // ---- the tile worker (tiles/tiles-worker.js): the downloaded maps, in the browser's storage ----
 
+  const tiles = { worker: null, next: 1, pending: new Map(), imports: new Map(), maps: [], onMaps: null };
+
+  function startTiles(url, onMaps) {
+    tiles.onMaps = onMaps;
+    try {
+      if (!('storage' in navigator) || !navigator.storage.getDirectory) throw new Error('no file storage');
+      tiles.worker = new Worker(url);
+    } catch (e) {
+      console.warn('MapAround: no tile worker (' + e.message + '); downloaded maps are not available');
+      tiles.worker = null;
+      return false;
+    }
+    tiles.worker.onmessage = (e) => {
+      const m = e.data;
+      switch (m.type) {
+        case 'tile': {
+          const p = tiles.pending.get(m.id);
+          if (p) {
+            tiles.pending.delete(m.id);
+            if (m.data) p.resolve({ data: m.data }); else p.reject(new Error('No tile'));
+          }
+          break;
+        }
+        case 'maps':
+          tiles.maps = m.maps || [];
+          if (tiles.onMaps) tiles.onMaps();
+          break;
+        case 'progress': {
+          const i = tiles.imports.get(m.id);
+          if (i && i.progress) i.progress(m.done, m.total);
+          break;
+        }
+        case 'imported': {
+          const i = tiles.imports.get(m.id);
+          tiles.imports.delete(m.id);
+          if (i) i.done(m.name || null, m.error || null);
+          break;
+        }
+      }
+    };
+    tiles.worker.onerror = (e) => {
+      console.warn('MapAround: tile worker failed', e.message);
+      tiles.worker = null;
+      for (const p of tiles.pending.values()) p.reject(new Error('Tile worker failed'));
+      tiles.pending.clear();
+    };
+    return true;
+  }
+
+  // The offline map's tiles: from the worker; without one, from Kotlin on the page (the built-in world).
   maplibregl.addProtocol('maparound', (params) => new Promise((resolve, reject) => {
+    if (tiles.worker) {
+      const id = tiles.next++;
+      tiles.pending.set(id, { resolve: resolve, reject: reject });
+      tiles.worker.postMessage({ type: 'tile', id: id, path: params.url.replace(/^maparound:\/\/t/, '') });
+      return;
+    }
     const bytes = tileHandler ? tileHandler(params.url) : null;
     if (bytes) {
       resolve({ data: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) });
@@ -25,6 +81,50 @@
       reject(new Error('No tile: ' + params.url));
     }
   }));
+
+  window.MapAroundTiles = {
+    start: startTiles,
+    available() { return !!tiles.worker; },
+    count() { return tiles.maps.length; },
+    name(i) { return tiles.maps[i].name; },
+    size(i) { return tiles.maps[i].size; },
+    mtime(i) { return tiles.maps[i].mtime; },
+    header(i) { return tiles.maps[i].header; },
+    remove(name) { if (tiles.worker) tiles.worker.postMessage({ type: 'delete', name: name }); },
+    /** The browser's file chooser for a .map file, copied into the storage by the worker. */
+    pickAndImport(onStart, onProgress, onDone) {
+      if (!tiles.worker) { onDone(null, 'This browser has no file storage for maps'); return; }
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.map';
+      input.addEventListener('change', () => {
+        const f = input.files && input.files[0];
+        if (!f) return;
+        const id = tiles.next++;
+        tiles.imports.set(id, { progress: onProgress, done: onDone });
+        onStart(f.name, f.size);
+        tiles.worker.postMessage({ type: 'import', id: id, file: f });
+      });
+      input.click();
+    },
+    /** An ordinary browser download (no CORS needed): the user imports the file afterwards. */
+    download(url) {
+      const a = document.createElement('a');
+      a.href = url;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    },
+    /** Free space the browser gives the site, bytes (−1: unknown). */
+    estimate(onDone) {
+      if (navigator.storage && navigator.storage.estimate) {
+        navigator.storage.estimate().then((e) => onDone((e.quota || 0) - (e.usage || 0)), () => onDone(-1));
+      } else {
+        onDone(-1);
+      }
+    },
+  };
 
   // ---- marker images, drawn from their names (MarkerIcons.kt; as Android's MarkerBitmaps) ------
 
@@ -325,6 +425,7 @@
     if (map && dpr() !== ratio) {
       ratio = dpr();
       if (map.setPixelRatio) map.setPixelRatio(ratio);
+      drawScale();
     }
   });
 
@@ -333,12 +434,162 @@
   window.addEventListener('pointerup', up, true);
   window.addEventListener('pointercancel', up, true);
 
+  // ---- the scale bar (as Android's ScaleBarView): metric above the line, imperial below -------------
+
+  const SCALE_MAX = 100; // the longest bar, CSS px
+  const EARTH_M = 40075016.686;
+  let scaleEl = null;
+  let scaleMpp = 0;
+  let scaleRatio = 0;
+
+  /** The largest 1, 2 or 5 × 10ⁿ not over v. */
+  function nice(v) {
+    if (v <= 0) return 0;
+    const p = Math.pow(10, Math.floor(Math.log10(v)));
+    const f = v / p;
+    return p * (f >= 5 ? 5 : f >= 2 ? 2 : 1);
+  }
+
+  function amount(v) { return v >= 1 || v === 0 ? String(Math.round(v)) : v.toFixed(1); }
+
+  function drawScale() {
+    if (!map || !container) return;
+    // Metres per CSS pixel at the map's centre (MapLibre's zoom: 512-pixel tiles).
+    const mpp = EARTH_M * Math.cos(map.getCenter().lat * Math.PI / 180) / (512 * Math.pow(2, map.getZoom()));
+    const d = dpr();
+    if (scaleEl && scaleEl.parentNode === container && mpp === scaleMpp && d === scaleRatio) return;
+    scaleMpp = mpp;
+    scaleRatio = d;
+    const W = SCALE_MAX + 16, H = 40;
+    if (!scaleEl) {
+      scaleEl = document.createElement('canvas');
+      // Over the map's own canvas; the app's screens (over the whole map) still cover it.
+      scaleEl.style.cssText = 'position:absolute;left:8px;top:8px;width:' + W + 'px;height:' + H + 'px;z-index:2;pointer-events:none';
+    }
+    if (scaleEl.parentNode !== container) container.appendChild(scaleEl);
+    scaleEl.width = Math.ceil(W * d);
+    scaleEl.height = Math.ceil(H * d);
+    const g = scaleEl.getContext('2d');
+    g.setTransform(d, 0, 0, d, 0, 0);
+    g.clearRect(0, 0, W, H);
+    const x0 = 4, mid = 20;
+    const metres = nice(mpp * SCALE_MAX);
+    const feet = mpp * SCALE_MAX / 0.3048;
+    const imperial = feet >= 5280 ? nice(feet / 5280) * 1609.344 : nice(feet) * 0.3048;
+    const wMetric = metres / mpp, wImperial = imperial / mpp, w = Math.max(wMetric, wImperial);
+    g.lineCap = 'square';
+    for (const [color, width] of [['#fff', 5], ['#000', 2]]) {
+      g.strokeStyle = color;
+      g.lineWidth = width;
+      g.beginPath();
+      g.moveTo(x0, mid); g.lineTo(x0 + w, mid);
+      g.moveTo(x0, mid - 8); g.lineTo(x0, mid + 8);
+      g.moveTo(x0 + wMetric, mid); g.lineTo(x0 + wMetric, mid - 8);
+      g.moveTo(x0 + wImperial, mid); g.lineTo(x0 + wImperial, mid + 8);
+      g.stroke();
+    }
+    const miles = imperial / 1609.344;
+    const top = metres >= 1000 ? amount(metres / 1000) + ' km' : amount(metres) + ' m';
+    const bottom = miles >= 0.999 ? amount(miles) + ' mi' : amount(imperial / 0.3048) + ' ft';
+    g.font = font(12, true);
+    g.textAlign = 'left';
+    g.lineJoin = 'round';
+    g.strokeStyle = '#fff';
+    g.lineWidth = 3;
+    g.fillStyle = '#000';
+    for (const [text, y, base] of [[top, mid - 3, 'alphabetic'], [bottom, mid + 3, 'top']]) {
+      g.textBaseline = base;
+      g.strokeText(text, x0 + 4, y);
+      g.fillText(text, x0 + 4, y);
+    }
+  }
+
+  // ---- where the map is, in the page's address: #map=zoom/lat/lon ----------------------------------
+  // As on openstreetmap.org (its zoom, the app's: one more than MapLibre's), so a link or a reload
+  // opens the same view; other parts of the address after # are kept.
+
+  const MIN_ZOOM = 2, MAX_ZOOM = 21; // the app's (MapLibreSurface)
+
+  function hashView() {
+    const m = /(?:^#|&)map=(\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)(?:&|$)/.exec(location.hash);
+    if (!m) return null;
+    const zoom = parseFloat(m[1]), lat = parseFloat(m[2]), lon = parseFloat(m[3]);
+    if (!(Math.abs(lat) <= 85.06 && Math.abs(lon) <= 180)) return null;
+    return { center: [lon, lat], zoom: Math.min(Math.max(zoom, MIN_ZOOM), MAX_ZOOM) - 1 };
+  }
+
+  /** The view in the address the page was opened with: the map opens there, not where it was last. */
+  let startView = hashView();
+  /** The view the new map takes instead of the first place the app puts it (its last position). */
+  let firstView = null;
+
+  function writeHash() {
+    if (!map) return;
+    const c = map.getCenter().wrap();
+    const z = map.getZoom() + 1;
+    const digits = Math.max(0, Math.ceil(Math.log2(Math.max(z, 1)))); // openstreetmap.org's precision
+    const view = 'map=' + (Math.round(z * 100) / 100) + '/' + c.lat.toFixed(digits) + '/' + c.lng.toFixed(digits);
+    const rest = location.hash.replace(/^#/, '').split('&').filter((p) => p && !p.startsWith('map='));
+    const h = '#' + [view].concat(rest).join('&');
+    if (h === location.hash) return;
+    try {
+      history.replaceState(history.state, '', h);
+    } catch (e) {
+      // Too many address changes too fast (Safari limits them): the next one catches up.
+    }
+  }
+
+  /**
+   * The pin (MapStyle.PIN's data) in the address as openstreetmap.org's ?mlat=…&mlon=…, so the
+   * address opens the same pin; no pin, none in the address.
+   */
+  const PIN_SOURCE = 'mr-pin';
+
+  function writePin(data) {
+    const f = data && data.features && data.features[0];
+    const c = f && f.geometry && f.geometry.type === 'Point' ? f.geometry.coordinates : null;
+    const q = new URLSearchParams(location.search);
+    if (c) {
+      q.set('mlat', String(+c[1].toFixed(6)));
+      q.set('mlon', String(+c[0].toFixed(6)));
+    } else {
+      q.delete('mlat');
+      q.delete('mlon');
+    }
+    const s = q.toString();
+    const url = location.pathname + (s ? '?' + s : '') + location.hash;
+    if (url === location.pathname + location.search + location.hash) return;
+    try {
+      history.replaceState(history.state, '', url);
+    } catch (e) {
+      // Too many address changes too fast: the next one catches up.
+    }
+  }
+
+  // Another view typed or opened in the address bar.
+  window.addEventListener('hashchange', () => {
+    const v = hashView();
+    if (!v) return;
+    if (map && container && container.style.display !== 'none') {
+      if (onGesture) onGesture(); // as if the user moved the map: it stops following the position
+      map.jumpTo(v);
+    } else {
+      startView = v; // the map screen isn't showing: the next map opens there
+    }
+  });
+
   window.MapAroundMap = {
     create(containerId, styleJson, symbols, onTile, onUserGesture) {
       container = document.getElementById(containerId);
       symbolBase = symbols;
       tileHandler = onTile;
       onGesture = onUserGesture;
+      // One map at a time: the map screen makes a new one each time it's shown.
+      if (map) {
+        try { map.remove(); } catch (e) { /* already gone */ }
+      }
+      firstView = startView;
+      startView = null;
       map = new maplibregl.Map({
         container: container,
         style: JSON.parse(styleJson),
@@ -350,6 +601,9 @@
       });
       map.on('styleimagemissing', onMissingImage);
       map.on('style.load', applyGeo);
+      map.on('move', drawScale);
+      map.on('resize', drawScale);
+      map.on('moveend', writeHash);
     },
     setStyle(json) {
       map.setStyle(JSON.parse(json), { diff: false });
@@ -357,6 +611,7 @@
     setGeoJson(id, json) {
       const data = JSON.parse(json);
       geo.set(id, data);
+      if (id === PIN_SOURCE) writePin(data);
       const s = map.getSource(id);
       if (s && s.setData) s.setData(data);
     },
@@ -366,6 +621,13 @@
     },
     height() { return container ? container.clientHeight : 0; },
     move(lat, lon, zoom, animated) {
+      if (firstView) {
+        // The app places the new map where it was last; the address asked for another view.
+        const v = firstView;
+        firstView = null;
+        map.jumpTo(v);
+        return;
+      }
       const o = { center: [lon, lat], zoom: zoom };
       if (animated) map.easeTo(Object.assign(o, { duration: 600 })); else map.jumpTo(o);
     },

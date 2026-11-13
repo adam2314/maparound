@@ -21,10 +21,12 @@ listed below.
   give when you pick them, and aren't sent anywhere.
 - **The camera** is only used to scan a party invite QR code. No pictures are kept or sent.
 - **Voice prompts** come from your phone's own text-to-speech engine.
-- **The web app** (adam2314.github.io/maparound/app) keeps your routes, places and settings in
-  your browser's storage for that site, on your device. Clearing the site's data in the browser
-  deletes them. GitHub, which hosts the site, receives your IP address when the page loads (see
-  GitHub's privacy statement); the app sends nothing to it after that.
+- **The web app** (adam2314.github.io/maparound/app) keeps your routes, places, settings and the
+  maps you add in your browser's storage for that site, on your device. Clearing the site's data
+  in the browser deletes them. GitHub, which hosts the site, receives your IP address when the page
+  loads (see GitHub's privacy statement); after that, the app only asks GitHub for MapAround's list
+  of maps (on the Offline maps screen), and your browser downloads from GitHub the maps you
+  choose.
 
 ## What the app sends, and to whom
 
@@ -35,7 +37,7 @@ policy.
 | Feature | Sent to | What is sent |
 |---|---|---|
 | Online maps (when you choose an online map, satellite background or 3D view) | The map tile service you choose: OpenStreetMap France or Germany, OpenTopoMap, CyclOSM, Humanitarian, Esri, swisstopo, basemap.at, Kartverket, IGN, USGS, waymarkedtrails.org (trail overlay), or a tile service you added yourself | Which map tiles to show, which reveals the area you're looking at |
-| Offline map, terrain and routing downloads | GitHub (MapAround's maps and their list, github.com and its download servers), download.mapsforge.org (the older maps, also offered), Amazon Web Services (terrain tiles), brouter.de | Which areas to download |
+| Offline map, terrain and routing downloads | GitHub (MapAround's maps and their list, github.com, raw.githubusercontent.com and GitHub's download servers), download.mapsforge.org (the older maps, also offered), Amazon Web Services (terrain tiles), brouter.de | Which areas to download |
 | Marked trails and cliffs download | Overpass API servers (overpass-api.de and others) | The area to download |
 | Online search | photon.komoot.io, or nominatim.openstreetmap.org as a fallback | Your search text and the centre of the map. Offline search sends nothing. |
 | Online routing (when routing data for the area isn't downloaded) | brouter.de | The route's points. While navigating, if a new route is calculated online, your current position too. |
@@ -46,10 +48,15 @@ policy.
 ### Party sharing
 
 - Only people who have the party's invite link or QR code can read the party's positions. Share
-  it only with your group.
-- An invite link opens a page on this website (hosted by GitHub Pages), which opens MapAround.
-  The party's code is in the part of the link after `#`, which browsers keep on the phone and
-  never send to the website, so neither the developer nor GitHub can see it.
+  it only with your group. Someone with the link can also watch the party in the web app; a
+  watcher sends nothing, so it doesn't appear in the members list.
+- An invite link opens a page on this website (hosted by GitHub Pages), which opens MapAround,
+  or the web app to watch. The party's code is in the part of the link after `#`, which browsers
+  keep on the device and never send to the website, so neither the developer nor GitHub can see
+  it. The web app takes it out of its address once it has read it, and keeps it in the browser's
+  storage for that site while you watch.
+- **Watching in the web app** connects to the same relay servers, which see your IP address and
+  which party topic you listen to, as for members; it sends nothing to the party.
 - **Share my location** off hides your position from the others, and **Party on** off stops
   sending and receiving.
 - Relay servers keep the latest encrypted position, name, SOS and meeting point of each member, so

@@ -34,4 +34,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "MapAround"
-include(":app", ":brouter", ":shared", ":webApp")
+include(":app", ":brouter", ":shared", ":webApp", ":webTiles")

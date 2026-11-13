@@ -1,6 +1,7 @@
 package app.maparound.shared.crypto
 
-// Cryptography from the platform: javax.crypto on Android, CommonCrypto and Security on iOS.
+// Cryptography from the platform: javax.crypto on Android, CommonCrypto and Security on iOS;
+// plain Kotlin in the browser (PureCrypto).
 
 /** HMAC-SHA-256 of [data] with [key] (32 bytes). */
 expect fun hmacSha256(key: ByteArray, data: ByteArray): ByteArray

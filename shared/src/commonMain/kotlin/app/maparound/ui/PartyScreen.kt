@@ -119,13 +119,19 @@ fun PartyScreen(
         TopAppBar(
             title = { Text(s.party?.name ?: "Party") },
             actions = {
-                if (s.party != null) {
+                if (s.party != null && !party.watchOnly) {
                     IconButton(onClick = { showQr = true }) { Icon(Icons.Filled.QrCode, contentDescription = "Invite") }
                 }
             },
             windowInsets = WindowInsets(0, 0, 0, 0),
         )
-        if (s.party == null) {
+        if (s.party == null && party.watchOnly) {
+            WatchNoParty(onLink = { text ->
+                val key = PartyKey.parse(text)
+                if (key == null) scope.launch { snackbar.showSnackbar("That isn't a valid party link") }
+                else party.pendingInvite.value = key
+            })
+        } else if (s.party == null) {
             NoParty(onCreate = { partyName, me ->
                 if (!hasLocation) requestLocation()
                 ensureNotifications()
@@ -167,7 +173,29 @@ fun PartyScreen(
         }
     }
 
-    pending?.let { key ->
+    if (party.watchOnly) pending?.let { key ->
+        AlertDialog(
+            onDismissRequest = { party.pendingInvite.value = null },
+            title = { Text("Watch “${key.name}”?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "You'll see where everyone in the party is, their SOS alerts and messages, while this page is open. " +
+                            "The web app only watches: it doesn't share your position, and the party doesn't see you. " +
+                            "To share yours, join with the MapAround app.",
+                    )
+                    if (s.party != null) Text("You'll stop watching “${s.party!!.name}”.", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    party.pendingInvite.value = null
+                    party.join(key, "")
+                }) { Text("Watch") }
+            },
+            dismissButton = { TextButton(onClick = { party.pendingInvite.value = null }) { Text("Cancel") } },
+        )
+    } else pending?.let { key ->
         var name by remember(key) { mutableStateOf(s.me?.name.orEmpty()) }
         AlertDialog(
             onDismissRequest = { party.pendingInvite.value = null },
@@ -225,11 +253,41 @@ fun PartyScreen(
     if (confirmLeave) {
         AlertDialog(
             onDismissRequest = { confirmLeave = false },
-            title = { Text("Leave the party?") },
-            text = { Text("Your position is removed for the others. You can rejoin with the invite.") },
-            confirmButton = { TextButton(onClick = { confirmLeave = false; party.leave() }) { Text("Leave") } },
+            title = { Text(if (party.watchOnly) "Stop watching?" else "Leave the party?") },
+            text = {
+                Text(
+                    if (party.watchOnly) "You can watch again with the invite link."
+                    else "Your position is removed for the others. You can rejoin with the invite.",
+                )
+            },
+            confirmButton = { TextButton(onClick = { confirmLeave = false; party.leave() }) { Text(if (party.watchOnly) "Stop" else "Leave") } },
             dismissButton = { TextButton(onClick = { confirmLeave = false }) { Text("Cancel") } },
         )
+    }
+}
+
+/** No party watched (the web app): an invite link opens one. */
+@Composable
+private fun WatchNoParty(onLink: (String) -> Unit) {
+    var link by remember { mutableStateOf("") }
+    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Text(
+                "See your group live on the map: where everyone is, SOS alerts and messages. Open the party's " +
+                    "invite link, or paste it here. The web app only watches; to share your own position, " +
+                    "join with the MapAround app.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Watch a party", style = MaterialTheme.typography.titleMedium)
+                    OutlinedTextField(link, { link = it }, label = { Text("Invite link") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Button(onClick = { onLink(link) }, enabled = link.isNotBlank()) { Text("Watch") }
+                }
+            }
+        }
     }
 }
 
@@ -293,7 +351,22 @@ private fun InParty(
         }
     }
     LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item {
+        if (party.watchOnly) item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    SwitchLine("Watching", if (s.active) "Seeing the party live while this page is open" else "Off: not connected", s.active, onToggleActive)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "Only watching: your position isn't shared, and the party doesn't see you.",
+                            Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        TextButton(onClick = onLeave) { Text("Stop watching") }
+                    }
+                }
+            }
+        } else item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     SwitchLine("Party on", if (s.active) "Sending and receiving, also with the screen off" else "Off: not sending or receiving", s.active, onToggleActive)
@@ -310,7 +383,7 @@ private fun InParty(
                 }
             }
         }
-        item {
+        if (!party.watchOnly) item {
             Button(
                 onClick = onSos,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
@@ -323,7 +396,11 @@ private fun InParty(
         item { Connections(s, onRadio) }
         item {
             Text(
-                if (s.members.isEmpty()) "Waiting for others… share the invite (QR icon at the top)." else "Members (${s.members.size})",
+                when {
+                    s.members.isNotEmpty() -> "Members (${s.members.size})"
+                    party.watchOnly -> if (s.active) "No one in the party has sent anything yet." else "Turn watching on to see the party."
+                    else -> "Waiting for others… share the invite (QR icon at the top)."
+                },
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(top = 6.dp),
@@ -339,12 +416,12 @@ private fun InParty(
                     trailingContent = {
                         Row {
                             IconButton(onClick = { onRouteTo(GeoPoint(meet.lat, meet.lon)) }) { Icon(Icons.Filled.Route, contentDescription = "Route to meeting point") }
-                            TextButton(onClick = { party.clearMeeting() }) { Text("Clear") }
+                            if (!party.watchOnly) TextButton(onClick = { party.clearMeeting() }) { Text("Clear") }
                         }
                     },
                 )
             }
-        } ?: item {
+        } ?: if (party.watchOnly) Unit else item {
             Text(
                 "Set a meeting point: long-press the map, then “Meet here”.",
                 style = MaterialTheme.typography.bodySmall,
@@ -388,29 +465,43 @@ private fun Connections(s: PartyState, onRadio: () -> Unit) {
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Connections", style = MaterialTheme.typography.titleSmall)
-            StatusLine(Icons.Filled.Cloud, "Online", if (s.onlineEnabled) s.online else TransportStatus(TransportStatus.State.OFF, "Off")) {
-                Switch(checked = s.onlineEnabled, onCheckedChange = { party.setOnlineEnabled(it) })
+            if (party.watchOnly) {
+                StatusLine(Icons.Filled.Cloud, "Online", s.online) {}
+                if (!s.active) Text("Turn watching on to connect.", style = MaterialTheme.typography.bodySmall)
+            } else {
+                AppConnections(s, onRadio)
             }
-            StatusLine(
-                Icons.Filled.Bluetooth, "LoRa radio",
-                if (s.radioName == null) TransportStatus(TransportStatus.State.OFF, "No radio paired") else s.radio,
-            ) {
-                if (s.radioName == null) {
-                    OutlinedButton(onClick = onRadio) { Text("Pair") }
-                } else {
-                    TextButton(onClick = { party.forgetRadio() }) { Text("Forget") }
-                }
+        }
+    }
+}
+
+/** The app's connections: online and the LoRa radio. */
+@Composable
+private fun AppConnections(s: PartyState, onRadio: () -> Unit) {
+    val party = LocalParty.current
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        StatusLine(Icons.Filled.Cloud, "Online", if (s.onlineEnabled) s.online else TransportStatus(TransportStatus.State.OFF, "Off")) {
+            Switch(checked = s.onlineEnabled, onCheckedChange = { party.setOnlineEnabled(it) })
+        }
+        StatusLine(
+            Icons.Filled.Bluetooth, "LoRa radio",
+            if (s.radioName == null) TransportStatus(TransportStatus.State.OFF, "No radio paired") else s.radio,
+        ) {
+            if (s.radioName == null) {
+                OutlinedButton(onClick = onRadio) { Text("Pair") }
+            } else {
+                TextButton(onClick = { party.forgetRadio() }) { Text("Forget") }
             }
-            if (s.radioName != null) {
-                SwitchLine(
-                    "Gateway",
-                    "Relay between radio and online, so off-grid and online members see each other",
-                    s.gateway,
-                ) { party.setGateway(it) }
-            }
-            if (!s.active) {
-                Text("Turn the party on to connect.", style = MaterialTheme.typography.bodySmall)
-            }
+        }
+        if (s.radioName != null) {
+            SwitchLine(
+                "Gateway",
+                "Relay between radio and online, so off-grid and online members see each other",
+                s.gateway,
+            ) { party.setGateway(it) }
+        }
+        if (!s.active) {
+            Text("Turn the party on to connect.", style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -485,15 +576,22 @@ private fun Chat(s: PartyState) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Messages", style = MaterialTheme.typography.titleSmall)
             val names = s.members.associate { it.id to it.displayName } + (s.me?.let { mapOf(it.id to "You") } ?: emptyMap())
-            if (s.chat.isEmpty()) Text("Short messages reach everyone, also over radio.", style = MaterialTheme.typography.bodySmall)
+            if (s.chat.isEmpty()) {
+                Text(
+                    if (party.watchOnly) "The party's messages show here." else "Short messages reach everyone, also over radio.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
             s.chat.takeLast(8).forEach { line ->
                 Text("${names[line.from] ?: "?"}: ${line.text}", style = MaterialTheme.typography.bodyMedium)
             }
-            HorizontalDivider(Modifier.padding(vertical = 4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(text, { text = it.take(120) }, placeholder = { Text("Message") }, singleLine = true, modifier = Modifier.weight(1f))
-                IconButton(onClick = { party.sendText(text); text = "" }, enabled = text.isNotBlank() && s.active) {
-                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
+            if (!party.watchOnly) {
+                HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(text, { text = it.take(120) }, placeholder = { Text("Message") }, singleLine = true, modifier = Modifier.weight(1f))
+                    IconButton(onClick = { party.sendText(text); text = "" }, enabled = text.isNotBlank() && s.active) {
+                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
+                    }
                 }
             }
         }

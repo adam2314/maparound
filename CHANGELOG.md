@@ -34,8 +34,21 @@
 - **MapAround in the browser** at [adam2314.github.io/maparound/app](https://adam2314.github.io/maparound/app/),
   installable and usable offline: the map (online maps and the built-in world map), search, the
   route planner with online routes, the library (routes and places, GPX import and export), the
-  map tools and the compass. Downloaded maps, terrain, recording, the 3D view and the party come
-  next.
+  map tools and the compass. Terrain, recording and the 3D view come next.
+- **Offline maps in the browser.** Download MapAround's maps (with the marked trails) from the
+  Offline tab, then add the file with the file button: the map is kept in the browser's storage
+  and drawn offline, like on the phone. A `.map` file you already have can be added the same way.
+- **A scale bar** on the web map (metres and feet), as on the phone.
+- **The address follows the map** (`#map=zoom/lat/lon`, as on openstreetmap.org): reload, bookmark
+  or share the link and the map opens at the same place and zoom. A pin is in it too, as
+  OpenStreetMap's pinpoint (`?mlat=…&mlon=…`), so the link opens with the pin.
+- **Watch a party in the browser.** An invite link now also offers *Watch in your browser*: the
+  web app shows the group live on the map, with the meeting point, SOS alerts and messages,
+  through the same encrypted relays. It only watches: it doesn't share your position, and the
+  members don't see a watcher. To share yours, join with the app.
+- **Shared points open in MapAround's web app.** Sharing a point now also gives a MapAround link
+  (OpenStreetMap's pinpoint form, on MapAround's site), next to the Google Maps and OpenStreetMap
+  ones: whoever gets it sees the pin in MapAround, in any browser.
 
 ### Party
 - **Invites are web links** (`https://adam2314.github.io/maparound/party#…`), so messaging apps

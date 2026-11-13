@@ -71,15 +71,20 @@ class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: Str
     val places = PlaceRepository(WebFiles.ROOT)
     val tracks = TrackRepository(WebFiles.ROOT, WebStorageStore("tracks"))
     val sensors = WebSensors()
+
+    /** The party, watch only (WebParty.kt). */
+    val party = WebPartyWatcher(WebStorageStore("party"))
     val searcher = WebSearcher(places, maps)
     val offline = OfflineData(
         maps = maps,
         downloads = WebDownloads,
-        catalog = MapAroundCatalog(),
+        // mapsforge.org's server doesn't let a web page read its lists: MapAround's catalog only.
+        catalog = MapAroundCatalog(useMapsforge = false),
         terrain = PendingTerrain,
         trails = PendingTrails,
         routing = PendingRouting,
         builtInWorld = true,
+        addOns = false,
     )
 
     init {
@@ -94,8 +99,9 @@ class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: Str
 
     /** A new map for the map screen (one on the page). */
     fun newMap(): MapLibreSurface {
+        // Tiles come from the tile worker; this answers only where there's none (the built-in world).
         val native = WebNativeMap(EMPTY_STYLE, symbols) { url ->
-            tiles.respond(url.removePrefix(TILE_BASE))?.bytes?.toUint8Array()
+            runCatching { tiles.respond(url.removePrefix(TILE_BASE))?.bytes?.toUint8Array() }.getOrNull()
         }
         return MapLibreSurface(native, tiles, style).also { map = it }
     }

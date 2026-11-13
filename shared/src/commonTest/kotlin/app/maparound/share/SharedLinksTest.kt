@@ -81,4 +81,16 @@ class SharedLinksTest {
         assertEquals("Meeting point", p.label)
         assertEquals("geo:32.01512,34.94208?q=32.01512,34.94208(Mount%20Tabor)", SharedLinks.geoUri(32.01512, 34.94208, "Mount Tabor"))
     }
+
+    @Test
+    fun webAppLinkIsOpenStreetMapsPinpoint() {
+        val link = SharedLinks.webAppLink(47.1301, 9.5806)
+        assertEquals("https://adam2314.github.io/maparound/app/?mlat=47.1301&mlon=9.5806#map=16/47.1301/9.5806", link)
+        // The same form as openstreetmap.org's, read back as a pin with its zoom.
+        assertEquals(SharedLinks.osmLink(47.1301, 9.5806).substringAfter("?"), link.substringAfter("?"))
+        val p = point(link)
+        assertAt(p, 47.1301, 9.5806)
+        assertEquals(16, p.zoom)
+        assertTrue(SharedLinks.pointText(47.1301, 9.5806, null).endsWith("MapAround: $link"))
+    }
 }

@@ -1,10 +1,12 @@
-// MapAround web: works offline. The app's own files (code, map style, fonts, world map, symbols)
-// are kept in the cache as they're loaded and served from it, refreshed in the background when
-// online (stale-while-revalidate). The page itself falls back to the cached copy offline. Other
-// sites (online maps, search) aren't cached here.
+// MapAround web: works offline. The app's own files (code, map style, fonts, world map, symbols,
+// the tile worker in tiles/) are kept in the cache as they're loaded and served from it, refreshed
+// in the background when online (stale-while-revalidate). The page itself falls back to the cached
+// copy offline. Other sites (online maps, search) aren't cached here; downloaded maps are in the
+// browser's file storage, not in this cache.
 const CACHE = 'maparound-app-v1';
 const CORE = ['./', 'index.html', 'app.css', 'mapview.js', 'maplibre-gl.js', 'maplibre-gl.css', 'maparound.js',
-  'manifest.webmanifest', 'icon-192.png', 'themes/topo.xml', 'world.bin', 'borders.bin'];
+  'manifest.webmanifest', 'icon-192.png', 'themes/topo.xml', 'world.bin', 'borders.bin',
+  'tiles/tiles-worker.js', 'tiles/maptiles.js'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE)).catch(() => {}).then(() => self.skipWaiting()));

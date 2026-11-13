@@ -47,6 +47,13 @@ interface PartyController {
     /** An invite opened from a link or QR code, waiting for the user to confirm. */
     val pendingInvite: MutableStateFlow<PartyKey?>
 
+    /**
+     * Only watches the party (the web app): sees the members, the meeting point, SOS alerts and
+     * messages, and sends nothing, so it shares no position and the others don't see it. Creating
+     * a party, [join]'s name and the sending calls do nothing.
+     */
+    val watchOnly: Boolean get() = false
+
     fun create(partyName: String, myName: String)
     fun join(key: PartyKey, myName: String)
     fun leave()

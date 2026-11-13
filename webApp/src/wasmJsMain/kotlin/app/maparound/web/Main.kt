@@ -23,10 +23,14 @@ import app.maparound.data.LocalPrefs
 import app.maparound.map.LocalMapThemes
 import app.maparound.map.maplibre.MapLibreSurface
 import app.maparound.party.LocalParty
+import app.maparound.party.PartyKey
 import app.maparound.party.LocalPartyPlatform
 import app.maparound.places.LocalPlaces
 import app.maparound.raster.LocalRasters
 import app.maparound.sensors.LocalDeviceSensors
+import app.maparound.share.Incoming
+import app.maparound.share.Shared
+import app.maparound.share.SharedLinks
 import app.maparound.shared.WebFiles
 import app.maparound.shared.toByteArray
 import app.maparound.tracks.LocalTracks
@@ -57,6 +61,42 @@ private val UI_FONTS = listOf("NotoSansMath.ttf", "NotoSansSymbols2.ttf", "NotoS
 /** The page's address up to its folder, e.g. "https://adam2314.github.io/maparound/app/". */
 private fun pageBase(): String = js("location.href.split('#')[0].split('?')[0].replace(/[^/]*$/, '')")
 
+private fun pageAddress(): String = js("location.href")
+
+/**
+ * A pinpoint in the page's address, openstreetmap.org's ?mlat=…&mlon=… (as MapAround shares a
+ * point): the map opens with a pin there. (mapview.js keeps the address's pin up to date.)
+ */
+private fun pinFromAddress() {
+    val address = pageAddress().takeIf { "mlat=" in it } ?: return
+    (SharedLinks.parse(address) as? Shared.Point)?.let { Incoming.pending.value = Incoming.Item.Point(it) }
+}
+
+/**
+ * A party invite in the page's address (`#party=<code>?n=<name>`, from the invite page), or "".
+ * It's taken out of the address: the code is the party's secret.
+ */
+private fun takeInviteFromAddress(): String = js(
+    """(() => {
+    const parts = location.hash.replace(/^#/, '').split('&');
+    const i = parts.findIndex((p) => p.startsWith('party='));
+    if (i < 0) return '';
+    const invite = parts[i].substring(6);
+    parts.splice(i, 1);
+    const rest = parts.filter((p) => p).join('&');
+    try { history.replaceState(history.state, '', location.pathname + location.search + (rest ? '#' + rest : '')); } catch (e) {}
+    return invite;
+})()""",
+)
+
+/** [f] when another address is typed or opened in this page (the part after #). */
+private fun onAddressChange(f: () -> Unit): Unit = js("{ window.addEventListener('hashchange', () => f()); }")
+
+/** An invite in the address opens the party screen, which asks before watching. */
+private fun inviteFromAddress(app: WebApp) {
+    takeInviteFromAddress().takeIf { it.isNotEmpty() }?.let(PartyKey::parse)?.let { app.party.pendingInvite.value = it }
+}
+
 private fun removeLoading(): Unit = js("{ const l = document.getElementById('loading'); if (l) l.remove(); }")
 
 /** [f] when the page is hidden (another tab, the phone locked) or closed. */
@@ -79,6 +119,10 @@ fun main() {
             borders = fetchBytes("borders.bin"),
             base = pageBase(),
         )
+        app.maps.start("tiles/tiles-worker.js")
+        pinFromAddress()
+        inviteFromAddress(app)
+        onAddressChange { inviteFromAddress(app) }
         onPageHide { app.onHide() }
         removeLoading()
         ComposeViewport("app") {
@@ -109,7 +153,7 @@ fun WebRoot(app: WebApp) {
         LocalRecordingControl provides PendingRecording,
         LocalRasters provides PendingRasters,
         LocalMapThemes provides app.themes,
-        LocalParty provides PendingParty,
+        LocalParty provides app.party,
         LocalPartyPlatform provides PendingPartyPlatform,
         LocalOfflineData provides app.offline,
     ) {
@@ -132,8 +176,8 @@ fun WebRoot(app: WebApp) {
                     }
                 },
                 satellites = null,
-                // Offline map downloads and the party come in later steps.
-                tabs = listOf(Tab.Map, Tab.Routes, Tab.Sensors),
+                // The party comes in a later step.
+                tabs = listOf(Tab.Map, Tab.Routes, Tab.Party, Tab.Offline, Tab.Sensors),
             )
         }
     }

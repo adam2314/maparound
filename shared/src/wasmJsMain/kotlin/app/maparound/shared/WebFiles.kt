@@ -186,7 +186,13 @@ actual val fileSystem: FileSystem get() = WebFiles.fs
 
 actual val tempDir: String = "/tmp"
 
-actual fun openFile(path: String): FileHandle = fileSystem.openReadOnly(path.toPath())
+/**
+ * Opens files the in-memory file system doesn't have: the tile worker's maps in the browser's file
+ * storage (OPFS), read synchronously there. Null: not one of those.
+ */
+var openFileOverride: ((String) -> FileHandle?)? = null
+
+actual fun openFile(path: String): FileHandle = openFileOverride?.invoke(path) ?: fileSystem.openReadOnly(path.toPath())
 
 /** Read into memory (the browser can't map files). */
 actual fun mapFile(path: String): MappedFile {

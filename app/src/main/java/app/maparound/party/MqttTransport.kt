@@ -111,14 +111,10 @@ class MqttTransport(
     private fun host(uri: String) = uri.substringAfter("://").substringBefore(':')
 
     companion object {
-        const val ROOT = "maparound/v1"
+        const val ROOT = PartyRelays.ROOT
 
-        /** Free public brokers with TLS; fine for testing, use your own server for real groups. */
-        val PUBLIC_BROKERS = listOf(
-            "ssl://broker.emqx.io:8883",
-            "ssl://test.mosquitto.org:8886",
-            "ssl://broker.hivemq.com:8883",
-        )
+        /** Free public brokers with TLS (the web app reaches the same ones over WebSockets). */
+        val PUBLIC_BROKERS = PartyRelays.MQTT_TLS
 
         fun kindOf(message: PartyMessage): Pair<String, Boolean> = when (message) {
             is PartyMessage.Position -> "pos" to true

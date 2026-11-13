@@ -223,8 +223,10 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                 IconButton(onClick = { importLauncher() }) {
                     Icon(Icons.Filled.FileOpen, contentDescription = "Import a .map file")
                 }
-                IconButton(onClick = addRaster) {
-                    Icon(Icons.Filled.AddPhotoAlternate, contentDescription = "Add a raster map")
+                if (rasters.available) {
+                    IconButton(onClick = addRaster) {
+                        Icon(Icons.Filled.AddPhotoAlternate, contentDescription = "Add a raster map")
+                    }
                 }
             },
             windowInsets = WindowInsets(0, 0, 0, 0),
@@ -293,7 +295,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                                 Icon(Icons.Filled.MoreVert, contentDescription = "Options for ${map.title}")
                             }
                             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                                if (!map.isWorld) {
+                                if (!map.isWorld && offline.addOns) {
                                     DropdownMenuItem(
                                         text = { Text("Contours & hill shading") },
                                         leadingIcon = { Icon(Icons.Filled.Terrain, null) },
@@ -326,8 +328,10 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
             }
 
             // ---- raster maps (RMAP), read in place ----
-            rasterMapsSection(rasterMaps, addRaster, { showRasterOnMap(prefs, it); onShowOnMap() }, { removeRaster(prefs, rasters, it) }) {
-                SectionHeader("Raster maps", if (rasterMaps.isEmpty()) null else Fmt.fileSize(rasterMaps.sumOf { it.sizeBytes }))
+            if (rasters.available) {
+                rasterMapsSection(rasterMaps, addRaster, { showRasterOnMap(prefs, it); onShowOnMap() }, { removeRaster(prefs, rasters, it) }) {
+                    SectionHeader("Raster maps", if (rasterMaps.isEmpty()) null else Fmt.fileSize(rasterMaps.sumOf { it.sizeBytes }))
+                }
             }
 
             // ---- terrain (elevation data for contours & hill shading) ----
@@ -376,7 +380,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                         )
                     }
                 }
-            } else if (installed.any { !it.isWorld }) {
+            } else if (offline.addOns && installed.any { !it.isWorld }) {
                 item {
                     Text(
                         "Tip: use ⋮ next to a map to add contour lines & hill shading, offline routing and marked trails.",
@@ -478,13 +482,15 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
             }
 
             item { SectionHeader("Download maps", (listing as? Listing.Ready)?.attribution) }
-            item {
-                Row(
-                    Modifier.fillMaxWidth().clickable { prefs.setWifiOnly(!wifiOnly) }.padding(horizontal = 16.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("Download over Wi‑Fi only", Modifier.weight(1f))
-                    Switch(checked = wifiOnly, onCheckedChange = { prefs.setWifiOnly(it) })
+            if (downloader.canWaitForWifi) {
+                item {
+                    Row(
+                        Modifier.fillMaxWidth().clickable { prefs.setWifiOnly(!wifiOnly) }.padding(horizontal = 16.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Download over Wi‑Fi only", Modifier.weight(1f))
+                        Switch(checked = wifiOnly, onCheckedChange = { prefs.setWifiOnly(it) })
+                    }
                 }
             }
             if (offline.catalog.alternative != null) {
@@ -567,7 +573,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
             text = {
                 Text(
                     "This map is ${entry.sizeLabel ?: "large"}B ($free free on the device). " +
-                        if (wifiOnly) "It will download over Wi‑Fi." else "Consider using Wi‑Fi.",
+                        if (wifiOnly && downloader.canWaitForWifi) "It will download over Wi‑Fi." else "Consider using Wi‑Fi.",
                 )
             },
             confirmButton = {

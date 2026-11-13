@@ -22,11 +22,7 @@ import app.maparound.map.MapTheme
 import app.maparound.map.MapThemeLibrary
 import app.maparound.map.MapThemes
 import app.maparound.map.StyleMenu
-import app.maparound.party.PartyController
-import app.maparound.party.PartyEvent
-import app.maparound.party.PartyKey
 import app.maparound.party.PartyPlatform
-import app.maparound.party.PartyState
 import app.maparound.places.Place
 import app.maparound.places.PlaceRepository
 import app.maparound.places.Places
@@ -48,6 +44,7 @@ import app.maparound.share.Incoming
 import app.maparound.share.RouteText
 import app.maparound.share.SharedLinks
 import app.maparound.shared.fileSystem
+import app.maparound.shared.toByteArray
 import app.maparound.shared.net.httpGetText
 import app.maparound.terrain.GeoBounds
 import app.maparound.tracks.Gpx
@@ -57,9 +54,7 @@ import app.maparound.ui.RecordingControl
 import app.maparound.ui.Searcher
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
@@ -104,8 +99,7 @@ object WebPlatformActions : PlatformActions {
     override fun sharePointGpx(lat: Double, lon: Double, label: String?) =
         saveGpx(label ?: "location") { Gpx.writeWaypoint(label, lat, lon, it) }
 
-    override fun openPointElsewhere(lat: Double, lon: Double, label: String?) =
-        openWindow("https://www.openstreetmap.org/?mlat=$lat&mlon=$lon#map=15/$lat/$lon")
+    override fun openPointElsewhere(lat: Double, lon: Double, label: String?) = openWindow(SharedLinks.osmLink(lat, lon))
 
     override fun sharePlaces(places: List<Place>, title: String) = saveGpx(title) { Places.writeGpx(places, it, title) }
 
@@ -135,8 +129,8 @@ private fun browserLanguage(): String = js("(navigator.language || 'en').split('
 class WebSearcher(private val places: PlaceRepository, private val maps: InstalledMaps) : Searcher {
     override fun quick(query: String, near: GeoPoint?): List<SearchResult> = SearchEngine.quick(query, near, places.places.value)
 
-    override fun offline(query: String, center: GeoPoint, isActive: () -> Boolean): List<SearchResult> =
-        SearchEngine.offline(query, center, maps.files.value.filterNot { it.isWorld }.map { it.path }, browserLanguage(), 25.0, isActive)
+    /** The downloaded maps are read by the tile worker only (the page has their headers): not yet. */
+    override fun offline(query: String, center: GeoPoint, isActive: () -> Boolean): List<SearchResult> = emptyList()
 
     override fun online(query: String, near: GeoPoint?): List<SearchResult> =
         SearchEngine.online(query, near) { url -> httpGetText(url, mapOf("Accept-Language" to "${browserLanguage()},en;q=0.8"), 12_000) }
@@ -321,23 +315,114 @@ class WebSensors : DeviceSensors {
 
 // ---- what comes in later steps: answers that say so --------------------------------------------
 
-/** Offline maps in the browser come in the next step (they need the browser's file storage). */
+// ---- downloaded maps: in the browser's file storage, kept by the tile worker -------------------------
+
+private fun tilesStart(url: String, onMaps: () -> Unit): Boolean = js("MapAroundTiles.start(url, onMaps)")
+private fun tilesAvailable(): Boolean = js("MapAroundTiles.available()")
+private fun tilesCount(): Int = js("MapAroundTiles.count()")
+private fun tilesName(i: Int): String = js("MapAroundTiles.name(i)")
+private fun tilesSize(i: Int): Double = js("MapAroundTiles.size(i)")
+private fun tilesTime(i: Int): Double = js("MapAroundTiles.mtime(i)")
+private fun tilesHeader(i: Int): JsAny = js("MapAroundTiles.header(i)")
+private fun tilesRemove(name: String): Unit = js("{ MapAroundTiles.remove(name); }")
+private fun tilesDownload(url: String): Unit = js("{ MapAroundTiles.download(url); }")
+private fun tilesEstimate(onDone: (Double) -> Unit): Unit = js("{ MapAroundTiles.estimate(onDone); }")
+private fun tilesPickAndImport(
+    onStart: (String, Double) -> Unit,
+    onProgress: (Double, Double) -> Unit,
+    onDone: (String?, String?) -> Unit,
+): Unit = js("{ MapAroundTiles.pickAndImport(onStart, onProgress, onDone); }")
+
+/**
+ * The downloaded maps. The files are in the browser's file storage, where the tile worker reads
+ * them (tiles-worker.js); the screens see a copy of each map's header in memory under [DIR] (all
+ * they read: the area, the comment), and the real size and date.
+ */
 class WebInstalledMaps : InstalledMaps {
-    override val files: StateFlow<List<LocalMap>> = MutableStateFlow(emptyList())
-    override fun delete(map: LocalMap) = Unit
-    override fun freeBytes(): Long = 0
+    private val _files = MutableStateFlow<List<LocalMap>>(emptyList())
+    override val files: StateFlow<List<LocalMap>> = _files.asStateFlow()
+
+    private var free = 0L
+
+    /** An import going on: its file name and how far it is (0..1). */
+    val importing = MutableStateFlow<Pair<String, Float>?>(null)
+
+    /** Starts the tile worker (url: tiles-worker.js); false if the browser can't keep maps. */
+    fun start(url: String): Boolean = tilesStart(url) { refresh() }
+
+    val available: Boolean get() = tilesAvailable()
+
+    /** The worker's list of maps changed. */
+    private fun refresh() {
+        val dir = DIR.toPath()
+        fileSystem.createDirectories(dir)
+        val list = ArrayList<LocalMap>()
+        val names = HashSet<String>()
+        for (i in 0 until tilesCount()) {
+            val name = tilesName(i)
+            names += name
+            val path = "$DIR/$name"
+            val header = tilesHeader(i).toByteArray()
+            fileSystem.write(path.toPath()) { write(header) }
+            list += LocalMap(path, tilesSize(i).toLong(), tilesTime(i).toLong())
+        }
+        for (p in fileSystem.list(dir)) if (p.name !in names) fileSystem.delete(p, mustExist = false)
+        _files.value = list.sortedWith(compareBy<LocalMap> { !it.isWorld }.thenBy { it.title })
+        tilesEstimate { free = it.toLong() }
+    }
+
+    override fun delete(map: LocalMap) = tilesRemove(map.fileName)
+
+    override fun freeBytes(): Long = free
 
     @Composable
     override fun rememberImporter(onStart: () -> Unit, onResult: (Result<LocalMap>) -> Unit): () -> Unit {
+        val start = rememberUpdatedState(onStart)
         val done = rememberUpdatedState(onResult)
-        return remember { { done.value(Result.failure(Exception("Offline maps: $LATER"))) } }
+        return remember {
+            {
+                tilesPickAndImport(
+                    onStart = { name, _ ->
+                        importing.value = name to 0f
+                        start.value()
+                    },
+                    onProgress = { d, total -> importing.value = importing.value?.copy(second = if (total > 0) (d / total).toFloat() else 0f) },
+                    onDone = { name, error ->
+                        importing.value = null
+                        val map = name?.let { n -> _files.value.firstOrNull { it.fileName == n } }
+                        done.value(
+                            when {
+                                error != null -> Result.failure(Exception(error))
+                                map != null -> Result.success(map)
+                                else -> Result.failure(Exception("The map wasn't stored"))
+                            },
+                        )
+                    },
+                )
+            }
+        }
+    }
+
+    companion object {
+        /** Where the screens find the maps' headers (memory only). */
+        const val DIR = "/maps"
     }
 }
 
+/**
+ * Downloads in the browser: the map servers don't let a web page fetch their files (CORS), so the
+ * browser downloads the file as any other; the user then adds it with the folder button.
+ */
 object WebDownloads : MapDownloads {
-    override fun enqueue(entry: CatalogEntry, url: String, wifiOnly: Boolean): String = "Offline maps: $LATER"
+    override fun enqueue(entry: CatalogEntry, url: String, wifiOnly: Boolean): String {
+        tilesDownload(url)
+        val size = entry.sizeLabel?.let { " (${it}B)" }.orEmpty()
+        return "Your browser is downloading ${entry.title}$size. When it's done, add it with the file button at the top."
+    }
+
     override fun cancel(id: Long) = Unit
     override fun poll(): List<DownloadInfo> = emptyList()
+    override val canWaitForWifi: Boolean get() = false
 }
 
 private fun cells(bounds: GeoBounds): List<Pair<Int, Int>> {
@@ -387,6 +472,7 @@ object PendingRecording : RecordingControl {
 }
 
 object PendingRasters : RasterLibrary {
+    override val available: Boolean get() = false
     override val maps: StateFlow<List<RasterMap>> = MutableStateFlow(emptyList())
     override fun get(id: String): RasterMap? = null
     override fun remove(id: String) = Unit
@@ -398,27 +484,7 @@ object PendingRasters : RasterLibrary {
     }
 }
 
-/** The party (hidden on the web for now); the map reads an empty one. */
-object PendingParty : PartyController {
-    override val state: StateFlow<PartyState> = MutableStateFlow(PartyState())
-    override val events: SharedFlow<PartyEvent> = MutableSharedFlow()
-    override val pendingInvite = MutableStateFlow<PartyKey?>(null)
-    override fun create(partyName: String, myName: String) = Unit
-    override fun join(key: PartyKey, myName: String) = Unit
-    override fun leave() = Unit
-    override fun setActive(on: Boolean) = Unit
-    override fun setSharing(on: Boolean) = Unit
-    override fun setProfile(name: String, color: Int, icon: Int) = Unit
-    override fun setOnlineEnabled(on: Boolean) = Unit
-    override fun setGateway(on: Boolean) = Unit
-    override fun setRadio(address: String, name: String) = Unit
-    override fun forgetRadio() = Unit
-    override fun sos(active: Boolean, text: String) = Unit
-    override fun setMeeting(lat: Double, lon: Double, label: String) = Unit
-    override fun clearMeeting() = Unit
-    override fun sendText(text: String) = Unit
-}
-
+/** The party's platform parts the web app doesn't have: no camera scanning, QR image or radio. */
 object PendingPartyPlatform : PartyPlatform {
     @Composable
     override fun rememberQrScanner(onResult: (String) -> Unit): () -> Unit = remember { {} }

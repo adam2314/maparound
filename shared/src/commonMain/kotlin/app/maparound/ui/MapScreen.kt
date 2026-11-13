@@ -616,7 +616,7 @@ fun MapScreen(
                         PlannerSession.close()
                         ToolsSession.open(mode, p)
                     },
-                    onMeetHere = if (party.active) ({
+                    onMeetHere = if (party.active && !partyControl.watchOnly) ({
                         partyControl.setMeeting(p.lat, p.lon, pinLabel ?: "Meeting point")
                         pin = null
                     }) else null,

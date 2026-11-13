@@ -78,6 +78,9 @@ interface MapDownloads {
     fun enqueue(entry: CatalogEntry, url: String, wifiOnly: Boolean): String?
     fun cancel(id: Long)
 
+    /** Downloads can wait for Wi‑Fi (not the browser's: it downloads at once). */
+    val canWaitForWifi: Boolean get() = true
+
     /** Current downloads (also finishes completed ones). Blocking. */
     fun poll(): List<DownloadInfo>
 }
@@ -161,6 +164,8 @@ class OfflineData(
      * world overview map isn't needed (Android).
      */
     val builtInWorld: Boolean = false,
+    /** Terrain, offline routing and marked trails can be added to a map (not in the web app yet). */
+    val addOns: Boolean = true,
 )
 
 val LocalOfflineData = staticCompositionLocalOf<OfflineData> { error("No OfflineData provided") }

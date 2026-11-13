@@ -82,7 +82,12 @@ val webAssets by tasks.registering(Sync::class) {
     from("../docs/store") { include("icon-512.png") }
     from(maplibreFiles)
     from(uiFontFiles) { into("uifonts") }
-    dependsOn("downloadMapLibre", "downloadUiFonts")
+    // The tile worker (webTiles), always its production build (see webTiles/webpack.config.d).
+    from(rootProject.layout.projectDirectory.dir("webTiles/build/dist/wasmJs/productionExecutable")) {
+        into("tiles")
+        exclude("*.js.map", "*.LICENSE.txt")
+    }
+    dependsOn("downloadMapLibre", "downloadUiFonts", ":webTiles:wasmJsBrowserDistribution")
 }
 
 
@@ -117,6 +122,7 @@ kotlin {
 }
 
 tasks.matching { it.name == "wasmJsProcessResources" }.configureEach { dependsOn(webAssets) }
+
 
 // The system's Node.js (the build doesn't download one).
 rootProject.plugins.withType<org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsRootPlugin> {

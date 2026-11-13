@@ -23,9 +23,17 @@ import kotlin.concurrent.Volatile
  * built (yet) are offered from mapsforge.org too, as basic maps ([merge]).
  */
 class MapAroundCatalog(
-    private val catalogUrl: String = CATALOG_URL,
+    /** Where catalog.json is, tried in turn. */
+    private val catalogUrls: List<String> = CATALOG_URLS,
     private val fallback: CatalogSource = MapCatalog(),
+    /**
+     * Use the mapsforge.org list: as the fallback, to fill in what MapAround hasn't built, and as
+     * the alternative list. Not in the browser, which may not read it (CORS).
+     */
+    private val useMapsforge: Boolean = true,
 ) : CatalogSource {
+    constructor(catalogUrl: String, fallback: CatalogSource) : this(listOf(catalogUrl), fallback)
+
     @Volatile
     private var maps: List<CatalogEntry>? = null
 
@@ -35,21 +43,22 @@ class MapAroundCatalog(
     override val attribution: String
         get() = if (usingFallback) fallback.attribution else "OpenStreetMap data with marked trails, built by MapAround"
 
-    override val alternative: CatalogSource get() = fallback
+    override val alternative: CatalogSource? get() = fallback.takeIf { useMapsforge }
 
     override suspend fun list(path: String, forceRefresh: Boolean): List<CatalogEntry> {
         val all = try {
-            maps.takeUnless { forceRefresh || it == null }
-                ?: parse(withContext(Dispatchers.Default) { httpGetText(catalogUrl, timeoutMs = 20_000) }).also { maps = it }
+            maps.takeUnless { forceRefresh || it == null } ?: parse(fetch()).also { maps = it }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             null
         }
         if (all == null) {
+            if (!useMapsforge) throw IllegalStateException("Can't read MapAround's list of maps (no connection?)")
             usingFallback = true
             return fallback.list(path, forceRefresh)
         }
+        if (!useMapsforge) return listing(all, path)
         usingFallback = false
         // The mapsforge.org maps of this folder, for what MapAround doesn't have (yet).
         val basic = try {
@@ -64,8 +73,30 @@ class MapAroundCatalog(
 
     override fun urlFor(entry: CatalogEntry): String = entry.url ?: fallback.urlFor(entry)
 
+    /** catalog.json from the first address that answers. */
+    private suspend fun fetch(): String {
+        var last: Exception? = null
+        for (url in catalogUrls) {
+            try {
+                return withContext(Dispatchers.Default) { httpGetText(url, timeoutMs = 20_000) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                last = e
+            }
+        }
+        throw last ?: IllegalStateException("No catalog address")
+    }
+
     companion object {
-        const val CATALOG_URL = "https://github.com/adam2314/my-pipeline/releases/download/maps-latest/catalog.json"
+        /**
+         * The catalog branch (raw.githubusercontent.com allows browsers, CORS) and the release (the
+         * same file; release downloads don't allow browsers).
+         */
+        val CATALOG_URLS = listOf(
+            "https://raw.githubusercontent.com/adam2314/my-pipeline/catalog/catalog.json",
+            "https://github.com/adam2314/my-pipeline/releases/download/maps-latest/catalog.json",
+        )
 
         /** The maps in a catalog.json (version 1), as .map entries with their paths. */
         fun parse(json: String): List<CatalogEntry> {
