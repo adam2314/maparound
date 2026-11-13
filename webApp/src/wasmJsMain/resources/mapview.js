@@ -15,6 +15,18 @@
 
   function dpr() { return window.devicePixelRatio || 1; }
 
+  // Hebrew and Arabic names: MapLibre GL JS needs this plugin to put right-to-left text in order
+  // (MapLibre Native does it itself, on the phones), else they read backwards. From the app's own
+  // files, so it works offline; loaded the first time such a name shows.
+  if (maplibregl.getRTLTextPluginStatus && maplibregl.getRTLTextPluginStatus() === 'unavailable') {
+    try {
+      const p = maplibregl.setRTLTextPlugin('mapbox-gl-rtl-text.js', true);
+      if (p && p.catch) p.catch((e) => console.warn('MapAround: no right-to-left text', e));
+    } catch (e) {
+      console.warn('MapAround: no right-to-left text', e);
+    }
+  }
+
   // ---- the tile worker (tiles/tiles-worker.js): the downloaded maps, in the browser's storage ----
 
   const tiles = { worker: null, next: 1, pending: new Map(), imports: new Map(), maps: [], onMaps: null };

@@ -14,6 +14,9 @@ plugins {
 /** The MapLibre GL JS release the web app ships (BSD-3-Clause), served with the app so it works offline. */
 val maplibreVersion = "5.24.0"
 
+/** MapLibre's plugin that puts right-to-left text (Hebrew, Arabic) in order on the map. */
+val rtlTextVersion = "0.3.0"
+
 /** The style's SVG symbols come from mapsforge's themes (LGPL-3.0), as on Android. */
 val mapsforgeThemes: Configuration by configurations.creating
 
@@ -35,6 +38,21 @@ val maplibreFiles = layout.buildDirectory.dir("maplibre/$maplibreVersion").also 
                 if (!f.exists()) URI("https://unpkg.com/maplibre-gl@$maplibreVersion/dist/$name").toURL().openStream().use { input ->
                     f.outputStream().use { input.copyTo(it) }
                 }
+            }
+        }
+    }
+}
+
+/** The right-to-left text plugin (BSD-2-Clause), downloaded once. */
+val rtlTextFiles = layout.buildDirectory.dir("rtltext/$rtlTextVersion").also { dir ->
+    tasks.register("downloadRtlText") {
+        val out = dir.get().asFile
+        outputs.dir(out)
+        doLast {
+            out.mkdirs()
+            val f = out.resolve("mapbox-gl-rtl-text.js")
+            if (!f.exists()) URI("https://unpkg.com/@mapbox/mapbox-gl-rtl-text@$rtlTextVersion/dist/mapbox-gl-rtl-text.js").toURL().openStream().use { input ->
+                f.outputStream().use { input.copyTo(it) }
             }
         }
     }
@@ -81,13 +99,14 @@ val webAssets by tasks.registering(Sync::class) {
     from("../docs/assets") { include("icon-192.png") }
     from("../docs/store") { include("icon-512.png") }
     from(maplibreFiles)
+    from(rtlTextFiles)
     from(uiFontFiles) { into("uifonts") }
     // The tile worker (webTiles), always its production build (see webTiles/webpack.config.d).
     from(rootProject.layout.projectDirectory.dir("webTiles/build/dist/wasmJs/productionExecutable")) {
         into("tiles")
         exclude("*.js.map", "*.LICENSE.txt")
     }
-    dependsOn("downloadMapLibre", "downloadUiFonts", ":webTiles:wasmJsBrowserDistribution")
+    dependsOn("downloadMapLibre", "downloadRtlText", "downloadUiFonts", ":webTiles:wasmJsBrowserDistribution")
 }
 
 

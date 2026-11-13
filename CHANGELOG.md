@@ -45,6 +45,7 @@
   pinch zooms, two fingers turn and tilt (with a mouse: the wheel zooms, the right button turns
   and tilts). Esc closes it, and the 2D map then shows where you were looking in 3D.
 - **Line of sight and viewshed in the browser**, with the terrain they need fetched as they go.
+- **Hebrew and Arabic names read the right way** on the web map (they came out backwards), offline too.
 - **Offline maps in the browser.** Download MapAround's maps (with the marked trails) from the
   Offline tab, then add the file with the file button: the map is kept in the browser's storage
   and drawn offline, like on the phone. A `.map` file you already have can be added the same way.
