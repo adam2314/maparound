@@ -2,6 +2,7 @@ package app.maparound.map.maplibre
 
 import app.maparound.map.maplibre.MapStyle.Companion.arr
 import app.maparound.map.maplibre.MapStyle.Companion.obj
+import app.maparound.shared.mvt.MapsforgeToMvt
 import app.maparound.shared.util.Xml
 import app.maparound.shared.util.XmlHandler
 import kotlinx.serialization.json.JsonArray
@@ -19,7 +20,8 @@ import kotlin.math.roundToLong
  *
  * Sources: the offline map's vector tiles ([MapStyle.OSM_SOURCE]: poi, line, area, sea), and
  * for rules on `contour…` and `trail…` keys the contour and marked-trail tiles ([CONTOURS],
- * [TRAILS]). Symbols are images named [SYMBOL_PREFIX] + their theme path (the platform draws
+ * [TRAILS]); trail rules also draw the trail lines built into MapAround's maps (the map tiles'
+ * "trails" layer). Symbols are images named [SYMBOL_PREFIX] + their theme path (the platform draws
  * them: iOS from PNGs made of the theme's SVGs). Not drawn yet: area patterns, line symbols.
  */
 object ThemeStyle {
@@ -352,17 +354,25 @@ object ThemeStyle {
             val max = if (ctx.zoomMax >= 99) null else ctx.zoomMax
             if (max != null && max <= min) return
             val conditions = ctx.matchers.mapNotNull { it.expression() } + listOfNotNull(labelFilter)
-            layers += layer("t${layers.size}-$type", type, if (area) AREA_FLAG else null) {
-                put("source", source)
-                put("source-layer", sourceLayer)
-                if (min > 0) put("minzoom", min)
-                if (max != null) put("maxzoom", max)
-                when (conditions.size) {
-                    0 -> Unit
-                    1 -> put("filter", conditions[0])
-                    else -> put("filter", JsonArray(listOf(JsonPrimitive("all")) + conditions))
+            // Trail rules draw the downloaded trail tiles and the trail lines built into the maps.
+            val targets = if (source == TRAILS) {
+                listOf(TRAILS to TRAILS, MapStyle.OSM_SOURCE to MapsforgeToMvt.TRAILS)
+            } else {
+                listOf(source to sourceLayer)
+            }
+            for ((src, srcLayer) in targets) {
+                layers += layer("t${layers.size}-$type", type, if (area) AREA_FLAG else null) {
+                    put("source", src)
+                    put("source-layer", srcLayer)
+                    if (min > 0) put("minzoom", min)
+                    if (max != null) put("maxzoom", max)
+                    when (conditions.size) {
+                        0 -> Unit
+                        1 -> put("filter", conditions[0])
+                        else -> put("filter", JsonArray(listOf(JsonPrimitive("all")) + conditions))
+                    }
+                    body()
                 }
-                body()
             }
         }
     }

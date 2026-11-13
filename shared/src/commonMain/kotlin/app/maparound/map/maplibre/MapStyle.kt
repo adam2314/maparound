@@ -5,6 +5,7 @@ import app.maparound.map.BaseMap
 import app.maparound.map.OnlineSource
 import app.maparound.map.TileSources
 import app.maparound.map.satelliteSource
+import app.maparound.shared.mvt.MapsforgeToMvt
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -89,6 +90,10 @@ class MapStyle(
                     }
                     val at = (shading?.index ?: 1).coerceIn(0, themeLayers.size)
                     themeLayers.add(at, hillshadeLayer(shading))
+                }
+                // Marked trails built into the maps (MapAround's own), when they're switched on.
+                if (!base.trails || !base.drawsTerrain) {
+                    themeLayers.removeAll { it.source() == OSM_SOURCE && it.sourceLayer() == MapsforgeToMvt.TRAILS }
                 }
                 // Downloaded marked trails (the platform serves them), for the styles that draw them.
                 val trails = tiles.trailsVersion
@@ -265,6 +270,7 @@ class MapStyle(
 
         private fun JsonObject.type(): String? = (this["type"] as? JsonPrimitive)?.content
         private fun JsonObject.source(): String? = (this["source"] as? JsonPrimitive)?.content
+        private fun JsonObject.sourceLayer(): String? = (this["source-layer"] as? JsonPrimitive)?.content
 
         /** Fills and their outlines: dropped over imagery. */
         private fun JsonObject.isLandCover(): Boolean =

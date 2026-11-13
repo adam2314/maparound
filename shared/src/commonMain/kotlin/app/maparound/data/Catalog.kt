@@ -14,10 +14,22 @@ data class CatalogEntry(
     val sizeLabel: String?,    // as printed by the server, e.g. "528M"
     val sizeBytes: Long?,      // approximate, parsed from sizeLabel
     val modified: Long?,       // epoch millis of last server-side update
+    /** Where to download it, when the catalog says; else the catalog's address + [path]. */
+    val url: String? = null,
+    /** Why it can't be downloaded (MapAround's maps), or null. */
+    val unavailable: Unavailable? = null,
 ) {
     val name: String get() = path.removeSuffix("/").substringAfterLast('/')
     val title: String get() = MapNames.pretty(name)
     val localFileName: String get() = MapNames.localFileName(path)
+
+    enum class Unavailable {
+        /** Too big for the free build machines: built once there's money for bigger ones. */
+        NEEDS_FUNDING,
+
+        /** Its build failed and there's no earlier one. */
+        NOT_BUILT,
+    }
 }
 
 /** Reading the catalog server's directory listings (https://download.mapsforge.org/maps/v5/). */

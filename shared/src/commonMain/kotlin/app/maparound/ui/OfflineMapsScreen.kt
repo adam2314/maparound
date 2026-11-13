@@ -76,6 +76,7 @@ import app.maparound.data.DownloadInfo
 import app.maparound.data.LocalMap
 import app.maparound.data.LocalOfflineData
 import app.maparound.data.LocalPrefs
+import app.maparound.data.MapAroundMaps
 import app.maparound.data.MapNames
 import app.maparound.data.MapPos
 import app.maparound.data.mapBounds
@@ -94,7 +95,7 @@ import kotlinx.coroutines.withContext
 
 private sealed interface Listing {
     data object Loading : Listing
-    data class Ready(val entries: List<CatalogEntry>) : Listing
+    data class Ready(val entries: List<CatalogEntry>, val attribution: String) : Listing
     data class Failed(val message: String) : Listing
 }
 
@@ -137,7 +138,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
     LaunchedEffect(path, retryToken) {
         listing = Listing.Loading
         listing = try {
-            Listing.Ready(catalog.list(path))
+            catalog.list(path).let { Listing.Ready(it, catalog.attribution) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -161,12 +162,14 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
     val extras by produceState(emptyMap<String, Extras>(), installed, terrainState.version, routingState.installed, trailState.version) {
         value = withContext(Dispatchers.Default) {
             installed.filterNot { it.isWorld }.mapNotNull { m ->
+                val builtInTrails = MapAroundMaps.hasTrails(m.path)
                 mapBounds(m.path)?.let { bb ->
                     m.fileName to Extras(
                         terrain = offline.terrain.missingCells(bb).isEmpty(),
                         // The block with the map's centre is enough to route most trips there.
                         routing = offline.routing.isInstalled(Segments.nameFor(bb.centerLat, bb.centerLon)),
-                        trails = offline.trails.missingCells(bb).isEmpty(),
+                        trails = offline.trails.missingCells(bb).isEmpty() || builtInTrails,
+                        builtInTrails = builtInTrails,
                     )
                 }
             }.toMap()
@@ -301,9 +304,10 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                                         onClick = { menu = false; routingTarget = map },
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("Marked trails") },
+                                        text = { Text(if (ex?.builtInTrails == true) "Marked trails: in this map" else "Marked trails") },
                                         leadingIcon = { Icon(Icons.Filled.Hiking, null) },
                                         trailingIcon = { if (ex?.trails == true) Icon(Icons.Filled.Check, null) },
+                                        enabled = ex?.builtInTrails != true,
                                         onClick = { menu = false; trailsTarget = map },
                                     )
                                 }
@@ -470,7 +474,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                 items(downloads, key = { "dl-${it.id}" }) { d -> DownloadRow(d, onCancel = { downloader.cancel(d.id) }) }
             }
 
-            item { SectionHeader("Download maps", "OpenStreetMap data via mapsforge.org") }
+            item { SectionHeader("Download maps", (listing as? Listing.Ready)?.attribution) }
             item {
                 Row(
                     Modifier.fillMaxWidth().clickable { prefs.setWifiOnly(!wifiOnly) }.padding(horizontal = 16.dp, vertical = 4.dp),
@@ -699,17 +703,31 @@ private fun DownloadRow(d: DownloadInfo, onCancel: () -> Unit) {
 
 @Composable
 private fun CatalogMapRow(entry: CatalogEntry, local: LocalMap?, download: DownloadInfo?, onDownload: () -> Unit) {
-    val updateAvailable = local != null && entry.modified.let { it != null && it > local.modified }
+    val updateAvailable = local != null && entry.unavailable == null && entry.modified.let { it != null && it > local.modified }
     ListItem(
         headlineContent = { Text(entry.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = {
-            val date = entry.modified?.let {
-                Fmt.date(it)
+            when (entry.unavailable) {
+                CatalogEntry.Unavailable.NEEDS_FUNDING -> Text("Not available: too big for the free build machines, needs funding")
+                CatalogEntry.Unavailable.NOT_BUILT -> Text("Not available yet")
+                null -> {
+                    val date = entry.modified?.let {
+                        Fmt.date(it)
+                    }
+                    Text(listOfNotNull(entry.sizeLabel?.let { "${it}B" }, date?.let { "updated $it" }).joinToString(" · "))
+                }
             }
-            Text(listOfNotNull(entry.sizeLabel?.let { "${it}B" }, date?.let { "updated $it" }).joinToString(" · "))
         },
         trailingContent = {
             when {
+                entry.unavailable != null -> if (local != null) {
+                    Icon(
+                        Icons.Filled.CheckCircle,
+                        contentDescription = "Installed",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(12.dp),
+                    )
+                }
                 download != null -> {
                     val p = download.progress
                     if (p != null) {
@@ -811,7 +829,7 @@ private fun DetailOption(selected: Boolean, title: String, subtitle: String, onC
 }
 
 /** Which offline extras are installed for a map. */
-private data class Extras(val terrain: Boolean, val routing: Boolean, val trails: Boolean)
+private data class Extras(val terrain: Boolean, val routing: Boolean, val trails: Boolean, val builtInTrails: Boolean = false)
 
 @Composable
 private fun RoutingDialog(map: LocalMap, onDismiss: () -> Unit, onStart: (List<String>) -> Unit) {

@@ -1,6 +1,6 @@
 package app.maparound
 
-import app.maparound.data.MapCatalog
+import app.maparound.data.MapAroundCatalog
 import app.maparound.data.MapPos
 import app.maparound.data.OfflineData
 import app.maparound.data.Prefs
@@ -88,7 +88,7 @@ object IosApp {
     val offline = OfflineData(
         maps = maps,
         downloads = downloads,
-        catalog = MapCatalog(),
+        catalog = MapAroundCatalog(),
         terrain = terrain,
         trails = PendingTrails,
         routing = PendingRouting,

@@ -31,7 +31,7 @@ policy.
 | Feature | Sent to | What is sent |
 |---|---|---|
 | Online maps (when you choose an online map, satellite background or 3D view) | The map tile service you choose: OpenStreetMap France or Germany, OpenTopoMap, CyclOSM, Humanitarian, Esri, swisstopo, basemap.at, Kartverket, IGN, USGS, waymarkedtrails.org (trail overlay), or a tile service you added yourself | Which map tiles to show, which reveals the area you're looking at |
-| Offline map, terrain and routing downloads | download.mapsforge.org, Amazon Web Services (terrain tiles), brouter.de | Which areas to download |
+| Offline map, terrain and routing downloads | GitHub (MapAround's maps and their list, github.com and its download servers), download.mapsforge.org (if that list can't be read), Amazon Web Services (terrain tiles), brouter.de | Which areas to download |
 | Marked trails and cliffs download | Overpass API servers (overpass-api.de and others) | The area to download |
 | Online search | photon.komoot.io, or nominatim.openstreetmap.org as a fallback | Your search text and the centre of the map. Offline search sends nothing. |
 | Online routing (when routing data for the area isn't downloaded) | brouter.de | The route's points. While navigating, if a new route is calculated online, your current position too. |

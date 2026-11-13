@@ -85,6 +85,22 @@ interface MapDownloads {
 interface CatalogSource {
     suspend fun list(path: String, forceRefresh: Boolean = false): List<CatalogEntry>
     fun urlFor(entry: CatalogEntry): String
+
+    /** Where the listed maps come from, for the list's heading (after [list]). */
+    val attribution: String get() = "OpenStreetMap data via mapsforge.org"
+}
+
+/**
+ * MapAround's own maps (github.com/adam2314/my-pipeline) say so in their header comment; they have
+ * the marked trails built in. [MARKER] is the pipeline's MARKER (maps.py): keep them the same.
+ */
+object MapAroundMaps {
+    const val MARKER = "MapAround maps"
+
+    /** Whether the map at [path] is one of MapAround's, with marked trails (reads its header). */
+    fun hasTrails(path: String): Boolean = runCatching {
+        openFile(path).use { h -> MapsforgeFile(h).header.comment?.contains(MARKER) == true }
+    }.getOrDefault(false)
 }
 
 interface TerrainData {

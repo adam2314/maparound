@@ -102,6 +102,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.maparound.data.LocalOfflineData
 import app.maparound.data.LocalPrefs
+import app.maparound.data.MapAroundMaps
 import app.maparound.data.MapPos
 import app.maparound.map.BaseMap
 import app.maparound.map.LocalMapThemes
@@ -145,6 +146,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Composable
@@ -230,8 +232,12 @@ fun MapScreen(
     )
     LaunchedEffect(baseMap) { controller.setBaseMap(baseMap) }
     val terrainShown = showingOffline && terrain.tiles > 0 && (contours || hillshade)
-    // Marked trails: drawn from downloaded data in the Topo style, otherwise the online overlay.
-    val localTrails = trailsOn && showingOffline && MapThemes.drawsTerrain(theme) && trailData.cells > 0
+    // Marked trails: drawn from downloaded data or the trails built into MapAround's maps in the
+    // Topo style, otherwise the online overlay.
+    val mapsWithTrails by produceState(false, localMaps) {
+        value = withContext(Dispatchers.Default) { localMaps.any { MapAroundMaps.hasTrails(it.path) } }
+    }
+    val localTrails = trailsOn && showingOffline && MapThemes.drawsTerrain(theme) && (trailData.cells > 0 || mapsWithTrails)
     val trailOverlay = trailsOn && !localTrails
     LaunchedEffect(trailOverlay) { controller.setTrailOverlay(trailOverlay) }
 

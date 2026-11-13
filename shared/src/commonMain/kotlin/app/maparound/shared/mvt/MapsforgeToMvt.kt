@@ -7,10 +7,14 @@ import app.maparound.shared.mapsforge.MfWay
 
 /**
  * Turns mapsforge map data into vector tiles for MapLibre. Layers: "poi" (points), "line",
- * "area" (polygons) and "sea" (whole water blocks). Every OSM tag becomes a property; names are
- * split into `name` (the local one) and `name_<lang>` (other languages mapsforge stores).
+ * "area" (polygons), "sea" (whole water blocks) and "trails" (marked trail lines, `trail=*`, in
+ * MapAround's own maps). Every OSM tag becomes a property; names are split into `name` (the local
+ * one) and `name_<lang>` (other languages mapsforge stores).
  */
 object MapsforgeToMvt {
+    /** The layer of marked trail lines built into the maps. */
+    const val TRAILS = "trails"
+
     /**
      * The vector tile z/x/y from several maps (a world overview and country maps). MapLibre's
      * tiles are 512 px, so data is read one zoom deeper than the tile, like a 256 px map would.
@@ -49,7 +53,11 @@ object MapsforgeToMvt {
         for (p in data.pois) poi.point(p.lat, p.lon, props(p.tags, p.layer))
         for (w in data.ways) {
             val props = props(w.tags, w.layer)
-            if (isArea(w)) {
+            if (w.tags.any { it.key == "trail" }) {
+                // Marked trail lines built into MapAround's maps (my-pipeline): their own layer, like
+                // the downloaded ones, so the trail switch and the styles' trail rules apply.
+                for (ring in w.rings) t.layer(TRAILS).line(ring, props)
+            } else if (isArea(w)) {
                 t.layer("area").polygon(w.rings, props)
                 // Labels and symbols of areas (names, a parking's P, a hut…) go in the point
                 // layer, at mapsforge's label position or else the middle of the outline; only in

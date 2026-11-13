@@ -3,7 +3,7 @@ package app.maparound
 import app.maparound.places.PlaceRepository
 import app.maparound.raster.RasterMapRepository
 import android.app.Application
-import app.maparound.data.MapCatalog
+import app.maparound.data.MapAroundCatalog
 import app.maparound.shared.net.userAgent
 import app.maparound.data.MapDownloader
 import app.maparound.data.MapFilesRepository
@@ -64,7 +64,7 @@ object AppGraph {
         private set
     lateinit var rasters: RasterMapRepository
         private set
-    val catalog = MapCatalog()
+    val catalog = MapAroundCatalog()
     private lateinit var app: Application
 
     /** The world's country borders for the offline maps (assets/borders.bin), read on first use. */

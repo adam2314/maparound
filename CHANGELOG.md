@@ -3,6 +3,13 @@
 ## 0.2.0 (not released yet)
 
 ### Maps
+- **MapAround's own offline maps.** The download list is now MapAround's build of OpenStreetMap,
+  updated every month, with marked hiking trails, cliffs and ridges, path difficulty (SAC scale),
+  trail visibility, surfaces, 4×4-only tracks, fords, glaciers, huts and water points built in.
+  The Marked trails download isn't needed for these maps. Maps from mapsforge.org you already have
+  are offered as updates. The biggest whole countries (France, Germany, Italy, Great Britain,
+  Japan…) are listed as needing funding for now; their regions can be downloaded. See
+  [my-pipeline](https://github.com/adam2314/my-pipeline).
 - **A better 3D view, on the whole globe.** Zoom out and the Earth hangs in space with its
   glowing atmosphere; zoom in down to a hiking path. The map on the terrain is drawn like the 2D
   map, names stand up over the mountains (peaks with their heights, villages, huts; hidden

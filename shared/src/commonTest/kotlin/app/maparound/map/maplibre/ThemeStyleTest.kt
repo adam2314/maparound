@@ -1,6 +1,7 @@
 package app.maparound.map.maplibre
 
 import app.maparound.shared.fileSystem
+import app.maparound.shared.mvt.MapsforgeToMvt
 import app.maparound.shared.testEnv
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -149,7 +150,10 @@ class ThemeStyleTest {
         assertTrue(drawn(mapOf("landuse" to "forest"), "fill", "area").isNotEmpty())
         assertTrue(drawn(mapOf("natural" to "sea"), "fill", "sea").isNotEmpty())
         assertTrue(layers.any { it.str("source") == ThemeStyle.CONTOURS && matches(it, mapOf("contour" to "major", "ele" to "1500")) })
-        assertTrue(layers.any { it.str("source") == ThemeStyle.TRAILS && matches(it, mapOf("trail" to "hiking", "trail_n" to "1", "trail_colour" to "red", "trail_offset" to "0")) })
+        val trail = mapOf("trail" to "hiking", "trail_n" to "1", "trail_colour" to "red", "trail_offset" to "0")
+        assertTrue(layers.any { it.str("source") == ThemeStyle.TRAILS && matches(it, trail) })
+        // ...and the same trail lines when they're built into the map (MapAround's maps).
+        assertTrue(drawn(trail, "line", MapsforgeToMvt.TRAILS).any { it.str("source") == MapStyle.OSM_SOURCE })
 
         // Town names on points; peaks' names above the (later) symbol.
         assertTrue(drawn(mapOf("place" to "town", "name" to "Vaduz"), "symbol", "poi").isNotEmpty())
@@ -162,6 +166,23 @@ class ThemeStyleTest {
         // Every symbol image the theme uses has an SVG path.
         val images = layers.mapNotNull { it["layout"]?.jsonObject?.str("icon-image") }.toSet()
         assertTrue(images.size > 50 && images.all { it.startsWith(ThemeStyle.SYMBOL_PREFIX) && it.endsWith(".svg") }, images.toString())
+    }
+
+    @Test
+    fun builtInTrailsFollowTheTrailSwitch() {
+        val xml = topo() ?: return
+        val style = MapStyle(ThemeStyle.convert(xml).layers, BasicLayers.GLYPHS)
+        fun layers(trails: Boolean): List<JsonObject> {
+            val base = app.maparound.map.BaseMap.Offline(
+                maps = emptyList(), theme = app.maparound.map.MapThemes.TOPO, categories = null, contours = false, hillshade = false, terrainVersion = 0,
+                trails = trails, trailsVersion = 0, background = app.maparound.data.Prefs.BACKGROUND_NONE, vectorOnTop = true, rasterMaps = emptyList(),
+            )
+            val json = kotlinx.serialization.json.Json.parseToJsonElement(style.build(base, TileService())).jsonObject
+            return json["layers"]!!.jsonArray.map { it.jsonObject }
+        }
+        fun builtIn(l: List<JsonObject>) = l.filter { it.str("source") == MapStyle.OSM_SOURCE && it.str("source-layer") == MapsforgeToMvt.TRAILS }
+        assertTrue(builtIn(layers(trails = true)).isNotEmpty())
+        assertTrue(builtIn(layers(trails = false)).isEmpty())
     }
 
     @Test
