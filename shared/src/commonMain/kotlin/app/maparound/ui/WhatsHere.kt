@@ -5,11 +5,14 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
@@ -29,38 +32,59 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.maparound.map.MapPoi
 import app.maparound.routing.Geo
 import app.maparound.routing.GeoPoint
+import app.maparound.search.Commons
 import app.maparound.search.Wikipedia
-import app.maparound.shared.ioDispatcher
 import app.maparound.shared.util.deviceLanguage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
- * "What's here?" for a point (a tapped point of interest, or a pin): its Wikipedia article, the
- * named places the map shows around it (offline), and Wikipedia articles about places nearby
- * (online), each opening in the browser.
+ * "What's here?" for a point (a tapped point of interest, or a pin): its Wikipedia article and
+ * picture, photos taken around it (Wikimedia Commons), the named places the map shows around it
+ * (offline), and Wikipedia articles about places nearby (online), each opening in the browser.
+ * [known]: the place's own article, when the pin already has it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WhatsHereSheet(point: GeoPoint, poi: MapPoi?, around: List<MapPoi>, onShow: (MapPoi) -> Unit, onDismiss: () -> Unit) {
+fun WhatsHereSheet(
+    point: GeoPoint,
+    poi: MapPoi?,
+    around: List<MapPoi>,
+    onShow: (MapPoi) -> Unit,
+    onShowPoint: (GeoPoint, String) -> Unit,
+    onDismiss: () -> Unit,
+    known: Wikipedia.Article? = null,
+) {
     val platform = LocalPlatform.current
     val userLang = remember { Wikipedia.language(deviceLanguage()) }
     var articles by remember(point) { mutableStateOf<List<Wikipedia.Article>?>(null) }
     var problem by remember(point) { mutableStateOf<String?>(null) }
     // The place's own article (its tags), in the user's language when there is one.
-    var tagged by remember(point) { mutableStateOf<Wikipedia.Article?>(null) }
+    var tagged by remember(point) { mutableStateOf(known) }
+    var photos by remember(point) { mutableStateOf<List<Commons.Photo>?>(null) }
+    var photosFailed by remember(point) { mutableStateOf(false) }
+    var viewing by remember { mutableStateOf<Commons.Photo?>(null) }
     LaunchedEffect(point) {
-        if (poi != null && poi.hasArticle) {
-            launch { tagged = withContext(ioDispatcher) { runCatching { Wikipedia.articleOf(poi, deviceLanguage()) }.getOrNull() } }
+        if (poi != null && poi.hasArticle && tagged?.picture == null) {
+            launch { tagged = (tagged ?: articleOrNull(poi))?.let { Wikipedia.withPicture(it) } }
+        }
+        launch {
+            try {
+                photos = Commons.nearby(point.lat, point.lon)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                photosFailed = true
+            }
         }
         try {
-            articles = withContext(ioDispatcher) { Wikipedia.nearby(point.lat, point.lon, deviceLanguage()) }
+            articles = Wikipedia.nearby(point.lat, point.lon, deviceLanguage())
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -85,6 +109,16 @@ fun WhatsHereSheet(point: GeoPoint, poi: MapPoi?, around: List<MapPoi>, onShow: 
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
             }
+            own?.picture?.let { pic ->
+                item {
+                    RemoteImage(
+                        pic.thumb,
+                        contentDescription = own.title,
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp).fillMaxWidth().height(200.dp)
+                            .clip(RoundedCornerShape(12.dp)).clickable { viewing = pic },
+                    )
+                }
+            }
             own?.let { a ->
                 item {
                     ListItem(
@@ -93,6 +127,25 @@ fun WhatsHereSheet(point: GeoPoint, poi: MapPoi?, around: List<MapPoi>, onShow: 
                         headlineContent = { Text("About ${a.title} on Wikipedia") },
                         trailingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open") },
                     )
+                }
+            }
+
+            item { Header("Photos around here") }
+            item {
+                val list = photos
+                when {
+                    photosFailed -> Note("Photos need a connection.")
+                    list == null -> Loading("Looking for photos taken around here…")
+                    list.isEmpty() -> Note("No photos taken within 10 km on Wikimedia Commons.")
+                    else -> LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
+                        items(list, key = { it.file }) { photo ->
+                            RemoteImage(
+                                photo.thumb,
+                                contentDescription = photo.name,
+                                modifier = Modifier.size(PHOTO_DP.dp).clip(RoundedCornerShape(8.dp)).clickable { viewing = photo },
+                            )
+                        }
+                    }
                 }
             }
 
@@ -114,18 +167,19 @@ fun WhatsHereSheet(point: GeoPoint, poi: MapPoi?, around: List<MapPoi>, onShow: 
             item { Header("On Wikipedia, nearby") }
             when {
                 problem != null -> item { Note(problem!!) }
-                articles == null -> item {
-                    Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                        Spacer(Modifier.width(10.dp))
-                        Text("Looking for articles about places around here…", style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
+                articles == null -> item { Loading("Looking for articles about places around here…") }
                 nearby.isEmpty() -> item { Note("No articles about places within ${Wikipedia.RADIUS_M / 1000} km.") }
                 else -> items(nearby.take(MAX_ARTICLES), key = { "w-${it.lang}-${it.title}" }) { a ->
                     ListItem(
                         modifier = Modifier.clickable { platform.openUrl(a.url) },
-                        leadingContent = { Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null) },
+                        leadingContent = {
+                            val pic = a.picture
+                            if (pic != null) {
+                                RemoteImage(pic.thumb, contentDescription = null, modifier = Modifier.size(48.dp).clip(RoundedCornerShape(6.dp)))
+                            } else {
+                                Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, modifier = Modifier.size(48.dp).padding(12.dp))
+                            }
+                        },
                         headlineContent = { Text(a.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
                         supportingContent = {
                             Text(Fmt.distance(Geo.distance(point, GeoPoint(a.lat, a.lon)).toFloat()) + if (a.lang == userLang) "" else " · ${a.lang.uppercase()}")
@@ -136,6 +190,22 @@ fun WhatsHereSheet(point: GeoPoint, poi: MapPoi?, around: List<MapPoi>, onShow: 
             }
         }
     }
+
+    viewing?.let { photo ->
+        PhotoViewer(photo, onDismiss = { viewing = null }, onShowOnMap = { p, name ->
+            viewing = null
+            onShowPoint(p, name)
+        })
+    }
+}
+
+/** The place's own article, or null when it has none or Wikidata can't be asked. */
+private suspend fun articleOrNull(poi: MapPoi): Wikipedia.Article? = try {
+    Wikipedia.articleOf(poi, deviceLanguage())
+} catch (e: CancellationException) {
+    throw e
+} catch (e: Exception) {
+    null
 }
 
 @Composable
@@ -158,5 +228,17 @@ private fun Note(text: String) {
     )
 }
 
+@Composable
+private fun Loading(text: String) {
+    Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+        Spacer(Modifier.width(10.dp))
+        Text(text, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
 private const val MAX_PLACES = 12
 private const val MAX_ARTICLES = 25
+
+/** The photos' size in the row, square. */
+private const val PHOTO_DP = 104

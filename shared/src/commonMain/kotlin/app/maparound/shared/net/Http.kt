@@ -20,3 +20,9 @@ fun httpGetText(url: String, headers: Map<String, String> = emptyMap(), timeoutM
  * thread; stops soon after [isActive] turns false. Throws like [httpGet].
  */
 expect fun httpDownload(url: String, path: String, timeoutMs: Int = 30_000, isActive: () -> Boolean = { true })
+
+/**
+ * [httpGet] without blocking anything: on a background thread on the phones, the browser's own
+ * fetch on the web (which doesn't hold the page up). Throws like [httpGet].
+ */
+expect suspend fun httpGetAsync(url: String, timeoutMs: Int = 15_000): ByteArray

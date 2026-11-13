@@ -68,3 +68,6 @@ actual fun httpDownload(url: String, path: String, timeoutMs: Int, isActive: () 
     failure?.let { throw IOException(it) }
     if (status !in 200..299) throw HttpException(status)
 }
+
+actual suspend fun httpGetAsync(url: String, timeoutMs: Int): ByteArray =
+    kotlinx.coroutines.withContext(app.maparound.shared.ioDispatcher) { httpGet(url, emptyMap(), timeoutMs) }

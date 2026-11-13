@@ -43,6 +43,10 @@
 - **Wikipedia from the map.** MapAround's maps now keep each place's Wikipedia and Wikidata links
   (from the November build on): a tapped peak, castle, lake or village with an article gets a
   *Wikipedia* button that opens it in your language when there is one.
+- **Pictures of places.** A tapped place with an article shows its picture on the pin, and
+  *What's here?* shows the photos taken around the point (from Wikimedia Commons), and the
+  nearby articles with their pictures. Tap a photo to see it big, with who took it, its licence
+  and *Where it was taken* on the map. Online; on Android, iPhone and the web.
 - **Hebrew names in offline search on Android.** A phone set to Hebrew (or Indonesian) now gets
   the map's names in its language where the map has them; it got the local names.
 

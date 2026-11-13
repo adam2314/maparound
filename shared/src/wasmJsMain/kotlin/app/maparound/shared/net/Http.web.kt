@@ -2,6 +2,7 @@ package app.maparound.shared.net
 
 import app.maparound.shared.binaryStringToBytes
 import app.maparound.shared.fileSystem
+import app.maparound.shared.toByteArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import okio.IOException
@@ -44,4 +45,21 @@ actual fun httpGet(url: String, headers: Map<String, String>, timeoutMs: Int): B
 actual fun httpDownload(url: String, path: String, timeoutMs: Int, isActive: () -> Boolean) {
     val bytes = httpGet(url, emptyMap(), timeoutMs)
     fileSystem.write(path.toPath()) { write(bytes) }
+}
+
+/** fetch() with a time limit; [done] gets the status (-1: no answer) and the bytes (a Uint8Array) of a 2xx answer. */
+private fun jsFetch(url: String, timeoutMs: Int, done: (Int, JsAny?) -> Unit): Unit = js(
+    """{
+    const o = (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? { signal: AbortSignal.timeout(timeoutMs) } : {};
+    fetch(url, o).then(
+        r => r.ok ? r.arrayBuffer().then(b => done(r.status, new Uint8Array(b)), () => done(-1, null)) : done(r.status, null),
+        () => done(-1, null));
+}""",
+)
+
+actual suspend fun httpGetAsync(url: String, timeoutMs: Int): ByteArray {
+    val (status, bytes) = kotlin.coroutines.suspendCoroutine { c -> jsFetch(url, timeoutMs) { s, b -> c.resumeWith(Result.success(s to b)) } }
+    if (status <= 0) throw IOException("No connection, or the server doesn't allow the web app")
+    if (status !in 200..299) throw HttpException(status)
+    return bytes?.toByteArray() ?: ByteArray(0)
 }

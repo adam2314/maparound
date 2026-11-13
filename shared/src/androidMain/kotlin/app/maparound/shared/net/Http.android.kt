@@ -41,3 +41,6 @@ actual fun httpDownload(url: String, path: String, timeoutMs: Int, isActive: () 
         conn.disconnect()
     }
 }
+
+actual suspend fun httpGetAsync(url: String, timeoutMs: Int): ByteArray =
+    kotlinx.coroutines.withContext(app.maparound.shared.ioDispatcher) { httpGet(url, emptyMap(), timeoutMs) }

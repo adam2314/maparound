@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.TravelExplore
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
@@ -355,6 +356,18 @@ fun MapScreen(
     var pinPoi by remember { mutableStateOf<app.maparound.map.MapPoi?>(null) }
     // "What's here?" open for a point (and the point of interest there).
     var whatsHere by remember { mutableStateOf<Pair<GeoPoint, app.maparound.map.MapPoi?>?>(null) }
+    // The pinned place's own Wikipedia article and its picture, when its tags name one.
+    var pinArticle by remember { mutableStateOf<Pair<app.maparound.map.MapPoi, app.maparound.search.Wikipedia.Article>?>(null) }
+    // A photo over the whole screen.
+    var viewPhoto by remember { mutableStateOf<app.maparound.search.Commons.Photo?>(null) }
+    LaunchedEffect(pinPoi) {
+        val place = pinPoi?.takeIf { it.hasArticle } ?: return@LaunchedEffect
+        if (pinArticle?.first == place) return@LaunchedEffect
+        // Which article (in the user's language when there is one), then its picture.
+        val a = app.maparound.search.Wikipedia.articleOf(place, app.maparound.shared.util.deviceLanguage()) ?: return@LaunchedEffect
+        pinArticle = place to a
+        pinArticle = place to app.maparound.search.Wikipedia.withPicture(a)
+    }
     var showMe by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
     // (lat, lon, label) for the share sheet
@@ -616,16 +629,23 @@ fun MapScreen(
             }
             pin?.let { p ->
                 val poi = pinPoi?.takeIf { it.point == p }
+                val article = pinArticle?.takeIf { it.first == poi }?.second
                 PinCard(
                     p, pinLabel, location, onClose = { pin = null },
                     details = poi?.details,
+                    picture = article?.picture,
+                    onPicture = { viewPhoto = article?.picture },
                     onWhatsHere = { whatsHere = p to poi },
                     onWikipedia = poi?.takeIf { it.hasArticle }?.let { place ->
                         {
                             // Its article in the user's language when there is one (Wikidata knows).
-                            scope.launch {
-                                withContext(ioDispatcher) { app.maparound.search.Wikipedia.linkFor(place, app.maparound.shared.util.deviceLanguage()) }
-                                    ?.let(platform::openUrl)
+                            val known = article?.url
+                            if (known != null) {
+                                platform.openUrl(known)
+                            } else {
+                                scope.launch {
+                                    app.maparound.search.Wikipedia.linkFor(place, app.maparound.shared.util.deviceLanguage())?.let(platform::openUrl)
+                                }
                             }
                         }
                     },
@@ -757,8 +777,17 @@ fun MapScreen(
             pinLabel = other.title
             pinPoi = other
             controller.animateTo(other.lat, other.lon)
-        }, onDismiss = { whatsHere = null })
+        }, onShowPoint = { at, label ->
+            // Where a photo was taken.
+            whatsHere = null
+            pin = at
+            pinLabel = label
+            pinPoi = null
+            controller.animateTo(at.lat, at.lon)
+        }, onDismiss = { whatsHere = null }, known = pinArticle?.takeIf { it.first == poi }?.second)
     }
+
+    viewPhoto?.let { photo -> PhotoViewer(photo, onDismiss = { viewPhoto = null }) }
 
     scene3d?.let { req ->
         Scene3DScreen(req, onClose = { last ->
@@ -955,6 +984,9 @@ private fun PinCard(
     onWhatsHere: (() -> Unit)? = null,
     /** Opens its Wikipedia article (it has one, from its own tags). */
     onWikipedia: (() -> Unit)? = null,
+    /** Its picture (its article's), and showing it big. */
+    picture: app.maparound.search.Commons.Photo? = null,
+    onPicture: (() -> Unit)? = null,
 ) {
     val clipboard = LocalClipboardManager.current
     val platform = LocalPlatform.current
@@ -964,6 +996,14 @@ private fun PinCard(
     Card(Modifier.widthIn(max = 360.dp).padding(bottom = 6.dp)) {
         Column(Modifier.padding(start = 16.dp, top = 8.dp, end = 4.dp, bottom = 4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                if (picture != null) {
+                    RemoteImage(
+                        picture.thumb,
+                        contentDescription = label,
+                        modifier = Modifier.padding(end = 12.dp).size(76.dp).clip(RoundedCornerShape(8.dp))
+                            .clickable(enabled = onPicture != null) { onPicture?.invoke() },
+                    )
+                }
                 // Tapping the coordinates opens the converter with this point.
                 Column(Modifier.weight(1f).clickable(enabled = onTool != null) { onTool?.invoke(ToolsSession.Mode.COORDS) }) {
                     if (label != null) Text(label, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
