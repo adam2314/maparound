@@ -50,7 +50,7 @@ class GlobeTest {
         assertEquals(0.0, c[1] / c[3], 1e-4)
         // Seen from above the ground, at the chosen tilt.
         val alt = Wgs84.geodetic(cam.eye)[2]
-        assertEquals(600.0 + 5_000.0 * kotlin.math.sin(Math.toRadians(40.0)), alt, 2.0)
+        assertEquals(600.0 + 5_000.0 * kotlin.math.sin(40.0 * kotlin.math.PI / 180), alt, 2.0)
     }
 
     @Test
