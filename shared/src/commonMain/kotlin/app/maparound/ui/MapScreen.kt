@@ -20,6 +20,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material3.CircularProgressIndicator
+import app.maparound.data.mapBounds
+import app.maparound.terrain.GeoBounds
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.TravelExplore
@@ -236,6 +239,31 @@ fun MapScreen(
     )
     LaunchedEffect(baseMap) { controller.setBaseMap(baseMap) }
     val terrainShown = showingOffline && terrain.tiles > 0 && (contours || hillshade)
+
+    // Terrain for the contour lines and hill shading: fetched by itself where the offline maps
+    // are, a few tiles at most, once the map shows an area closely enough (as the 3D view does).
+    val mapAreas by produceState(emptyList<GeoBounds>(), localMaps) {
+        value = withContext(Dispatchers.Default) { localMaps.filterNot { it.isWorld }.mapNotNull { mapBounds(it.path) } }
+    }
+    // Tiles asked for already (the sea has none: not again and again).
+    val terrainAsked = remember { HashSet<Pair<Int, Int>>() }
+    LaunchedEffect(showingOffline, contours || hillshade, mapAreas) {
+        if (!showingOffline || !(contours || hillshade) || mapAreas.isEmpty()) return@LaunchedEffect
+        while (true) {
+            delay(AUTO_TERRAIN_CHECK_MS)
+            if (offline.terrain.state.value.progress != null) continue
+            val pos = controller.position()
+            if (pos.zoom < AUTO_TERRAIN_ZOOM) continue
+            val view = around(pos, controller.metresPerDp() * AUTO_TERRAIN_HALF_DP)
+            for (area in mapAreas) {
+                val part = overlap(view, area) ?: continue
+                val missing = offline.terrain.missingCells(part).filterNot { it in terrainAsked }
+                if (missing.isEmpty()) continue
+                if (offline.terrain.ensure(AUTO_TERRAIN_LABEL, part) == null) terrainAsked += missing
+                break
+            }
+        }
+    }
     // Marked trails: drawn from downloaded data or the trails built into MapAround's maps in the
     // Topo style, otherwise the online overlay.
     val mapsWithTrails by produceState(false, localMaps) {
@@ -574,6 +602,25 @@ fun MapScreen(
                 onStop = { recording.stop() },
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
             )
+        } else {
+            terrain.progress?.takeIf { it.label == AUTO_TERRAIN_LABEL }?.let { p ->
+                // Terrain coming in for the contours and shading.
+                Surface(
+                    Modifier.align(Alignment.TopCenter).padding(top = 8.dp, start = 64.dp, end = 64.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    tonalElevation = 3.dp,
+                    shadowElevation = 3.dp,
+                ) {
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Getting terrain for contours" + (if (p.total > 1) " (${minOf(p.done + 1, p.total)} of ${p.total})" else "") + "…",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
         }
 
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
@@ -1174,7 +1221,7 @@ private fun LayersSheet(
                 SwitchRow("Hill shading", null, checked = hillshade) { prefs.setHillshade(it) }
                 if (terrainTiles == 0 && onOpenOffline != null) {
                     TextButton(onClick = onOpenOffline, contentPadding = PaddingValues(0.dp)) {
-                        Text("Contours & shading need terrain data. Get it in Offline maps →")
+                        Text("Terrain for contours & shading comes by itself as you look closer at your maps. All of a map's: Offline maps →")
                     }
                 }
             }
@@ -1538,3 +1585,29 @@ private fun SaveRouteDialog(suggested: String, onDismiss: () -> Unit, onSave: (S
 
 /** How far around a point "What's here?" lists the map's places, on screen. */
 private const val WHATS_HERE_RADIUS_DP = 140.0
+
+/** The terrain download the map starts by itself (its label). */
+private const val AUTO_TERRAIN_LABEL = "contours here"
+
+/** How often the map looks for terrain it lacks, and from which zoom (the contours'). */
+private const val AUTO_TERRAIN_CHECK_MS = 2_500L
+private const val AUTO_TERRAIN_ZOOM = 10
+
+/** How far from the centre the map's terrain is fetched (about the screen), in dp. */
+private const val AUTO_TERRAIN_HALF_DP = 300.0
+
+/** The area [halfM] metres around [pos] each way. */
+private fun around(pos: MapPos, halfM: Double): GeoBounds {
+    val dLat = halfM / 111_320.0
+    val dLon = halfM / (111_320.0 * kotlin.math.cos(pos.lat * kotlin.math.PI / 180).coerceAtLeast(0.05))
+    return GeoBounds(pos.lat - dLat, pos.lon - dLon, pos.lat + dLat, pos.lon + dLon)
+}
+
+/** Where two areas overlap, or null. */
+private fun overlap(a: GeoBounds, b: GeoBounds): GeoBounds? {
+    val s = maxOf(a.minLat, b.minLat)
+    val n = minOf(a.maxLat, b.maxLat)
+    val w = maxOf(a.minLon, b.minLon)
+    val e = minOf(a.maxLon, b.maxLon)
+    return if (s < n && w < e) GeoBounds(s, w, n, e) else null
+}

@@ -66,12 +66,16 @@ class WebTerrain(demDir: String) : TerrainData {
     override val state: StateFlow<TerrainState> = _state.asStateFlow()
     private var run = 0
 
+    /** Called when the files changed (a download, a deletion), before [state] says so. */
+    var onFilesChanged: (() -> Unit)? = null
+
     init {
         fileSystem.createDirectories(dir)
         refresh()
     }
 
     private fun refresh() {
+        onFilesChanged?.invoke()
         val files = fileSystem.list(dir).filter { DemIndex.parseName(it.name) != null }
         _state.update { s -> s.copy(tiles = files.size, bytes = files.sumOf { fileSystem.metadataOrNull(it)?.size ?: 0L }, version = s.version + 1) }
     }
@@ -80,7 +84,10 @@ class WebTerrain(demDir: String) : TerrainData {
 
     override fun cellsFor(bounds: GeoBounds) = cellsOf(bounds)
     override fun missingCells(bounds: GeoBounds) = cellsOf(bounds).filterNot { (lat, lon) -> fileSystem.exists(file(lat, lon)) }
-    override fun estimateBytes(cells: Int, highDetail: Boolean): Long = cells * TerrainStore.BYTES_3_ARCSEC
+    /** What the browser downloads: the 1″ tile (it keeps a ninth of it). */
+    override fun estimateBytes(cells: Int, highDetail: Boolean): Long = cells * DOWNLOAD_BYTES
+
+    override val offersHighDetail: Boolean get() = false
 
     /** Standard detail only, here (kept in the browser's memory and storage). */
     override fun download(label: String, bounds: GeoBounds, highDetail: Boolean): String? {
@@ -136,5 +143,8 @@ class WebTerrain(demDir: String) : TerrainData {
 
     private companion object {
         const val SOURCE = "https://elevation-tiles-prod.s3.amazonaws.com/skadi"
+
+        /** About what one tile's download is (1″, gzipped). */
+        const val DOWNLOAD_BYTES = 12_000_000L
     }
 }

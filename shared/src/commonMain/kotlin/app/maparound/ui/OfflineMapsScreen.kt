@@ -295,13 +295,15 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                                 Icon(Icons.Filled.MoreVert, contentDescription = "Options for ${map.title}")
                             }
                             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                                if (!map.isWorld && offline.addOns) {
+                                if (!map.isWorld && offline.terrainAddOn) {
                                     DropdownMenuItem(
                                         text = { Text("Contours & hill shading") },
                                         leadingIcon = { Icon(Icons.Filled.Terrain, null) },
                                         trailingIcon = { if (ex?.terrain == true) Icon(Icons.Filled.Check, null) },
                                         onClick = { menu = false; terrainTarget = map },
                                     )
+                                }
+                                if (!map.isWorld && offline.addOns) {
                                     DropdownMenuItem(
                                         text = { Text("Offline routing") },
                                         leadingIcon = { Icon(Icons.Filled.Route, null) },
@@ -380,10 +382,14 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                         )
                     }
                 }
-            } else if (offline.addOns && installed.any { !it.isWorld }) {
+            } else if ((offline.addOns || offline.terrainAddOn) && installed.any { !it.isWorld }) {
                 item {
                     Text(
-                        "Tip: use ⋮ next to a map to add contour lines & hill shading, offline routing and marked trails.",
+                        if (offline.addOns) {
+                            "Tip: use ⋮ next to a map to add contour lines & hill shading, offline routing and marked trails."
+                        } else {
+                            "Tip: use ⋮ next to a map to add contour lines & hill shading for all of it (they also come by themselves where you look closer)."
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
@@ -819,7 +825,7 @@ private fun TerrainDialog(map: LocalMap, onDismiss: () -> Unit, onStart: (GeoBou
         }
     }
     val prefs = LocalPrefs.current
-    var high by remember { mutableStateOf(prefs.terrainHighDetail) }
+    var high by remember { mutableStateOf(prefs.terrainHighDetail && terrain.offersHighDetail) }
     val current = info
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -828,7 +834,7 @@ private fun TerrainDialog(map: LocalMap, onDismiss: () -> Unit, onStart: (GeoBou
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     "Elevation data for ${map.title}, in 1°×1° tiles from the open Terrain Tiles dataset. " +
-                        "Contour lines are drawn from it on your phone, so they work offline.",
+                        "Contour lines are drawn from it on your device, so they work offline.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 when {
@@ -843,18 +849,25 @@ private fun TerrainDialog(map: LocalMap, onDismiss: () -> Unit, onStart: (GeoBou
                             "${current.third} of ${current.second} tiles to download",
                             style = MaterialTheme.typography.titleSmall,
                         )
-                        DetailOption(
-                            selected = high,
-                            title = "High detail (30 m)",
-                            subtitle = "Up to ${Fmt.fileSize(terrain.estimateBytes(current.third, true))}",
-                            onClick = { high = true },
-                        )
-                        DetailOption(
-                            selected = !high,
-                            title = "Standard (90 m)",
-                            subtitle = "Up to ${Fmt.fileSize(terrain.estimateBytes(current.third, false))} · 9× smaller, less detail",
-                            onClick = { high = false },
-                        )
+                        if (terrain.offersHighDetail) {
+                            DetailOption(
+                                selected = high,
+                                title = "High detail (30 m)",
+                                subtitle = "Up to ${Fmt.fileSize(terrain.estimateBytes(current.third, true))}",
+                                onClick = { high = true },
+                            )
+                            DetailOption(
+                                selected = !high,
+                                title = "Standard (90 m)",
+                                subtitle = "Up to ${Fmt.fileSize(terrain.estimateBytes(current.third, false))} · 9× smaller, less detail",
+                                onClick = { high = false },
+                            )
+                        } else {
+                            Text(
+                                "Standard detail (90 m) · about ${Fmt.fileSize(terrain.estimateBytes(current.third, false))} to download",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
                     }
                 }
             }

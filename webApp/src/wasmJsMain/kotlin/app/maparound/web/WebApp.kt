@@ -1,5 +1,6 @@
 package app.maparound.web
 
+import app.maparound.terrain.DemIndex
 import app.maparound.data.MapAroundCatalog
 import app.maparound.data.OfflineData
 import app.maparound.data.Prefs
@@ -88,6 +89,7 @@ class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: Str
         routing = PendingRouting,
         builtInWorld = true,
         addOns = false,
+        terrainAddOn = true,
     )
 
     init {
@@ -100,6 +102,35 @@ class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: Str
     }
 
     private var map: MapLibreSurface? = null
+
+    /**
+     * Starts the tile worker (url: tiles-worker.js), which draws the offline maps, and gives it the
+     * elevation files, now and whenever they change, for the contour lines and hill shading.
+     */
+    fun startTiles(url: String) {
+        if (maps.start(url)) syncTerrain()
+        terrain.onFilesChanged = ::syncTerrain
+    }
+
+    /** The elevation files the tile worker has: name → size. */
+    private val terrainSent = HashMap<String, Long>()
+
+    /** Hands the tile worker the elevation files it doesn't have yet, and tells it of those gone. */
+    private fun syncTerrain() {
+        if (!maps.available) return
+        val dir = demDir.toPath()
+        val now = fileSystem.list(dir).filter { DemIndex.parseName(it.name) != null }
+            .associate { it.name to (fileSystem.metadataOrNull(it)?.size ?: 0L) }
+        for ((name, size) in now) {
+            if (terrainSent[name] == size) continue
+            tilesTerrain(name, fileSystem.read(dir / name) { readByteArray() }.toUint8Array())
+            terrainSent[name] = size
+        }
+        for (name in terrainSent.keys - now.keys) {
+            tilesTerrain(name, null)
+            terrainSent.remove(name)
+        }
+    }
 
     /** A new map for the map screen (one on the page). */
     fun newMap(): MapLibreSurface {
@@ -125,6 +156,8 @@ class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: Str
         private const val EMPTY_STYLE = """{"version":8,"sources":{},"layers":[]}"""
     }
 }
+
+private fun tilesTerrain(name: String, bytes: JsAny?): Unit = js("{ MapAroundTiles.dem(name, bytes); }")
 
 /** Routes from the public brouter.de server (as Android's online fallback); "Line" measures straight lines. */
 private fun route(points: List<GeoPoint>, profile: RouteProfile): RouteResult {

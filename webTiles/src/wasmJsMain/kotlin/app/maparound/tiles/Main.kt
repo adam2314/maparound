@@ -4,26 +4,38 @@ import app.maparound.map.BorderLines
 import app.maparound.map.WorldData
 import app.maparound.map.WorldTile
 import app.maparound.map.maplibre.TileService
+import app.maparound.shared.fileSystem
 import app.maparound.shared.openFileOverride
+import app.maparound.terrain.DemIndex
 import app.maparound.shared.toByteArray
 import app.maparound.shared.toUint8Array
 import okio.FileHandle
+import okio.Path.Companion.toPath
 
 // The tile worker's Kotlin half: the shared TileService answering the map's tile requests from the
 // maps tiles-worker.js keeps open in the browser's file storage. Paths of those maps start with
-// [PREFIX]; their bytes are read synchronously through tiles-worker.js (__mrRead).
+// [PREFIX]; their bytes are read synchronously through tiles-worker.js (__mrRead). The elevation
+// files come from the page (which keeps them) into this worker's memory under [DEM_DIR], for the
+// contour lines and hill shading.
 
 private const val PREFIX = "/opfs/"
 
-private val service = TileService()
+/** The elevation files the page gave (memory only: not under the saved /data). */
+private const val DEM_DIR = "/dem"
+
+private val service = TileService(demDir = DEM_DIR)
 
 /** The open maps: path → size. */
 private val sizes = HashMap<String, Long>()
 
 private fun read(name: String, at: Double, n: Int): JsAny = js("self.__mrRead(name, at, n)")
 
-private fun register(init: (JsAny?, JsAny?) -> Unit, setMaps: (String) -> Unit, tile: (String) -> JsAny?): Unit =
-    js("{ self.__mrKotlin = { init: init, setMaps: setMaps, tile: tile }; if (self.__mrReady) self.__mrReady(); }")
+private fun register(
+    init: (JsAny?, JsAny?) -> Unit,
+    setMaps: (String) -> Unit,
+    tile: (String) -> JsAny?,
+    setDem: (String, JsAny?) -> Unit,
+): Unit = js("{ self.__mrKotlin = { init: init, setMaps: setMaps, tile: tile, setDem: setDem }; if (self.__mrReady) self.__mrReady(); }")
 
 /** A map file in the browser's file storage, read synchronously in pieces. */
 private class OpfsFile(private val name: String, private val length: Long) : FileHandle(false) {
@@ -67,5 +79,14 @@ fun main() {
             service.setMaps(sizes.keys.sorted())
         },
         tile = { path -> service.respond(path)?.bytes?.toUint8Array() },
+        setDem = { name, bytes ->
+            // One elevation file ("N47E009.hgt"), or null: it's gone.
+            if (DemIndex.parseName(name) != null) {
+                val dir = DEM_DIR.toPath()
+                fileSystem.createDirectories(dir)
+                if (bytes == null) fileSystem.delete(dir / name, mustExist = false) else fileSystem.write(dir / name) { write(bytes.toByteArray()) }
+                service.refreshTerrain()
+            }
+        },
     )
 }

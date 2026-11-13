@@ -4,6 +4,7 @@
 //   { type: 'tile', id, path }  →  { type: 'tile', id, data: ArrayBuffer | null }
 //   { type: 'import', id, file } →  { type: 'progress', id, done, total }…, { type: 'imported', id, name | error }
 //   { type: 'delete', name }
+//   { type: 'dem', name, data: ArrayBuffer | null }  (an elevation file for contours and hill shading; null: gone)
 // and after every change the maps: { type: 'maps', maps: [{ name, size, mtime, header }] }
 // (header: the start of the file up to the end of mapsforge's header, for the page's screens).
 'use strict';
@@ -133,6 +134,9 @@ function handle(m) {
     }
     case 'import': importFile(m.id, m.file); break;
     case 'delete': remove(m.name); break;
+    case 'dem':
+      try { kotlin.setDem(m.name, m.data ? new Uint8Array(m.data) : null); } catch (e) { console.warn('MapAround: elevation file', m.name, e); }
+      break;
     case 'list': openAll(); break;
   }
 }

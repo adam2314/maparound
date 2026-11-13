@@ -111,7 +111,7 @@ fun main() {
             borders = fetchBytes("borders.bin"),
             base = pageBase(),
         )
-        app.maps.start("tiles/tiles-worker.js")
+        app.startTiles("tiles/tiles-worker.js")
         pinFromAddress()
         inviteFromAddress(app)
         onAddressChange { inviteFromAddress(app) }

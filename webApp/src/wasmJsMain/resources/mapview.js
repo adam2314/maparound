@@ -103,6 +103,12 @@
     mtime(i) { return tiles.maps[i].mtime; },
     header(i) { return tiles.maps[i].header; },
     remove(name) { if (tiles.worker) tiles.worker.postMessage({ type: 'delete', name: name }); },
+    /** An elevation file (a Uint8Array, handed over) for the worker's contour lines and hill shading; null: it's gone. */
+    dem(name, bytes) {
+      if (!tiles.worker) return;
+      if (bytes) tiles.worker.postMessage({ type: 'dem', name: name, data: bytes.buffer }, [bytes.buffer]);
+      else tiles.worker.postMessage({ type: 'dem', name: name, data: null });
+    },
     /** The browser's file chooser for a .map file, copied into the storage by the worker. */
     pickAndImport(onStart, onProgress, onDone) {
       if (!tiles.worker) { onDone(null, 'This browser has no file storage for maps'); return; }

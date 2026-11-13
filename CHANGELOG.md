@@ -16,6 +16,8 @@
 - **Terrain when it's needed.** Line of sight, the viewshed and the 3D view now download the
   elevation data their area is missing by themselves (a few tiles, not on mobile data with Wi‑Fi
   only on), show the progress, and carry on when it's in; no more trip to Offline maps first.
+  So does the map for its contour lines and hill shading, where your offline maps are, once you
+  zoom in (from zoom 10).
 - **Smooth 3D.** The 3D view tilts in from the map as it opens and eases back to a flat, north-up map
   as it closes; the map then shows where you were looking in 3D.
 - **A better 3D view, on the whole globe.** Zoom out and the Earth hangs in space with its
@@ -60,6 +62,9 @@
   pinch zooms, two fingers turn and tilt (with a mouse: the wheel zooms, the right button turns
   and tilts). Esc closes it, and the 2D map then shows where you were looking in 3D.
 - **Line of sight and viewshed in the browser**, with the terrain they need fetched as they go.
+- **Contour lines and hill shading on the web's offline maps.** The terrain they're drawn from
+  comes by itself as you look closer at your maps, or for a whole map from Offline → ⋮ →
+  Contours & hill shading.
 - **Hebrew and Arabic names read the right way** on the web map (they came out backwards), offline too.
 - **Offline maps in the browser.** Download MapAround's maps (with the marked trails) from the
   Offline tab, then add the file with the file button: the map is kept in the browser's storage

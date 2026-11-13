@@ -249,9 +249,12 @@ shading extra); azimuth and the converter work without it.
 - **Terrain on demand** (`TerrainData.ensure`): line of sight, the viewshed and the 3D view fetch
   the 1° elevation tiles their area lacks without asking (at most 6, at the detail last chosen, not
   on mobile data when Wi‑Fi only is on), show the download's progress and carry on when it's in;
-  tiles that didn't come (no connection) wait for *Try again*. The web app fetches the same tiles
-  with the browser (`WebTerrain`: its gzip, every third sample, so standard detail) and keeps them
-  with its files.
+  tiles that didn't come (no connection) wait for *Try again*. So does the map for its contour
+  lines and hill shading: from zoom 10, the tiles under the screen within your offline maps' areas
+  (a note at the top shows the progress; tiles with no data, the sea, aren't asked for again). The
+  web app fetches the same tiles with the browser (`WebTerrain`: its gzip, every third sample, so
+  standard detail), keeps them with its files and hands them to its tile worker, which draws the
+  contours and hill shading from them.
 - **Viewshed** (`Viewshed`): radial sweep from A, one ray to every edge cell of a grid of up to
   601×601 cells laid out in Web Mercator (so it lines up with map pixels). Each ray samples terrain at
   the same spacing as the line of sight, so both tools agree (checked against brute-force sight lines
@@ -452,8 +455,9 @@ downloaded maps), search, the route planner with online routes (brouter.de), the
 and places, GPX import and export), the map tools, your position on the map, and **watching a
 party** (members, meeting point, SOS and messages; it doesn't share your position). It has no
 Sensors tab. The **3D view** is MapLibre's own: the same map on the relief and as a globe in space
-(see below). Terrain, offline routing and search, and recording come next; the browser can't
-record with the screen off.
+(see below). The offline maps have **contour lines and hill shading** too, from terrain the app
+fetches as you look closer (or a whole map's from **Offline → ⋮**, standard detail). Offline
+routing and recording come next; the browser can't record with the screen off.
 
 Downloading a map takes two steps in the browser: **Offline → ⤓** has the browser download the
 `.map` file (GitHub's download servers don't let a web page fetch it itself), then the file

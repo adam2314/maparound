@@ -125,6 +125,9 @@ interface TerrainData {
     /** The detail of downloads nobody asked for ([ensure]): the user's last choice where there is one. */
     val autoHighDetail: Boolean get() = false
 
+    /** Whether high detail (1″, ~30 m) can be had here, or standard (3″, ~90 m) only. */
+    val offersHighDetail: Boolean get() = true
+
     /**
      * Gets the elevation data [bounds] needs without asking (the 3D view, line of sight, viewshed):
      * starts downloading its missing cells, a few at most. Null when that's under way (or nothing's
@@ -187,8 +190,10 @@ class OfflineData(
      * world overview map isn't needed (Android).
      */
     val builtInWorld: Boolean = false,
-    /** Terrain, offline routing and marked trails can be added to a map (not in the web app yet). */
+    /** Offline routing and marked trails can be added to a map (not in the web app yet). */
     val addOns: Boolean = true,
+    /** Terrain (contour lines & hill shading) can be added to a map. */
+    val terrainAddOn: Boolean = addOns,
 )
 
 val LocalOfflineData = staticCompositionLocalOf<OfflineData> { error("No OfflineData provided") }
