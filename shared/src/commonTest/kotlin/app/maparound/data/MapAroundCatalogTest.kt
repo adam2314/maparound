@@ -63,6 +63,33 @@ class MapAroundCatalogTest {
         assertEquals("1.2G", MapAroundCatalog.sizeLabel((1.25 * 1024 * 1024 * 1024).toLong()))
     }
 
+    @Test
+    fun mapsforgeMapsWhereMapAroundHasNoneYet() {
+        val ours = MapAroundCatalog.listing(MapAroundCatalog.parse(json), "europe/")
+        fun mf(path: String, size: String) = CatalogEntry(path, path.endsWith("/"), size.ifEmpty { null }, Catalog.parseSize(size.ifEmpty { "0" }), 1_700_000_000_000)
+        val theirs = listOf(
+            mf("europe/austria.map", "700M"),
+            mf("europe/germany.map", "2.4G"),
+            mf("europe/germany/", ""),
+            mf("europe/malta.map", "9M"),
+            mf("europe/monaco.map", "1M"),
+        )
+        val merged = MapAroundCatalog.merge(ours, theirs) { "https://download.mapsforge.org/maps/v5/" + it.path }
+        val by = merged.associateBy { it.path }
+        // MapAround's own map stays as it is.
+        assertEquals("https://github.com/o/r/releases/download/maps-2026-11/europe__austria.map", by["europe/austria.map"]!!.url)
+        assertEquals(false, by["europe/austria.map"]!!.basic)
+        // Too big to build (and not built): mapsforge.org's file, with the reason kept.
+        val germany = by["europe/germany.map"]!!
+        assertEquals("https://download.mapsforge.org/maps/v5/europe/germany.map", germany.url)
+        assertEquals(CatalogEntry.Unavailable.NEEDS_FUNDING, germany.unavailable)
+        assertTrue(germany.basic && germany.sizeLabel == "2.4G")
+        assertTrue(by["europe/malta.map"]!!.basic)
+        // Only on mapsforge.org: a basic map.
+        assertTrue(by["europe/monaco.map"]!!.basic && by["europe/monaco.map"]!!.unavailable == null)
+        assertEquals(merged.map { it.path }.sorted(), merged.map { it.path })
+    }
+
     private class FakeSource(val name: String) : CatalogSource {
         override suspend fun list(path: String, forceRefresh: Boolean) =
             listOf(CatalogEntry("$path$name.map", false, null, null, null))

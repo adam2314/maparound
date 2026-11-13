@@ -8,8 +8,11 @@
   trail visibility, surfaces, 4×4-only tracks, fords, glaciers, huts and water points built in.
   The Marked trails download isn't needed for these maps. Maps from mapsforge.org you already have
   are offered as updates. The biggest whole countries (France, Germany, Italy, Great Britain,
-  Japan…) are listed as needing funding for now; their regions can be downloaded. See
+  Japan…) need funding to be built; their regions can be downloaded. See
   [my-pipeline](https://github.com/adam2314/my-pipeline).
+- **The mapsforge.org maps are still there in the transition.** Regions MapAround hasn't built yet,
+  and the biggest whole countries, can be downloaded from mapsforge.org as basic maps (without the
+  marked trails); the switch "Basic maps from mapsforge.org" shows their whole list.
 - **A better 3D view, on the whole globe.** Zoom out and the Earth hangs in space with its
   glowing atmosphere; zoom in down to a hiking path. The map on the terrain is drawn like the 2D
   map, names stand up over the mountains (peaks with their heights, villages, huts; hidden

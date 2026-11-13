@@ -16,8 +16,13 @@ data class CatalogEntry(
     val modified: Long?,       // epoch millis of last server-side update
     /** Where to download it, when the catalog says; else the catalog's address + [path]. */
     val url: String? = null,
-    /** Why it can't be downloaded (MapAround's maps), or null. */
+    /** Why MapAround's map can't be downloaded, or null. */
     val unavailable: Unavailable? = null,
+    /**
+     * The older map from download.mapsforge.org (no built-in trails), offered while MapAround's
+     * isn't there ([unavailable]) or when MapAround's list has no such region.
+     */
+    val basic: Boolean = false,
 ) {
     val name: String get() = path.removeSuffix("/").substringAfterLast('/')
     val title: String get() = MapNames.pretty(name)

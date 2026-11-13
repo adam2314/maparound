@@ -68,6 +68,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.maparound.data.Catalog
@@ -116,7 +117,9 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
     val offline = LocalOfflineData.current
     val repo = offline.maps
     val downloader = offline.downloads
-    val catalog = offline.catalog
+    // The list to download from: MapAround's, or (switch) the older one it offers too (mapsforge.org).
+    var basicList by rememberSaveable { mutableStateOf(false) }
+    val catalog = offline.catalog.alternative?.takeIf { basicList } ?: offline.catalog
     val prefs = LocalPrefs.current
     val rasters = LocalRasters.current
 
@@ -135,7 +138,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
     var path by rememberSaveable { mutableStateOf("") }
     var retryToken by remember { mutableIntStateOf(0) }
     var listing by remember { mutableStateOf<Listing>(Listing.Loading) }
-    LaunchedEffect(path, retryToken) {
+    LaunchedEffect(path, retryToken, catalog) {
         listing = Listing.Loading
         listing = try {
             catalog.list(path).let { Listing.Ready(it, catalog.attribution) }
@@ -484,6 +487,24 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                     Switch(checked = wifiOnly, onCheckedChange = { prefs.setWifiOnly(it) })
                 }
             }
+            if (offline.catalog.alternative != null) {
+                item {
+                    Row(
+                        Modifier.fillMaxWidth().clickable { basicList = !basicList }.padding(horizontal = 16.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Basic maps from mapsforge.org")
+                            Text(
+                                "The older maps, without the marked trails and outdoor details",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(checked = basicList, onCheckedChange = { basicList = it })
+                    }
+                }
+            }
             item { Breadcrumbs(path, onNavigate = { path = it }) }
             item {
                 OutlinedTextField(
@@ -523,9 +544,11 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                                 trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
                             )
                         } else {
+                            val local = installed.firstOrNull { it.fileName == entry.localFileName }
                             CatalogMapRow(
                                 entry = entry,
-                                local = installed.firstOrNull { it.fileName == entry.localFileName },
+                                local = local,
+                                localIsMapAround = local?.let { extras[it.fileName]?.builtInTrails } == true,
                                 download = downloads.firstOrNull { it.fileName == entry.localFileName },
                                 onDownload = { requestDownload(entry) },
                             )
@@ -650,9 +673,18 @@ private fun SectionHeader(title: String, trailing: String?) {
         Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 4.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
-        Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+        // The title keeps its width; a long note beside it wraps.
+        Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
         if (trailing != null) {
-            Text(trailing, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                trailing,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.End,
+                modifier = Modifier.weight(1f).padding(start = 12.dp),
+            )
+        } else {
+            Spacer(Modifier.weight(1f))
         }
     }
 }
@@ -702,25 +734,45 @@ private fun DownloadRow(d: DownloadInfo, onCancel: () -> Unit) {
 }
 
 @Composable
-private fun CatalogMapRow(entry: CatalogEntry, local: LocalMap?, download: DownloadInfo?, onDownload: () -> Unit) {
-    val updateAvailable = local != null && entry.unavailable == null && entry.modified.let { it != null && it > local.modified }
+private fun CatalogMapRow(
+    entry: CatalogEntry,
+    local: LocalMap?,
+    /** The installed file is one of MapAround's maps (not an older mapsforge.org one). */
+    localIsMapAround: Boolean,
+    download: DownloadInfo?,
+    onDownload: () -> Unit,
+) {
+    // Something to download: MapAround's map, or mapsforge.org's where MapAround has none yet.
+    val downloadable = entry.unavailable == null || entry.url != null
+    val newer = entry.modified.let { it != null && local != null && it > local.modified }
+    // A newer file, or MapAround's map in place of an older mapsforge.org one.
+    val updateAvailable = local != null && downloadable && (newer || (!entry.basic && entry.url != null && !localIsMapAround))
     ListItem(
         headlineContent = { Text(entry.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = {
-            when (entry.unavailable) {
-                CatalogEntry.Unavailable.NEEDS_FUNDING -> Text("Not available: too big for the free build machines, needs funding")
-                CatalogEntry.Unavailable.NOT_BUILT -> Text("Not available yet")
-                null -> {
-                    val date = entry.modified?.let {
-                        Fmt.date(it)
-                    }
-                    Text(listOfNotNull(entry.sizeLabel?.let { "${it}B" }, date?.let { "updated $it" }).joinToString(" · "))
-                }
+            val why = when (entry.unavailable) {
+                CatalogEntry.Unavailable.NEEDS_FUNDING ->
+                    if (entry.basic) "Too big for the free build machines yet (needs funding)" else "Not available: too big for the free build machines, needs funding"
+                CatalogEntry.Unavailable.NOT_BUILT -> if (entry.basic) "Not built by MapAround yet" else "Not available yet"
+                null -> null
+            }
+            if (!downloadable) {
+                Text(why.orEmpty())
+            } else {
+                val date = entry.modified?.let { Fmt.date(it) }
+                Text(
+                    listOfNotNull(
+                        why,
+                        "basic map from mapsforge.org, no marked trails".takeIf { entry.basic },
+                        entry.sizeLabel?.let { "${it}B" },
+                        date?.let { "updated $it" },
+                    ).joinToString(" · "),
+                )
             }
         },
         trailingContent = {
             when {
-                entry.unavailable != null -> if (local != null) {
+                !downloadable -> if (local != null) {
                     Icon(
                         Icons.Filled.CheckCircle,
                         contentDescription = "Installed",

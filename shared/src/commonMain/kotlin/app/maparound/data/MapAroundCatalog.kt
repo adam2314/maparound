@@ -19,7 +19,8 @@ import kotlin.concurrent.Volatile
  * `catalog.json` on that repository's `maps-latest` release. Regions too big for the free build
  * machines are listed as needing funding. Same paths and file names as the mapsforge.org maps, so
  * maps from there get updated by these. While the list can't be read (offline, or not published
- * yet) the mapsforge.org maps ([fallback]) are offered.
+ * yet) the mapsforge.org maps ([fallback]) are offered. In the transition, regions MapAround hasn't
+ * built (yet) are offered from mapsforge.org too, as basic maps ([merge]).
  */
 class MapAroundCatalog(
     private val catalogUrl: String = CATALOG_URL,
@@ -33,6 +34,8 @@ class MapAroundCatalog(
 
     override val attribution: String
         get() = if (usingFallback) fallback.attribution else "OpenStreetMap data with marked trails, built by MapAround"
+
+    override val alternative: CatalogSource get() = fallback
 
     override suspend fun list(path: String, forceRefresh: Boolean): List<CatalogEntry> {
         val all = try {
@@ -48,7 +51,15 @@ class MapAroundCatalog(
             return fallback.list(path, forceRefresh)
         }
         usingFallback = false
-        return listing(all, path)
+        // The mapsforge.org maps of this folder, for what MapAround doesn't have (yet).
+        val basic = try {
+            fallback.list(path, forceRefresh)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            emptyList()
+        }
+        return merge(listing(all, path), basic, fallback::urlFor)
     }
 
     override fun urlFor(entry: CatalogEntry): String = entry.url ?: fallback.urlFor(entry)
@@ -93,6 +104,28 @@ class MapAroundCatalog(
                     val dir = path + rest.substring(0, slash + 1)
                     out.getOrPut(dir) { CatalogEntry(dir, isDirectory = true, sizeLabel = null, sizeBytes = null, modified = null) }
                 }
+            }
+            return out.values.sortedBy { it.path }
+        }
+
+        /**
+         * MapAround's maps of a folder, with mapsforge.org's where MapAround has none to download:
+         * a region it hasn't built gets mapsforge.org's file (keeping why, [CatalogEntry.unavailable]),
+         * and regions only mapsforge.org has are listed as basic maps. [urlFor]: mapsforge.org's address.
+         */
+        fun merge(ours: List<CatalogEntry>, basic: List<CatalogEntry>, urlFor: (CatalogEntry) -> String): List<CatalogEntry> {
+            val theirs = basic.associateBy { it.path }
+            val out = LinkedHashMap<String, CatalogEntry>()
+            for (e in ours) {
+                val b = theirs[e.path]
+                out[e.path] = if (e.unavailable != null && !e.isDirectory && b != null) {
+                    e.copy(url = urlFor(b), sizeLabel = b.sizeLabel, sizeBytes = b.sizeBytes, modified = b.modified, basic = true)
+                } else {
+                    e
+                }
+            }
+            for (b in basic) {
+                if (b.path !in out) out[b.path] = if (b.isDirectory) b else b.copy(url = urlFor(b), basic = true)
             }
             return out.values.sortedBy { it.path }
         }

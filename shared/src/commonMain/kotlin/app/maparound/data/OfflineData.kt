@@ -88,6 +88,9 @@ interface CatalogSource {
 
     /** Where the listed maps come from, for the list's heading (after [list]). */
     val attribution: String get() = "OpenStreetMap data via mapsforge.org"
+
+    /** Another list to offer instead (MapAround's catalog: the mapsforge.org maps), or null. */
+    val alternative: CatalogSource? get() = null
 }
 
 /**
