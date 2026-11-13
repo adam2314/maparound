@@ -52,6 +52,42 @@ class MapPoiTest {
         assertEquals("de" to "Drei Schwestern (Rätikon)", MapPoi(0.0, 0.0, mapOf("wikipedia" to "de:Drei Schwestern (Rätikon)")).wikipedia)
         assertNull(MapPoi(0.0, 0.0, mapOf("wikipedia" to "Drei Schwestern")).wikipedia)
         assertNull(MapPoi(0.0, 0.0, mapOf("wikipedia" to "de:")).wikipedia)
+        assertEquals("Q666946", MapPoi(0.0, 0.0, mapOf("wikidata" to "Q666946")).wikidata)
+        assertEquals("Q1", MapPoi(0.0, 0.0, mapOf("wikidata" to "Q1;Q2")).wikidata)
+        assertNull(MapPoi(0.0, 0.0, mapOf("wikidata" to "666946")).wikidata)
+        assertTrue(MapPoi(0.0, 0.0, mapOf("wikidata" to "Q666946")).hasArticle)
+        assertTrue(!MapPoi(0.0, 0.0, mapOf("name" to "x")).hasArticle)
+    }
+
+    @Test
+    fun itsArticleInTheUsersLanguage() {
+        val json = """{"entities":{"Q666946":{"type":"item","id":"Q666946","sitelinks":{
+            "dewiki":{"site":"dewiki","title":"Schloss Vaduz","badges":[]},
+            "enwiki":{"site":"enwiki","title":"Vaduz Castle","badges":[]},
+            "commonswiki":{"site":"commonswiki","title":"Category:Vaduz Castle","badges":[]},
+            "dewikivoyage":{"site":"dewikivoyage","title":"Vaduz","badges":[]},
+            "zh_yuewiki":{"site":"zh_yuewiki","title":"華杜茲城堡","badges":[]}}}}}"""
+        val links = Wikipedia.parseSitelinks(json)
+        assertEquals(mapOf("de" to "Schloss Vaduz", "en" to "Vaduz Castle", "zh-yue" to "華杜茲城堡"), links)
+        assertEquals(emptyMap(), Wikipedia.parseSitelinks("{\"entities\":{\"Q1\":{\"missing\":\"\"}}}"))
+        assertTrue("ids=Q666946" in Wikipedia.sitelinksUrl("Q666946"))
+
+        val own = "de" to "Schloss Vaduz"
+        // In the user's language first, then its own tag's, then English, then the one with its name.
+        assertEquals("en" to "Vaduz Castle", Wikipedia.pick(links, "en", own, "Schloss Vaduz"))
+        assertEquals(own, Wikipedia.pick(links, "he", own, "Schloss Vaduz"))
+        assertEquals("en" to "Vaduz Castle", Wikipedia.pick(links, "he", null, null))
+        assertEquals("de" to "Schloss Vaduz", Wikipedia.pick(links - "en", "he", null, "Schloss Vaduz"))
+        assertNull(Wikipedia.pick(emptyMap(), "en", null, "x"))
+        // Not a bot's stub when a written article is there.
+        val peak = mapOf("arz" to "جبل درى ستشويستيرن", "ceb" to "Drei Schwestern (tumoy sa bukid sa Ostriya)", "de" to "Drei Schwestern (Berg)", "fr" to "Drei Schwestern")
+        assertEquals("de" to "Drei Schwestern (Berg)", Wikipedia.pick(peak, "he", null, "Drei Schwestern"))
+        assertEquals("ceb" to "X", Wikipedia.pick(mapOf("ceb" to "X"), "he", null, null))
+
+        // Its tag already in the user's language: no need to ask.
+        val castle = MapPoi(47.13, 9.52, mapOf("name" to "Schloss Vaduz", "wikipedia" to "de:Schloss Vaduz"))
+        assertEquals("https://de.wikipedia.org/wiki/Schloss_Vaduz", Wikipedia.articleOf(castle, "de")?.url)
+        assertNull(Wikipedia.linkFor(MapPoi(0.0, 0.0, mapOf("name" to "x")), "en"))
     }
 
     @Test
@@ -76,5 +112,7 @@ class MapPoiTest {
         assertEquals("he", Wikipedia.language("he"))
         assertEquals("pt", Wikipedia.language("pt_BR"))
         assertEquals("en", Wikipedia.language("x!"))
+        assertEquals("he", Wikipedia.language("iw"))
+        assertEquals("no", Wikipedia.language("nb"))
     }
 }

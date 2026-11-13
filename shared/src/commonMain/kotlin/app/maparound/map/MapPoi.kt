@@ -54,7 +54,16 @@ data class MapPoi(val lat: Double, val lon: Double, val tags: Map<String, String
             return if (title.isEmpty()) null else lang to title
         }
 
+    /** Its Wikidata item from its `wikidata` tag ("Q666946"), which knows its articles in every language. */
+    val wikidata: String?
+        get() = tags["wikidata"]?.substringBefore(';')?.trim()?.takeIf { WIKIDATA_ID.matches(it) }
+
+    /** Whether it has a Wikipedia article of its own (from its tags). */
+    val hasArticle: Boolean get() = wikipedia != null || wikidata != null
+
     companion object {
+        private val WIKIDATA_ID = Regex("Q[1-9][0-9]{0,11}")
+
         /**
          * The points the platform's map reported ([app.maparound.map.maplibre.NativeMap.poisNear]:
          * `[{"lat":…,"lon":…,"p":{tags}}]`), each place once (the map may draw one in several tiles

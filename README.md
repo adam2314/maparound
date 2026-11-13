@@ -14,7 +14,7 @@ Licence: **GPL-3.0** (see [LICENSE](LICENSE)); bundled components keep their own
 
 | Tab | What it does |
 |---|---|
-| **Map** | Pan/zoom map, my-location dot with accuracy circle and follow mode, long-press to drop a pin (coordinates, DMS, distance/bearing from you, copy, open in another app). Tap a peak, spring, hut, viewpoint or any place the map labels to pin it with what it is (its name in your language and where it is, its height); **What's here?** lists the places the map shows around it (offline) and Wikipedia articles about places nearby (online), and a place with its own article links to it. Buttons for **search**, layers, the **route planner**, **map tools**, the **3D view** and **track recording**; zoom with pinch or double-tap. |
+| **Map** | Pan/zoom map, my-location dot with accuracy circle and follow mode, long-press to drop a pin (coordinates, DMS, distance/bearing from you, copy, open in another app). Tap a peak, spring, hut, viewpoint or any place the map labels to pin it with what it is (its name in your language and where it is, its height); **What's here?** lists the places the map shows around it (offline) and Wikipedia articles about places nearby (online), and a place with its own article opens it, in your language when there is one. Buttons for **search**, layers, the **route planner**, **map tools**, the **3D view** and **track recording**; zoom with pinch or double-tap. |
 | **Search** (on the map, magnifier) | Your saved places, coordinates in any format and map links, and names in the **offline maps** around the map centre (towns, peaks, springs, streets, paths, hotels…, within 25 km, works without internet) as you type; **online** search of OpenStreetMap anywhere (Photon, with Nominatim as a fallback) when you press search. Picking a result drops a labelled pin there. |
 | **Map tools** (on the map, ruler button) | **Azimuth & range** between two points (true and magnetic bearing, mils, back bearing, height difference, slope, place B by bearing + distance). **Line of sight** from A to B with a terrain profile and where the view is blocked; as a **radio link**, with antenna heights at both ends and a frequency (LoRa 433/868/915 MHz, 2.4 and 5.8 GHz, VHF, PMR446, FRS/GMRS or any), it draws the first Fresnel zone on the profile and gives its clearance (60% rule) and the path loss (free space + terrain). **Viewshed**: a circle (250 m–25 km) showing ground in sight (green) and hidden (red). **Coordinate converter**: one point in decimal degrees, deg-min, deg-min-sec, UTM, MGRS, Israeli ITM, Plus Code and Maidenhead; type or paste any of them to jump there; pick the format used on pins. Line of sight and viewshed fetch the terrain they need themselves when it's missing (a few 1° tiles at most, as the Wi‑Fi-only setting allows). |
 | **Route planner** (on the map) | Tap points (start, stops, end); tap a numbered point to remove it. Hold a stop and drag it to move it, or hold the line and drag to add a stop there; the line follows your finger and the route is calculated again when you let go. Profiles **Hike / Bike / Car** follow paths and roads; **Line** draws straight lines to measure. Shows distance, climb/descent, estimated time and an elevation profile; undo, reverse, save to the library. **Start** navigates: the next turn and its distance, time left and arrival, voice prompts (switchable), a new route when you leave it, and it keeps going with the screen off. |
@@ -411,8 +411,10 @@ phone locked depends on how the Android Auto host keeps the app running.
   tiles' `poi` layer with all their OSM tags; MapLibre's rendered-feature query on Android, iOS and
   the web) and pins the nearest, with its kind in words ("Mountain pass", "Alpine hut"). *What's
   here?* lists the map's places within 140 dp and asks Wikipedia's geosearch for articles within
-  10 km, in the device's language and in English for places that one misses; a place's own article
-  is its `wikipedia` tag, or an article with exactly its name within 500 m.
+  10 km, in the device's language and in English for places that one misses. A place's own article
+  comes from its `wikipedia` and `wikidata` tags (MapAround's maps keep them), in the device's
+  language through Wikidata when there is one, else its tag's; failing those, an article with
+  exactly its name within 500 m.
 
 ## Sharing & opening links and files
 
@@ -606,8 +608,8 @@ The app's privacy policy (also for the stores) is [docs/privacy.md](docs/privacy
 - **Internet**: used for map, terrain, routing-data and trail downloads, online tiles (2D and 3D),
   online route calculation, and online search (the search text and the map centre go to
   photon.komoot.io, or nominatim.openstreetmap.org as a fallback; offline search sends nothing),
-  and *What's here?* (the point's coordinates go to wikipedia.org; the places around it on the map
-  are read offline).
+  *What's here?* (the point's coordinates go to wikipedia.org; the places around it on the map
+  are read offline) and a place's Wikipedia button (its Wikidata id goes to wikidata.org).
   For online routes the tapped points are sent to brouter.de, and so is your position when
   navigation recalculates a route without offline routing data. There are no analytics, accounts
   or tracking.
@@ -649,7 +651,7 @@ The app's privacy policy (also for the stores) is [docs/privacy.md](docs/privacy
 - **Android Auto**: [Android for Cars App Library](https://developer.android.com/training/cars/apps) (`androidx.car.app`, Apache-2.0).
 - **Magnetic declination**: the World Magnetic Model built into Android (`GeomagneticField`).
 - **Online search**: [Photon](https://photon.komoot.io) by komoot and [Nominatim](https://nominatim.org) (OpenStreetMap data, ODbL; fair-use policies: no bulk queries, a request at a time).
-- **Wikipedia**: *What's here?* uses the [MediaWiki API](https://www.mediawiki.org/wiki/API:Geosearch) of wikipedia.org (articles CC BY-SA 4.0, opened in the browser; nothing is copied into the app).
+- **Wikipedia**: *What's here?* uses the [MediaWiki API](https://www.mediawiki.org/wiki/API:Geosearch) of wikipedia.org and the [Wikidata API](https://www.wikidata.org/wiki/Wikidata:Data_access) (articles CC BY-SA 4.0, opened in the browser; nothing is copied into the app).
 - **RMAP format**: as read by [QMapShack](https://github.com/Maproom/qmapshack)'s `CMapRMAP` (GPL-3.0); MapAround's reader is its own Kotlin implementation.
 - **Routing**: [BRouter](https://github.com/abrensch/brouter) (MIT) and its data and server at brouter.de, from OpenStreetMap (ODbL).
 - **Marked trails**: © OpenStreetMap contributors (ODbL), downloaded through the [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) (fair-use policy). The online overlay is from [Waymarked Trails](https://waymarkedtrails.org); I couldn't find written tile-usage terms, so check with them before any large-scale use.

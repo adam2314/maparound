@@ -38,6 +38,7 @@ import app.maparound.search.Wikipedia
 import app.maparound.shared.ioDispatcher
 import app.maparound.shared.util.deviceLanguage
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -52,7 +53,12 @@ fun WhatsHereSheet(point: GeoPoint, poi: MapPoi?, around: List<MapPoi>, onShow: 
     val userLang = remember { Wikipedia.language(deviceLanguage()) }
     var articles by remember(point) { mutableStateOf<List<Wikipedia.Article>?>(null) }
     var problem by remember(point) { mutableStateOf<String?>(null) }
+    // The place's own article (its tags), in the user's language when there is one.
+    var tagged by remember(point) { mutableStateOf<Wikipedia.Article?>(null) }
     LaunchedEffect(point) {
+        if (poi != null && poi.hasArticle) {
+            launch { tagged = withContext(ioDispatcher) { runCatching { Wikipedia.articleOf(poi, deviceLanguage()) }.getOrNull() } }
+        }
         try {
             articles = withContext(ioDispatcher) { Wikipedia.nearby(point.lat, point.lon, deviceLanguage()) }
         } catch (e: CancellationException) {
@@ -61,7 +67,7 @@ fun WhatsHereSheet(point: GeoPoint, poi: MapPoi?, around: List<MapPoi>, onShow: 
             problem = "Wikipedia needs a connection."
         }
     }
-    val own = poi?.let { Wikipedia.about(it, articles.orEmpty()) }
+    val own = tagged ?: poi?.let { Wikipedia.about(it, articles.orEmpty()) }
     val nearby = articles.orEmpty().filterNot { own != null && it.title == own.title }
     // The places around, the tapped one apart.
     val places = around.filterNot { poi != null && it.title == poi.title && Geo.distance(it.point, poi.point) < 30 }

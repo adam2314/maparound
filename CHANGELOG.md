@@ -39,7 +39,12 @@
   with its name in your language and the local one, ready to route to, share or save.
 - **What's here?** From any pin: the places the map shows around it, nearest first (offline; tap
   one to go there), and Wikipedia articles about places nearby, in your language and in English
-  (online). A place with its own article gets a *Wikipedia* button. On Android, iPhone and the web.
+  (online). On Android, iPhone and the web.
+- **Wikipedia from the map.** MapAround's maps now keep each place's Wikipedia and Wikidata links
+  (from the November build on): a tapped peak, castle, lake or village with an article gets a
+  *Wikipedia* button that opens it in your language when there is one.
+- **Hebrew names in offline search on Android.** A phone set to Hebrew (or Indonesian) now gets
+  the map's names in its language where the map has them; it got the local names.
 
 ### Web app
 - **MapAround in the browser** at [adam2314.github.io/maparound/app](https://adam2314.github.io/maparound/app/),

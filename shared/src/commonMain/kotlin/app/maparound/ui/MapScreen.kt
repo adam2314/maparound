@@ -620,7 +620,15 @@ fun MapScreen(
                     p, pinLabel, location, onClose = { pin = null },
                     details = poi?.details,
                     onWhatsHere = { whatsHere = p to poi },
-                    wikiUrl = poi?.wikipedia?.let { (lang, title) -> app.maparound.search.Wikipedia.articleUrl(lang, title) },
+                    onWikipedia = poi?.takeIf { it.hasArticle }?.let { place ->
+                        {
+                            // Its article in the user's language when there is one (Wikidata knows).
+                            scope.launch {
+                                withContext(ioDispatcher) { app.maparound.search.Wikipedia.linkFor(place, app.maparound.shared.util.deviceLanguage()) }
+                                    ?.let(platform::openUrl)
+                            }
+                        }
+                    },
                     onRoute = {
                         pin = null
                         ToolsSession.close()
@@ -945,8 +953,8 @@ private fun PinCard(
     /** What the point of interest under the pin is ("Peak · 2085 m"). */
     details: String? = null,
     onWhatsHere: (() -> Unit)? = null,
-    /** Its Wikipedia article, from its own tags. */
-    wikiUrl: String? = null,
+    /** Opens its Wikipedia article (it has one, from its own tags). */
+    onWikipedia: (() -> Unit)? = null,
 ) {
     val clipboard = LocalClipboardManager.current
     val platform = LocalPlatform.current
@@ -976,7 +984,7 @@ private fun PinCard(
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
-            if (onWhatsHere != null || wikiUrl != null) {
+            if (onWhatsHere != null || onWikipedia != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (onWhatsHere != null) {
                         TextButton(onClick = onWhatsHere) {
@@ -985,8 +993,8 @@ private fun PinCard(
                             Text("What's here?")
                         }
                     }
-                    if (wikiUrl != null) {
-                        TextButton(onClick = { platform.openUrl(wikiUrl) }) {
+                    if (onWikipedia != null) {
+                        TextButton(onClick = onWikipedia) {
                             Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
                             Text("Wikipedia")

@@ -27,7 +27,7 @@ object SearchService : Searcher {
         files: List<File> = AppGraph.mapFiles.files.value.map { it.file }.filterNot { MapNames.isWorld(it.name) },
         isActive: () -> Boolean = { true },
     ): List<SearchResult> =
-        SearchEngine.offline(query, center, files.map { it.path }, Locale.getDefault().language, radiusKm, isActive)
+        SearchEngine.offline(query, center, files.map { it.path }, app.maparound.shared.util.deviceLanguage(), radiusKm, isActive)
 
     /** Blocking. */
     override fun online(query: String, near: GeoPoint?): List<SearchResult> = SearchEngine.online(query, near, ::get)
