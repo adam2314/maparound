@@ -36,7 +36,7 @@ policy.
 
 | Feature | Sent to | What is sent |
 |---|---|---|
-| Online maps (when you choose an online map, satellite background or 3D view) | The map tile service you choose: OpenStreetMap France or Germany, OpenTopoMap, CyclOSM, Humanitarian, Esri, swisstopo, basemap.at, Kartverket, IGN, USGS, waymarkedtrails.org (trail overlay), or a tile service you added yourself | Which map tiles to show, which reveals the area you're looking at |
+| Online maps (when you choose an online map, satellite background or 3D view) | The map tile service you choose: OpenStreetMap France or Germany, OpenTopoMap, CyclOSM, Humanitarian, Esri, swisstopo, basemap.at, Kartverket, IGN, USGS, waymarkedtrails.org (trail overlay), or a tile service you added yourself. The web app's 3D view also loads elevation tiles from Amazon Web Services, and Esri imagery for satellite | Which map tiles to show, which reveals the area you're looking at |
 | Offline map, terrain and routing downloads | GitHub (MapAround's maps and their list, github.com, raw.githubusercontent.com and GitHub's download servers), download.mapsforge.org (the older maps, also offered), Amazon Web Services (terrain tiles), brouter.de | Which areas to download |
 | Marked trails and cliffs download | Overpass API servers (overpass-api.de and others) | The area to download |
 | Online search | photon.komoot.io, or nominatim.openstreetmap.org as a fallback | Your search text and the centre of the map. Offline search sends nothing. |

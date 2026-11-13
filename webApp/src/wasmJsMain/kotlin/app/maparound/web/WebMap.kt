@@ -3,6 +3,8 @@ package app.maparound.web
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -18,9 +20,18 @@ import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import app.maparound.map.maplibre.MapLibreSurface
 import app.maparound.map.maplibre.NativeCamera
 import app.maparound.map.maplibre.NativeMap
 import app.maparound.map.maplibre.NativeMapCallbacks
+import app.maparound.three.Camera3D
+import app.maparound.ui.Scene3DControl
+import app.maparound.ui.Scene3DSetup
+import app.maparound.ui.Scene3DViewArgs
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.log2
+import kotlin.math.pow
 
 // ---- mapview.js ------------------------------------------------------------------------------------
 
@@ -218,4 +229,126 @@ private suspend fun PointerInputScope.wheelZoom(map: WebNativeMap) {
     }
 }
 
+// ---- the 3D view: mapview.js turns the map itself to MapLibre's terrain and globe ----------------
 
+private fun ml3dEnter(lat: Double, lon: Double, zoom: Double, bearing: Double, pitch: Double, satellite: Boolean, exaggeration: Double, buildings: Boolean): Unit =
+    js("{ MapAroundMap.enter3d(lat, lon, zoom, bearing, pitch, satellite, exaggeration, buildings); }")
+
+private fun ml3dExit(lat: Double, lon: Double, zoom: Double): Unit = js("{ MapAroundMap.exit3d(lat, lon, zoom); }")
+private fun ml3dExaggeration(e: Double): Unit = js("{ MapAroundMap.exaggeration3d(e); }")
+private fun ml3dBuildings(on: Boolean): Unit = js("{ MapAroundMap.buildings3d(on); }")
+private fun ml3dCamera(): String = js("MapAroundMap.camera3d()")
+private fun ml3dLoading(): Boolean = js("MapAroundMap.loading3d()")
+private fun ml3dHasBuildings(): Boolean = js("MapAroundMap.hasBuildings3d()")
+private fun ml3dNorth(): Unit = js("{ MapAroundMap.north3d(); }")
+
+/** MapLibre's camera is 1.5 view heights from what it looks at (its 36.87° field of view). */
+private const val CAMERA_HEIGHTS = 1.5
+private const val EARTH_CIRCUMFERENCE_M = 40_075_016.686
+
+private fun metresPerPoint(lat: Double, zoom: Double) = EARTH_CIRCUMFERENCE_M * cos(lat * PI / 180) / (512 * 2.0.pow(zoom))
+
+/** The zoom that puts the camera [distance] metres from the centre, in a view [height] points tall. */
+private fun zoomFor(lat: Double, distance: Double, height: Double): Double =
+    log2(EARTH_CIRCUMFERENCE_M * cos(lat * PI / 180) * CAMERA_HEIGHTS * height / (512 * distance)).takeIf { it.isFinite() }?.coerceIn(1.0, 20.0) ?: 12.0
+
+/** The 3D camera in [Camera3D]'s terms (pitch above the horizontal) from MapLibre's (tilt from straight down). */
+private class WebScene3DControl : Scene3DControl {
+    override val camera: Camera3D
+        get() {
+            val v = ml3dCamera().split(',').map { it.toDoubleOrNull() ?: 0.0 }
+            val distance = CAMERA_HEIGHTS * v[5] * metresPerPoint(v[0], v[2])
+            return Camera3D(v[0], v[1], distance.toFloat(), yaw = v[3].toFloat(), pitch = (90 - v[4]).toFloat())
+        }
+
+    override val status: String get() = if (ml3dLoading()) "Loading the relief\u2026" else ""
+
+    override fun faceNorth() = ml3dNorth()
+}
+
+/**
+ * The 3D view on the web: the map itself on the relief (online elevation tiles), a globe when
+ * zoomed out, seen through a hole in the app's canvas as on the map screen. When it closes (also
+ * with Esc), the 2D map shows where it was looking. One finger moves it, pinch zooms, two fingers turn and tilt; with a mouse, the
+ * wheel zooms and the right button (or ctrl + drag) turns and tilts.
+ */
+@Composable
+fun WebScene3DView(args: Scene3DViewArgs) {
+    val current = rememberUpdatedState(args)
+    DisposableEffect(Unit) {
+        val a = current.value
+        val c = a.camera
+        ml3dEnter(
+            c.lat, c.lon, zoomFor(c.lat, c.distance.toDouble(), mlHeight()), c.yaw.toDouble(),
+            (90.0 - c.pitch).coerceIn(0.0, 80.0), a.satellite, a.exaggeration.toDouble(), a.buildings,
+        )
+        val control = WebScene3DControl()
+        a.onCreated(control, Scene3DSetup(emptyList(), hasBuildings = ml3dHasBuildings()))
+        onDispose {
+            // The 2D map comes back where the 3D view was looking, flat and north up.
+            val last = control.camera
+            current.value.onReleased(control)
+            ml3dExit(last.lat, last.lon, MapLibreSurface.zoomFor(last, mlHeight()).takeIf { it.isFinite() }?.coerceIn(1.0, 20.0) ?: Double.NaN)
+        }
+    }
+    LaunchedEffect(args.exaggeration) { ml3dExaggeration(args.exaggeration.toDouble()) }
+    LaunchedEffect(args.buildings) { ml3dBuildings(args.buildings) }
+    Box(
+        args.modifier
+            .drawBehind { drawRect(Color.Black, blendMode = BlendMode.Clear) }
+            .pointerInput(Unit) { gestures3d() }
+            .pointerInput(Unit) { wheel3d() },
+    )
+}
+
+/** Presses go to the map (mapview.js moves, turns and tilts it); a double tap zooms in. */
+private suspend fun PointerInputScope.gestures3d() {
+    awaitPointerEventScope {
+        var lastTap = 0L
+        var lastTapAt = Offset.Zero
+        while (true) {
+            val first = awaitPointerEvent().changes.firstOrNull { it.pressed && !it.previousPressed } ?: continue
+            first.consume()
+            mlClaim()
+            val start = first.position
+            val startTime = first.uptimeMillis
+            var moved = false
+            while (true) {
+                val e = awaitPointerEvent()
+                e.changes.forEach { it.consume() }
+                if (e.changes.any { it.pressed && !it.previousPressed } ||
+                    e.changes.any { (it.position - start).getDistance() > viewConfiguration.touchSlop } || mlMoved()
+                ) {
+                    moved = true
+                }
+                if (e.changes.any { it.pressed }) continue
+                val c = e.changes.first()
+                if (!moved && c.uptimeMillis - startTime < LONG_PRESS_MS) {
+                    if (c.uptimeMillis - lastTap < DOUBLE_TAP_MS + 200 && (c.position - lastTapAt).getDistance() < 3 * viewConfiguration.touchSlop) {
+                        mlZoomAt(1.0, (c.position.x / density).toDouble(), (c.position.y / density).toDouble(), animated = true)
+                        lastTap = 0L
+                    } else {
+                        lastTap = c.uptimeMillis
+                        lastTapAt = c.position
+                    }
+                }
+                break
+            }
+        }
+    }
+}
+
+/** The mouse wheel zooms where the pointer is (ctrl + wheel, a trackpad pinch, is mapview.js's). */
+private suspend fun PointerInputScope.wheel3d() {
+    awaitPointerEventScope {
+        while (true) {
+            val e = awaitPointerEvent(PointerEventPass.Main)
+            if (e.type != PointerEventType.Scroll || e.keyboardModifiers.isCtrlPressed) continue
+            val c = e.changes.firstOrNull() ?: continue
+            val dy = c.scrollDelta.y
+            if (dy == 0f) continue
+            mlZoomAt((-dy * 0.5f).coerceIn(-1f, 1f).toDouble(), (c.position.x / density).toDouble(), (c.position.y / density).toDouble(), animated = false)
+            c.consume()
+        }
+    }
+}

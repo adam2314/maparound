@@ -34,7 +34,11 @@
 - **MapAround in the browser** at [adam2314.github.io/maparound/app](https://adam2314.github.io/maparound/app/),
   installable and usable offline: the map (online maps and the built-in world map), search, the
   route planner with online routes, the library (routes and places, GPX import and export), the
-  map tools and the compass. Terrain, recording and the 3D view come next.
+  map tools and your position on the map. Terrain and recording come next.
+- **The 3D view in the browser.** The cube button shows the map on the relief, as a globe in space
+  when zoomed out, with buildings close up and satellite imagery on request; one finger moves,
+  pinch zooms, two fingers turn and tilt (with a mouse: the wheel zooms, the right button turns
+  and tilts). Esc closes it, and the 2D map then shows where you were looking in 3D.
 - **Offline maps in the browser.** Download MapAround's maps (with the marked trails) from the
   Offline tab, then add the file with the file button: the map is kept in the browser's storage
   and drawn offline, like on the phone. A `.map` file you already have can be added the same way.
@@ -57,7 +61,8 @@
   `maparound://` invites still work.
 
 ### Good to know
-- The 3D globe and the built-in world map are on Android only for now.
+- The 3D globe is on Android and in the web app, the built-in world map on Android and in the web
+  app; iPhone gets both later.
 
 ## 0.1.0 (first Google Play upload)
 

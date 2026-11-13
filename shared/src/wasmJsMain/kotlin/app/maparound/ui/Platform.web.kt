@@ -2,6 +2,7 @@ package app.maparound.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import app.maparound.shared.toByteArray
@@ -51,9 +52,49 @@ actual fun rememberFilePicker(mimeTypes: List<String>, onPicked: (PickedFile?) -
     }
 }
 
-/** The browser's back button isn't tied to the screens yet; they close with their own controls. */
+/** [f] when Esc is pressed (on the page, wherever the focus is). */
+private fun onEscape(f: () -> Unit): Unit =
+    js("{ window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !e.repeat) f(); }, true); }")
+
+private class EscHandler {
+    var enabled = true
+    var onBack: () -> Unit = {}
+}
+
+/** The screens' back handlers, newest last: Esc goes to the newest enabled one. */
+private object EscBack {
+    private val handlers = ArrayList<EscHandler>()
+    private var listening = false
+
+    fun add(h: EscHandler) {
+        handlers += h
+        if (!listening) {
+            listening = true
+            onEscape { handlers.lastOrNull { it.enabled }?.onBack?.invoke() }
+        }
+    }
+
+    fun remove(h: EscHandler) {
+        handlers.remove(h)
+    }
+}
+
+/**
+ * Esc is back (with a keyboard): it closes the 3D view or the search, or goes up a level in the
+ * map list. (The browser's back button isn't tied to the screens.)
+ */
 @Composable
-actual fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit) = Unit
+actual fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit) {
+    val handler = remember { EscHandler() }
+    SideEffect {
+        handler.enabled = enabled
+        handler.onBack = onBack
+    }
+    DisposableEffect(handler) {
+        EscBack.add(handler)
+        onDispose { EscBack.remove(handler) }
+    }
+}
 
 private fun requestWakeLock(): JsAny? = js(
     """{

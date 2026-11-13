@@ -63,6 +63,15 @@ class MapLibreSurfaceTest {
     )
 
     @Test
+    fun threeDCameraAndBack() {
+        val native = FakeMap().apply { cam = NativeCamera(46.56, 8.0, 12.3, 0.0) }
+        val camera = MapLibreSurface(native, TileService(), style).camera3D()!!
+        assertEquals(46.56, camera.lat)
+        // Back to 2D: the same zoom (to the camera distance's float precision).
+        assertEquals(12.3, MapLibreSurface.zoomFor(camera, native.viewHeight()), 1e-6)
+    }
+
+    @Test
     fun offlineStyleHasTheVectorTilesAndEveryOverlay() {
         val json = style.build(offline(), TileService().apply { baseUrl = "http://127.0.0.1:5000" })
         val src = sources(json)

@@ -423,10 +423,11 @@ the shared Compose screens compiled to WebAssembly (Kotlin/Wasm), the map drawn 
 It installs like an app ("Add to Home screen" / "Install") and opens without internet (its service
 worker keeps its files). So far it has the map (online maps, the built-in world map and
 downloaded maps), search, the route planner with online routes (brouter.de), the library (routes
-and places, GPX import and export), the map tools and the sensors the browser offers (position,
-compass, motion), and **watching a party** (members, meeting point, SOS and messages; it doesn't
-share your position). Terrain, offline routing and search, recording and the 3D view come next;
-the browser can't record with the screen off, and has no barometer or satellite list.
+and places, GPX import and export), the map tools, your position on the map, and **watching a
+party** (members, meeting point, SOS and messages; it doesn't share your position). It has no
+Sensors tab. The **3D view** is MapLibre's own: the same map on the relief and as a globe in space
+(see below). Terrain, offline routing and search, and recording come next; the browser can't
+record with the screen off.
 
 Downloading a map takes two steps in the browser: **Offline → ⤓** has the browser download the
 `.map` file (GitHub's download servers don't let a web page fetch it itself), then the file
@@ -457,6 +458,15 @@ How it fits together (`webApp/`, `shared/src/wasmJsMain/`):
   tiles and the list of maps back; the screens get a copy of each map's header (its area, whether
   it has trails) under `/maps`. Marker images are drawn by `mapview.js` (as `MarkerBitmaps` on
   Android), the style's symbols are mapsforge's SVGs.
+- **The 3D view** turns the map itself 3D (`mapview.js`, `WebScene3DView` in `WebMap.kt`):
+  MapLibre's terrain from online elevation tiles (Mapzen's terrarium tiles on Amazon's servers,
+  the source Android's terrain downloads use), the globe projection with sky and atmosphere, the
+  relief shaded, buildings extruded from the downloaded maps (`height`, `building:levels`), and
+  Esri imagery for satellite, under the names. When it closes (also with Esc), the 2D map shows
+  where it was looking, flat and north up (`MapLibreSurface.zoomFor`, the way back from
+  `camera3D`). Two fingers moving up or down tilt it; a right-button (or ctrl + drag) mouse drag
+  turns and tilts it. Esc is the web app's back key: it also closes the search and goes up a
+  level in the map list.
 - **Files and settings.** The browser has no file system for the shared code: files live in memory
   (Okio's FakeFileSystem) and everything under `/data` is saved to IndexedDB and read back at
   start (`WebFiles`); settings are in localStorage. Downloaded maps are in OPFS (above).

@@ -320,6 +320,8 @@
   const SLOP = 8;
   const pointers = new Map(); // id -> { x, y } within the map, CSS pixels
   let claimed = false, holding = false, moved = false, notified = false;
+  /** A mouse drag that turns and tilts the 3D view (right button, or with ctrl, shift or alt). */
+  let turning = false;
   let last = null; // { cx, cy, span, angle } at the last applied move
   let samples = []; // recent { t, cx, cy } for the fling
   let onGesture = null;
@@ -348,7 +350,14 @@
     }
     if (!notified) { notified = true; if (onGesture) onGesture(); }
     const dx = now.cx - last.cx, dy = now.cy - last.cy;
-    if (dx || dy) map.panBy([-dx, -dy], { animate: false });
+    if (view3d && now.n === 1 && turning) {
+      map.jumpTo({ bearing: map.getBearing() - dx * 0.4, pitch: Math.max(0, Math.min(MAX_PITCH_3D, map.getPitch() - dy * 0.4)) });
+    } else if (view3d && now.n >= 2) {
+      // Two fingers in 3D: up and down tilt the view (pinch and twist below), they don't move it.
+      if (dy) map.jumpTo({ pitch: Math.max(0, Math.min(MAX_PITCH_3D, map.getPitch() - dy * 0.4)) });
+    } else if (dx || dy) {
+      map.panBy([-dx, -dy], { animate: false });
+    }
     if (now.n >= 2 && last.span > 0 && now.span > 0) {
       let turn = now.angle - last.angle;
       if (turn > 180) turn -= 360;
@@ -372,6 +381,7 @@
     if (!map || !container || container.style.display === 'none') return;
     if (pointers.size === 0) {
       claimed = false; holding = false; moved = false; notified = false; last = null; samples = [];
+      turning = e.pointerType === 'mouse' && (e.button === 2 || e.ctrlKey || e.shiftKey || e.altKey);
       const p = local(e);
       start = { cx: p.x, cy: p.y };
     }
@@ -391,7 +401,7 @@
     last = null;
     if (pointers.size > 0) return;
     // A flick keeps the map gliding (one finger or the mouse).
-    if (claimed && !holding && moved && samples.length >= 2) {
+    if (claimed && !holding && moved && !turning && samples.length >= 2) {
       const a = samples[0], b = samples[samples.length - 1];
       const dt = (b.t - a.t) / 1000;
       if (dt > 0 && a.n === 1 && b.n === 1) {
@@ -454,6 +464,9 @@
 
   function drawScale() {
     if (!map || !container) return;
+    // None in the 3D view: a scale means little in perspective.
+    if (scaleEl) scaleEl.style.display = view3d ? 'none' : '';
+    if (view3d) return;
     // Metres per CSS pixel at the map's centre (MapLibre's zoom: 512-pixel tiles).
     const mpp = EARTH_M * Math.cos(map.getCenter().lat * Math.PI / 180) / (512 * Math.pow(2, map.getZoom()));
     const d = dpr();
@@ -578,6 +591,97 @@
     }
   });
 
+  // ---- the 3D view: the same map on the relief, a globe when zoomed out ------------------------------
+  // MapLibre's own terrain from online elevation tiles (Mapzen's, on Amazon's servers), with the
+  // relief shaded, buildings raised from the downloaded maps, and satellite imagery on request.
+  // When the 3D view closes, the 2D map shows where it was looking, flat and north up.
+
+  const DEM3D = 'mr3d-dem', SHADE3D = 'mr3d-shade', SAT3D = 'mr3d-sat', BUILDINGS3D = 'mr3d-buildings';
+  const TERRARIUM = 'https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png';
+  const IMAGERY = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+  const OSM_SOURCE = 'osm'; // MapStyle.OSM_SOURCE: the downloaded maps
+  const MAX_PITCH_2D = 60, MAX_PITCH_3D = 80;
+  /** Around the globe: space (the atmosphere's glow is MapLibre's). */
+  const SPACE = 'radial-gradient(ellipse at 50% 60%, #1b2a4a 0%, #0a1020 70%)';
+  /** While the 3D view is open: its settings, and the 2D view to go back to. */
+  let view3d = null;
+  let exit3dTimer = null;
+
+  function firstLayer(types) {
+    const l = map.getStyle().layers.find((x) => types.indexOf(x.type) >= 0);
+    return l ? l.id : undefined;
+  }
+
+  function dem(id) {
+    if (!map.getSource(id)) map.addSource(id, { type: 'raster-dem', tiles: [TERRARIUM], encoding: 'terrarium', tileSize: 256, maxzoom: 15 });
+  }
+
+  function apply3d() {
+    const v = view3d;
+    if (!v || !map) return;
+    try {
+      for (const id of [SAT3D, SHADE3D, BUILDINGS3D]) if (map.getLayer(id)) map.removeLayer(id);
+      dem(DEM3D);
+      map.setTerrain({ source: DEM3D, exaggeration: v.exaggeration });
+      map.setProjection({ type: 'globe' });
+      map.setSky({
+        'sky-color': '#5d97d6',
+        'horizon-color': '#dceaf6',
+        'fog-color': '#eef3f6',
+        'sky-horizon-blend': 0.6,
+        'horizon-fog-blend': 0.6,
+        'fog-ground-blend': 0.7,
+        'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 6, 1, 9, 0],
+      });
+      if (v.satellite) {
+        // Imagery instead of the map, under its names and the app's own markers.
+        if (!map.getSource(SAT3D)) map.addSource(SAT3D, { type: 'raster', tiles: [IMAGERY], tileSize: 256, maxzoom: 19 });
+        map.addLayer({ id: SAT3D, type: 'raster', source: SAT3D }, firstLayer(['symbol']));
+      } else {
+        // The relief shaded, under the roads, paths and names (its own source, as MapLibre prefers).
+        dem(SHADE3D);
+        map.addLayer({
+          id: SHADE3D,
+          type: 'hillshade',
+          source: SHADE3D,
+          paint: { 'hillshade-exaggeration': 0.35, 'hillshade-shadow-color': 'rgba(60,45,30,0.55)', 'hillshade-highlight-color': 'rgba(255,255,255,0.25)' },
+        }, firstLayer(['line', 'symbol']));
+      }
+      if (v.buildings && map.getSource(OSM_SOURCE)) {
+        map.addLayer({
+          id: BUILDINGS3D,
+          type: 'fill-extrusion',
+          source: OSM_SOURCE,
+          'source-layer': 'area',
+          minzoom: 14,
+          filter: ['has', 'building'],
+          paint: {
+            'fill-extrusion-color': '#d6cbc1',
+            'fill-extrusion-opacity': 0.9,
+            'fill-extrusion-height': ['coalesce', ['to-number', ['get', 'height']], ['*', 3, ['to-number', ['get', 'building:levels']]], 7],
+            'fill-extrusion-base': ['coalesce', ['to-number', ['get', 'min_height']], 0],
+          },
+        }, firstLayer(['symbol']));
+      }
+    } catch (e) {
+      // The style is still loading: style.load applies it.
+    }
+  }
+
+  function remove3d() {
+    for (const id of [SAT3D, SHADE3D, BUILDINGS3D]) if (map.getLayer(id)) map.removeLayer(id);
+    map.setTerrain(null);
+    for (const id of [SAT3D, SHADE3D, DEM3D]) if (map.getSource(id)) map.removeSource(id);
+    map.setProjection({ type: 'mercator' });
+  }
+
+  // A right-button drag turns and tilts the 3D view: no browser menu there.
+  window.addEventListener('contextmenu', (e) => {
+    if (!view3d || !container) return;
+    const r = container.getBoundingClientRect();
+    if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) e.preventDefault();
+  });
+
   window.MapAroundMap = {
     create(containerId, styleJson, symbols, onTile, onUserGesture) {
       container = document.getElementById(containerId);
@@ -601,6 +705,7 @@
       });
       map.on('styleimagemissing', onMissingImage);
       map.on('style.load', applyGeo);
+      map.on('style.load', apply3d);
       map.on('move', drawScale);
       map.on('resize', drawScale);
       map.on('moveend', writeHash);
@@ -642,6 +747,57 @@
       map.resize();
     },
     hide() { container.style.display = 'none'; },
+
+    // ---- the 3D view (pitch: MapLibre's, from straight down) ----
+    enter3d(lat, lon, zoom, bearing, pitch, satellite, exaggeration, buildings) {
+      if (exit3dTimer) { clearTimeout(exit3dTimer); exit3dTimer = null; }
+      if (!view3d) {
+        const c = map.getCenter();
+        view3d = { back: { center: [c.lng, c.lat], zoom: map.getZoom(), bearing: map.getBearing(), pitch: 0 } };
+        map.setMaxPitch(MAX_PITCH_3D);
+        container.style.background = SPACE;
+        drawScale();
+      }
+      Object.assign(view3d, { satellite: satellite, exaggeration: exaggeration, buildings: buildings });
+      apply3d();
+      map.jumpTo({ center: [lon, lat], zoom: zoom, bearing: bearing, pitch: Math.min(pitch, MAX_PITCH_3D) });
+    },
+    /** Back to 2D at (lat, lon), MapLibre's zoom (NaN: where the 2D map was before). */
+    exit3d(lat, lon, zoom) {
+      // A moment later: the 3D view may be rebuilt straight away (satellite on or off).
+      if (exit3dTimer) clearTimeout(exit3dTimer);
+      exit3dTimer = setTimeout(() => {
+        exit3dTimer = null;
+        if (!view3d || !map) return;
+        const back = isFinite(lat) && isFinite(lon) && isFinite(zoom)
+          ? { center: [lon, lat], zoom: zoom, bearing: 0, pitch: 0 }
+          : view3d.back;
+        view3d = null;
+        try { remove3d(); } catch (e) { /* a new style came meanwhile */ }
+        map.setMaxPitch(MAX_PITCH_2D);
+        container.style.background = '';
+        map.jumpTo(back);
+        drawScale();
+      }, 0);
+    },
+    exaggeration3d(e) {
+      if (!view3d) return;
+      view3d.exaggeration = e;
+      if (map.getSource(DEM3D)) map.setTerrain({ source: DEM3D, exaggeration: e });
+    },
+    buildings3d(on) {
+      if (!view3d || view3d.buildings === on) return;
+      view3d.buildings = on;
+      apply3d();
+    },
+    /** "lat,lon,zoom,bearing,pitch,height of the view". */
+    camera3d() {
+      const c = map.getCenter();
+      return [c.lat, c.lng, map.getZoom(), map.getBearing(), map.getPitch(), container ? container.clientHeight : 0].join(',');
+    },
+    loading3d() { return !!view3d && !map.areTilesLoaded(); },
+    hasBuildings3d() { return !!map.getSource(OSM_SOURCE); },
+    north3d() { map.easeTo({ bearing: 0, duration: 500 }); },
 
     // ---- gestures, positions in CSS pixels within the map ----
     /** The press that's down now reached the map (not something over it): the map follows it. */

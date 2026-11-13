@@ -16,6 +16,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlin.math.PI
 import kotlin.math.cos
+import kotlin.math.log2
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.tan
@@ -109,9 +110,7 @@ class MapLibreSurface(
         val h = native.viewHeight()
         if (h <= 0) return null
         val c = native.camera()
-        // Ground metres across the view's height, then the distance that shows that at a 45° field of view.
-        val distance = metresPerPoint(c) * h / (2 * tan(22.5 * PI / 180)) * 0.8
-        return Camera3D(c.lat, c.lon, distance.toFloat())
+        return Camera3D(c.lat, c.lon, (metresPerPoint(c) * h * DISTANCE_PER_GROUND).toFloat())
     }
 
     override fun metresPerDp(): Double = metresPerPoint(native.camera())
@@ -249,5 +248,20 @@ class MapLibreSurface(
         private const val COLOR_A = 0xFF1565C0.toInt()
         private const val COLOR_B = 0xFFEF6C00.toInt()
         private const val EARTH_CIRCUMFERENCE_M = 40_075_016.686
+
+        /**
+         * The 3D camera's distance per metre of ground across the 2D view's height: the distance
+         * that shows it at a 45° field of view, a little closer (×0.8).
+         */
+        private val DISTANCE_PER_GROUND = 0.8 / (2 * tan(22.5 * PI / 180))
+
+        /**
+         * Back from 3D: the 2D zoom (MapLibre's) whose [camera3D] is [camera] in a view [viewHeight]
+         * points tall, so the 2D map shows what the 3D view was looking at.
+         */
+        fun zoomFor(camera: Camera3D, viewHeight: Double): Double {
+            val metresPerPoint = camera.distance / (viewHeight * DISTANCE_PER_GROUND)
+            return log2(EARTH_CIRCUMFERENCE_M * cos(camera.lat * PI / 180) / (512 * metresPerPoint))
+        }
     }
 }

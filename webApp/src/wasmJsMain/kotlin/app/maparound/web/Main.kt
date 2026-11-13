@@ -1,22 +1,14 @@
 package app.maparound.web
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFontFamilyResolver
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.platform.Font
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.ComposeViewport
 import app.maparound.data.LocalOfflineData
 import app.maparound.data.LocalPrefs
@@ -165,19 +157,10 @@ fun WebRoot(app: WebApp) {
                 onStart = {},
                 createMap = { app.newMap() },
                 mapView = { map, modifier -> WebMapView((map as MapLibreSurface).native as WebNativeMap, modifier) },
-                view3d = { args ->
-                    Box(args.modifier, contentAlignment = Alignment.Center) {
-                        Text(
-                            "The 3D view comes to the web app in a later version",
-                            style = MaterialTheme.typography.bodyLarge,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(24.dp),
-                        )
-                    }
-                },
+                view3d = { args -> WebScene3DView(args) },
                 satellites = null,
-                // The party comes in a later step.
-                tabs = listOf(Tab.Map, Tab.Routes, Tab.Party, Tab.Offline, Tab.Sensors),
+                // No Sensors tab: the browser's position is for the map ("my location").
+                tabs = listOf(Tab.Map, Tab.Routes, Tab.Party, Tab.Offline),
             )
         }
     }
