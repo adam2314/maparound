@@ -2,6 +2,10 @@ package app.maparound.map.gl
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.net.ConnectivityManager
+import android.net.Network
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import app.maparound.AppGraph
 import app.maparound.map.maplibre.MapStyle
@@ -73,6 +77,27 @@ object GlTiles {
         }
         MapLibre.getInstance(context.applicationContext)
         HttpRequestUtil.setOkHttpClient(OkHttpClient.Builder().addInterceptor(Answer).build())
+        stayConnected(context.applicationContext)
+    }
+
+    /**
+     * MapLibre holds back every request while the phone has no network, also those for the app's
+     * own tiles (they go through its HTTP client to [HOST]), so with no signal the offline map,
+     * contours and trails didn't draw. It's told it's always connected (online tiles just fail
+     * then); and when a network comes up, it's told again, which makes it retry them at once.
+     */
+    private fun stayConnected(context: Context) {
+        MapLibre.setConnected(true)
+        val main = Handler(Looper.getMainLooper())
+        runCatching {
+            context.getSystemService(ConnectivityManager::class.java)?.registerDefaultNetworkCallback(
+                object : ConnectivityManager.NetworkCallback() {
+                    override fun onAvailable(network: Network) {
+                        main.post { MapLibre.setConnected(true) }
+                    }
+                },
+            )
+        }.onFailure { Log.w(TAG, "No network callback", it) }
     }
 
     /** A request for the map's own tiles, on a free worker brought up to date with [service]. */
