@@ -134,7 +134,9 @@ class MapStyle(
         }
         if (trailOverlay) {
             sources["trails-online"] = rasterSource(TileSources.trailsOverlay)
-            layers += rasterLayer("trails-online", "trails-online")
+            // From the zoom the downloaded trails start at: zoomed out, Europe's long-distance routes
+            // would cover the map.
+            layers += rasterLayer("trails-online", "trails-online", minZoom = TRAILS_MIN_ZOOM)
         }
         tiles.viewshed?.takeUnless { forTextures }?.let { vs ->
             sources[VIEWSHED] = buildJsonObject {
@@ -289,7 +291,10 @@ class MapStyle(
             if ("{s}" in src.urlTemplate && src.subdomains.isNotEmpty()) src.subdomains.map { src.urlTemplate.replace("{s}", it) }
             else listOf(src.urlTemplate)
 
-        private fun rasterLayer(id: String, source: String) = layer(id, "raster") { put("source", source) }
+        private fun rasterLayer(id: String, source: String, minZoom: Int? = null) = layer(id, "raster") {
+            put("source", source)
+            if (minZoom != null) put("minzoom", minZoom)
+        }
 
         private fun layer(id: String, type: String, body: kotlinx.serialization.json.JsonObjectBuilder.() -> Unit) = buildJsonObject {
             put("id", id)

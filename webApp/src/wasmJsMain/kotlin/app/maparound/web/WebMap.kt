@@ -12,6 +12,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.PointerInputScope
+import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.boundsInWindow
@@ -204,6 +205,8 @@ private suspend fun PointerInputScope.wheelZoom(map: WebNativeMap) {
         while (true) {
             val e = awaitPointerEvent(PointerEventPass.Main)
             if (e.type != PointerEventType.Scroll) continue
+            // Ctrl + wheel (a trackpad pinch) is mapview.js's, which keeps the page from zooming.
+            if (e.keyboardModifiers.isCtrlPressed) continue
             val c = e.changes.firstOrNull() ?: continue
             val dy = c.scrollDelta.y
             if (dy == 0f) continue

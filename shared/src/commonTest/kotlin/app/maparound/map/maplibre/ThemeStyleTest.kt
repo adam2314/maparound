@@ -186,6 +186,15 @@ class ThemeStyleTest {
     }
 
     @Test
+    fun onlineTrailOverlayOnlyZoomedIn() {
+        val style = MapStyle(BasicLayers.layers, BasicLayers.GLYPHS)
+        val base = app.maparound.map.BaseMap.Online(app.maparound.map.TileSources.builtIn.first())
+        val json = kotlinx.serialization.json.Json.parseToJsonElement(style.build(base, TileService(), trailOverlay = true)).jsonObject
+        val overlay = json["layers"]!!.jsonArray.map { it.jsonObject }.first { it.id == "trails-online" }
+        assertEquals(MapStyle.TRAILS_MIN_ZOOM.toDouble(), overlay["minzoom"]!!.jsonPrimitive.doubleOrNull)
+    }
+
+    @Test
     fun hybridDropsLandCover() {
         val xml = topo() ?: return
         val style = MapStyle(ThemeStyle.convert(xml).layers, BasicLayers.GLYPHS)

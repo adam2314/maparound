@@ -302,6 +302,32 @@
     claimed = false;
   }
 
+  // The page itself never zooms (it would stretch the app's toolbars): Safari's pinch gesture
+  // events, two-finger touch moves, and a trackpad pinch (which comes as ctrl + wheel, and zooms
+  // the map here instead).
+  const noPageZoom = (e) => e.preventDefault();
+  document.addEventListener('gesturestart', noPageZoom, { passive: false });
+  document.addEventListener('gesturechange', noPageZoom, { passive: false });
+  document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+  window.addEventListener('wheel', (e) => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    if (!map || !container || container.style.display === 'none') return;
+    const r = container.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    if (x < 0 || y < 0 || x > r.width || y > r.height) return;
+    if (onGesture) onGesture();
+    map.easeTo({ zoom: map.getZoom() - e.deltaY * 0.01, around: map.unproject([x, y]), duration: 0 });
+  }, { passive: false });
+  // The screen's pixel ratio changes (browser zoom, another monitor): the map follows.
+  let ratio = dpr();
+  window.addEventListener('resize', () => {
+    if (map && dpr() !== ratio) {
+      ratio = dpr();
+      if (map.setPixelRatio) map.setPixelRatio(ratio);
+    }
+  });
+
   window.addEventListener('pointerdown', down, true);
   window.addEventListener('pointermove', move, true);
   window.addEventListener('pointerup', up, true);
