@@ -55,6 +55,11 @@
   out of each downloaded map's whole rectangle, though the map only covers its region: a
   neighbour's border inside the rectangle (the Rhine north of Liechtenstein) was missing. Now only
   the region is cut (its outline, from the download list's regions).
+- **Borders in Israel and Palestine, and maps like it.** From zoom 8 their borders were gone: the
+  world's were left out for the map to draw its own, but the map's border lines don't say they're
+  countries' (OpenStreetMap keeps that on the border's relation). Now the world's borders stay
+  wherever a map has none of its own, the West Bank's and Gaza's dashed, up to zoom 12 (closer in
+  they're too coarse to show). MapAround's maps from the next build carry their borders themselves.
 - **Place icons on Android.** The style's icons (huts, springs, viewpoints…) are SVGs with a size
   but no view box; drawn small they showed only their top-left corner. They're whole now.
 - **Country borders at every zoom.** In Topo, disputed borders and lines of control are drawn

@@ -58,14 +58,16 @@ class MapTiles(paths: List<String>, private val world: WorldTile? = null) {
             // MapLibre's tiles are 512 px: shown like 256-pixel tiles one zoom deeper.
             val zoom = z + 1
             val countries = zoom >= WorldTile.COUNTRY_MAPS_FROM_ZOOM
-            if (countries) MapsforgeToMvt.fill(t, maps, z, x, y, ground = ground)
+            // The maps' own country borders: the world's stay where they have none.
+            val own = if (countries) ArrayList<IntArray>() else null
+            if (countries) MapsforgeToMvt.fill(t, maps, z, x, y, ground = ground, borders = own)
             val box = GeoBox(
                 (MapsforgeFile.tileLat(y + 1, z) * 1e6).toInt(), (MapsforgeFile.tileLon(x, z) * 1e6).toInt(),
                 (MapsforgeFile.tileLat(y, z) * 1e6).toInt(), (MapsforgeFile.tileLon(x + 1, z) * 1e6).toInt(),
             )
             val holes = if (countries) areas.filter { it.intersects(box) } else emptyList()
             val inTile = if (countries) covers.filter { it.box.intersects(box) } else emptyList()
-            world.draw(box, zoom, holes, WorldToMvt(t), covers = inTile)
+            world.draw(box, zoom, holes, WorldToMvt(t), covers = inTile, ownBorders = own)
         }
         extra?.invoke(t, z, x, y)
         return t.encode()

@@ -463,6 +463,104 @@ fun cutOutBox(coords: IntArray, box: GeoBox): List<IntArray> {
     return out
 }
 
+/**
+ * The parts of a polyline outside [box], and inside it those [keep] keeps (by a piece's middle,
+ * in pieces of about [pieceMicro]), each at least 2 points.
+ */
+fun cutOutBox(coords: IntArray, box: GeoBox, keep: (Double, Double) -> Boolean, pieceMicro: Double = 9000.0): List<IntArray> {
+    if (!GeoBox.of(coords).intersects(box)) return listOf(coords)
+    return cutPieces(coords, pieceMicro, { aLat, aLon, bLat, bLon, cuts ->
+        // Where the segment crosses the box's edges.
+        for (edge in doubleArrayOf(box.minLat.toDouble(), box.maxLat.toDouble())) {
+            if ((aLat - edge) * (bLat - edge) < 0) cuts += (edge - aLat) / (bLat - aLat)
+        }
+        for (edge in doubleArrayOf(box.minLon.toDouble(), box.maxLon.toDouble())) {
+            if ((aLon - edge) * (bLon - edge) < 0) cuts += (edge - aLon) / (bLon - aLon)
+        }
+    }) { lat, lon -> lat >= box.minLat && lat <= box.maxLat && lon >= box.minLon && lon <= box.maxLon && !keep(lat, lon) }
+}
+
+/**
+ * The parts of a polyline that stay, each at least 2 points: every segment split where
+ * [crossings] adds edges it crosses (fractions along it) and in pieces of about [pieceMicro]
+ * microdegrees, and each piece dropped when [drop] says so of its middle.
+ */
+internal fun cutPieces(
+    coords: IntArray,
+    pieceMicro: Double,
+    crossings: (aLat: Double, aLon: Double, bLat: Double, bLon: Double, cuts: MutableList<Double>) -> Unit,
+    drop: (lat: Double, lon: Double) -> Boolean,
+): List<IntArray> {
+    val out = ArrayList<IntArray>()
+    var cur = IntBuffer()
+    fun flush() {
+        if (cur.size >= 2) out += cur.toArray()
+        cur = IntBuffer()
+    }
+    val cuts = ArrayList<Double>()
+    for (i in 0 until coords.size / 2 - 1) {
+        val aLat = coords[2 * i].toDouble()
+        val aLon = coords[2 * i + 1].toDouble()
+        val bLat = coords[2 * i + 2].toDouble()
+        val bLon = coords[2 * i + 3].toDouble()
+        fun add(t: Double) = cur.addUnlessSame(kotlin.math.round(aLat + t * (bLat - aLat)).toInt(), kotlin.math.round(aLon + t * (bLon - aLon)).toInt())
+        cuts.clear()
+        cuts += 0.0
+        crossings(aLat, aLon, bLat, bLon, cuts)
+        cuts += 1.0
+        // Pieces of about pieceMicro, each judged on its own.
+        val steps = kotlin.math.ceil(hypot(bLat - aLat, bLon - aLon) / pieceMicro).toInt()
+        for (k in 1 until steps) cuts += k.toDouble() / steps
+        cuts.sort()
+        for (c in 0 until cuts.size - 1) {
+            val t0 = cuts[c]
+            val t1 = cuts[c + 1]
+            if (t1 - t0 < 1e-12) continue
+            val m = (t0 + t1) / 2
+            if (drop(aLat + m * (bLat - aLat), aLon + m * (bLon - aLon))) {
+                flush()
+            } else {
+                add(t0)
+                add(t1)
+            }
+        }
+    }
+    flush()
+    return out
+}
+
+/** Whether points are within [marginMicro] (microdegrees of latitude) of any of [lines] (lat, lon pairs in microdegrees). */
+class NearLines(private val lines: List<IntArray>, private val marginMicro: Double) {
+    private val boxes = lines.map { GeoBox.of(it) }
+
+    fun near(lat: Double, lon: Double): Boolean {
+        val k = kotlin.math.cos(lat / 1e6 * kotlin.math.PI / 180).coerceAtLeast(0.05)
+        val d = marginMicro
+        val dx = d / k
+        for ((n, line) in lines.withIndex()) {
+            val b = boxes[n]
+            if (lat < b.minLat - d || lat > b.maxLat + d || lon < b.minLon - dx || lon > b.maxLon + dx) continue
+            for (i in 0 until line.size / 2 - 1) {
+                val pLat = line[2 * i].toDouble()
+                val pLon = line[2 * i + 1].toDouble()
+                val qLat = line[2 * i + 2].toDouble()
+                val qLon = line[2 * i + 3].toDouble()
+                if (lat < min(pLat, qLat) - d || lat > max(pLat, qLat) + d) continue
+                if (lon < min(pLon, qLon) - dx || lon > max(pLon, qLon) + dx) continue
+                // Distance to the segment, with longitudes shrunk to the latitude's scale.
+                val ex = (qLon - pLon) * k
+                val ey = qLat - pLat
+                val px = (lon - pLon) * k
+                val py = lat - pLat
+                val len2 = ex * ex + ey * ey
+                val t = if (len2 > 0) ((px * ex + py * ey) / len2).coerceIn(0.0, 1.0) else 0.0
+                if (hypot(px - t * ex, py - t * ey) < d) return true
+            }
+        }
+        return false
+    }
+}
+
 /** The parts of a polyline inside [clip] (Liang–Barsky per segment), each at least 2 points. */
 fun clipLine(coords: IntArray, clip: GeoBox): List<IntArray> {
     val out = ArrayList<IntArray>()

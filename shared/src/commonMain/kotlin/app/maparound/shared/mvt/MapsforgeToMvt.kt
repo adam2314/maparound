@@ -28,9 +28,13 @@ object MapsforgeToMvt {
     /**
      * Adds the maps' data for the tile to [t] (z/x/y as in [tile]). With [ground] (heights in
      * metres, NaN where unknown), buildings get how their ground varies, for the 3D view: see
-     * [RELIEF_UP] and [RELIEF_DOWN].
+     * [RELIEF_UP] and [RELIEF_DOWN]. [borders] gets the maps' country borders (`admin_level=2`
+     * lines) in the tile, in microdegrees.
      */
-    fun fill(t: MvtTile, maps: List<MapsforgeFile>, z: Int, x: Int, y: Int, maxReadZoom: Int = 17, ground: ((Double, Double) -> Float)? = null) {
+    fun fill(
+        t: MvtTile, maps: List<MapsforgeFile>, z: Int, x: Int, y: Int, maxReadZoom: Int = 17,
+        ground: ((Double, Double) -> Float)? = null, borders: MutableList<IntArray>? = null,
+    ) {
         val readZoom = minOf(z + 1, maxReadZoom)
         val shift = readZoom - z
         var water = maps.isNotEmpty()
@@ -43,7 +47,7 @@ object MapsforgeToMvt {
             val n = 1 shl shift
             for (dy in 0 until n) for (dx in 0 until n) {
                 val data = m.read(readZoom, (x shl shift) + dx, (y shl shift) + dy)
-                add(t, data, ground.takeIf { z >= RELIEF_MIN_ZOOM })
+                add(t, data, ground.takeIf { z >= RELIEF_MIN_ZOOM }, borders)
                 if (!data.isWater) water = false
             }
         }
@@ -52,11 +56,14 @@ object MapsforgeToMvt {
         }
     }
 
-    fun add(t: MvtTile, data: MfData, ground: ((Double, Double) -> Float)? = null) {
+    fun add(t: MvtTile, data: MfData, ground: ((Double, Double) -> Float)? = null, borders: MutableList<IntArray>? = null) {
         val poi = t.layer("poi")
         for (p in data.pois) poi.point(p.lat, p.lon, props(p.tags, p.layer))
         for (w in data.ways) {
             val props = props(w.tags, w.layer)
+            if (borders != null && w.tags.any { it.key == "admin_level" && it.value == "2" }) {
+                for (ring in w.rings) borders += IntArray(ring.size) { kotlin.math.round(ring[it] * 1e6).toInt() }
+            }
             if (w.tags.any { it.key == "trail" }) {
                 // Marked trail lines built into MapAround's maps (my-pipeline): their own layer, like
                 // the downloaded ones, so the trail switch and the styles' trail rules apply.

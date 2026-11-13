@@ -99,4 +99,32 @@ class MapRegionsTest {
         assertTrue(cover.contains(47_150_000, 9_550_000))
         assertTrue(!cover.contains(47_350_000, 9_750_000))
     }
+
+    @Test
+    fun theWorldsBordersStayWhereTheMapHasNone() {
+        val li = MapRegions.decode(pack("europe/liechtenstein" to listOf(box(47.0, 9.4, 47.3, 9.7))))!!
+            .byFileName("europe__liechtenstein.map")!!
+        // A border across the region; the map has its own along the first half of it only.
+        val line = intArrayOf(47_100_000, 9_450_000, 47_100_000, 9_650_000)
+        val own = NearLines(listOf(intArrayOf(47_100_000, 9_450_000, 47_100_000, 9_550_000)), 2000 / 111_320.0 * 1e6)
+        val parts = li.cutOut(line) { lat, lon -> !own.near(lat, lon) }
+        assertEquals(1, parts.size)
+        // From about 2 km past the map's own (0.026° of longitude at 47°) to the end.
+        assertTrue(parts[0][1] in 9_570_000..9_590_000, "${parts[0][1]}")
+        assertEquals(9_650_000, parts[0].last())
+        // Kept everywhere: whole; kept nowhere: as without.
+        assertEquals(listOf(47_100_000, 9_450_000), li.cutOut(line) { _, _ -> true }.single().take(2))
+        assertTrue(li.cutOut(line) { _, _ -> false }.isEmpty())
+
+        // The same with only a map's box (a map from elsewhere).
+        val boxed = Coverage(GeoBox(47_000_000, 9_400_000, 47_300_000, 9_700_000))
+        val inBox = boxed.cutOut(line) { lat, lon -> !own.near(lat, lon) }
+        assertEquals(1, inBox.size)
+        assertTrue(inBox[0][1] in 9_570_000..9_590_000, "${inBox[0][1]}")
+        // Crossing the box's edge: cut exactly there.
+        val across = intArrayOf(47_100_000, 9_300_000, 47_100_000, 9_500_000)
+        val cut = boxed.cutOut(across) { _, _ -> false }.single()
+        assertEquals(listOf(47_100_000, 9_300_000), cut.take(2))
+        assertEquals(listOf(47_100_000, 9_400_000), cut.takeLast(2))
+    }
 }

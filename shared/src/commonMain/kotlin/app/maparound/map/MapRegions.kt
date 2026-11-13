@@ -3,9 +3,7 @@ package app.maparound.map
 import app.maparound.data.MapNames
 import kotlin.math.hypot
 import kotlin.math.cos
-import kotlin.math.ceil
 import kotlin.math.PI
-import kotlin.math.roundToInt
 import kotlin.math.abs
 
 /**
@@ -84,79 +82,45 @@ class MapRegions private constructor(private val regions: List<Region>) {
          * The parts of a line ([coords]: lat, lon pairs in microdegrees) away from the region, each
          * at least two points: the line split where it crosses the outline, and in pieces of about
          * a kilometre, each dropped when it's in the region or within [marginM] of its outline
-         * (the same border, drawn coarser: the map draws its own).
+         * (the same border, drawn coarser: the map draws its own), unless [keep] keeps it there.
          */
-        fun cutOut(coords: IntArray, marginM: Double = OUTLINE_MARGIN_M): List<IntArray> {
+        fun cutOut(coords: IntArray, marginM: Double = OUTLINE_MARGIN_M, keep: ((Double, Double) -> Boolean)? = null): List<IntArray> {
             val margin = marginM / 111_320.0 * 1e6
             if (!GeoBox.of(coords).intersects(box.grow(margin.toInt(), (margin * 3).toInt()))) return listOf(coords)
-            val out = ArrayList<IntArray>()
-            var cur = IntBuffer()
-            fun flush() {
-                if (cur.size >= 2) out += cur.toArray()
-                cur = IntBuffer()
+            return cutPieces(coords, PIECE_MICRO, ::outlineCrossings) { mLat, mLon ->
+                (containsMicro(mLat, mLon) || nearOutline(mLat, mLon, margin)) && (keep == null || !keep(mLat, mLon))
             }
-            val cuts = ArrayList<Double>()
-            for (i in 0 until coords.size / 2 - 1) {
-                val aLat = coords[2 * i].toDouble()
-                val aLon = coords[2 * i + 1].toDouble()
-                val bLat = coords[2 * i + 2].toDouble()
-                val bLon = coords[2 * i + 3].toDouble()
-                fun at(t: Double) = (aLat + t * (bLat - aLat)) to (aLon + t * (bLon - aLon))
-                fun add(t: Double) {
-                    val (la, lo) = at(t)
-                    cur.addUnlessSame(la.roundToInt(), lo.roundToInt())
-                }
-                // Where the segment crosses the outline.
-                cuts.clear()
-                cuts += 0.0
-                val sMinLat = minOf(aLat, bLat)
-                val sMaxLat = maxOf(aLat, bLat)
-                val sMinLon = minOf(aLon, bLon)
-                val sMaxLon = maxOf(aLon, bLon)
-                if (sMaxLat >= minLat && sMinLat <= maxLat && sMaxLon >= minLon && sMinLon <= maxLon) {
-                    for (r in rings) {
-                        val n = r.size / 2
-                        var j = n - 1
-                        for (k in 0 until n) {
-                            val pLat = r[2 * j].toDouble()
-                            val pLon = r[2 * j + 1].toDouble()
-                            val qLat = r[2 * k].toDouble()
-                            val qLon = r[2 * k + 1].toDouble()
-                            j = k
-                            if (maxOf(pLat, qLat) < sMinLat || minOf(pLat, qLat) > sMaxLat) continue
-                            if (maxOf(pLon, qLon) < sMinLon || minOf(pLon, qLon) > sMaxLon) continue
-                            val dx = bLon - aLon
-                            val dy = bLat - aLat
-                            val ex = qLon - pLon
-                            val ey = qLat - pLat
-                            val den = dx * ey - dy * ex
-                            if (abs(den) < 1e-9) continue
-                            val t = ((pLon - aLon) * ey - (pLat - aLat) * ex) / den
-                            val u = ((pLon - aLon) * dy - (pLat - aLat) * dx) / den
-                            if (t > 0.0 && t < 1.0 && u >= 0.0 && u <= 1.0) cuts += t
-                        }
-                    }
-                }
-                cuts += 1.0
-                // Pieces of about a kilometre, each judged on its own.
-                val steps = ceil(hypot(bLat - aLat, bLon - aLon) / PIECE_MICRO).toInt()
-                for (k in 1 until steps) cuts += k.toDouble() / steps
-                cuts.sort()
-                for (c in 0 until cuts.size - 1) {
-                    val t0 = cuts[c]
-                    val t1 = cuts[c + 1]
-                    if (t1 - t0 < 1e-12) continue
-                    val (mLat, mLon) = at((t0 + t1) / 2)
-                    if (containsMicro(mLat, mLon) || nearOutline(mLat, mLon, margin)) {
-                        flush()
-                    } else {
-                        add(t0)
-                        add(t1)
-                    }
+        }
+
+        /** Where the segment a–b crosses the outline: fractions along it, added to [cuts]. */
+        private fun outlineCrossings(aLat: Double, aLon: Double, bLat: Double, bLon: Double, cuts: MutableList<Double>) {
+            val sMinLat = minOf(aLat, bLat)
+            val sMaxLat = maxOf(aLat, bLat)
+            val sMinLon = minOf(aLon, bLon)
+            val sMaxLon = maxOf(aLon, bLon)
+            if (sMaxLat < minLat || sMinLat > maxLat || sMaxLon < minLon || sMinLon > maxLon) return
+            for (r in rings) {
+                val n = r.size / 2
+                var j = n - 1
+                for (k in 0 until n) {
+                    val pLat = r[2 * j].toDouble()
+                    val pLon = r[2 * j + 1].toDouble()
+                    val qLat = r[2 * k].toDouble()
+                    val qLon = r[2 * k + 1].toDouble()
+                    j = k
+                    if (maxOf(pLat, qLat) < sMinLat || minOf(pLat, qLat) > sMaxLat) continue
+                    if (maxOf(pLon, qLon) < sMinLon || minOf(pLon, qLon) > sMaxLon) continue
+                    val dx = bLon - aLon
+                    val dy = bLat - aLat
+                    val ex = qLon - pLon
+                    val ey = qLat - pLat
+                    val den = dx * ey - dy * ex
+                    if (abs(den) < 1e-9) continue
+                    val t = ((pLon - aLon) * ey - (pLat - aLat) * ex) / den
+                    val u = ((pLon - aLon) * dy - (pLat - aLat) * dx) / den
+                    if (t > 0.0 && t < 1.0 && u >= 0.0 && u <= 1.0) cuts += t
                 }
             }
-            flush()
-            return out
         }
 
         /** Whether a point (microdegrees) is within [d] microdegrees (of latitude) of the outline. */

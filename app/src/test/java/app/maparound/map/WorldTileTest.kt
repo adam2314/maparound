@@ -92,6 +92,29 @@ class WorldTileTest {
     }
 
     @Test
+    fun bordersStayInAMapWithoutItsOwn() {
+        // Israel and Palestine's map: its border lines don't say they're countries' (admin_level=2),
+        // so the world's stay inside its region, the West Bank's and Gaza's too, while close enough.
+        val region = REGIONS!!.byFileName("asia__israel-and-palestine.map")!!
+        val cover = Coverage(region.box, region)
+        fun bordersIn(z: Int, own: List<IntArray>?, lat: Double = 31.9, lon: Double = 35.1) = Recorder().also { r ->
+            val t = tile(lat, lon, z)
+            WORLD.draw(box(t), z, listOf(region.box), r, covers = listOf(cover), ownBorders = own)
+        }.borders.filter { (_, l) -> (0 until l.size / 2).any { cover.contains(l[2 * it], l[2 * it + 1]) } }
+        assertTrue("the map's own are drawn, the world's go", bordersIn(9, null).isEmpty())
+        val kept = bordersIn(9, emptyList())
+        assertTrue("${kept.size} borders", kept.isNotEmpty())
+        assertTrue("the West Bank's are contested", kept.any { it.first })
+        // Close in, on one of them: too coarse to show.
+        val on = kept.first { it.first }.second.let { l -> l[l.size / 2 / 2 * 2] / 1e6 to l[l.size / 2 / 2 * 2 + 1] / 1e6 }
+        assertTrue("there at zoom 13", bordersIn(13, emptyList(), on.first, on.second).isNotEmpty())
+        assertTrue("too coarse at 14", bordersIn(14, emptyList(), on.first, on.second).isEmpty())
+        // Where the map has its own, the world's go there.
+        val own = kept.map { it.second }
+        assertTrue(bordersIn(9, own).isEmpty())
+    }
+
+    @Test
     fun fastEnoughForTheRenderer() {
         // A screenful of zoom-8 tiles over a long coast (Norway), after a first read.
         val tiles = (0 until 6).flatMap { dx -> (0 until 4).map { dy -> TileId(8, 132 + dx, 70 + dy) } }
@@ -106,5 +129,6 @@ class WorldTileTest {
         private val WORLD_DATA = WorldData.decode(File("src/main/assets/world.bin").readBytes())
         private val BORDERS = BorderLines.decode(File("src/main/assets/borders.bin").readBytes())
         private val WORLD = WorldTile({ WORLD_DATA }, { BORDERS })
+        private val REGIONS = MapRegions.decode(File("src/main/assets/regions.bin").readBytes())
     }
 }
