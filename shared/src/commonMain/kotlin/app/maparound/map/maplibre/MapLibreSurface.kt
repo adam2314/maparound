@@ -30,11 +30,17 @@ import kotlin.math.tan
 class MapLibreSurface(
     val native: NativeMap,
     private val tiles: TileService,
-    private val style: MapStyle,
+    /** The style for a theme ([BaseMap.Offline.theme]; null: no offline map). */
+    private val styleFor: (themeId: String?) -> MapStyle,
 ) : MapSurface {
+    /** One style for every map (iOS: Topo). */
+    constructor(native: NativeMap, tiles: TileService, style: MapStyle) : this(native, tiles, { style })
+
     override var listener: MapListener? = null
 
     private var lastStyle: String? = null
+    private var base: BaseMap? = null
+    private var trailOverlay = false
 
     init {
         native.setCallbacks(object : NativeMapCallbacks {
@@ -66,7 +72,7 @@ class MapLibreSurface(
                 listener?.onLongPressEnd(GeoPoint(lat, lon))
             }
         })
-        applyStyle(style.build(null, tiles))
+        applyStyle(styleFor(null).build(null, tiles))
     }
 
     // ---- camera ---------------------------------------------------------------------------------
@@ -122,7 +128,14 @@ class MapLibreSurface(
                 if (base.contours || base.hillshade) tiles.refreshTerrain()
             }
         }
-        applyStyle(style.build(base, tiles))
+        this.base = base
+        rebuild()
+    }
+
+    /** The style for what's shown now, applied when it changed. */
+    fun rebuild() {
+        val b = base
+        applyStyle(styleFor((b as? BaseMap.Offline)?.theme).build(b, tiles, trailOverlay))
     }
 
     private fun applyStyle(json: String) {
@@ -131,8 +144,12 @@ class MapLibreSurface(
         native.setStyle(json)
     }
 
-    /** Marked trails over online maps come with the trails layer on iOS (phase 4). */
-    override fun setTrailOverlay(enabled: Boolean) = Unit
+    /** Waymarked Trails' online overlay over the map (the screen decides when). */
+    override fun setTrailOverlay(enabled: Boolean) {
+        if (enabled == trailOverlay) return
+        trailOverlay = enabled
+        rebuild()
+    }
 
     // ---- overlays ---------------------------------------------------------------------------------
 
@@ -158,8 +175,15 @@ class MapLibreSurface(
         native.setGeoJson(MapStyle.RECORDING, GeoJson.collection(listOfNotNull(GeoJson.line(points, emptyMap()))))
     }
 
-    /** The viewshed image comes with the map tools on iOS (phase 4); lines, ring and points are drawn. */
+    /**
+     * The tools' lines, ring and points as GeoJSON; the viewshed as an image the platform's tile
+     * server draws (Android; iOS draws none yet), which takes a new style.
+     */
     override fun setTools(a: GeoPoint?, b: GeoPoint?, lines: List<ToolLine>, ring: Pair<GeoPoint, Double>?, viewshed: Viewshed?) {
+        if (viewshed !== tiles.viewshed) {
+            tiles.viewshed = viewshed
+            rebuild()
+        }
         val features = ArrayList<JsonObject>()
         ring?.let { (c, r) -> features += GeoJson.ring(GeoJson.circle(c.lat, c.lon, r), mapOf("role" to "ring"), polygon = false) }
         for (l in lines) {

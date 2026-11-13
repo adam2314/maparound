@@ -22,8 +22,8 @@ android {
         applicationId = "app.maparound"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.1.0"
+        versionCode = 3
+        versionName = "0.2.0"
     }
 
     signingConfigs {
@@ -80,12 +80,18 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
-    // Mapsforge: offline OSM vector maps (.map) + online tile layers
+    // MapLibre: draws the map on the GPU, from vector tiles the app makes of the mapsforge maps
+    // (shared TileService) and online raster tiles. BSD-2-Clause.
+    // The OpenGL ES build: it runs on more phones (and emulators) than the default Vulkan one.
+    implementation("org.maplibre.gl:android-sdk-opengl:13.7.1")
+    // Its HTTP client: the app answers its own tile requests in an interceptor (GlTiles).
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // Mapsforge: reads the offline OSM vector maps (.map) and the built-in styles (render themes)
     implementation("org.mapsforge:mapsforge-core:$mapsforgeVersion")
     implementation("org.mapsforge:mapsforge-map:$mapsforgeVersion")
     implementation("org.mapsforge:mapsforge-map-reader:$mapsforgeVersion")
     implementation("org.mapsforge:mapsforge-themes:$mapsforgeVersion")
-    implementation("org.mapsforge:mapsforge-map-android:$mapsforgeVersion")
     implementation("com.caverock:androidsvg:1.4")
 
     // Logic shared with the iOS app (Kotlin Multiplatform)

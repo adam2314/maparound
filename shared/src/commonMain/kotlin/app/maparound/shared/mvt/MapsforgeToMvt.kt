@@ -17,6 +17,12 @@ object MapsforgeToMvt {
      */
     fun tile(maps: List<MapsforgeFile>, z: Int, x: Int, y: Int, maxReadZoom: Int = 17): ByteArray {
         val t = MvtTile(z, x, y)
+        fill(t, maps, z, x, y, maxReadZoom)
+        return t.encode()
+    }
+
+    /** Adds the maps' data for the tile to [t] (z/x/y as in [tile]). */
+    fun fill(t: MvtTile, maps: List<MapsforgeFile>, z: Int, x: Int, y: Int, maxReadZoom: Int = 17) {
         val readZoom = minOf(z + 1, maxReadZoom)
         val shift = readZoom - z
         var water = maps.isNotEmpty()
@@ -36,7 +42,6 @@ object MapsforgeToMvt {
         if (anyCovered && water) {
             t.layer("sea").polygon(listOf(tileRing(z, x, y)), mapOf("natural" to "sea"))
         }
-        return t.encode()
     }
 
     fun add(t: MvtTile, data: MfData) {

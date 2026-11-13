@@ -70,7 +70,7 @@ fun AndroidRoot() {
             }
         },
         createMap = { AndroidMapSurface(context) },
-        mapView = { map, modifier -> AndroidView(factory = { (map as AndroidMapSurface).controller.mapView }, modifier = modifier) },
+        mapView = { map, modifier -> AndroidView(factory = { (map as AndroidMapSurface).native.view }, modifier = modifier) },
         view3d = { Scene3DAndroidView(it) },
         satellites = { hasLoc, request -> GnssScreen(hasLoc, request) },
     )

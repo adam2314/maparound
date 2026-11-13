@@ -8,19 +8,22 @@ import app.maparound.terrain.DemIndex
 import app.maparound.tools.Elevation
 import org.mapsforge.core.model.Tile
 import org.mapsforge.map.reader.MapFile
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import app.maparound.data.file
 
 /**
- * Loads 3D tiles in the background, most important first: the map picture and terrain mesh for
- * each tile, and buildings (from the offline maps) for nearby street-level tiles. Results queue up
- * for the GL thread to upload.
+ * Loads 3D tiles in the background, most important first: the map picture and terrain mesh (on
+ * the globe) for each tile, buildings (from the offline maps) for nearby street-level tiles, and
+ * the names to stand up over the terrain. Results queue up for the GL thread to upload.
  */
-class TerrainEngine(val frame: LocalFrame, val textures: TileTextures, private val onReady: () -> Unit) {
-    class LoadedTile(val id: TileId, val vertices: FloatArray, val n: Int, val bitmap: Bitmap?)
-    class LoadedBuildings(val id: TileId, val vertices: FloatArray, val count: Int)
+class TerrainEngine(val textures: TileTextures, private val onReady: () -> Unit) {
+    class LoadedTile(val id: TileId, val mesh: GlobeTileMesh, val bitmap: Bitmap?)
+
+    /** Buildings of a zoom-16 tile: vertices in metres east/north/up of [center] (see [Buildings]). */
+    class LoadedBuildings(val id: TileId, val center: Vec3, val lat: Double, val lon: Double, val vertices: FloatArray, val count: Int)
 
     val readyTiles = ConcurrentLinkedQueue<LoadedTile>()
     val readyBuildings = ConcurrentLinkedQueue<LoadedBuildings>()
@@ -32,18 +35,27 @@ class TerrainEngine(val frame: LocalFrame, val textures: TileTextures, private v
     private val mapFiles = AppGraph.mapFiles.files.value.map { it.file }.filterNot { MapNames.isWorld(it.name) }
     val hasBuildings: Boolean get() = mapFiles.isNotEmpty()
     private var buildingStores: List<MapFile>? = null // only touched by the building worker
+    private var labelStores: List<MapFile>? = null // only touched by the label worker
 
     private val tileQueue = WorkQueue<TileId>("3d-tiles", textures.threads, ::loadTile)
     private val buildingQueue = WorkQueue<TileId>("3d-buildings", 1, ::loadBuildings)
+    private val labelQueue = WorkQueue<TileId>("3d-labels", 1, ::loadLabels)
+
+    /** Names per tile, once loaded. */
+    private val labels = ConcurrentHashMap<TileId, List<Label3D>>()
 
     /** Ground height (no exaggeration), 0 where unknown. */
     fun groundAt(lat: Double, lon: Double): Float = elevation.at(lat, lon).takeUnless { it.isNaN() } ?: 0f
 
     /** What the view needs now: tile → priority (lower loads first). Replaces the previous wish list. */
-    fun want(tiles: Map<TileId, Double>, buildings: Map<TileId, Double>) {
+    fun want(tiles: Map<TileId, Double>, buildings: Map<TileId, Double>, labelTiles: Map<TileId, Double>) {
         tileQueue.setWanted(tiles)
         buildingQueue.setWanted(buildings)
+        labelQueue.setWanted(labelTiles.filterKeys { !labels.containsKey(it) })
     }
+
+    /** The names loaded for a tile, or null. */
+    fun labelsOf(id: TileId): List<Label3D>? = labels[id]
 
     /** The GL side dropped a tile; it may be loaded again later. */
     fun forgetTile(id: TileId) = tileQueue.forget(id)
@@ -54,15 +66,16 @@ class TerrainEngine(val frame: LocalFrame, val textures: TileTextures, private v
     fun close() {
         tileQueue.close()
         buildingQueue.close()
+        labelQueue.close()
         runCatching { textures.close() }
         buildingStores?.forEach { runCatching { it.close() } }
+        labelStores?.forEach { runCatching { it.close() } }
     }
 
     private fun loadTile(id: TileId) {
-        val n = if (id.z >= 12) 33 else 17
-        val (vertices, _) = TileMesh.build(elevation, id, frame, n)
-        val bitmap = textures.load(id) ?: if (textures is OnlineTileTextures) throw IllegalStateException("no tile") else null
-        readyTiles += LoadedTile(id, vertices, n, bitmap)
+        val mesh = GlobeMesh.build(elevation, id)
+        val bitmap = textures.load(id) ?: if (textures.needsPicture) throw IllegalStateException("no picture") else null
+        readyTiles += LoadedTile(id, mesh, bitmap)
         onReady()
     }
 
@@ -70,6 +83,9 @@ class TerrainEngine(val frame: LocalFrame, val textures: TileTextures, private v
     private fun loadBuildings(id: TileId) {
         val stores = buildingStores ?: mapFiles.mapNotNull { runCatching { MapFile(it) }.getOrNull() }.also { buildingStores = it }
         val tile = Tile(id.x, id.y, id.z.toByte(), 256)
+        val lat = (id.north + id.south) / 2
+        val lon = (id.west + id.east) / 2
+        val frame = LocalFrame(lat, lon)
         val footprints = ArrayList<Footprint>()
         val seen = HashSet<Long>()
         for (store in stores) {
@@ -104,7 +120,36 @@ class TerrainEngine(val frame: LocalFrame, val textures: TileTextures, private v
             }
         }
         val vertices = Buildings.extrude(footprints) { x, y -> groundAt(frame.lat(y.toDouble()), frame.lon(x.toDouble())) }
-        readyBuildings += LoadedBuildings(id, vertices, footprints.size)
+        readyBuildings += LoadedBuildings(id, Wgs84.ecef(lat, lon, 0.0), lat, lon, vertices, footprints.size)
+        onReady()
+    }
+
+    /** Names in a tile: the world's (countries, seas, cities) and the offline maps' places, peaks and huts. */
+    private fun loadLabels(id: TileId) {
+        val out = ArrayList<Label3D>()
+        AppGraph.world?.let { w ->
+            val box = app.maparound.map.GeoBox(
+                (id.south * 1e6).toInt(), (id.west * 1e6).toInt(), (id.north * 1e6).toInt(), (id.east * 1e6).toInt(),
+            )
+            w.labels(id.z + 1, box) { l -> Label3D.fromWorld(l)?.let(out::add) }
+        }
+        if (id.z >= Label3D.MAP_LABELS_FROM_ZOOM) {
+            val stores = labelStores ?: mapFiles.mapNotNull { runCatching { MapFile(it) }.getOrNull() }.also { labelStores = it }
+            val tile = Tile(id.x, id.y, id.z.toByte(), 256)
+            for (store in stores) {
+                if (!store.supportsTile(tile)) continue
+                val data = runCatching { store.readPoiData(tile) }.getOrNull() ?: continue
+                for (p in data.pois) {
+                    val lat = p.position.latitude
+                    val lon = p.position.longitude
+                    if (lat !in id.south..id.north || lon !in id.west..id.east) continue
+                    Label3D.fromTags(lat, lon, p.tags.associate { it.key to it.value })?.let(out::add)
+                }
+            }
+        }
+        labels[id] = out
+        // Keep memory bounded: forget names of tiles far from what's wanted (they load again).
+        if (labels.size > 600) labels.keys.take(labels.size - 500).forEach { labels.remove(it) }
         onReady()
     }
 

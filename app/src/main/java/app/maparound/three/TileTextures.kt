@@ -2,139 +2,98 @@ package app.maparound.three
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import app.maparound.AppGraph
-import app.maparound.USER_AGENT
-import app.maparound.map.MapController
-import app.maparound.map.OfflineMapData
-import app.maparound.map.OnlineSource
-import app.maparound.map.TileSources
-import org.mapsforge.core.model.Tile
-import org.mapsforge.map.android.graphics.AndroidGraphicFactory
-import org.mapsforge.map.layer.cache.InMemoryTileCache
-import org.mapsforge.map.layer.renderer.DatabaseRenderer
-import org.mapsforge.map.layer.renderer.RendererJob
-import org.mapsforge.map.model.DisplayModel
-import org.mapsforge.map.rendertheme.rule.RenderThemeFuture
-import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
+import android.os.Handler
+import android.os.Looper
+import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.snapshotter.MapSnapshotter
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlin.math.PI
+import kotlin.math.atan
+import kotlin.math.sinh
 
 /** Map pictures for 3D tiles. [load] blocks (call it off the main thread). */
 interface TileTextures {
     val maxZoom: Int
-    /** Worker threads worth using (rendering is CPU-bound; downloads are not). */
+
+    /** Worker threads worth using. */
     val threads: Int
+
+    /** A tile without a picture isn't worth showing (it's retried later). */
+    val needsPicture: Boolean get() = true
+
     fun load(t: TileId): Bitmap?
     fun close()
 }
 
 /**
- * Offline maps drawn by mapsforge's own renderer, same style as the 2D map (topo, contours,
- * shading, trails). [hybrid]: transparent, roads, trails and labels only, to lay over imagery.
+ * The map drawn by MapLibre, like the 2D map (the same style, offline maps, world, contours,
+ * trails, background and online sources), without labels: the 3D view stands those up. Each
+ * tile is a 512-pixel snapshot centred on the tile at its zoom, so it covers exactly the tile.
+ *
+ * MapLibre's snapshotters live on the main thread; [load] hands the work there and waits. Create
+ * on the main thread.
  */
-class OfflineTileTextures(
-    context: Context,
-    files: List<File>,
-    style: MapController.OfflineStyle,
-    private val hybrid: Boolean = false,
-) : TileTextures {
-    private val data = OfflineMapData.open(files, if (hybrid) style.copy(hillshade = false) else style, maxZoom = 21)
-    // 512-pixel tiles drawn at twice the "1×" size, so labels stay readable when tilted.
-    private val displayModel = DisplayModel().apply { setUserScaleFactor(2f / DisplayModel.getDeviceScaleFactor()) }
-    private val theme = RenderThemeFuture(
-        AndroidGraphicFactory.INSTANCE,
-        AppGraph.themes.renderTheme(style.theme, hybrid, style.categories),
-        displayModel,
-    ).also { it.run() }
-    private val renderer = DatabaseRenderer(data.store, AndroidGraphicFactory.INSTANCE, InMemoryTileCache(16), null, true, false, data.hills)
-    val mapCount = data.mapCount
-    override val maxZoom = 17
-    // mapsforge renders tiles on several threads in its own map view too.
-    override val threads = 2
+class GlTileTextures(context: Context, styleJson: String, override val maxZoom: Int) : TileTextures {
+    private val main = Handler(Looper.getMainLooper())
+    private val snapshotters = ArrayBlockingQueue<MapSnapshotter>(COUNT)
+    override val threads = COUNT
 
-    override fun load(t: TileId): Bitmap? {
-        val tile = Tile(t.x, t.y, t.z.toByte(), displayModel.tileSize)
-        val bitmap = renderer.executeJob(RendererJob(tile, data.store, theme, displayModel, 1f, hybrid, false)) ?: return null
-        return try {
-            AndroidGraphicFactory.getBitmap(bitmap).copy(if (hybrid) Bitmap.Config.ARGB_8888 else Bitmap.Config.RGB_565, false)
-        } finally {
-            bitmap.decrementRefCount()
+    init {
+        repeat(COUNT) {
+            val options = MapSnapshotter.Options(SIZE, SIZE)
+                .withStyleJson(styleJson)
+                .withPixelRatio(1f)
+                .withCameraPosition(CameraPosition.Builder().target(LatLng(0.0, 0.0)).zoom(0.0).build())
+            options.showLogo = false
+            options.showAttribution = false
+            snapshotters.put(MapSnapshotter(context.applicationContext, options))
         }
     }
 
-    override fun close() {
-        theme.decrementRefCount()
-        data.close()
-    }
-}
-
-/** A raster map (RMAP), reprojected to 512-pixel tiles. */
-class RasterTileTextures(private val renderer: app.maparound.raster.RasterTiles) : TileTextures {
-    override val maxZoom = 18
-    override val threads = 2
-
     override fun load(t: TileId): Bitmap? {
-        val size = 512
-        val px = IntArray(size * size)
-        if (!renderer.render(t.z, t.x, t.y, size, px)) return null
-        return Bitmap.createBitmap(px, size, size, Bitmap.Config.ARGB_8888)
-    }
-
-    override fun close() = Unit
-}
-
-/** A background (imagery or raster map) with a transparent picture (the hybrid vector map) on top. */
-class CompositeTileTextures(private val bottom: TileTextures, private val top: TileTextures) : TileTextures {
-    override val maxZoom = minOf(18, maxOf(bottom.maxZoom, top.maxZoom))
-    override val threads = maxOf(bottom.threads, top.threads)
-
-    override fun load(t: TileId): Bitmap? {
-        val b = if (t.z <= bottom.maxZoom) runCatching { bottom.load(t) }.getOrNull() else null
-        val o = if (t.z <= top.maxZoom) runCatching { top.load(t) }.getOrNull() else null
-        if (b == null && o == null) return null
-        val out = Bitmap.createBitmap(512, 512, Bitmap.Config.RGB_565)
-        val c = android.graphics.Canvas(out)
-        c.drawColor(0xFFE8E4D8.toInt())
-        val paint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
-        val dst = android.graphics.Rect(0, 0, 512, 512)
-        b?.let { c.drawBitmap(it, null, dst, paint); it.recycle() }
-        o?.let { c.drawBitmap(it, null, dst, paint); it.recycle() }
-        return out
-    }
-
-    override fun close() {
-        bottom.close()
-        top.close()
-    }
-}
-
-/** Online XYZ tiles (OSM, OpenTopoMap, satellite…), cached on disk for a month. */
-class OnlineTileTextures(context: Context, private val source: OnlineSource) : TileTextures {
-    private val dir = File(context.cacheDir, "tiles3d/" + source.id.replace(Regex("[^A-Za-z0-9_]"), "_"))
-    override val maxZoom = source.maxZoom.coerceAtMost(18)
-    override val threads = 4
-
-    override fun load(t: TileId): Bitmap? {
-        val opts = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 }
-        val file = File(dir, "${t.z}/${t.x}/${t.y}")
-        if (file.isFile && System.currentTimeMillis() - file.lastModified() < 30L * 24 * 3_600_000) {
-            BitmapFactory.decodeFile(file.path, opts)?.let { return it }
-        }
-        val conn = URL(TileSources.tileUrl(source, t.z, t.x, t.y)).openConnection() as HttpURLConnection
+        val s = snapshotters.take()
         try {
-            conn.connectTimeout = 15_000
-            conn.readTimeout = 15_000
-            conn.setRequestProperty("User-Agent", USER_AGENT)
-            if (conn.responseCode != 200) throw IllegalStateException("HTTP ${conn.responseCode}")
-            val bytes = conn.inputStream.use { it.readBytes() }
-            file.parentFile?.mkdirs()
-            file.writeBytes(bytes)
-            return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+            val done = CountDownLatch(1)
+            var picture: Bitmap? = null
+            var error: String? = null
+            val n = 1 shl t.z
+            val lat = Math.toDegrees(atan(sinh(PI * (1 - 2.0 * (t.y + 0.5) / n))))
+            val lon = (t.x + 0.5) / n * 360.0 - 180.0
+            main.post {
+                s.setCameraPosition(CameraPosition.Builder().target(LatLng(lat, lon)).zoom(t.z.toDouble()).bearing(0.0).tilt(0.0).build())
+                s.start(
+                    { snapshot ->
+                        // No transparency needed: half the memory on the GPU.
+                        picture = snapshot.bitmap.copy(Bitmap.Config.RGB_565, false)
+                        done.countDown()
+                    },
+                    { e ->
+                        error = e
+                        done.countDown()
+                    },
+                )
+            }
+            if (!done.await(TIMEOUT_S, TimeUnit.SECONDS)) {
+                main.post { s.cancel() }
+                throw IllegalStateException("snapshot timed out")
+            }
+            error?.let { throw IllegalStateException(it) }
+            return picture
         } finally {
-            conn.disconnect()
+            snapshotters.put(s)
         }
     }
 
-    override fun close() = Unit
+    override fun close() {
+        main.post { snapshotters.forEach { runCatching { it.cancel() } } }
+    }
+
+    private companion object {
+        const val COUNT = 2
+        const val SIZE = 512
+        const val TIMEOUT_S = 40L
+    }
 }

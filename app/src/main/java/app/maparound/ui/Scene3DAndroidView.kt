@@ -11,21 +11,21 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import app.maparound.AppGraph
-import app.maparound.map.MapController
+import app.maparound.map.BaseMap
 import app.maparound.map.TileSources
 import app.maparound.map.categories
-import app.maparound.map.resolveBackground
+import app.maparound.map.gl.GlStyles
+import app.maparound.map.gl.GlTiles
 import app.maparound.map.satelliteSource
-import app.maparound.three.CompositeTileTextures
-import app.maparound.three.LocalFrame
-import app.maparound.three.OfflineTileTextures
-import app.maparound.three.OnlineTileTextures
-import app.maparound.three.RasterTileTextures
+import app.maparound.three.GlTileTextures
 import app.maparound.three.Scene3DView
 import app.maparound.three.TerrainEngine
-import app.maparound.data.file
 
-/** The shared 3D screen's view on Android: OpenGL ES, textures from the same map as in 2D. */
+/**
+ * The shared 3D screen's view on Android: OpenGL ES on the whole globe, the map drawn on the
+ * terrain by MapLibre in the same style as the 2D map (without its labels: the view stands names
+ * up over the terrain).
+ */
 @Composable
 fun Scene3DAndroidView(args: Scene3DViewArgs) {
     var glView by remember { mutableStateOf<Scene3DView?>(null) }
@@ -44,42 +44,37 @@ fun Scene3DAndroidView(args: Scene3DViewArgs) {
     AndroidView(
         factory = { ctx ->
             val prefs = AppGraph.prefs
+            // Same as the 2D map: an online layer, or the offline maps with their style,
+            // background (satellite / raster map) and trails; the 3D button's satellite instead.
             val online = if (args.satellite) satelliteSource else TileSources.find(prefs.baseLayer.value, prefs.customSources.value)
-            val maps = AppGraph.mapFiles.files.value.map { it.file }
-            val style = MapController.OfflineStyle(
-                theme = prefs.mapTheme.value,
-                categories = AppGraph.themes.categories(prefs.mapTheme.value, prefs.styleChoices.value),
+            val maps = AppGraph.mapFiles.files.value
+            val theme = prefs.mapTheme.value
+            val base = online?.let { BaseMap.Online(it) } ?: BaseMap.Offline(
+                maps = maps,
+                theme = theme,
+                categories = AppGraph.themes.categories(theme, prefs.styleChoices.value),
                 contours = prefs.contours.value,
-                hillshade = prefs.hillshade.value,
-                demDir = AppGraph.terrain.demDir,
+                hillshade = false,
                 terrainVersion = AppGraph.terrain.state.value.version,
                 trails = prefs.trails.value,
-                trailsDir = AppGraph.trails.dir,
                 trailsVersion = AppGraph.trails.state.value.version,
+                background = prefs.mapBackground.value,
+                vectorOnTop = prefs.vectorOnBackground.value,
+                rasterMaps = AppGraph.rasters.maps.value,
             )
-            // Same as the 2D map: an online layer, or the offline map with its background
-            // (satellite / raster map) and the vector map on top if chosen.
-            val background = if (online == null) resolveBackground(prefs.mapBackground.value) else null
-            val textures = when {
-                online != null -> OnlineTileTextures(ctx, online)
-                background != null -> {
-                    val under = when (background) {
-                        is MapController.Background.Online -> OnlineTileTextures(ctx, background.source)
-                        is MapController.Background.Raster -> RasterTileTextures(background.renderer)
-                    }
-                    if (prefs.vectorOnBackground.value && maps.isNotEmpty()) {
-                        CompositeTileTextures(under, OfflineTileTextures(ctx, maps, style, hybrid = true))
-                    } else {
-                        under
-                    }
-                }
-                else -> OfflineTileTextures(ctx, maps, style)
+            val service = GlTiles.service
+            if (base is BaseMap.Offline) {
+                // Usually already so from the 2D map; quick when it is.
+                service.setMaps(maps.map { it.path })
+                if (base.contours) service.refreshTerrain()
             }
+            val style = GlStyles.styleFor((base as? BaseMap.Offline)?.theme).build(base, service, forTextures = true)
+            val maxZoom = online?.maxZoom?.coerceAtMost(18) ?: 17
+            val textures = GlTileTextures(ctx, style, maxZoom)
             var view: Scene3DView? = null
-            val engine = TerrainEngine(LocalFrame(args.camera.lat, args.camera.lon), textures) { view?.requestRender() }
+            val engine = TerrainEngine(textures) { view?.requestRender() }
             val notes = listOfNotNull(
                 if (!engine.hasTerrain) "No terrain data: download it in Offline maps (⋮ → Terrain) for relief." else null,
-                if (online == null && maps.isEmpty()) "No offline maps: download some, or pick an online map in Layers." else null,
             )
             Scene3DView(ctx, args.camera, engine).also {
                 view = it

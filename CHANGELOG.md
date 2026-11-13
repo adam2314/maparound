@@ -1,6 +1,35 @@
 # Changelog
 
-## 0.1.0 (not released yet)
+## 0.2.0 (not released yet)
+
+### Maps
+- **A better 3D view, on the whole globe.** Zoom out and the Earth hangs in space with its
+  glowing atmosphere; zoom in down to a hiking path. The map on the terrain is drawn like the 2D
+  map, names stand up over the mountains (peaks with their heights, villages, huts; hidden
+  behind ridges), there's a sky with haze toward the horizon, new ground fades in, and a flick
+  keeps the map gliding.
+- **The map is drawn on the GPU (MapLibre), on the phone and in Android Auto.** Smooth zooming
+  and turning, crisp labels at every zoom, and a compass when the map is turned. The offline maps,
+  styles, terrain, trails, raster maps and backgrounds are the same as before; the app makes the
+  map's tiles from them on the phone. Turn the map with two fingers.
+- **A world map built in (Android).** Zoomed out, and around the countries you've downloaded,
+  the offline map now shows coastlines, lakes, big rivers, country borders and the names of
+  countries, seas, cities and towns (from Natural Earth), even with nothing downloaded. Before,
+  it was blank beyond your maps. Downloaded maps keep their own, exact data. The 3 MB World
+  overview download isn't needed any more; you can delete it.
+- **Country borders at every zoom.** In Topo, disputed borders and lines of control are drawn
+  with short dashes.
+
+### Party
+- **Invites are web links** (`https://adam2314.github.io/maparound/party#…`), so messaging apps
+  make them tappable and the QR code opens from the phone's camera. The page opens MapAround, or
+  Google Play if it isn't installed; the party's code never reaches the website. Older
+  `maparound://` invites still work.
+
+### Good to know
+- The 3D globe and the built-in world map are on Android only for now.
+
+## 0.1.0 (first Google Play upload)
 
 ### Navigation
 - **Turn-by-turn navigation.** Plan a route and tap **Start**. You get the next turn and its
@@ -19,13 +48,6 @@
   mapsforge style (`.xml` or `.zip`). Styles that have options get switches in Layers. In Topo you
   can hide land cover, buildings, boundaries, railways and lifts, names, peaks and springs, or
   points of interest. See [docs/map-styles.md](docs/map-styles.md).
-- **A world map built in (Android).** Zoomed out, and around the countries you've downloaded,
-  the offline map now shows coastlines, lakes, big rivers, country borders and the names of
-  countries, seas, cities and towns (from Natural Earth), even with nothing downloaded. Before,
-  it was blank beyond your maps. Downloaded maps keep their own, exact data. The 3 MB World
-  overview download isn't needed any more; you can delete it.
-- **Country borders at every zoom.** In Topo, disputed borders and lines of control are drawn
-  with short dashes.
 - **Cliffs and ridges** now show on the Topo map. They come with the Marked trails download; tap
   it again for areas you downloaded before.
 - **More online maps:** OpenStreetMap Germany, Esri Topo and Street, and national maps for
@@ -38,10 +60,6 @@
   the screen off, with progress in a notification (Android).
 
 ### Party
-- **Invites are web links** (`https://adam2314.github.io/maparound/party#…`), so messaging apps
-  make them tappable and the QR code opens from the phone's camera. The page opens MapAround, or
-  Google Play if it isn't installed; the party's code never reaches the website. Older
-  `maparound://` invites still work.
 - **Choose how others see you:** your initial or an icon (walker, hiker, runner, skier, kayaker,
   cyclist, e-bike, motorcycle, car, 4×4, van, truck and more), in any colour. Friends on older
   versions see your initial in the nearest of their colours.

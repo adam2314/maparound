@@ -5,8 +5,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.mapsforge.core.model.BoundingBox
-import org.mapsforge.core.model.Tile
-import org.mapsforge.core.util.MercatorProjection
 
 class TrailsTest {
     @get:Rule
@@ -43,19 +41,17 @@ class TrailsTest {
 
         val index = TrailIndex(tmp.root)
         assertEquals(2, index.wayCount)
-        val zoom: Byte = 15
-        val tile = Tile(
-            MercatorProjection.longitudeToTileX(9.005, zoom), MercatorProjection.latitudeToTileY(47.005, zoom), zoom, 256,
-        )
-        val ways = TrailDataStore(index).readMapData(tile).ways
+        val found = ArrayList<Pair<TrailWay, List<TrailRoute>>>()
+        index.query(BoundingBox(47.004, 9.004, 47.006, 9.006)) { w, r -> found += w to r }
         // Way 1 is on two routes with different colours: drawn twice, side by side.
-        val way1 = ways.filter { w -> w.latLongs[0].size == 3 }
-        assertEquals(2, way1.size)
-        val first = way1.first { w -> w.tags.any { it.key == "trail_n" } }
+        val way1 = found.first { it.first.coords.size == 6 }
+        val copies = TrailTags.lines(way1.second)
+        assertEquals(2, copies.size)
+        val first = copies.first { "trail_n" in it }
         // International route (Via Alpina, red) comes first and names the line.
-        assertEquals("red", first.tags.first { it.key == "trail_colour" }.value)
-        assertEquals("Via Alpina", first.tags.first { it.key == "name" }.value)
-        assertEquals(setOf("l05", "r05"), way1.map { w -> w.tags.first { it.key == "trail_offset" }.value }.toSet())
+        assertEquals("red", first["trail_colour"])
+        assertEquals("Via Alpina", first["name"])
+        assertEquals(setOf("l05", "r05"), copies.map { it["trail_offset"] }.toSet())
         assertEquals(true, index.hasDataIn(BoundingBox(47.0, 9.0, 47.02, 9.02)))
         assertEquals(false, index.hasDataIn(BoundingBox(46.0, 8.0, 46.1, 8.1)))
     }
@@ -72,15 +68,9 @@ class TrailsTest {
         assertEquals(1, index.featureCount)
         assertEquals(2, index.wayCount)
 
-        fun tileAt(zoom: Byte) = Tile(MercatorProjection.longitudeToTileX(9.005, zoom), MercatorProjection.latitudeToTileY(47.005, zoom), zoom, 256)
-        val trailsOff = TrailDataStore(index, routes = false)
-        val ways = trailsOff.readMapData(tileAt(15)).ways
-        assertEquals(listOf("natural=cliff"), ways.map { w -> w.tags.joinToString { "${it.key}=${it.value}" } })
-        assertEquals(true, trailsOff.supportsTile(tileAt(15)))
-        // Below zoom 13 there's nothing to draw then; with the trails on, the lines come too.
-        assertEquals(false, trailsOff.supportsTile(tileAt(12)))
-        val trailsOn = TrailDataStore(index).readMapData(tileAt(15)).ways
-        assertEquals(1, trailsOn.count { w -> w.tags.any { it.key == "natural" } })
-        assertEquals(true, trailsOn.any { w -> w.tags.any { it.key == "trail" } })
+        val features = ArrayList<TrailFeature>()
+        index.queryFeatures(BoundingBox(47.0, 9.0, 47.01, 9.01)) { features += it }
+        assertEquals(listOf("cliff"), features.map { it.kind.tag })
+        assertEquals(true, index.hasDataIn(BoundingBox(47.0, 9.0, 47.01, 9.01), routes = false, features = true))
     }
 }

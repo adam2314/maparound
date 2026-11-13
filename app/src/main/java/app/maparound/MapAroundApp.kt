@@ -23,6 +23,8 @@ import app.maparound.data.DownloadService
 import app.maparound.map.AndroidMapThemes
 import app.maparound.map.BorderLines
 import app.maparound.map.WorldData
+import app.maparound.map.WorldTile
+import app.maparound.map.gl.GlTiles
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -30,12 +32,10 @@ import kotlinx.coroutines.launch
 import app.maparound.tools.ToolsSession
 import app.maparound.tracks.TrackRepository
 import app.maparound.data.TrailRepository
-import org.mapsforge.map.android.graphics.AndroidGraphicFactory
 
 class MapAroundApp : Application() {
     override fun onCreate() {
         super.onCreate()
-        AndroidGraphicFactory.createInstance(this)
         AppGraph.init(this)
     }
 }
@@ -77,6 +77,9 @@ object AppGraph {
         runCatching { app.assets.open("world.bin").use { WorldData.decode(it.readBytes()) } }.getOrNull()
     }
 
+    /** The built-in world per tile, for the map (vector tiles) and the 3D view (mapsforge). */
+    val worldTile = WorldTile({ world }, { borders })
+
     fun init(app: Application) {
         this.app = app
         // Read the built-in world in the background, so the first map frame doesn't wait for it.
@@ -113,6 +116,8 @@ object AppGraph {
             }
         }
         rasters = RasterMapRepository(app)
+        // The map draws with MapLibre, from tiles the app makes (needs the terrain folder and the world).
+        GlTiles.init(app)
         PartySession.init(app)
     }
 }

@@ -1,89 +1,46 @@
 package app.maparound.map
 
 import android.content.Context
-import android.location.Location
 import app.maparound.AppGraph
-import app.maparound.data.MapPos
-import app.maparound.routing.GeoPoint
-import app.maparound.sensors.GeoFix
-import app.maparound.three.Camera3D
-import app.maparound.tools.Viewshed
+import app.maparound.map.gl.AndroidNativeMap
+import app.maparound.map.gl.GlStyles
+import app.maparound.map.gl.GlTiles
+import app.maparound.map.maplibre.MapLibreSurface
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.mapsforge.core.model.LatLong
-import java.io.File
 
-/** The shared map screen's [MapSurface] on Android: the mapsforge [MapController], unchanged. */
-class AndroidMapSurface(context: Context) : MapSurface {
-    val controller = MapController(context)
+/**
+ * The shared map screen's [MapSurface] on Android: MapLibre ([AndroidNativeMap]) driven by the
+ * shared [MapLibreSurface], like on the iPhone, with the app's tiles from [GlTiles] and its
+ * styles from [GlStyles].
+ */
+class AndroidMapSurface private constructor(
+    val native: AndroidNativeMap,
+    private val surface: MapLibreSurface,
+) : MapSurface by surface {
 
-    override var listener: MapListener? = null
+    /** [textScale]: text and symbols this much larger (the car screen). */
+    constructor(context: Context, textScale: Float = 1f) : this(AndroidNativeMap(context, textScale))
 
-    init {
-        controller.onUserGesture = { listener?.onUserGesture() }
-        controller.onLongPress = { listener?.onLongPress(GeoPoint(it.latitude, it.longitude)) }
-        controller.onLongPressMove = { listener?.onLongPressMove(GeoPoint(it.latitude, it.longitude)) }
-        controller.onLongPressEnd = { listener?.onLongPressEnd(GeoPoint(it.latitude, it.longitude)) }
-        controller.onTap = { listener?.onTap(GeoPoint(it.latitude, it.longitude)) ?: false }
-        controller.onWaypointTap = { listener?.onWaypointTap(it) }
-        controller.onPartyMarkerTap = { listener?.onPartyMarkerTap(it) }
-        controller.onPlaceTap = { listener?.onPlaceTap(it) }
-        controller.onMyLocationTap = { listener?.onMyLocationTap() }
-    }
-
-    override fun position(): MapPos = controller.position()
-    override fun moveTo(pos: MapPos) = controller.moveTo(pos)
-    override fun animateTo(lat: Double, lon: Double, minZoom: Int?) = controller.animateTo(lat, lon, minZoom)
-    override fun showPoints(points: List<GeoPoint>) = controller.showPoints(points)
-    override fun camera3D(): Camera3D? = controller.camera3D()
-    override fun metresPerDp(): Double = controller.metresPerDp()
+    private constructor(native: AndroidNativeMap) : this(native, MapLibreSurface(native, GlTiles.service, GlStyles::styleFor))
 
     override suspend fun setBaseMap(base: BaseMap) {
-        when (base) {
-            is BaseMap.Online -> controller.showOnline(base.source)
-            is BaseMap.Offline -> {
-                val style = MapController.OfflineStyle(
-                    theme = base.theme,
-                    categories = base.categories,
-                    contours = base.contours,
-                    hillshade = base.hillshade,
-                    demDir = AppGraph.terrain.demDir,
-                    terrainVersion = base.terrainVersion,
-                    trails = base.trails,
-                    trailsDir = AppGraph.trails.dir,
-                    trailsVersion = base.trailsVersion,
-                )
-                // Opening a raster map reads its tables: off the main thread.
-                val background = withContext(Dispatchers.IO) { resolveBackground(base.background) }
-                controller.showOffline(base.maps.map { File(it.path) }, style, background, base.vectorOnTop)
+        if (base is BaseMap.Offline) {
+            // The style's own symbols, and the downloaded trails (reading their index: off the main thread).
+            native.symbols = { path -> AppGraph.themes.openSymbol(base.theme, path) }
+            withContext(Dispatchers.IO) {
+                val hasTrails = AppGraph.trails.state.value.cells > 0
+                GlTiles.setTrails(if (hasTrails) base.trailsVersion else -1, base.trails, base.drawsTerrain)
             }
         }
+        surface.setBaseMap(base)
     }
 
-    override fun setTrailOverlay(enabled: Boolean) = controller.setTrailOverlay(enabled)
-    override fun setPlannedRoute(line: List<GeoPoint>, waypoints: List<GeoPoint>) = controller.setPlannedRoute(line, waypoints)
-    override fun setShownTracks(tracks: Map<String, List<GeoPoint>>) = controller.setShownTracks(tracks)
-    override fun setRecording(points: List<GeoPoint>) = controller.setRecording(points)
+    override fun onResume() = native.onResume()
+    override fun onPause() = native.onPause()
 
-    override fun setTools(a: GeoPoint?, b: GeoPoint?, lines: List<ToolLine>, ring: Pair<GeoPoint, Double>?, viewshed: Viewshed?) =
-        controller.setTools(a, b, lines, ring, viewshed)
-
-    override fun setPartyMarkers(markers: List<PartyMarker>) = controller.setPartyMarkers(markers)
-    override fun setPlaces(places: List<PlaceMarker>) = controller.setPlaces(places)
-
-    override fun updateLocation(fix: GeoFix?) = controller.updateLocation(
-        fix?.let { f ->
-            Location("fix").apply {
-                latitude = f.lat
-                longitude = f.lon
-                f.accuracyM?.let { accuracy = it }
-            }
-        },
-    )
-
-    override fun setPin(point: GeoPoint?) = controller.setPin(point?.let { LatLong(it.lat, it.lon) })
-
-    override fun onResume() = controller.onResume()
-    override fun onPause() = controller.onPause()
-    override fun destroy() = controller.destroy()
+    override fun destroy() {
+        surface.destroy()
+        native.onDestroy()
+    }
 }

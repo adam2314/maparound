@@ -16,10 +16,13 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import app.maparound.AppGraph
 import app.maparound.data.MapPos
-import app.maparound.map.MapController
+import app.maparound.map.AndroidMapSurface
+import app.maparound.map.BaseMap
 import app.maparound.map.MapThemes
 import app.maparound.map.TileSources
 import app.maparound.map.categories
+import app.maparound.map.maplibre.MapLibreSurface
+import app.maparound.map.satelliteSource
 import app.maparound.party.PartySession
 import app.maparound.routing.GeoPoint
 import app.maparound.routing.NavigationSession
@@ -45,16 +48,12 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import org.mapsforge.core.model.LatLong
-import org.mapsforge.core.util.MercatorProjection
-import org.mapsforge.map.model.DisplayModel
 import kotlin.math.roundToInt
-import app.maparound.data.file
 
 /**
  * Draws the map on the car screen. Android Auto hands us a Surface; a private virtual display on
- * that surface hosts an ordinary mapsforge MapView (in a Presentation), fed by the same live data
- * as the phone's map. Pan and zoom come from the car's touch screen / controller.
+ * that surface hosts the same MapLibre map as the phone's (in a Presentation), fed by the same live
+ * data. Pan and zoom come from the car's touch screen / controller.
  */
 class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) : SurfaceCallback, DefaultLifecycleObserver {
     /** What the template shows above the map. */
@@ -65,7 +64,7 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
 
     private var virtualDisplay: VirtualDisplay? = null
     private var presentation: Presentation? = null
-    private var controller: MapController? = null
+    private var map: AndroidMapSurface? = null
     private var scope: CoroutineScope? = null
     private var surfaceSize = 0 to 0
     private var visibleArea: Rect? = null
@@ -99,9 +98,8 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
             )
             val p = Presentation(carContext, vd.display)
             // Map text and symbols for the car's density, a bit larger for reading at a glance.
-            val scale = container.dpi / 160f / DisplayModel.getDeviceScaleFactor() * 1.25f
-            val c = MapController(p.context, cacheTag = "car_", scale = scale)
-            p.setContentView(c.mapView)
+            val c = AndroidMapSurface(p.context, textScale = 1.25f)
+            p.setContentView(c.native.view)
             p.show()
             c.onResume()
             val start = location?.let { MapPos(it.latitude, it.longitude, 15) }
@@ -110,8 +108,9 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
             c.moveTo(start)
             virtualDisplay = vd
             presentation = p
-            controller = c
+            map = c
             surfaceSize = container.width to container.height
+            visibleArea?.let(::applyVisibleArea)
             startFeeding(c)
         } catch (e: Exception) {
             Log.e(TAG, "Could not start the car map", e)
@@ -123,7 +122,15 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
 
     override fun onVisibleAreaChanged(visibleArea: Rect) {
         this.visibleArea = Rect(visibleArea)
+        applyVisibleArea(visibleArea)
         if (following) location?.let { centerOn(it.latitude, it.longitude) }
+    }
+
+    /** The map centres in the part of the screen the car's own controls leave free. */
+    private fun applyVisibleArea(v: Rect) {
+        val (w, h) = surfaceSize
+        if (w <= 0 || h <= 0) return
+        map?.native?.setPadding(v.left, v.top, (w - v.right).coerceAtLeast(0), (h - v.bottom).coerceAtLeast(0))
     }
 
     override fun onStableAreaChanged(stableArea: Rect) = Unit
@@ -131,9 +138,9 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
     // ---- gestures from the car ----------------------------------------------------------------------
 
     override fun onScroll(distanceX: Float, distanceY: Float) {
-        val c = controller ?: return
+        val c = map ?: return
         setFollowing(false)
-        c.mapView.model.mapViewPosition.moveCenter(-distanceX.toDouble(), -distanceY.toDouble())
+        c.native.panBy(-distanceX, -distanceY)
     }
 
     override fun onFling(velocityX: Float, velocityY: Float) = Unit
@@ -148,13 +155,11 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
     }
 
     fun zoomIn() {
-        controller?.zoomIn()
-        if (following) location?.let { centerOn(it.latitude, it.longitude) }
+        map?.native?.zoomBy(1.0)
     }
 
     fun zoomOut() {
-        controller?.zoomOut()
-        if (following) location?.let { centerOn(it.latitude, it.longitude) }
+        map?.native?.zoomBy(-1.0)
     }
 
     /** Back to following the car's position. */
@@ -167,13 +172,13 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
     fun toggleSatellite() {
         satellite = !satellite
         pushStatus()
-        controller?.let { applyBaseLayer(it) }
+        map?.let { m -> scope?.launch { applyBaseLayer(m) } }
     }
 
     /** "Navigate to" from the car: a car route from here, and guidance as soon as it is calculated. */
     fun showDestination(p: GeoPoint) {
         setFollowing(false)
-        controller?.animateTo(p.lat, p.lon, minZoom = 13)
+        map?.animateTo(p.lat, p.lon, minZoom = 13)
         val me = location
         if (me != null) {
             NavigationSession.stop()
@@ -195,30 +200,17 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
         pushStatus()
     }
 
-    /** Puts the position in the middle of the part of the screen not covered by the car's UI. */
+    /** Puts the position in the middle of the part of the screen not covered by the car's UI (the padding). */
     private fun centerOn(lat: Double, lon: Double) {
-        val c = controller ?: return
-        val model = c.mapView.model
-        val tile = model.displayModel.tileSize
-        val mapSize = MercatorProjection.getMapSize(model.mapViewPosition.zoomLevel, tile)
-        var x = MercatorProjection.longitudeToPixelX(lon, mapSize)
-        var y = MercatorProjection.latitudeToPixelY(lat, mapSize)
-        visibleArea?.let { v ->
-            x += surfaceSize.first / 2.0 - v.exactCenterX()
-            y += surfaceSize.second / 2.0 - v.exactCenterY()
-        }
-        val max = mapSize.toDouble()
-        model.mapViewPosition.center = LatLong(
-            MercatorProjection.pixelYToLatitude(y.coerceIn(0.0, max), mapSize),
-            MercatorProjection.pixelXToLongitude(x.coerceIn(0.0, max), mapSize),
-        )
+        val n = map?.native ?: return
+        n.moveCamera(lat, lon, n.camera().zoom, animated = true)
     }
 
     // ---- data -------------------------------------------------------------------------------------------
 
     private var baseInputs: List<Any?> = emptyList()
 
-    private fun startFeeding(c: MapController) {
+    private fun startFeeding(c: AndroidMapSurface) {
         val s = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         scope = s
         val prefs = AppGraph.prefs
@@ -256,8 +248,10 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
             // Navigation started (here or on the phone): follow the car, close enough to see the turns.
             NavigationSession.state.map { it.active }.distinctUntilChanged().collect { active ->
                 if (active) {
-                    controller?.mapView?.model?.mapViewPosition?.let { pos ->
-                        if (pos.zoomLevel < 16) pos.zoomLevel = minOf(16, pos.zoomLevelMax.toInt()).toByte()
+                    map?.native?.let { n ->
+                        val zoom = NAV_ZOOM - MapLibreSurface.ZOOM_OFFSET
+                        val cam = n.camera()
+                        if (cam.zoom < zoom) n.moveCamera(cam.lat, cam.lon, zoom.toDouble(), animated = true)
                     }
                     recenter()
                 }
@@ -285,7 +279,7 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
             s.launch {
                 LocationSource.updates(carContext).collect { loc ->
                     location = loc
-                    c.updateLocation(loc)
+                    c.updateLocation(loc.toGeoFix())
                     // The navigation service feeds it too; the same fix counts once.
                     if (NavigationSession.state.value.active) NavigationSession.onFix(loc.toGeoFix())
                     if (following) centerOn(loc.latitude, loc.longitude)
@@ -296,32 +290,26 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
         pushStatus()
     }
 
-    private fun applyBaseLayer(c: MapController) {
+    private suspend fun applyBaseLayer(c: AndroidMapSurface) {
         val prefs = AppGraph.prefs
-        val satelliteSource = if (satellite) TileSources.builtIn.firstOrNull { it.id == "esri_imagery" } else null
-        val online = satelliteSource ?: TileSources.find(prefs.baseLayer.value, prefs.customSources.value)
-        if (online != null) {
-            c.showOnline(online)
-        } else {
-            c.showOffline(
-                AppGraph.mapFiles.files.value.map { it.file },
-                MapController.OfflineStyle(
-                    theme = prefs.mapTheme.value,
-                    categories = AppGraph.themes.categories(prefs.mapTheme.value, prefs.styleChoices.value),
-                    contours = prefs.contours.value,
-                    hillshade = prefs.hillshade.value,
-                    demDir = AppGraph.terrain.demDir,
-                    terrainVersion = AppGraph.terrain.state.value.version,
-                    trails = prefs.trails.value,
-                    trailsDir = AppGraph.trails.dir,
-                    trailsVersion = AppGraph.trails.state.value.version,
-                ),
-                // Same background as the phone (satellite / raster map under the vector map).
-                app.maparound.map.resolveBackground(prefs.mapBackground.value),
-                prefs.vectorOnBackground.value,
-            )
-        }
-        val localTrails = online == null && prefs.trails.value && MapThemes.drawsTerrain(prefs.mapTheme.value) && AppGraph.trails.state.value.cells > 0
+        val online = if (satellite) satelliteSource else TileSources.find(prefs.baseLayer.value, prefs.customSources.value)
+        val theme = prefs.mapTheme.value
+        val base = online?.let { BaseMap.Online(it) } ?: BaseMap.Offline(
+            maps = AppGraph.mapFiles.files.value,
+            theme = theme,
+            categories = AppGraph.themes.categories(theme, prefs.styleChoices.value),
+            contours = prefs.contours.value,
+            hillshade = prefs.hillshade.value,
+            terrainVersion = AppGraph.terrain.state.value.version,
+            trails = prefs.trails.value,
+            trailsVersion = AppGraph.trails.state.value.version,
+            // Same background as the phone (satellite / raster map under the vector map).
+            background = prefs.mapBackground.value,
+            vectorOnTop = prefs.vectorOnBackground.value,
+            rasterMaps = AppGraph.rasters.maps.value,
+        )
+        c.setBaseMap(base)
+        val localTrails = online == null && prefs.trails.value && MapThemes.drawsTerrain(theme) && AppGraph.trails.state.value.cells > 0
         c.setTrailOverlay(prefs.trails.value && !localTrails)
     }
 
@@ -354,11 +342,11 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
     private fun release() {
         scope?.cancel()
         scope = null
-        controller?.let {
+        map?.let {
             it.onPause()
             runCatching { it.destroy() }
         }
-        controller = null
+        map = null
         runCatching { presentation?.dismiss() }
         presentation = null
         virtualDisplay?.release()
@@ -367,5 +355,8 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
 
     companion object {
         private const val TAG = "CarMapRenderer"
+
+        /** Zoom (mapsforge's levels) to see the turns while navigating. */
+        private const val NAV_ZOOM = 16
     }
 }

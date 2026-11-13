@@ -17,14 +17,14 @@ Licence: **GPL-3.0** (see [LICENSE](LICENSE)); bundled components keep their own
 | **Map** | Pan/zoom map, my-location dot with accuracy circle and follow mode, long-press to drop a pin (coordinates, DMS, distance/bearing from you, copy, open in another app). Buttons for **search**, layers, the **route planner**, **map tools**, the **3D view** and **track recording**; zoom with pinch or double-tap. |
 | **Search** (on the map, magnifier) | Your saved places, coordinates in any format and map links, and names in the **offline maps** around the map centre (towns, peaks, springs, streets, paths, hotels…, within 25 km, works without internet) as you type; **online** search of OpenStreetMap anywhere (Photon, with Nominatim as a fallback) when you press search. Picking a result drops a labelled pin there. |
 | **Map tools** (on the map, ruler button) | **Azimuth & range** between two points (true and magnetic bearing, mils, back bearing, height difference, slope, place B by bearing + distance). **Line of sight** from A to B with a terrain profile and where the view is blocked; as a **radio link**, with antenna heights at both ends and a frequency (LoRa 433/868/915 MHz, 2.4 and 5.8 GHz, VHF, PMR446, FRS/GMRS or any), it draws the first Fresnel zone on the profile and gives its clearance (60% rule) and the path loss (free space + terrain). **Viewshed**: a circle (250 m–25 km) showing ground in sight (green) and hidden (red). **Coordinate converter**: one point in decimal degrees, deg-min, deg-min-sec, UTM, MGRS, Israeli ITM, Plus Code and Maidenhead; type or paste any of them to jump there; pick the format used on pins. |
-| **Route planner** (on the map) | Tap points (start, stops, end); tap a numbered point to remove it. Hold a stop and drag it to move it, or hold the line and drag to add a stop there; the line follows your finger and the route is calculated again when you let go. Profiles **Hike / Bike / Car** follow paths and roads; **Line** draws straight lines to measure. Shows distance, climb/descent, estimated time and an elevation profile; undo, reverse, save to the library. **Start** navigates: the next turn and its distance, time left and arrival, voice prompts (switchable), a new route when you leave it, and it keeps going with the screen off. |whats
-| **3D view** (on the map, cube button) | The map in 3D, streamed as you move: terrain relief with the map draped on it (your offline topo style, or the online layer, or satellite), detailed near you and coarser to the horizon, and buildings extruded from the offline map close up (heights from OSM `height` / `building:levels`). One finger pans, pinch zooms, two fingers turn and tilt; relief exaggeration ×1–4, buildings on/off, face north. |
+| **Route planner** (on the map) | Tap points (start, stops, end); tap a numbered point to remove it. Hold a stop and drag it to move it, or hold the line and drag to add a stop there; the line follows your finger and the route is calculated again when you let go. Profiles **Hike / Bike / Car** follow paths and roads; **Line** draws straight lines to measure. Shows distance, climb/descent, estimated time and an elevation profile; undo, reverse, save to the library. **Start** navigates: the next turn and its distance, time left and arrival, voice prompts (switchable), a new route when you leave it, and it keeps going with the screen off. |
+| **3D view** (on the map, cube button) | The map in 3D on the whole globe, streamed as you move: terrain relief with the map draped on it (drawn by MapLibre like the 2D map: your offline style, or the online layer, or satellite), detailed near you and coarser to the horizon, a sky with haze, names standing up over the terrain (places, peaks with their heights, huts; hidden behind ridges), and buildings extruded from the offline map close up (heights from OSM `height` / `building:levels`). Zoom out and it's the Earth in space. One finger pans and flings, pinch zooms, two fingers turn and tilt; relief exaggeration ×1–4, buildings on/off, face north. |
 | **Places** (Library → Places) | Your own points of interest: save from any pin or your location with a name, category (⭐ favourite, ⛺ camp, 💧 water, 🔭 viewpoint, 🅿️ parking, ⛽ fuel, 🍴 food, ⚠️ danger, 📍 other) and a note. Shown on the map (Layers → Saved places); tap one for route here, share, viewshed, edit, delete. The list searches names and notes, filters by category and sorts by distance, name or date. Import waypoints from any GPX file, share or export places as GPX. |
 | **Library** | Routes & tracks, and Places. Library of saved routes and tracks (GPX files): show/hide on the map, elevation profile & stats, share as GPX, rename, delete, **import GPX** from other apps. **Record** a track with GPS; it keeps recording with the screen off. |
 | **Party** | Live location sharing for a group (hiking, convoys). Create a party and invite with a QR code or link; members appear on the map with name, their chosen icon (initial; walker, hiker, runner, Nordic walker, skier, kayaker; cyclist, bicycle, e-bike, motorcycle, moped; car, 4×4, van, truck, caravan) on their colour (16 presets or any mix), age and how their update arrived. Works **online** (MQTT) and **off-grid over LoRa** through Meshtastic radios paired by Bluetooth; a phone with both acts as a **gateway** between them. SOS alerts, meeting point, route to a member, short messages, "hidden" mode. End-to-end encrypted. |
 | **Sharing** | Share any point (long-press pin, your location dot, party members, meeting point) as a **link** (Google Maps + OpenStreetMap), a **GPX waypoint**, or open it in another app. Share routes as **GPX + links** (BRouter-Web rebuilds the route in any browser; Google Maps directions). MapAround also **opens** what others send: `geo:` links, Google/OSM/Apple/Waze/BRouter links, text with coordinates (also degrees-minutes-seconds), GPX files, mapsforge `.map` files, and party invites. |
 | **Offline** | Browse the per-country catalog on download.mapsforge.org (continents → countries → regions), download with the system DownloadManager (background, resumable, Wi‑Fi-only option, storage check), update when the server has a newer file, delete, or import any mapsforge `.map` file (e.g. OpenAndroMaps). A built-in world map (coastlines, lakes, rivers, borders and names from Natural Earth) is drawn when zoomed out and around the downloaded maps, so the map is never blank; the iPhone app still uses mapsforge's 3 MB world overview download. Each map's **⋮** menu adds extras for its area: **contours & hill shading**, **offline routing** and **marked trails**; they keep downloading with the app in the background, with their progress in a notification. **Raster maps**: add TwoNav / CompeGPS **`.rmap`** files (e.g. scanned 1:50,000 topo sheets) and tile databases, **MBTiles** (from QGIS, GDAL, MOBAC, MapTiler…) and **SQLiteDB** (Locus, OsmAnd, RMaps); big files are read where they are, not copied. |
-| **Layers** (on the map) | *Offline vector* (all installed maps rendered together) in a **style**: Topo, Classic, Osmarender, Biker, Motorider or one you **import** (a mapsforge render theme, `.xml` or `.zip`), each with its own **options** to show or hide parts of the map (Topo: land cover, buildings, boundaries, railways | **Layers** (on the map) | *Offline vector* (all installed maps rendered together) in the **Topo** or Classic style, with switches for **contour lines** and **hill shading**; a **marked hiking trails** overlay; or online raster sources: OpenStreetMap, OpenTopoMap, CyclOSM, Humanitarian, **Satellite** (Esri World Imagery), plus your own XYZ URL templates (`{s} {z} {x} {y} {-y}`). Online tiles are cached on disk. lifts, names, peaks | **Layers** (on the map) | *Offline vector* (all installed maps rendered together) in the **Topo** or Classic style, with switches for **contour lines** and **hill shading**; a **marked hiking trails** overlay; or online raster sources: OpenStreetMap, OpenTopoMap, CyclOSM, Humanitarian, **Satellite** (Esri World Imagery), plus your own XYZ URL templates (`{s} {z} {x} {y} {-y}`). Online tiles are cached on disk. springs, points of interest); switches for **contour lines** and **hill shading**; a **marked hiking trails** overlay. Or **online** raster sources: OpenStreetMap France and Germany, OpenTopoMap, CyclOSM, Humanitarian, Esri World Topo and Street, **Satellite** (Esri World Imagery), and national maps (swisstopo, basemap.at, Kartverket, IGN plan | **Layers** (on the map) | *Offline vector* (all installed maps rendered together) in the **Topo** or Classic style, with switches for **contour lines** and **hill shading**; a **marked hiking trails** overlay; or online raster sources: OpenStreetMap, OpenTopoMap, CyclOSM, Humanitarian, **Satellite** (Esri World Imagery), plus your own XYZ URL templates (`{s} {z} {x} {y} {-y}`). Online tiles are cached on disk. aerial, USGS Topo), plus your own XYZ URL templates (`{s} {z} {x} {y} {-y}`); **import and export** the list of your own. Online tiles are cached on disk. See [docs/map-styles.md](docs/map-styles.md). **Background of the offline map**: its own colours, **satellite imagery**, or one of your **raster maps**, with the vector map's roads, trails, contours and labels drawn on top (switchable). |
+| **Layers** (on the map) | *Offline vector* (all installed maps rendered together) in a **style**: Topo, Classic, Osmarender, Biker, Motorider or one you **import** (a mapsforge render theme, `.xml` or `.zip`), each with its own **options** to show or hide parts of the map (Topo: land cover, buildings, boundaries, railways and lifts, names, peaks and springs, points of interest); switches for **contour lines** and **hill shading**; a **marked hiking trails** overlay. Or **online** raster sources: OpenStreetMap France and Germany, OpenTopoMap, CyclOSM, Humanitarian, Esri World Topo and Street, **Satellite** (Esri World Imagery), and national maps (swisstopo, basemap.at, Kartverket, IGN plan and aerial, USGS Topo), plus your own XYZ URL templates (`{s} {z} {x} {y} {-y}`); **import and export** the list of your own. Online tiles are cached on disk. See [docs/map-styles.md](docs/map-styles.md). **Background of the offline map**: its own colours, **satellite imagery**, or one of your **raster maps**, with the vector map's roads, trails, contours and labels drawn on top (switchable). |
 | **Android Auto** | The map on the car screen: the same offline/online map, contours, hill shading and trails as the phone, your position (follow mode), the planned route, shown tracks, the recording and party members. Speed, altitude, heading and party status at the top; **Satellite** toggle, re-centre, pan and zoom. "Navigate to" a place from the car routes there and starts **turn-by-turn navigation**: the next maneuver, time and distance left, voice through the car's speakers, and the trip on the car's own displays; Start / Stop / Mute on the car screen. |
 | **Sensors** | **Compass:** rotation-vector heading with smoothing, magnetic or true north (declination from your position), calibration warning (tilt is in Motion). **Speed:** GPS ground speed (km/h, mph, knots, m/s) with its accuracy, heading of travel, walking pace, a trip counter (distance, max, average while moving, moving/total time) and a 10-minute chart; keeps the screen on. **Motion:** inclinometer for vehicles (pitch and roll drawn as a car from the side and behind, amber at 15°, red at 25°, **Set as level** for a phone in a holder); accelerometer (total g, x/y/z, movement without gravity, peak, a G-meter for braking/accelerating and cornering, 10-second chart); gyroscope (turn rate left/right, x/y/z °/s, chart); sensor model and range. **Barometer:** pressure (hPa / inHg / mmHg), barometric altitude, calibration by known elevation, GPS altitude or QNH, live trend chart with hPa/h. **Satellites:** live GNSS reception — fix state, satellites in use / in view, sky plot, per-satellite C/N₀ signal bars, constellation and band, TTFF, accuracy, speed, course. |
 
@@ -246,12 +246,36 @@ shading extra); azimuth and the converter work without it.
   `openlocationcode`. The chosen format is shown on pins and copied by their copy button. Grid
   references shared to MapAround as text (e.g. an MGRS string in a message) open as a pin.
 
+## The map on the GPU (MapLibre)
+
+The 2D map, on the phone and in the car, is drawn by **MapLibre Native** (the OpenGL ES build),
+like on the iPhone, and driven by the same shared code (`map/maplibre/MapLibreSurface.kt`):
+
+- **Offline maps become vector tiles on the phone.** The shared `TileService` reads the mapsforge
+  `.map` files with its own Kotlin reader and writes Mapbox vector tiles (`shared/mvt/`), with the
+  built-in world (Natural Earth) where no map is installed and below zoom 8; contours and
+  Terrarium elevation tiles for hill shading come from the elevation files. MapLibre asks for them
+  over HTTP from a host that never resolves (`tiles.maparound.invalid`): an interceptor in its OkHttp
+  client (`map/gl/GlTiles.kt`) answers on the phone, a few tiles at a time on a small pool of
+  readers. URLs carry a key of the data, so MapLibre may cache tiles for good.
+- **Styles** are the same mapsforge themes, turned into MapLibre layers by the shared `ThemeStyle`
+  (Topo, Classic, Osmarender, Biker, Motorider and imported ones; their options draw fewer rule
+  categories). Theme symbols are drawn from their SVGs when MapLibre first needs them, marker
+  images (places, party, waypoints, the pin) from their names (`map/gl/MarkerBitmaps.kt`, the same
+  look as the iPhone's).
+- **Android only**: raster maps (`raster/…`, drawn by the RMAP/MBTiles/SQLiteDB readers), the
+  downloaded marked trails (`trails/…`, their cliffs and ridges inside the map's own tiles) and
+  the viewshed image (`viewshed/…`) come from the same tile server.
+- **Label fonts** are in the app (`assets/fonts`, Noto Sans glyph ranges from
+  `tools/fonts/fetch-fonts.sh`, the iPhone's set); Chinese, Japanese and Korean come from the
+  phone's own fonts.
+
 ## Android Auto
 
 MapAround is a **navigation-category car app** built with the Android for Cars App Library
 (`car/`). Android Auto hands the app a drawing surface; `CarMapRenderer` puts a private virtual
-display on it and shows an ordinary mapsforge `MapView` there (in a `Presentation`), with its own
-tile caches and text scaled for the car screen. It follows the same live data as the phone (base map
+display on it and shows the same MapLibre map as the phone there (in a `Presentation`), with text
+and symbols scaled for the car screen and centred in the part the car's own controls leave free. It follows the same live data as the phone (base map
 and style, planned route, tracks, recording, party). Pan, pinch and double-tap come from the car's
 touch screen; the template has zoom buttons, re-centre and a satellite toggle. While navigating
 (`CarNavigation`), the template's routing card shows the next maneuver (arrows drawn from the same
@@ -285,32 +309,45 @@ phone locked depends on how the Android Auto host keeps the app running.
   category guessed from their `<sym>`/`<type>` (Campground → camp, Drinking Water → water, Summit →
   viewpoint…); duplicates (same name within 10 m) are skipped. A GPX shared to MapAround adds its
   waypoints to Places (a single waypoint just opens as a pin).
-- **3D view** (`three/`) streams map tiles around the camera, like a 3D globe app:
-  - **Which tiles**: a quadtree over Web Mercator tiles (`TileSelector`). A tile is split while the
-    eye is closer than 1.4× its size, so ground near you gets zoom 15–17 tiles and the horizon
-    zoom 11–12 ones; tiles farther than ~6× the camera distance or behind the camera are skipped
-    (≤110 tiles). While a tile's children load, the tile itself (or an ancestor) is drawn, so
-    there are no holes; coarse tiles load first, then the nearest detail.
-  - **Each tile**: the map picture is drawn by mapsforge's own renderer from the offline maps (same
-    topo style, contours, hill shading and trails as the 2D map, 512 px), or downloaded from the
-    online layer you use (cached for a month in `cache/tiles3d/`); the satellite button switches to
-    Esri imagery. The terrain is a 33×33 grid from the elevation data, with a "skirt" around the
+- **3D view** (`three/`) is the whole globe, streamed around the camera: from a hiking path up
+  to the planet in space.
+  - **On the globe**: every tile is placed on the WGS84 ellipsoid in Earth-centred coordinates
+    (shared `three/Globe.kt`) and drawn relative to the eye, so floats stay exact up close. The
+    camera orbits a point on the ground; drawing back past ~300 km it turns to look straight
+    down, and from far enough away the Earth hangs in space.
+  - **Which tiles**: a quadtree over Web Mercator tiles from zoom 2 (`GlobeTileSelector`). A tile
+    is split while the eye is closer than 1.6× its size, so ground near you gets zoom 15–17
+    tiles and the horizon coarse ones; tiles beyond the horizon (seen from every corner, also
+    lifted by the highest ground) or outside the view are skipped (≤150 tiles). While a tile's
+    children load, the tile itself (or an ancestor) is drawn, so there are no holes; coarse tiles
+    load first, then the nearest detail, and what appears where nothing was fades in.
+  - **Each tile**: the map picture is drawn by **MapLibre** (`three/TileTextures.kt`, snapshots
+    of 512 px centred on the tile) in the same style as the 2D map: offline maps, the built-in
+    world, contours, trails, the background (satellite, raster map) or the online layer, without
+    labels and hill shading (the light shades the relief). The terrain is a grid (33×33 near you
+    and for the big curved tiles, else 17×17) from the elevation data, with a "skirt" around the
     edge that hides cracks between tiles of different detail.
+  - **Names stand up** over the terrain (`LabelOverlay`): places, peaks with their heights,
+    passes, huts and lakes from the offline maps, and the world's countries, seas and cities from
+    farther away. Each sits on a short stick above its spot; it's hidden behind ridges (the line
+    of sight is checked against the elevation data) or beyond the horizon, the most important
+    first where they'd overlap. They're drawn as text over the 3D picture, sharp at any angle.
   - **Buildings** load for zoom-16 tiles within ~2.5 km: ways tagged `building` from the offline
     `.map` files, triangulated by ear clipping and extruded from the lowest ground under their
     corners to `height`, or `building:levels` × 3 m (+ `roof:levels`), or a typical height for the
     building type.
-  - OpenGL ES 3 with 4× multisampling, anisotropic texture filtering, light from the north-west and
-    distance fog; GPU memory is bounded (oldest unused tiles are dropped). One finger pans, pinch
-    zooms, two fingers twist to turn and slide up/down to tilt, double-tap zooms in.
+  - **Sky and atmosphere**: a sky from the horizon's haze to blue overhead; from high up, space
+    with a thin glowing band above the Earth's rim, and the atmosphere's tint at the globe's edge.
+    Haze thickens with distance near the ground and thins with height. Light from the north-west.
+  - OpenGL ES 3 with 4× multisampling and anisotropic filtering; GPU memory is bounded (oldest
+    unused tiles are dropped). One finger pans (a flick keeps it gliding), pinch zooms, two
+    fingers twist to turn and slide up/down to tilt, double-tap zooms in smoothly.
 
 ## Backgrounds, raster maps & search
 
-- **Hybrid map** (`map/TopoTheme.kt`, `map/MapController.kt`): with a background chosen in
-  Layers, the offline vector map is drawn transparently on top of it in a variant of its style
-  with every area fill removed (land use, water, buildings) and a transparent background, so only
-  roads, paths, marked trails, contours, symbols and labels remain; hill shading is off (the
-  picture has its own light). "Roads, trails & labels on top" can be switched off to see the
+- **Hybrid map** (shared `map/maplibre/MapStyle.kt`): with a background chosen in Layers, the offline vector map is drawn on top
+  of it without its area fills (land use, water, buildings) and background, so only roads, paths,
+  marked trails, contours, symbols and labels remain. "Roads, trails & labels on top" can be switched off to see the
   background alone. The 3D view and the Android Auto map use the same background.
 - **Raster maps** (`raster/`): TwoNav / CompeGPS `.rmap` files (a JPEG tile pyramid plus the
   CompeGPS calibration text), read as laid out by QMapShack's reader: little-endian header,
@@ -361,8 +398,7 @@ phone locked depends on how the Android Auto host keeps the app running.
 
 Everything that doesn't need Android — the logic and all the Compose screens — lives in `shared/`
 (Kotlin Multiplatform, Android + iOS) under the same package names. The app module keeps what only
-Android can do (mapsforge rendering, services, DownloadManager, sensors, BLE, MQTT, BRouter, Android
-Auto) and plugs it into the shared screens through small interfaces (`MapSurface`,
+Android can do (the MapLibre view and its tile server, the OpenGL 3D view, services, DownloadManager, sensors, BLE, MQTT, BRouter, Android Auto) and plugs it into the shared screens through small interfaces (`MapSurface`,
 `DeviceSensors`, `OfflineData`, `PartyController`…; see `docs/IOS_PLAN.md`, which also describes
 the iOS version this is for).
 
@@ -400,8 +436,11 @@ app/src/main/java/app/maparound/
   MapAroundApp.kt          app init + tiny service locator (AppGraph)
   data/                    prefs, installed maps, remote catalog, map/terrain/trail downloaders, the
                            download service that keeps terrain & trail downloads going
-  map/                     MapController (mapsforge MapView + layers), online tile sources, the styles
-                           (AndroidMapThemes: built in and imported)
+  map/                     the map screen's MapSurface on MapLibre (AndroidMapSurface), the styles
+                           (AndroidMapThemes: built in and imported), the 3D view's mapsforge data
+    gl/                    MapLibre on Android: the MapView wrapper, marker images, scale bar, the
+                           tile server (GlTiles: shared TileService plus raster maps, trails,
+                           viewshed) and the styles made from the mapsforge themes (GlStyles)
   terrain/                 elevation tiles, contour tracing, contour data source, coast mask
   routing/                 BRouter wrapper, online router, routing data, navigation service & voice
   tracks/                  GPX read/write, track library, GPS recording service
@@ -412,7 +451,8 @@ app/src/main/java/app/maparound/
   raster/                  raster maps: RMAP reader & calibration (projections, least-squares fit), reprojecting tile renderer,
                            tile databases (MBTiles, SQLiteDB) on a small SQLite file reader
   search/                  place search: name matching & ranking, offline map names, online (Photon / Nominatim)
-  three/                   3D view: terrain mesh, building extrusion & triangulation, scene loader, OpenGL ES 3 renderer
+  three/                   3D view on the globe: tile loader (meshes, buildings, names), MapLibre snapshot
+                           textures, OpenGL ES 3 renderer with sky and haze, standing names (LabelOverlay)
   car/                     Android Auto: car app service, session, map renderer on the car surface, template screen, navigation
   party/                   party key & encryption, Meshtastic protobuf codec, engine, MQTT & BLE transports, service
   sensors/                 location, GNSS status, compass, motion (tilt, accelerometer, gyro), speed & trip, barometer
@@ -491,6 +531,7 @@ The app's privacy policy (also for the stores) is [docs/privacy.md](docs/privacy
   - **Esri World Topo, World Street, World Imagery**: check Esri's terms before any commercial or large-scale use.
   - **National open data**: swisstopo (© swisstopo, free use with attribution), basemap.at (CC BY 4.0), Kartverket (CC BY 4.0), IGN Géoplateforme (Etalab open licence 2.0), USGS The National Map (public domain).
 - **Map styles**: Topo's point-of-interest sections and the Classic, Osmarender, Biker and Motorider styles come from [mapsforge](https://github.com/mapsforge/mapsforge) (LGPL-3.0). Imported styles keep their authors' licences.
+- **Map rendering**: [MapLibre Native](https://github.com/maplibre/maplibre-native) (BSD-2-Clause) on Android and iOS; on Android with [OkHttp](https://square.github.io/okhttp/) (Apache-2.0). Label fonts: Noto Sans (SIL Open Font License 1.1), as glyph ranges from the [OpenMapTiles fonts](https://github.com/openmaptiles/fonts) release.
 - **Party**: Meshtastic phone API and protocol definitions ([meshtastic/protobufs](https://github.com/meshtastic/protobufs), GPL-3.0; a minimal encoder for the messages used is in `party/MeshProto.kt`). MQTT via [Eclipse Paho](https://github.com/eclipse-paho/paho.mqtt.java) (EPL-2.0 / EDL-1.0). QR codes via [ZXing Android Embedded](https://github.com/journeyapps/zxing-android-embedded) (Apache-2.0).
 - **Android Auto**: [Android for Cars App Library](https://developer.android.com/training/cars/apps) (`androidx.car.app`, Apache-2.0).
 - **Magnetic declination**: the World Magnetic Model built into Android (`GeomagneticField`).

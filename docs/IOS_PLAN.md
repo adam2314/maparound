@@ -35,7 +35,7 @@ and iOS see each other.
   the recorder state are common too. What only a platform can do comes through small
   interfaces, given as composition locals or parameters:
   - the map: `MapSurface` / `MapListener` with a shared `BaseMap` description (Android:
-    `AndroidMapSurface` around the mapsforge `MapController`);
+    `AndroidMapSurface`, now MapLibre as well, see below);
   - the 3D view: `Scene3DControl` in a view slot (Android: OpenGL `Scene3DView`);
   - `DeviceSensors` (positions as `GeoFix`, compass, motion, pressure, declination),
     `PlatformActions` (share sheet, open elsewhere), `rememberFilePicker`, `RecordingControl`,
@@ -114,8 +114,11 @@ MapAround/
   kept in sync forever. Not worth it when the whole UI is already Compose.
 - **Port mapsforge's renderer to Kotlin/Skia**: identical look on both platforms, but a large,
   risky port of a renderer that MapLibre does better on the GPU (smooth zoom, rotation, labels).
-- **Move Android to MapLibre too**: one map engine, but rewrites a map that works well today.
-  Possible later once the iOS map is proven; not part of this plan.
+- **Move Android to MapLibre too**: one map engine. Done (November 2026): Android's 2D map and
+  Android Auto draw with MapLibre from the same shared `MapLibreSurface`, `MapStyle` and
+  `TileService` (see the README, "The map on the GPU"); mapsforge only reads the maps there. The
+  3D view is on the whole globe (shared `three/Globe.kt`) with MapLibre snapshots as textures,
+  which the iPhone's Metal view can take over.
 
 ## 3. The map on iOS (MapLibre + our data)
 

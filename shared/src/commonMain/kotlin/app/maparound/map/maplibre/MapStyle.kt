@@ -3,6 +3,7 @@ package app.maparound.map.maplibre
 import app.maparound.data.Prefs
 import app.maparound.map.BaseMap
 import app.maparound.map.OnlineSource
+import app.maparound.map.TileSources
 import app.maparound.map.satelliteSource
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -38,8 +39,13 @@ class MapStyle(
 
     private val variants = HashMap<Set<String>, ThemeStyle.Result>()
 
-    /** The whole style document for [base] (null: an empty map with the overlays only), tiles from [tiles]. */
-    fun build(base: BaseMap?, tiles: TileService): String = buildJsonObject {
+    /**
+     * The whole style document for [base] (null: an empty map with the overlays only), tiles from
+     * [tiles]; with the online marked-trails overlay when [trailOverlay]. [forTextures]: the map
+     * as a picture for the 3D view's terrain: no labels and icons (the 3D view stands them up), no
+     * hill shading (its light shades the relief) and no overlays.
+     */
+    fun build(base: BaseMap?, tiles: TileService, trailOverlay: Boolean = false, forTextures: Boolean = false): String = buildJsonObject {
         val tilesBaseUrl = tiles.baseUrl
         put("version", 8)
         put("name", "MapAround")
@@ -56,7 +62,7 @@ class MapStyle(
             is BaseMap.Offline -> {
                 sources[OSM_SOURCE] = buildJsonObject {
                     put("type", "vector")
-                    putJsonArray("tiles") { add(JsonPrimitive("$tilesBaseUrl/osm/${tiles.version}/{z}/{x}/{y}.pbf")) }
+                    putJsonArray("tiles") { add(JsonPrimitive("$tilesBaseUrl/osm/${tiles.osmVersion}/{z}/{x}/{y}.pbf")) }
                     put("minzoom", 0)
                     put("maxzoom", OSM_MAX_ZOOM)
                     put("attribution", "© OpenStreetMap contributors")
@@ -73,7 +79,7 @@ class MapStyle(
                         put("maxzoom", TerrainTiles.CONTOUR_MAX_ZOOM)
                     }
                 }
-                if (terrain != null && base.hillshade) {
+                if (terrain != null && base.hillshade && !forTextures) {
                     sources[DEM_SOURCE] = buildJsonObject {
                         put("type", "raster-dem")
                         put("encoding", "terrarium")
@@ -84,26 +90,73 @@ class MapStyle(
                     val at = (shading?.index ?: 1).coerceIn(0, themeLayers.size)
                     themeLayers.add(at, hillshadeLayer(shading))
                 }
+                // Downloaded marked trails (the platform serves them), for the styles that draw them.
+                val trails = tiles.trailsVersion
+                if (trails != null && base.trails && base.drawsTerrain) {
+                    sources[ThemeStyle.TRAILS] = buildJsonObject {
+                        put("type", "vector")
+                        putJsonArray("tiles") { add(JsonPrimitive("$tilesBaseUrl/trails/$trails/{z}/{x}/{y}.pbf")) }
+                        put("minzoom", TRAILS_MIN_ZOOM)
+                        put("maxzoom", OSM_MAX_ZOOM)
+                    }
+                }
                 val satellite = base.background == Prefs.BACKGROUND_SATELLITE
+                val raster = base.background.takeIf { it.startsWith(Prefs.BACKGROUND_RASTER) }
+                    ?.let { id -> base.rasterMaps.firstOrNull { it.id == id.removePrefix(Prefs.BACKGROUND_RASTER) } }
                 if (satellite) {
                     sources["satellite"] = rasterSource(satelliteSource)
                     layers += rasterLayer("satellite", "satellite")
+                } else if (raster != null) {
+                    sources["raster"] = buildJsonObject {
+                        put("type", "raster")
+                        putJsonArray("tiles") { add(JsonPrimitive("$tilesBaseUrl/raster/${raster.id}/{z}/{x}/{y}.png")) }
+                        put("tileSize", 256)
+                        putJsonArray("bounds") {
+                            add(JsonPrimitive(raster.west)); add(JsonPrimitive(raster.south))
+                            add(JsonPrimitive(raster.east)); add(JsonPrimitive(raster.north))
+                        }
+                        put("maxzoom", RASTER_MAX_ZOOM)
+                    }
+                    layers += rasterLayer("raster", "raster")
                 }
                 // Over imagery only lines, symbols and labels stay ("hybrid"), or nothing at all.
                 layers += when {
-                    !satellite -> themeLayers
+                    !satellite && raster == null -> themeLayers
                     base.vectorOnTop -> themeLayers.filter { !it.isLandCover() }
                     else -> emptyList()
                 }
             }
         }
-        for (id in OVERLAY_SOURCES) {
-            sources[id] = buildJsonObject {
-                put("type", "geojson")
-                put("data", JsonObject(mapOf("type" to JsonPrimitive("FeatureCollection"), "features" to JsonArray(emptyList()))))
+        if (trailOverlay) {
+            sources["trails-online"] = rasterSource(TileSources.trailsOverlay)
+            layers += rasterLayer("trails-online", "trails-online")
+        }
+        tiles.viewshed?.takeUnless { forTextures }?.let { vs ->
+            sources[VIEWSHED] = buildJsonObject {
+                put("type", "image")
+                put("url", "$tilesBaseUrl/viewshed/${viewshedKey(vs)}.png")
+                putJsonArray("coordinates") {
+                    for ((lon, lat) in listOf(vs.west to vs.north, vs.east to vs.north, vs.east to vs.south, vs.west to vs.south)) {
+                        add(arr(lon, lat))
+                    }
+                }
+            }
+            layers += layer(VIEWSHED, "raster") {
+                put("source", VIEWSHED)
+                put("paint", obj("raster-fade-duration" to 0))
             }
         }
-        layers += overlayLayers()
+        if (!forTextures) {
+            for (id in OVERLAY_SOURCES) {
+                sources[id] = buildJsonObject {
+                    put("type", "geojson")
+                    put("data", JsonObject(mapOf("type" to JsonPrimitive("FeatureCollection"), "features" to JsonArray(emptyList()))))
+                }
+            }
+            layers += overlayLayers()
+        } else {
+            layers.removeAll { (it as JsonObject).type() == "symbol" }
+        }
         put("sources", JsonObject(sources))
         // Theme layers for tiles this map doesn't have (contours, trails) stay out.
         put("layers", JsonArray(layers.filter { l -> (l as JsonObject).source().let { it == null || it in sources } }))
@@ -179,6 +232,18 @@ class MapStyle(
 
         /** Deepest zoom the tile server is asked for; MapLibre scales those tiles further. */
         const val OSM_MAX_ZOOM = 16
+
+        /** Marked trails from here (MapLibre zooms; the trail data starts at mapsforge's 11). */
+        const val TRAILS_MIN_ZOOM = 10
+
+        /** Raster maps are asked for up to here, then scaled. */
+        const val RASTER_MAX_ZOOM = 19
+
+        /** The viewshed image's source and layer. */
+        const val VIEWSHED = "mr-viewshed"
+
+        /** Names the viewshed image: a new one gets a new URL. */
+        fun viewshedKey(vs: app.maparound.tools.Viewshed): String = (vs.hashCode().toLong() and 0xFFFFFFFFL).toString(16)
 
         // GeoJSON sources of the overlays.
         const val TRACKS = "mr-tracks"

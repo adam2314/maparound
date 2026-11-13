@@ -63,26 +63,25 @@ class WorldData private constructor(
     val riverPieces: Int get() = rivers.size
 
     /**
-     * Land at [zoom] cut to [clip]: per polygon, its rings, the outer pieces first, then the holes'
+     * Land at [zoom] cut to [clip]: per polygon, the pieces of its outer ring and of its holes
      * (Natural Earth runs them in opposite directions, and cutting keeps each ring's). Give [clip] a
      * margin beyond what's drawn, so the cut edges aren't seen.
      */
-    fun land(zoom: Int, clip: GeoBox, visit: (List<IntArray>) -> Unit) = areas(land, zoom, clip, visit)
+    fun land(zoom: Int, clip: GeoBox, visit: (outer: List<IntArray>, holes: List<IntArray>) -> Unit) = areas(land, zoom, clip, visit)
 
     /** Lakes and reservoirs at [zoom] cut to [clip], like [land]. */
-    fun lakes(zoom: Int, clip: GeoBox, visit: (List<IntArray>) -> Unit) = areas(lakes, zoom, clip, visit)
+    fun lakes(zoom: Int, clip: GeoBox, visit: (outer: List<IntArray>, holes: List<IntArray>) -> Unit) = areas(lakes, zoom, clip, visit)
 
-    private fun areas(list: List<Area>, zoom: Int, clip: GeoBox, visit: (List<IntArray>) -> Unit) {
+    private fun areas(list: List<Area>, zoom: Int, clip: GeoBox, visit: (List<IntArray>, List<IntArray>) -> Unit) {
         for (a in list) {
             if (a.minZoom > zoom || !a.box.intersects(clip)) continue
             val rings = a.ringsAt(zoom)
             if (rings.isEmpty()) continue
             val outer = rings[0].clip(clip)
             if (outer.isEmpty()) continue
-            val out = ArrayList<IntArray>(outer.size + rings.size - 1)
-            out += outer
-            for (i in 1 until rings.size) out += rings[i].clip(clip)
-            visit(out)
+            val holes = ArrayList<IntArray>()
+            for (i in 1 until rings.size) holes += rings[i].clip(clip)
+            visit(outer, holes)
         }
     }
 

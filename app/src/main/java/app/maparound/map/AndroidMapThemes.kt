@@ -5,13 +5,7 @@ import app.maparound.shared.util.Xml
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import org.mapsforge.map.android.graphics.AndroidGraphicFactory
-import org.mapsforge.map.model.DisplayModel
-import org.mapsforge.map.rendertheme.XmlRenderTheme
-import org.mapsforge.map.rendertheme.XmlRenderThemeMenuCallback
-import org.mapsforge.map.rendertheme.XmlThemeResourceProvider
 import org.mapsforge.map.rendertheme.internal.MapsforgeThemes
-import org.mapsforge.map.rendertheme.rule.RenderThemeHandler
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.IOException
@@ -21,7 +15,7 @@ import java.util.zip.ZipInputStream
 /**
  * The offline maps' styles on Android: MapAround's Topo, the themes that come with mapsforge,
  * and render themes the user imports (`files/themes/<folder>/…`, an `.xml` or a `.zip` with the
- * theme and its symbols). [renderTheme] gives the renderer a theme with the user's options.
+ * theme and its symbols). The map draws them with MapLibre (map/gl/GlStyles).
  */
 class AndroidMapThemes(context: Context) : MapThemeLibrary {
     private val assets = context.applicationContext.assets
@@ -47,13 +41,32 @@ class AndroidMapThemes(context: Context) : MapThemeLibrary {
         menus.getOrPut(themeId) { Menu(runCatching { StyleMenu.parse(Xml.decode(open(themeId).use { it.readBytes() })) }.getOrNull()) }
     }.menu
 
-    /** The theme for the renderer: [hybrid] over imagery, drawing only [categories] (null: all). */
-    fun renderTheme(themeId: String, hybrid: Boolean, categories: Set<String>?): XmlRenderTheme {
+    /** The style's XML (falls back to Topo when it's gone), for the MapLibre map. */
+    fun xml(themeId: String): String {
         val id = themeId.takeIf { exists(it) } ?: MapThemes.TOPO
-        return Theme(id, prefix(id), { open(id) }, hybrid, categories)
+        return open(id).use { Xml.decode(it.readBytes()) }
+    }
+
+    /** One of the style's symbol files ("symbols/peak.svg"), or null. */
+    fun openSymbol(themeId: String, path: String): InputStream? {
+        if (".." in path) return null
+        val id = themeId.takeIf { exists(it) } ?: MapThemes.TOPO
+        val prefix = prefix(id)
+        return if (prefix.startsWith("/")) {
+            // The built-in styles' symbols are in mapsforge's jar.
+            AndroidMapThemes::class.java.getResourceAsStream(prefix + path)
+        } else {
+            File(prefix + path).takeIf { it.isFile }?.inputStream()
+        }
     }
 
     private fun exists(id: String) = _themes.value.any { it.id == id }
+
+    /** Reads the imported styles again; the map makes their MapLibre styles anew. */
+    private fun refresh() {
+        _themes.value = builtIn + scan()
+        app.maparound.map.gl.GlStyles.forgetImported()
+    }
 
     private fun open(id: String): InputStream = when (id) {
         MapThemes.TOPO -> assets.open("themes/topo.xml")
@@ -112,21 +125,21 @@ class AndroidMapThemes(context: Context) : MapThemeLibrary {
                 File(folder, "$base.xml").writeBytes(bytes)
             }
             val before = _themes.value.map { it.id }.toSet()
-            _themes.value = builtIn + scan()
+            refresh()
             val added = _themes.value.filter { it.id !in before }
             if (added.isEmpty()) error("No map style (render theme XML) in that file")
-            // Keep only what mapsforge can read; the error of the first that fails tells why.
+            // Keep only what the map can draw; the error of the first that fails tells why.
             var problem: Throwable? = null
             val good = added.filter { t ->
-                runCatching { RenderThemeHandler.getRenderTheme(AndroidGraphicFactory.INSTANCE, DisplayModel(), renderTheme(t.id, false, null)) }
+                runCatching { app.maparound.map.maplibre.ThemeStyle.convert(xml(t.id)) }
                     .onFailure { problem = problem ?: it }.isSuccess
             }
             (added - good.toSet()).forEach { fileOf(it.id)?.delete() }
             if (good.isEmpty()) error("The map style can't be read: ${problem?.message ?: "unknown error"}")
-            _themes.value = builtIn + scan()
+            refresh()
             good
         } catch (e: Throwable) {
-            _themes.value = builtIn + scan()
+            refresh()
             if (_themes.value.none { it.id.startsWith(MapThemes.IMPORTED + folder.name + "/") }) folder.deleteRecursively()
             throw e
         }
@@ -164,36 +177,9 @@ class AndroidMapThemes(context: Context) : MapThemeLibrary {
         f.delete()
         // The import's folder goes too once it holds no style.
         val folder = generateSequence(f.parentFile) { it.parentFile }.firstOrNull { it.parentFile?.canonicalPath == dir.canonicalPath }
-        _themes.value = builtIn + scan()
+        refresh()
         if (folder != null && _themes.value.none { it.id.startsWith(MapThemes.IMPORTED + folder.name + "/") }) folder.deleteRecursively()
         synchronized(menus) { menus.remove(themeId) }
-    }
-
-    /** A theme as mapsforge reads it; equal themes share cached tiles. */
-    private class Theme(
-        val id: String,
-        private val prefix: String,
-        private val open: () -> InputStream,
-        val hybrid: Boolean,
-        val categories: Set<String>?,
-    ) : XmlRenderTheme {
-        private var callback: XmlRenderThemeMenuCallback? = categories?.let { cats -> XmlRenderThemeMenuCallback { cats.toMutableSet() } }
-
-        override fun getMenuCallback(): XmlRenderThemeMenuCallback? = callback
-        override fun setMenuCallback(menuCallback: XmlRenderThemeMenuCallback?) {
-            callback = menuCallback
-        }
-        override fun getRelativePathPrefix(): String = prefix
-        override fun getRenderThemeAsStream(): InputStream {
-            if (!hybrid) return open()
-            val xml = open().use { Xml.decode(it.readBytes()) }
-            return ByteArrayInputStream(TopoTheme.hybridOf(xml).toByteArray(Charsets.UTF_8))
-        }
-        override fun getResourceProvider(): XmlThemeResourceProvider? = null
-        override fun setResourceProvider(resourceProvider: XmlThemeResourceProvider?) = Unit
-
-        override fun equals(other: Any?) = other is Theme && other.id == id && other.hybrid == hybrid && other.categories == categories
-        override fun hashCode() = (id.hashCode() * 31 + hybrid.hashCode()) * 31 + categories.hashCode()
     }
 
     companion object {
