@@ -25,8 +25,12 @@ object MapsforgeToMvt {
         return t.encode()
     }
 
-    /** Adds the maps' data for the tile to [t] (z/x/y as in [tile]). */
-    fun fill(t: MvtTile, maps: List<MapsforgeFile>, z: Int, x: Int, y: Int, maxReadZoom: Int = 17) {
+    /**
+     * Adds the maps' data for the tile to [t] (z/x/y as in [tile]). With [ground] (heights in
+     * metres, NaN where unknown), buildings get how their ground varies, for the 3D view: see
+     * [RELIEF_UP] and [RELIEF_DOWN].
+     */
+    fun fill(t: MvtTile, maps: List<MapsforgeFile>, z: Int, x: Int, y: Int, maxReadZoom: Int = 17, ground: ((Double, Double) -> Float)? = null) {
         val readZoom = minOf(z + 1, maxReadZoom)
         val shift = readZoom - z
         var water = maps.isNotEmpty()
@@ -39,7 +43,7 @@ object MapsforgeToMvt {
             val n = 1 shl shift
             for (dy in 0 until n) for (dx in 0 until n) {
                 val data = m.read(readZoom, (x shl shift) + dx, (y shl shift) + dy)
-                add(t, data)
+                add(t, data, ground.takeIf { z >= RELIEF_MIN_ZOOM })
                 if (!data.isWater) water = false
             }
         }
@@ -48,7 +52,7 @@ object MapsforgeToMvt {
         }
     }
 
-    fun add(t: MvtTile, data: MfData) {
+    fun add(t: MvtTile, data: MfData, ground: ((Double, Double) -> Float)? = null) {
         val poi = t.layer("poi")
         for (p in data.pois) poi.point(p.lat, p.lon, props(p.tags, p.layer))
         for (w in data.ways) {
@@ -58,7 +62,8 @@ object MapsforgeToMvt {
                 // the downloaded ones, so the trail switch and the styles' trail rules apply.
                 for (ring in w.rings) t.layer(TRAILS).line(ring, props)
             } else if (isArea(w)) {
-                t.layer("area").polygon(w.rings, props)
+                val relief = if (ground != null && w.tags.any { it.key == "building" || it.key == "building:part" }) relief(w.rings[0], ground) else null
+                t.layer("area").polygon(w.rings, if (relief != null) props + relief else props)
                 // Labels and symbols of areas (names, a parking's P, a hut…) go in the point
                 // layer, at mapsforge's label position or else the middle of the outline; only in
                 // the tile that holds that point (the area itself is in every tile it crosses).
@@ -92,6 +97,43 @@ object MapsforgeToMvt {
         }
         return tags["highway"] == "pedestrian" || tags["natural"] == "issea" || tags["natural"] == "nosea"
     }
+
+    /**
+     * How the ground under a building's corners varies from the ground at their middle (where
+     * MapLibre stands a building on terrain): [RELIEF_UP] to the highest corner, [RELIEF_DOWN] to
+     * the lowest, in metres (one decimal). Null when the ground there isn't known.
+     */
+    internal fun relief(ring: DoubleArray, ground: (Double, Double) -> Float): Map<String, Any>? {
+        val n = ring.size / 2
+        if (n < 3) return null
+        var sLat = 0.0
+        var sLon = 0.0
+        var low = Float.MAX_VALUE
+        var high = -Float.MAX_VALUE
+        for (i in 0 until n) {
+            val h = ground(ring[2 * i], ring[2 * i + 1])
+            if (h.isNaN()) return null
+            low = minOf(low, h)
+            high = maxOf(high, h)
+            sLat += ring[2 * i]
+            sLon += ring[2 * i + 1]
+        }
+        val mid = ground(sLat / n, sLon / n)
+        if (mid.isNaN()) return null
+        val up = kotlin.math.round((high - mid) * 10) / 10.0
+        val down = kotlin.math.round((mid - low) * 10) / 10.0
+        if (up <= 0.0 && down <= 0.0) return null
+        return mapOf(RELIEF_UP to up, RELIEF_DOWN to down)
+    }
+
+    /** Metres from the ground at a building's middle up to its highest corner. */
+    const val RELIEF_UP = "relief_up"
+
+    /** Metres from the ground at a building's middle down to its lowest corner. */
+    const val RELIEF_DOWN = "relief_down"
+
+    /** From this tile zoom on (the 3D view's buildings start at 14). */
+    private const val RELIEF_MIN_ZOOM = 13
 
     /** Areas that get a point for their symbol even without a name. */
     private val POI_KEYS = setOf("amenity", "tourism", "shop", "historic", "leisure", "sport", "man_made")

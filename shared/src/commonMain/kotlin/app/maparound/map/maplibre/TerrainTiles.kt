@@ -19,6 +19,9 @@ import kotlin.math.floor
  * Terrarium-encoded PNGs for MapLibre's own hill shading. Safe to use from one thread at a time.
  */
 class TerrainTiles(private val dem: DemIndex) {
+    /** The ground's height in metres (bilinear), NaN where there's no data. */
+    fun elevation(lat: Double, lon: Double): Float = dem.elevation(lat, lon)
+
     /** Contour lines of MapLibre tile z/x/y (with mapsforge's intervals one zoom deeper). */
     fun contours(z: Int, x: Int, y: Int): ByteArray {
         val t = MvtTile(z, x, y)

@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 (not released yet)
+## 0.5.0 (not released yet)
 
 ### Languages
 - **MapAround in Hebrew (עברית)**, right to left: every screen, message, notification, unit and
@@ -27,6 +27,9 @@
   zoom in (from zoom 10).
 - **Smooth 3D.** The 3D view tilts in from the map as it opens and eases back to a flat, north-up map
   as it closes; the map then shows where you were looking in 3D.
+- **Buildings on slopes in 3D.** A building on a hillside sank into the slope on its uphill side.
+  Now its roof is its height above the highest corner and its walls go down into the ground below
+  the lowest, following the relief as you raise it. On Android and in the web app.
 - **A better 3D view, on the whole globe.** Zoom out and the Earth hangs in space with its
   glowing atmosphere; zoom in down to a hiking path. The map on the terrain is drawn like the 2D
   map, names stand up over the mountains (peaks with their heights, villages, huts; hidden
@@ -81,6 +84,10 @@
   when zoomed out, with buildings close up and satellite imagery on request; one finger moves,
   pinch zooms, two fingers turn and tilt (with a mouse: the wheel zooms, the right button turns
   and tilts). Esc closes it, and the 2D map then shows where you were looking in 3D.
+- **The 3D camera stays above the ground.** Opening 3D close in, in the mountains, could leave the
+  camera inside the hill with only sky to see, and so could raising the relief or tilting low on a
+  slope. The view now settles onto the ground as the relief arrives, and tilts up where the hill
+  behind would be in the way (back to your tilt when it's clear).
 - **Line of sight and viewshed in the browser**, with the terrain they need fetched as they go.
 - **Contour lines and hill shading on the web's offline maps.** The terrain they're drawn from
   comes by itself as you look closer at your maps, or for a whole map from Offline → ⋮ →

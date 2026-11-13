@@ -48,8 +48,16 @@ class TileService(private val demDir: String? = null, private val fontsDir: Stri
     @Volatile
     var osmExtraVersion: String? = null
 
-    /** The offline map tiles' version in their URLs: the maps' and the extras'. */
-    val osmVersion: String get() = osmExtraVersion?.let { "$version-$it" } ?: version
+    /**
+     * Buildings in the offline map's tiles get how the ground varies under them (from the elevation
+     * files), for 3D views that stand them on the terrain by their middle (MapLibre GL JS: the web).
+     */
+    var buildingRelief: Boolean = false
+
+    /** The offline map tiles' version in their URLs: the maps', the extras', and the terrain's when it's in them. */
+    val osmVersion: String
+        get() = (osmExtraVersion?.let { "$version-$it" } ?: version) +
+            (if (buildingRelief) terrainVersion?.let { "-t$it" }.orEmpty() else "")
 
     /** The viewshed image the platform serves under `viewshed/<key>.png`, and where it lies. */
     @Volatile
@@ -124,7 +132,7 @@ class TileService(private val demDir: String? = null, private val fontsDir: Stri
         val y = parts[4].substringBefore('.').toIntOrNull() ?: return null
         if (z !in 0..22 || x !in 0 until (1 shl z) || y !in 0 until (1 shl z)) return null
         return when (parts[0]) {
-            "osm" -> Response(tiles.tile(z, x, y, osmExtra), PBF)
+            "osm" -> Response(tiles.tile(z, x, y, osmExtra, ground = terrain?.takeIf { buildingRelief }?.let { t -> t::elevation }), PBF)
             "contours" -> terrain?.let { Response(it.contours(z, x, y), PBF) }
             "dem" -> terrain?.terrarium(z, x, y)?.let { Response(it, "image/png") }
             else -> null

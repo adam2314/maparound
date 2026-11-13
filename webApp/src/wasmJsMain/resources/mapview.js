@@ -369,10 +369,10 @@
     if (!notified) { notified = true; if (onGesture) onGesture(); }
     const dx = now.cx - last.cx, dy = now.cy - last.cy;
     if (view3d && now.n === 1 && turning) {
-      map.jumpTo({ bearing: map.getBearing() - dx * 0.4, pitch: Math.max(0, Math.min(MAX_PITCH_3D, map.getPitch() - dy * 0.4)) });
+      map.jumpTo({ bearing: map.getBearing() - dx * 0.4, pitch: tilt3d(dy) });
     } else if (view3d && now.n >= 2) {
       // Two fingers in 3D: up and down tilt the view (pinch and twist below), they don't move it.
-      if (dy) map.jumpTo({ pitch: Math.max(0, Math.min(MAX_PITCH_3D, map.getPitch() - dy * 0.4)) });
+      if (dy) map.jumpTo({ pitch: tilt3d(dy) });
     } else if (dx || dy) {
       map.panBy([-dx, -dy], { animate: false });
     }
@@ -387,6 +387,7 @@
         duration: 0,
       });
     }
+    if (view3d) keepClear();
     last = now;
     const t = performance.now();
     samples.push({ t: t, cx: now.cx, cy: now.cy, n: now.n });
@@ -428,6 +429,7 @@
       }
     }
     claimed = false;
+    if (view3d) settle3d(null); // the gesture's over (a flick: when it stops)
   }
 
   // The page itself never zooms (it would stretch the app's toolbars): Safari's pinch gesture
@@ -682,14 +684,161 @@
           paint: {
             'fill-extrusion-color': '#d6cbc1',
             'fill-extrusion-opacity': 0.9,
-            'fill-extrusion-height': ['coalesce', ['to-number', ['get', 'height']], ['*', 3, ['to-number', ['get', 'building:levels']]], 7],
-            'fill-extrusion-base': ['coalesce', ['to-number', ['get', 'min_height']], 0],
+            'fill-extrusion-height': buildingTop(v.exaggeration),
+            'fill-extrusion-base': buildingBase(v.exaggeration),
           },
         }, firstLayer(['symbol']));
       }
     } catch (e) {
       // The style is still loading: style.load applies it.
     }
+  }
+
+  // MapLibre stands a building on the terrain at its middle (and 10 m below); on a slope its uphill
+  // side sank into the hill. The tiles say how the ground under its corners varies from its middle
+  // (relief_up / relief_down, from the elevation data); the terrain is drawn exaggerated: the roof
+  // goes up to its height above the highest corner, the walls down past the lowest.
+  function buildingHeight() {
+    return ['coalesce', ['to-number', ['get', 'height']], ['*', 3, ['to-number', ['get', 'building:levels']]], 7];
+  }
+  function buildingTop(exaggeration) {
+    return ['+', buildingHeight(), ['*', exaggeration, ['coalesce', ['get', 'relief_up'], 0]]];
+  }
+  function buildingBase(exaggeration) {
+    return ['-', ['coalesce', ['to-number', ['get', 'min_height']], 0], ['*', exaggeration, ['coalesce', ['get', 'relief_down'], 0]]];
+  }
+
+  // ---- the 3D camera above the ground ----
+  // MapLibre holds the height of the view's middle from the start of an animation until one of its
+  // own gestures ends, and the gestures here are the app's: entering 3D before the elevation had
+  // arrived left the middle at sea level and the camera inside the mountain (only sky). Its own
+  // check that the camera is above the ground doesn't work on the globe. Here: after each move and
+  // as the elevation arrives, the middle goes onto the ground, and where the camera would be in a
+  // hill (a steep slope behind it, more relief, tilting low) the view tilts up.
+
+  const EARTH_R = 6371008.8;
+
+  /** The ground's height at the view's middle (metres, exaggerated as drawn); NaN before it's loaded. */
+  function middleGround() {
+    const c = map.getCenter();
+    const h = map.terrain.getElevationForLngLatZoom(c, Math.max(0, Math.floor(map.getZoom())));
+    return h ? h : NaN; // 0: no elevation there yet
+  }
+
+  // The ground behind the view (under the camera) from the relief's own elevation tiles, read here:
+  // MapLibre's reading is wrong where it hasn't loaded the tile, and it loads only the view's.
+  const groundTiles = new Map(); // "z/x/y" -> heights (metres, 256 × 256), 'loading', or null (none)
+
+  function groundTile(z, x, y) {
+    const key = z + '/' + x + '/' + y;
+    if (groundTiles.has(key)) return groundTiles.get(key);
+    groundTiles.set(key, 'loading');
+    if (groundTiles.size > 48) groundTiles.delete(groundTiles.keys().next().value);
+    const url = TERRARIUM.replace('{z}', z).replace('{x}', x).replace('{y}', y);
+    fetch(url)
+      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
+      .then((b) => createImageBitmap(b, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' }))
+      .then((bmp) => {
+        const cv = document.createElement('canvas');
+        cv.width = 256; cv.height = 256;
+        const g = cv.getContext('2d', { willReadFrequently: true });
+        g.drawImage(bmp, 0, 0, 256, 256);
+        const px = g.getImageData(0, 0, 256, 256).data;
+        const h = new Float32Array(256 * 256);
+        for (let i = 0; i < h.length; i++) h[i] = px[4 * i] * 256 + px[4 * i + 1] + px[4 * i + 2] / 256 - 32768;
+        groundTiles.set(key, h);
+        settleSoon();
+      })
+      .catch(() => groundTiles.set(key, null));
+    return 'loading';
+  }
+
+  /** The ground's height (metres, exaggerated as drawn) at (lng, lat); NaN while its tile loads. */
+  function groundAt(lng, lat) {
+    const z = Math.max(0, Math.min(14, Math.round(map.getZoom()) - 2));
+    const n = 1 << z, s = Math.sin(lat * Math.PI / 180);
+    const x = (lng + 180) / 360 * n, y = (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * n;
+    const tx = Math.floor(x), ty = Math.floor(y);
+    const t = groundTile(z, ((tx % n) + n) % n, Math.max(0, Math.min(n - 1, ty)));
+    if (!(t instanceof Float32Array)) return t === null ? 0 : NaN; // none: as the sea
+    const px = Math.min(255, Math.floor((x - tx) * 256)), py = Math.min(255, Math.floor((y - ty) * 256));
+    return t[py * 256 + px] * view3d.exaggeration;
+  }
+
+  /** Metres from the camera to the view's middle. */
+  function cameraDistance() {
+    const fov = map.getVerticalFieldOfView() * Math.PI / 180;
+    const px = container.clientHeight / 2 / Math.tan(fov / 2);
+    const lat = map.getCenter().lat * Math.PI / 180;
+    return px * 2 * Math.PI * EARTH_R * Math.cos(lat) / (512 * Math.pow(2, map.getZoom()));
+  }
+
+  /**
+   * The most tilt, up to pitch, that keeps the camera clear of the ground with the middle at middle
+   * metres. slack: half the clearance will do (a camera already there stays, no back and forth).
+   */
+  function clearPitch(pitch, middle, slack) {
+    const c = map.getCenter(), b = map.getBearing() * Math.PI / 180, d = cameraDistance();
+    const k = Math.PI / 180, cosLat = Math.cos(c.lat * k);
+    // The ground h metres back from the middle (the camera looks along the bearing).
+    const back = (h) => groundAt(c.lng - h * Math.sin(b) / (EARTH_R * cosLat) / k, c.lat - h * Math.cos(b) / EARTH_R / k);
+    const clearance = Math.max(15, d * 0.05) * (slack ? 0.5 : 1);
+    if (isNaN(middle)) return pitch;
+    for (let p = pitch; p > 0; p -= 0.5) {
+      const g = back(d * Math.sin(p * k));
+      if (isNaN(g)) return p; // not known yet: settled when it is
+      if (middle + d * Math.cos(p * k) >= g + clearance) return p;
+    }
+    return 0;
+  }
+
+  /** The tilt a drag of dy pixels asks for: the view's tilt from now on, as far as the ground lets it. */
+  function tilt3d(dy) {
+    view3d.pitch = Math.max(0, Math.min(MAX_PITCH_3D, map.getPitch() - dy * 0.4));
+    return view3d.pitch;
+  }
+
+  /** During gestures and the relief's slider: the middle on the ground, the camera out of it, at once. */
+  function keepClear() {
+    if (!view3d || !map || !map.terrain) return;
+    const now = map.getCenterElevation(), g = middleGround(), middle = isNaN(g) ? now : g;
+    const pitch = map.getPitch(), p = clearPitch(pitch, middle, true);
+    if (p < pitch - 0.25 || Math.abs(middle - now) > 1) map.jumpTo({ pitch: p, elevation: middle }, SETTLING);
+  }
+
+  /** The moves made here (their moveend doesn't settle again). */
+  const SETTLING = { settling: true };
+
+  /**
+   * After a move, and as the elevation arrives: the middle onto the ground, and the view at the
+   * tilt it was given as far as the ground lets it (back up when it was lowered for a hill).
+   */
+  function settle3d(e) {
+    if (!view3d || view3d.leaving || !map || !map.terrain || pointers.size || map.isMoving()) return;
+    if (e && e.settling) { keepClear(); return; }
+    const now = map.getCenterElevation(), pitch = map.getPitch();
+    const g = middleGround();
+    const middle = isNaN(g) ? now : g;
+    const p = clearPitch(view3d.pitch, middle);
+    if (Math.abs(p - pitch) <= 0.25 && Math.abs(middle - now) <= 1) return;
+    if (clearPitch(pitch, now, true) < pitch - 0.25) {
+      map.jumpTo({ pitch: p, elevation: middle }, SETTLING); // in the ground now: out at once
+    } else {
+      // MapLibre's ease brings the middle onto the ground: the camera rises (or sinks) with it.
+      map.easeTo({ pitch: p, duration: 500, easing: SMOOTH }, SETTLING);
+    }
+  }
+
+  let settleTimer = null;
+  /** Settles a moment later (elevation keeps arriving). */
+  function settleSoon() {
+    if (!view3d) return;
+    if (settleTimer) clearTimeout(settleTimer);
+    settleTimer = setTimeout(() => { settleTimer = null; settle3d(null); }, 150);
+  }
+
+  function onData3d(e) {
+    if (view3d && e.sourceId === DEM3D && e.tile) settleSoon();
   }
 
   function remove3d() {
@@ -739,6 +888,8 @@
       map.on('move', drawScale);
       map.on('resize', drawScale);
       map.on('moveend', writeHash);
+      map.on('moveend', settle3d);
+      map.on('data', onData3d);
     },
     setStyle(json) {
       map.setStyle(JSON.parse(json), { diff: false });
@@ -790,9 +941,12 @@
         container.style.background = SPACE;
         drawScale();
       }
-      Object.assign(view3d, { satellite: satellite, exaggeration: exaggeration, buildings: buildings });
+      Object.assign(view3d, { satellite: satellite, exaggeration: exaggeration, buildings: buildings, leaving: false });
       apply3d();
       const to = { center: [lon, lat], zoom: zoom, bearing: bearing, pitch: Math.min(pitch, MAX_PITCH_3D) };
+      // The tilt to keep (settle3d). Rebuilt (satellite on or off) at the tilt it had: the one it was
+      // given, not the one a hill lowered it to.
+      if (fresh || view3d.pitch === undefined || Math.abs(to.pitch - map.getPitch()) > 0.5) view3d.pitch = to.pitch;
       if (fresh && intro) map.easeTo(Object.assign(to, { duration: 1100, easing: SMOOTH }));
       else map.jumpTo(to);
     },
@@ -801,6 +955,7 @@
       let called = false;
       const finish = () => { if (!called) { called = true; done(); } };
       if (!view3d || !isFinite(lat) || !isFinite(lon) || !isFinite(zoom)) { finish(); return; }
+      view3d.leaving = true; // flat now: no tilting back
       map.easeTo({ center: [lon, lat], zoom: zoom, bearing: 0, pitch: 0, duration: 600, easing: SMOOTH });
       map.once('moveend', finish);
       setTimeout(finish, 800); // nothing to move: no moveend
@@ -827,6 +982,12 @@
       if (!view3d) return;
       view3d.exaggeration = e;
       if (map.getSource(DEM3D)) map.setTerrain({ source: DEM3D, exaggeration: e });
+      keepClear(); // higher hills: the camera stays above them
+      // The buildings' foundations and roofs follow the exaggerated ground.
+      if (map.getLayer(BUILDINGS3D)) {
+        map.setPaintProperty(BUILDINGS3D, 'fill-extrusion-height', buildingTop(e));
+        map.setPaintProperty(BUILDINGS3D, 'fill-extrusion-base', buildingBase(e));
+      }
     },
     buildings3d(on) {
       if (!view3d || view3d.buildings === on) return;
@@ -840,7 +1001,10 @@
     },
     loading3d() { return !!view3d && !map.areTilesLoaded(); },
     hasBuildings3d() { return !!map.getSource(OSM_SOURCE); },
-    north3d() { map.easeTo({ bearing: 0, pitch: 45, duration: 600, easing: SMOOTH }); },
+    north3d() {
+      if (view3d) view3d.pitch = 45;
+      map.easeTo({ bearing: 0, pitch: 45, duration: 600, easing: SMOOTH });
+    },
 
     // ---- gestures, positions in CSS pixels within the map ----
     /** The press that's down now reached the map (not something over it): the map follows it. */

@@ -50,15 +50,15 @@ class MapTiles(paths: List<String>, private val world: WorldTile? = null) {
         )
 
     /** The tile z/x/y; [extra] adds the platform's own features (see TileService.osmExtra). */
-    fun tile(z: Int, x: Int, y: Int, extra: ((MvtTile, Int, Int, Int) -> Unit)? = null): ByteArray {
+    fun tile(z: Int, x: Int, y: Int, extra: ((MvtTile, Int, Int, Int) -> Unit)? = null, ground: ((Double, Double) -> Float)? = null): ByteArray {
         val t = MvtTile(z, x, y)
         if (world == null) {
-            MapsforgeToMvt.fill(t, maps, z, x, y)
+            MapsforgeToMvt.fill(t, maps, z, x, y, ground = ground)
         } else {
             // MapLibre's tiles are 512 px: shown like 256-pixel tiles one zoom deeper.
             val zoom = z + 1
             val countries = zoom >= WorldTile.COUNTRY_MAPS_FROM_ZOOM
-            if (countries) MapsforgeToMvt.fill(t, maps, z, x, y)
+            if (countries) MapsforgeToMvt.fill(t, maps, z, x, y, ground = ground)
             val box = GeoBox(
                 (MapsforgeFile.tileLat(y + 1, z) * 1e6).toInt(), (MapsforgeFile.tileLon(x, z) * 1e6).toInt(),
                 (MapsforgeFile.tileLat(y, z) * 1e6).toInt(), (MapsforgeFile.tileLon(x + 1, z) * 1e6).toInt(),

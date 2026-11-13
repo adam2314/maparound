@@ -24,7 +24,10 @@ private const val PREFIX = "/opfs/"
 /** The elevation files the page gave (memory only: not under the saved /data). */
 private const val DEM_DIR = "/dem"
 
-private val service = TileService(demDir = DEM_DIR)
+private val service = TileService(demDir = DEM_DIR).apply {
+    // The 3D view's buildings stand on the terrain by their middle: they get their ground's relief.
+    buildingRelief = true
+}
 
 /** The open maps: path → size. */
 private val sizes = HashMap<String, Long>()

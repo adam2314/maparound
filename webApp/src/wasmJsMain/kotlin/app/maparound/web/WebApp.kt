@@ -52,6 +52,8 @@ class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: Str
     /** The offline map's tiles: the built-in world (and later the downloaded maps), contours, hill shading. */
     val tiles = TileService(demDir).apply {
         baseUrl = TILE_BASE
+        // As the tile worker: buildings get their ground's relief (and the terrain's version is in the tiles' addresses).
+        buildingRelief = true
         val worldData by lazy { world?.let(WorldData::decode) }
         val borderLines by lazy { borders?.let(BorderLines::decode) }
         this.world = WorldTile({ worldData }, { borderLines })

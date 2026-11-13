@@ -24,18 +24,37 @@ object Buildings {
     /** Floats per vertex in [extrude]'s output: x, y, ground, offset above ground, nx, ny, nz. */
     const val STRIDE = 7
 
+    /** How far the walls reach below the lowest corner: a foundation, so no gap shows on uneven ground. */
+    const val FOUNDATION_M = 2f
+
     /**
-     * Walls and flat roofs as plain triangles. Each building stands on the lowest ground under
-     * its corners; the shader puts a vertex at ground × exaggeration + offset.
+     * Walls and flat roofs as plain triangles; the shader puts a vertex at ground × exaggeration +
+     * offset. Each building's roof is its height above the highest ground under its corners, and
+     * its walls reach down to the lowest (and [FOUNDATION_M] below): on a slope it stands on a
+     * foundation, as hillside houses do, rather than sinking into the hill (the terrain is drawn
+     * exaggerated, the buildings not).
      */
     fun extrude(footprints: List<Footprint>, ground: (Float, Float) -> Float): FloatArray {
         val out = FloatArrayBuilder()
         for (f in footprints) {
             val outer = f.rings.firstOrNull() ?: continue
             if (outer.size < 6) continue
-            var g = Float.MAX_VALUE
-            for (i in outer.indices step 2) g = minOf(g, ground(outer[i], outer[i + 1]))
-            if (g == Float.MAX_VALUE || g.isNaN()) g = 0f
+            var low = Float.MAX_VALUE
+            var high = -Float.MAX_VALUE
+            for (i in outer.indices step 2) {
+                val h = ground(outer[i], outer[i + 1])
+                if (h.isNaN()) continue
+                low = minOf(low, h)
+                high = maxOf(high, h)
+            }
+            if (low == Float.MAX_VALUE) {
+                low = 0f
+                high = 0f
+            }
+            // Wall feet (ground, offset) and the roof's.
+            val g = low
+            val foot = -FOUNDATION_M
+            val gTop = high
             val top = f.heightM
             for (ring in f.rings) {
                 val n = ring.size / 2
@@ -51,12 +70,12 @@ object Buildings {
                     val len = kotlin.math.sqrt(nx * nx + ny * ny)
                     if (len < 1e-4f) continue
                     nx /= len; ny /= len
-                    out.vertex(ax, ay, g, 0f, nx, ny, 0f); out.vertex(bx, by, g, 0f, nx, ny, 0f); out.vertex(bx, by, g, top, nx, ny, 0f)
-                    out.vertex(ax, ay, g, 0f, nx, ny, 0f); out.vertex(bx, by, g, top, nx, ny, 0f); out.vertex(ax, ay, g, top, nx, ny, 0f)
+                    out.vertex(ax, ay, g, foot, nx, ny, 0f); out.vertex(bx, by, g, foot, nx, ny, 0f); out.vertex(bx, by, gTop, top, nx, ny, 0f)
+                    out.vertex(ax, ay, g, foot, nx, ny, 0f); out.vertex(bx, by, gTop, top, nx, ny, 0f); out.vertex(ax, ay, gTop, top, nx, ny, 0f)
                 }
             }
             for (t in triangulate(outer)) {
-                out.vertex(outer[2 * t], outer[2 * t + 1], g, top, 0f, 0f, 1f)
+                out.vertex(outer[2 * t], outer[2 * t + 1], gTop, top, 0f, 0f, 1f)
             }
         }
         return out.toArray()

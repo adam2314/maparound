@@ -39,12 +39,24 @@ class MeshTest {
     }
 
     @Test
-    fun extrudedBoxHasWallsAndRoofOnTheLowestGround() {
+    fun extrudedBoxStandsOnAFoundationOnASlope() {
         val box = Footprint(listOf(floatArrayOf(0f, 0f, 10f, 0f, 10f, 10f, 0f, 10f)), 12f)
         val v = Buildings.extrude(listOf(box)) { x, _ -> 100f + x } // ground rises to the east
         val verts = v.size / Buildings.STRIDE
         assertEquals(4 * 6 + 6, verts) // 4 walls of 2 triangles + a 2-triangle roof
-        for (i in 0 until verts) assertEquals("stands on the lowest corner", 100f, v[i * Buildings.STRIDE + 2], 0f)
+        // Wall feet on the lowest corner, a foundation below it; tops and the roof on the highest
+        // corner: nothing sinks into the hill, nothing floats.
+        for (i in 0 until verts) {
+            val ground = v[i * Buildings.STRIDE + 2]
+            val offset = v[i * Buildings.STRIDE + 3]
+            if (offset < 0f) {
+                assertEquals(100f, ground, 0f)
+                assertEquals(-Buildings.FOUNDATION_M, offset, 0f)
+            } else {
+                assertEquals("the top on the highest corner", 110f, ground, 0f)
+                assertEquals(12f, offset, 0f)
+            }
+        }
         // Walls point outwards: the wall along y=0 faces south (-y).
         val southWall = (0 until 24).map { it * Buildings.STRIDE }.first { abs(v[it + 1]) < 1e-6f && abs(v[it + 7 * 0 + 5] + 1f) < 1e-6f }
         assertEquals(-1f, v[southWall + 5], 1e-6f)
