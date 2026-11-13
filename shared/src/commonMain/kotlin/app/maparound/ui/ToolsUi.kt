@@ -124,7 +124,8 @@ fun ToolsPanel(
     mapCenter: () -> GeoPoint,
     onShowPoint: (GeoPoint) -> Unit,
     onShare: (GeoPoint) -> Unit,
-    onGetTerrain: () -> Unit,
+    /** Goes to where terrain is downloaded; null where the platform has no such place yet. */
+    onGetTerrain: (() -> Unit)?,
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -318,7 +319,7 @@ private fun parseDistance(text: String): Double? {
 // ---- line of sight -------------------------------------------------------------------------------------
 
 @Composable
-private fun SightBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTerrain: () -> Unit) {
+private fun SightBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTerrain: (() -> Unit)?) {
     PointsRow(state, myLocation)
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Filled.CellTower, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
@@ -525,7 +526,7 @@ private fun HigherGroundHint(state: ToolsSession.State) {
 }
 
 @Composable
-private fun TerrainNeeded(onGetTerrain: () -> Unit) {
+private fun TerrainNeeded(onGetTerrain: (() -> Unit)?) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Filled.Terrain, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.width(8.dp))
@@ -534,7 +535,7 @@ private fun TerrainNeeded(onGetTerrain: () -> Unit) {
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(1f),
         )
-        TextButton(onClick = onGetTerrain) { Text("Get") }
+        if (onGetTerrain != null) TextButton(onClick = onGetTerrain) { Text("Get") }
     }
 }
 
@@ -637,7 +638,7 @@ private fun SightProfile(los: LineOfSight, modifier: Modifier = Modifier) {
 // ---- viewshed ----------------------------------------------------------------------------------------------
 
 @Composable
-private fun ViewshedBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTerrain: () -> Unit) {
+private fun ViewshedBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTerrain: (() -> Unit)?) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         PointChip("Observer", state.a, state.aGround, true) {}
         Spacer(Modifier.weight(1f))

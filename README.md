@@ -54,6 +54,17 @@ Requirements: Android Studio (Ladybug or newer) **or** JDK 17 + Android SDK 35.
 ./gradlew :app:installDebug         # install on a connected phone
 ```
 
+**Web app** (Kotlin/Wasm; needs Node.js on the PATH, as the build doesn't download one):
+
+```bash
+./gradlew :webApp:wasmJsBrowserDevelopmentRun        # builds it and opens it in the browser
+./gradlew :webApp:wasmJsBrowserDistribution          # the files to host: webApp/build/dist/wasmJs/productionExecutable
+```
+
+On Windows the production build's optimiser (Binaryen's wasm-opt) can crash; the development build
+(`:webApp:wasmJsBrowserDevelopmentExecutableDistribution`) works there, and GitHub Actions builds
+the production one (`.github/workflows/pages.yml`, which publishes the website and the app).
+
 The shared tests also run on the iOS simulator in GitHub Actions (`.github/workflows/ios.yml`,
 macOS runners); its latest log is on the `ci-ios-shared` branch and a simulator screenshot of the
 iOS app on `ci-screenshots`.
@@ -394,6 +405,38 @@ phone locked depends on how the Android Auto host keeps the app running.
   them straight in MapAround, enable *Settings → Apps → MapAround → Open by default → Open supported
   links*; sharing a link **to** MapAround always works.
 
+## In the browser (web app)
+
+The same app at [adam2314.github.io/maparound/app](https://adam2314.github.io/maparound/app/):
+the shared Compose screens compiled to WebAssembly (Kotlin/Wasm), the map drawn by MapLibre GL JS.
+It installs like an app ("Add to Home screen" / "Install") and opens without internet (its service
+worker keeps its files). So far it has the map (online maps, and offline the built-in world
+map), search, the route planner with online routes (brouter.de), the library (routes and places,
+GPX import and export), the map tools and the sensors the browser offers (position, compass,
+motion). Downloaded maps, terrain, recording, the 3D view and the party come next; the browser
+can't record with the screen off, and has no barometer or satellite list.
+
+How it fits together (`webApp/`, `shared/src/wasmJsMain/`):
+- **The map behind the screens.** MapLibre GL JS draws into `#map` under the Compose canvas; the map
+  composable clears its part of the canvas, so the map shows through and buttons and sheets draw
+  over it. Compose gets the touches first; a press that reaches the map "claims" it, and
+  `mapview.js` moves the map from the browser's own pointer events (Compose's web input reports
+  one finger, so pinch and twist are done there). Taps, double taps and long presses come back
+  through Compose.
+- **Tiles from the shared code.** The offline map's tiles (`maparound://…`) are answered by the
+  shared `TileService`, as Android's interceptor and iOS's local server do: the built-in world now,
+  downloaded maps next. Marker images are drawn by `mapview.js` (as `MarkerBitmaps` on Android),
+  the style's symbols are mapsforge's SVGs.
+- **Files and settings.** The browser has no file system for the shared code: files live in memory
+  (Okio's FakeFileSystem) and everything under `/data` is saved to IndexedDB and read back at
+  start (`WebFiles`); settings are in localStorage. Downloaded maps will need the browser's file
+  storage (OPFS) instead.
+- **Network.** The shared code's blocking HTTP calls are synchronous XMLHttpRequests; the services
+  must allow other sites (CORS). Map tiles, Photon, Nominatim and brouter.de do; GitHub's release
+  downloads don't, so the offline map downloads will need another host.
+- **Fonts.** Compose draws its own text: Noto fallback fonts for symbols, Hebrew and Arabic are
+  loaded at start (emoji aren't yet).
+
 ## Code layout
 
 Everything that doesn't need Android — the logic and all the Compose screens — lives in `shared/`
@@ -424,11 +467,17 @@ shared/src/
                            byte buffers, a streaming XML reader, Unicode NFD, a bit set
     shared/crypto/         HMAC-SHA-256, AES-GCM, secure random (javax.crypto / CommonCrypto)
     shared/net/            HTTP GET and downloads (HttpURLConnection / NSURLSession)
-  androidMain/             the Android halves (files, memory mapping, crypto, NFD, HTTP)
+  androidMain/             the Android halves (files, memory mapping, crypto, NFD, HTTP, zlib)
+  wasmJsMain/              the browser's halves: files in memory saved to IndexedDB (WebFiles),
+                           localStorage settings, synchronous XMLHttpRequest, file chooser, wake lock
   iosMain/                 the iOS halves, and the iOS app's services: IosApp (its objects), Core
                            Location & Core Motion sensors, URLSession map downloads, share sheet,
                            Files picker, MainViewController (the Compose app for Swift)
   commonTest/              tests that run on the JVM and the iOS simulator
+webApp/                    the web app (Kotlin/Wasm): WebApp (its objects), the MapLibre GL JS map
+                           behind the Compose canvas (WebMap.kt, mapview.js: tiles from the shared
+                           tile service, marker images, multi-touch gestures), browser sensors,
+                           sharing and online routing, index.html, the service worker (offline)
 iosApp/                    the iOS app shell (Swift, XcodeGen project): MLNMapView wrapper, marker
                            images, the local tile server; fetch-fonts.sh / fetch-symbols.sh get the
                            label fonts and map symbols before a build. Built and run in CI

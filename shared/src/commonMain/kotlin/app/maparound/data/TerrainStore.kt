@@ -1,6 +1,7 @@
 package app.maparound.data
 
 import app.maparound.shared.fileSystem
+import app.maparound.shared.gunzipFile
 import app.maparound.shared.ioDispatcher
 import app.maparound.shared.net.HttpException
 import app.maparound.shared.net.httpDownload
@@ -28,7 +29,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import okio.GzipSource
 import okio.Path
 import okio.Path.Companion.toPath
 import okio.buffer
@@ -175,7 +175,7 @@ class TerrainStore(
                 return e.status == 403 || e.status == 404 // no tile for this cell
             }
             context.ensureActive()
-            GzipSource(fileSystem.source(gz)).buffer().use { input -> fileSystem.write(raw) { writeAll(input) } }
+            gunzipFile(gz, raw)
             fileSystem.delete(gz)
             val size = HgtProcessor.sizeForLength(fileSystem.metadata(raw).size ?: 0L) ?: return false
             val mask = coast?.let { runCatching { it.build(lat, lon, HgtProcessor.outputSize(size, highDetail)) }.getOrNull() }

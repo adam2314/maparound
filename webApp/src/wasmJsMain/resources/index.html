@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>MapAround</title>
+    <meta name="description" content="Offline maps for hiking and off-road trips, in the browser.">
+    <meta name="theme-color" content="#1B6B4A">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="icon-192.png">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="stylesheet" href="maplibre-gl.css">
+    <link rel="stylesheet" href="app.css">
+    <script src="maplibre-gl.js"></script>
+    <script src="mapview.js"></script>
+</head>
+<body>
+<!-- The map, behind the app; the app's canvas is transparent where the map shows. -->
+<div id="map"></div>
+<div id="app">
+    <div id="loading">
+        <img src="icon-192.png" alt="" width="96" height="96">
+        <p>Loading MapAround…</p>
+        <noscript><p>MapAround needs JavaScript.</p></noscript>
+        <p id="unsupported" hidden>This browser is too old for MapAround. It needs a recent Chrome, Edge, Firefox or Safari (2024 or newer).</p>
+    </div>
+</div>
+<script>
+    // Kotlin/Wasm needs WebAssembly garbage collection (Chrome 119, Firefox 120, Safari 18.2).
+    if (typeof WebAssembly === 'undefined' || !WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 95, 1, 120, 0]))) {
+        document.getElementById('unsupported').hidden = false;
+    }
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    }
+</script>
+<script src="maparound.js"></script>
+</body>
+</html>

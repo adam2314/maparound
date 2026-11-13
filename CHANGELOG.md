@@ -27,6 +27,13 @@
 - **Country borders at every zoom.** In Topo, disputed borders and lines of control are drawn
   with short dashes.
 
+### Web app
+- **MapAround in the browser** at [adam2314.github.io/maparound/app](https://adam2314.github.io/maparound/app/),
+  installable and usable offline: the map (online maps and the built-in world map), search, the
+  route planner with online routes, the library (routes and places, GPX import and export), the
+  map tools and the compass. Downloaded maps, terrain, recording, the 3D view and the party come
+  next.
+
 ### Party
 - **Invites are web links** (`https://adam2314.github.io/maparound/party#…`), so messaging apps
   make them tappable and the QR code opens from the phone's camera. The page opens MapAround, or

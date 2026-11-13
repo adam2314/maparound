@@ -1,12 +1,11 @@
 package app.maparound.map.maplibre
 
 import app.maparound.shared.mapsforge.MapsforgeFile
+import app.maparound.shared.zlibDeflate
 import app.maparound.shared.mvt.MvtTile
 import app.maparound.terrain.Contours
 import app.maparound.terrain.DemIndex
 import okio.Buffer
-import okio.Deflater
-import okio.DeflaterSink
 import okio.use
 import kotlin.math.PI
 import kotlin.math.atan
@@ -115,13 +114,12 @@ object Png {
             raw.writeByte(0) // no filter
             raw.write(rgb, row * width * 3, width * 3)
         }
-        val compressed = Buffer()
-        DeflaterSink(compressed, Deflater()).use { it.write(raw, raw.size) }
+        val compressed = zlibDeflate(raw.readByteArray())
 
         val out = Buffer()
         out.write(SIGNATURE)
         chunk(out, "IHDR", Buffer().writeInt(width).writeInt(height).writeByte(8).writeByte(2).writeByte(0).writeByte(0).writeByte(0).readByteArray())
-        chunk(out, "IDAT", compressed.readByteArray())
+        chunk(out, "IDAT", compressed)
         chunk(out, "IEND", ByteArray(0))
         return out.readByteArray()
     }

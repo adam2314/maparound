@@ -1,0 +1,76 @@
+name: Pages
+
+# The website (docs/, Jekyll) and the web app (webApp/, Kotlin/Wasm) at
+# https://adam2314.github.io/maparound/ and …/maparound/app/.
+# Settings → Pages → Source: GitHub Actions.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "webApp/**"
+      - "shared/**"
+      - "app/src/main/assets/**"
+      - "*.gradle.kts"
+      - "kotlin-js-store/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # The Kotlin web build uses the system's Node.js.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Web app
+        run: ./gradlew :webApp:wasmJsBrowserDistribution --console=plain
+
+      - name: Website
+        uses: actions/jekyll-build-pages@v1
+        with:
+          source: ./docs
+          destination: ./_site
+
+      - name: Website and web app together
+        run: |
+          sudo mkdir -p _site/app
+          sudo cp -r webApp/build/dist/wasmJs/productionExecutable/. _site/app/
+          sudo chown -R "$USER" _site
+          du -sh _site _site/app
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

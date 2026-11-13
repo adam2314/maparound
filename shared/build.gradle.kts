@@ -1,3 +1,4 @@
+import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -20,6 +21,14 @@ kotlin {
         }
     }
 
+    // The web app (webApp/): Kotlin/Wasm in the browser.
+    @OptIn(ExperimentalWasmDsl::class)
+    wasmJs {
+        browser {
+            testTask { enabled = false }
+        }
+    }
+
     sourceSets {
         commonMain.dependencies {
             // In the shared API (file handles, sources), so the Android app gets it too.
@@ -38,6 +47,10 @@ kotlin {
         androidMain.dependencies {
             // Back button and file picker for the shared screens.
             implementation("androidx.activity:activity-compose:1.9.3")
+        }
+        wasmJsMain.dependencies {
+            // The browser has no file system: an in-memory one, saved to IndexedDB (WebFiles).
+            implementation("com.squareup.okio:okio-fakefilesystem:3.9.1")
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

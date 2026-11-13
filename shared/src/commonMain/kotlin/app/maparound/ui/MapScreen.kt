@@ -153,7 +153,8 @@ import kotlinx.coroutines.withContext
 fun MapScreen(
     hasLocation: Boolean,
     requestLocation: () -> Unit,
-    onOpenOffline: () -> Unit,
+    /** Goes to the Offline tab; null where there's none. */
+    onOpenOffline: (() -> Unit)?,
     snackbar: SnackbarHostState,
     /** Makes the platform's map (Android: mapsforge; iOS: MapLibre). */
     createMap: () -> MapSurface,
@@ -467,7 +468,7 @@ fun MapScreen(
     Box(Modifier.fillMaxSize()) {
         mapView(controller, Modifier.fillMaxSize())
 
-        if (showingOffline && localMaps.isEmpty() && !planner.active && !tools.active && !nav.active) {
+        if (onOpenOffline != null && showingOffline && localMaps.isEmpty() && !planner.active && !tools.active && !nav.active) {
             ElevatedCard(
                 Modifier.align(Alignment.TopCenter).padding(top = 56.dp, start = 16.dp, end = 72.dp),
             ) {
@@ -786,9 +787,11 @@ fun MapScreen(
             rasterMaps = rasterMaps,
             onRasterError = { e -> scope.launch { snackbar.showSnackbar(rasterError(e)) } },
             onMessage = { m -> scope.launch { snackbar.showSnackbar(m) } },
-            onOpenOffline = {
-                showLayers = false
-                onOpenOffline()
+            onOpenOffline = onOpenOffline?.let { open ->
+                {
+                    showLayers = false
+                    open()
+                }
             },
             onSelect = {
                 prefs.setBaseLayer(it)
@@ -970,7 +973,7 @@ private fun LayersSheet(
     rasterMaps: List<app.maparound.raster.RasterMap>,
     onRasterError: (Throwable) -> Unit,
     onMessage: (String) -> Unit,
-    onOpenOffline: () -> Unit,
+    onOpenOffline: (() -> Unit)?,
     onSelect: (String) -> Unit,
     onAddCustom: (OnlineSource) -> Unit,
     onRemoveCustom: (String) -> Unit,
@@ -1058,7 +1061,7 @@ private fun LayersSheet(
                     enabled = MapThemes.drawsTerrain(theme),
                 ) { prefs.setContours(it) }
                 SwitchRow("Hill shading", null, checked = hillshade) { prefs.setHillshade(it) }
-                if (terrainTiles == 0) {
+                if (terrainTiles == 0 && onOpenOffline != null) {
                     TextButton(onClick = onOpenOffline, contentPadding = PaddingValues(0.dp)) {
                         Text("Contours & shading need terrain data. Get it in Offline maps →")
                     }

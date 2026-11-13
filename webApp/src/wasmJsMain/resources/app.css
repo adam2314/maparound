@@ -1,0 +1,51 @@
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #EDEADA;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    overscroll-behavior: none;
+    touch-action: none;
+}
+
+/* The map: placed by the app where its map screen is; it gets no pointer events itself. */
+#map {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    display: none;
+}
+
+/* The app's Compose canvas, over the map. */
+#app {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+}
+
+#app canvas {
+    outline: none;
+}
+
+#loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #1B6B4A;
+    background: #FBFDF8;
+    text-align: center;
+    padding: 24px;
+}
+
+#loading p {
+    margin: 12px 0 0;
+}

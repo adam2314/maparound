@@ -21,6 +21,10 @@ listed below.
   give when you pick them, and aren't sent anywhere.
 - **The camera** is only used to scan a party invite QR code. No pictures are kept or sent.
 - **Voice prompts** come from your phone's own text-to-speech engine.
+- **The web app** (adam2314.github.io/maparound/app) keeps your routes, places and settings in
+  your browser's storage for that site, on your device. Clearing the site's data in the browser
+  deletes them. GitHub, which hosts the site, receives your IP address when the page loads (see
+  GitHub's privacy statement); the app sends nothing to it after that.
 
 ## What the app sends, and to whom
 

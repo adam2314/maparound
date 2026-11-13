@@ -1,4 +1,5 @@
-# GitHub Pages site for MapAround (Settings → Pages → Deploy from a branch: main, /docs).
+# GitHub Pages site for MapAround, built with the web app under app/ by .github/workflows/pages.yml
+# (Settings → Pages → Source: GitHub Actions).
 # index.html is the home page; Markdown pages such as privacy.md use _layouts/default.html.
 title: MapAround
 description: Offline topo maps, routes and navigation, trails, and off-grid group tracking.

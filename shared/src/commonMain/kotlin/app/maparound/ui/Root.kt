@@ -117,7 +117,8 @@ fun MapAroundRoot(
                 Tab.Map -> MapScreen(
                     hasLocation = hasLocation,
                     requestLocation = requestLocation,
-                    onOpenOffline = { tab = Tab.Offline },
+                    // Platforms without the Offline tab yet (the web app) don't offer to go there.
+                    onOpenOffline = if (Tab.Offline in tabs) ({ tab = Tab.Offline }) else null,
                     snackbar = snackbar,
                     createMap = createMap,
                     mapView = mapView,
