@@ -557,6 +557,8 @@
   const SPACE = 'radial-gradient(ellipse at 50% 60%, #1b2a4a 0%, #0a1020 70%)';
   /** While the 3D view is open: its settings, and the 2D view to go back to. */
   let view3d = null;
+  /** Navigation's view is on (tilted, turned, padded). */
+  let navigating = false;
   let exit3dTimer = null;
 
   function firstLayer(types) {
@@ -851,12 +853,34 @@
     },
     hide() { container.style.display = 'none'; },
 
+    // ---- navigation: tilted, the way ahead up, our position low in the view ----
+    /** anchor: where (lat, lon) is, from the top of the map (0) to the bottom (1). */
+    navCamera(lat, lon, zoom, bearing, pitch, anchor, ms) {
+      if (view3d || !map) return;
+      const h = container ? container.clientHeight : 0;
+      navigating = true;
+      map.easeTo({
+        center: [lon, lat], zoom: zoom, bearing: bearing, pitch: Math.min(pitch, MAX_PITCH_2D),
+        // The middle of what's below the top padding is the point.
+        padding: { top: Math.max(0, (2 * anchor - 1) * h), bottom: 0, left: 0, right: 0 },
+        duration: ms, easing: (t) => t,
+      });
+    },
+    /** Navigation's over: flat, north up, where it is. */
+    endNav() {
+      if (!navigating || !map) return;
+      navigating = false;
+      if (view3d) return;
+      map.easeTo({ bearing: 0, pitch: 0, padding: { top: 0, bottom: 0, left: 0, right: 0 }, duration: 600, easing: SMOOTH });
+    },
+
     // ---- the 3D view (pitch: MapLibre's, from straight down) ----
     /** intro: ease in from the 2D map (straight down) instead of jumping there. */
     enter3d(lat, lon, zoom, bearing, pitch, satellite, exaggeration, buildings, intro) {
       if (exit3dTimer) { clearTimeout(exit3dTimer); exit3dTimer = null; }
       const fresh = !view3d;
       if (!view3d) {
+        if (navigating) { map.stop(); map.setPadding({ top: 0, bottom: 0, left: 0, right: 0 }); navigating = false; }
         const c = map.getCenter();
         view3d = { back: { center: [c.lng, c.lat], zoom: map.getZoom(), bearing: map.getBearing(), pitch: 0 } };
         map.setMaxPitch(MAX_PITCH_3D);
@@ -924,6 +948,10 @@
     /** The zoom slider: to MapLibre's zoom [z] at once (the camera's kept out of the ground after). */
     zoom3d(z) {
       if (view3d) map.jumpTo({ zoom: z });
+    },
+    /** A search's result: the 3D view eases over to it. */
+    lookAt3d(lat, lon) {
+      if (view3d) map.easeTo({ center: [lon, lat], duration: 900, easing: SMOOTH });
     },
     north3d() {
       if (view3d) view3d.pitch = 45;

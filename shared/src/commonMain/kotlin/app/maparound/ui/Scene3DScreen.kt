@@ -11,11 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Explore
-import androidx.compose.material.icons.filled.SatelliteAlt
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -55,6 +51,9 @@ interface Scene3DControl : app.maparound.map.ZoomTarget {
 
     fun faceNorth()
 
+    /** Moves the view to look at ([lat], [lon]) (a search's result). */
+    fun lookAt(lat: Double, lon: Double) {}
+
     /** Closing: the view eases back to the 2D map's look (straight down, north up), then [done] on the main thread. */
     fun leave(done: () -> Unit) = done()
 }
@@ -78,11 +77,21 @@ class Scene3DViewArgs(
 
 /**
  * The map in 3D, streamed around the camera: terrain relief, the map draped on it, buildings.
- * The platform draws it ([view]); this screen has the controls: the relief's and the buildings'
- * behind a button, and the credits of what's shown ([mapCredits]: the map's, as in 2D).
+ * The platform draws it ([view]). The map's own button column ([buttons]: given the view's zoom,
+ * whether the relief's settings are open and their toggle, the way back to 2D, and where the panel
+ * below starts) is where it is in 2D; this screen has the relief's settings (relief, buildings,
+ * satellite), a compass while the view is turned, and the credits of what's shown ([mapCredits]: the
+ * map's, as in 2D). [onControl]: the platform's view once it's there (null when it goes).
  */
 @Composable
-fun Scene3DScreen(start: Camera3D, mapCredits: String, onClose: (last: Camera3D?) -> Unit, view: @Composable (Scene3DViewArgs) -> Unit) {
+fun Scene3DScreen(
+    start: Camera3D,
+    mapCredits: String,
+    onClose: (last: Camera3D?) -> Unit,
+    onControl: (Scene3DControl?) -> Unit = {},
+    buttons: @Composable (zoom: app.maparound.map.ZoomTarget?, relief: Boolean, onRelief: () -> Unit, close: () -> Unit, bottomLimit: Float?) -> Unit,
+    view: @Composable (Scene3DViewArgs) -> Unit,
+) {
     var satellite by rememberSaveable { mutableStateOf(false) }
     var settings by rememberSaveable { mutableStateOf(false) }
     // Where the panel at the bottom starts: the zoom slider fits above it.
@@ -113,9 +122,16 @@ fun Scene3DScreen(start: Camera3D, mapCredits: String, onClose: (last: Camera3D?
     }
     PlatformBackHandler(onBack = { close() })
 
+    var turned by remember { mutableStateOf(false) }
     LaunchedEffect(control) {
+        onControl(control)
         while (true) {
-            control?.let { status = it.status }
+            control?.let {
+                status = it.status
+                // Not facing north: the compass shows (a few degrees either way don't count).
+                val yaw = ((it.camera.yaw % 360f) + 360f) % 360f
+                turned = yaw in 3f..357f
+            }
             delay(400)
         }
     }
@@ -144,35 +160,30 @@ fun Scene3DScreen(start: Camera3D, mapCredits: String, onClose: (last: Camera3D?
             )
         }
 
-        // Where the map's buttons are (on the right; left in a right-to-left language), with its zoom slider.
-        Column(
-            Modifier.align(Alignment.TopEnd).padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            horizontalAlignment = Alignment.End,
-        ) {
-            SmallFloatingActionButton(onClick = { close() }) { Icon(Icons.Filled.Close, contentDescription = T.map.close3d) }
-            SmallFloatingActionButton(onClick = { control?.faceNorth() }) { Icon(Icons.Filled.Explore, contentDescription = T.map.faceNorth) }
-            SmallFloatingActionButton(
-                onClick = {
-                    control?.let { camera = it.camera }
-                    satellite = !satellite
-                },
-                containerColor = if (satellite) MaterialTheme.colorScheme.primary else FloatingActionButtonDefaults.containerColor,
-                contentColor = if (satellite) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
-            ) { Icon(Icons.Filled.SatelliteAlt, contentDescription = if (satellite) T.map.backToMap else T.map.satelliteImagery) }
-            SmallFloatingActionButton(
-                onClick = { settings = !settings },
-                containerColor = if (settings) MaterialTheme.colorScheme.primary else FloatingActionButtonDefaults.containerColor,
-                contentColor = if (settings) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
-            ) { Icon(Icons.Filled.Tune, contentDescription = T.map.view3dSettings) }
-            control?.let { ZoomScale(it, Modifier.padding(top = 4.dp), bottomLimit = bottomTop) }
+        // The map's own column, where it is in 2D (right; left in a right-to-left language).
+        Box(Modifier.align(Alignment.TopEnd)) {
+            buttons(control, settings, { settings = !settings }, { close() }, bottomTop)
+        }
+        // Turned away from north: a compass on the other side; a tap faces north.
+        if (turned) {
+            SmallFloatingActionButton(onClick = { control?.faceNorth() }, modifier = Modifier.align(Alignment.TopStart).padding(12.dp)) {
+                Icon(Icons.Filled.Explore, contentDescription = T.map.faceNorth)
+            }
         }
 
         Column(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().onGloballyPositioned { bottomTop = it.positionInRoot().y }.padding(8.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            if (settings) Settings3D(exaggeration, { exaggeration = it }, hasBuildings, buildings, { buildings = it }, status, notes)
+            if (settings) Settings3D(
+                exaggeration, { exaggeration = it }, hasBuildings, buildings, { buildings = it },
+                satellite,
+                {
+                    control?.let { c -> camera = c.camera }
+                    satellite = it
+                },
+                status, notes,
+            )
             else if (status.isNotEmpty() || notes.isNotEmpty()) {
                 // Closed: only what's loading, and problems.
                 Text(
@@ -202,7 +213,7 @@ fun Scene3DScreen(start: Camera3D, mapCredits: String, onClose: (last: Camera3D?
     }
 }
 
-/** The relief's exaggeration, the buildings, how to move, and what's loading. */
+/** The relief's exaggeration, the buildings, satellite imagery, how to move, and what's loading. */
 @Composable
 private fun Settings3D(
     exaggeration: Float,
@@ -210,6 +221,8 @@ private fun Settings3D(
     hasBuildings: Boolean,
     buildings: Boolean,
     onBuildings: (Boolean) -> Unit,
+    satellite: Boolean,
+    onSatellite: (Boolean) -> Unit,
     status: String,
     notes: List<String>,
 ) {
@@ -233,6 +246,10 @@ private fun Settings3D(
                     Text(T.map.buildingsCloseUp, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                     Switch(checked = buildings, onCheckedChange = onBuildings)
                 }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(T.map.satelliteImagery, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                Switch(checked = satellite, onCheckedChange = onSatellite)
             }
             Text(
                 status.ifEmpty { T.map.gestures3d },

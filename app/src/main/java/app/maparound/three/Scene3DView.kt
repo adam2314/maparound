@@ -121,6 +121,13 @@ class Scene3DView(
         gl.requestRender()
     }
 
+    override fun lookAt(lat: Double, lon: Double) {
+        renderer.stopMotion()
+        renderer.lat = lat
+        renderer.lon = lon
+        gl.requestRender()
+    }
+
     // The zoom slider: zoom 0 is the whole planet in view, each step half as far away.
     override val zoomRange: ClosedFloatingPointRange<Double>
         get() = 0.0..(ln(Renderer3D.MAX_DISTANCE.toDouble() / Renderer3D.MIN_DISTANCE) / ln(2.0))

@@ -127,6 +127,15 @@ interface MapSurface : ZoomTarget {
     /** Moves so that all [points] are in view. */
     fun showPoints(points: List<GeoPoint>)
 
+    /**
+     * Navigation's view ([app.maparound.routing.NavView]): ([lat], [lon]) low in the view, [bearing]
+     * up, tilted, at [zoom] in [position]'s terms. Where the map can't, it just follows.
+     */
+    fun followNavigation(lat: Double, lon: Double, bearing: Double, zoom: Double) = animateTo(lat, lon, zoom.toInt())
+
+    /** Navigation's over: the flat map, north up. */
+    fun endNavigation() = Unit
+
     /** A 3D camera looking at the same area, or null when there is none. */
     fun camera3D(): Camera3D?
 

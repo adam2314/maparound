@@ -24,6 +24,7 @@ import app.maparound.i18n.T
 import app.maparound.map.maplibre.MapLibreSurface
 import app.maparound.map.maplibre.NativeCamera
 import app.maparound.map.maplibre.NativeMap
+import app.maparound.map.maplibre.NavCamera
 import app.maparound.map.maplibre.NativeMapCallbacks
 import app.maparound.three.Camera3D
 import app.maparound.ui.Scene3DControl
@@ -56,12 +57,15 @@ private fun mlZoomAt(delta: Double, x: Double, y: Double, animated: Boolean): Un
 private fun mlLngLat(x: Double, y: Double): String = js("MapAroundMap.lngLat(x, y)")
 private fun mlTapped(x: Double, y: Double): String = js("MapAroundMap.tapped(x, y)")
 private fun mlPoisNear(lat: Double, lon: Double, radius: Double): String = js("MapAroundMap.poisNear(lat, lon, radius)")
+private fun mlNavCamera(lat: Double, lon: Double, zoom: Double, bearing: Double, pitch: Double, anchor: Double, ms: Int): Unit =
+    js("{ MapAroundMap.navCamera(lat, lon, zoom, bearing, pitch, anchor, ms); }")
+private fun mlEndNav(): Unit = js("{ MapAroundMap.endNav(); }")
 
 /**
  * The MapLibre GL JS map as the shared [NativeMap] (there's one map on the page, in `#map`).
  * [tiles] answers the offline map's tile requests (`maparound://…` URLs) with bytes, or null.
  */
-class WebNativeMap(style: String, symbolsUrl: String, tiles: (String) -> JsAny?) : NativeMap {
+class WebNativeMap(style: String, symbolsUrl: String, tiles: (String) -> JsAny?) : NativeMap, NavCamera {
     var callbacks: NativeMapCallbacks? = null
         private set
 
@@ -80,6 +84,11 @@ class WebNativeMap(style: String, symbolsUrl: String, tiles: (String) -> JsAny?)
 
     override fun viewHeight(): Double = mlHeight()
     override fun moveCamera(lat: Double, lon: Double, zoom: Double, animated: Boolean) = mlMove(lat, lon, zoom, animated)
+
+    override fun navCamera(lat: Double, lon: Double, zoom: Double, bearing: Double, pitch: Double, anchor: Double, durationMs: Int) =
+        mlNavCamera(lat, lon, zoom, bearing, pitch, anchor, durationMs)
+
+    override fun endNavCamera() = mlEndNav()
 
     override fun fitBounds(south: Double, west: Double, north: Double, east: Double, animated: Boolean) =
         mlFit(south, west, north, east, animated)
@@ -252,6 +261,7 @@ private fun ml3dLoading(): Boolean = js("MapAroundMap.loading3d()")
 private fun ml3dHasBuildings(): Boolean = js("MapAroundMap.hasBuildings3d()")
 private fun ml3dNorth(): Unit = js("{ MapAroundMap.north3d(); }")
 private fun ml3dZoom(z: Double): Unit = js("{ MapAroundMap.zoom3d(z); }")
+private fun ml3dLookAt(lat: Double, lon: Double): Unit = js("{ MapAroundMap.lookAt3d(lat, lon); }")
 
 /** MapLibre's camera is 1.5 view heights from what it looks at (its 36.87° field of view). */
 private const val CAMERA_HEIGHTS = 1.5
@@ -282,6 +292,8 @@ private class WebScene3DControl : Scene3DControl {
     override fun zoomLevel(): Double = ml3dCamera().split(',').getOrNull(2)?.toDoubleOrNull() ?: 1.0
 
     override fun setZoom(zoom: Double) = ml3dZoom(zoom)
+
+    override fun lookAt(lat: Double, lon: Double) = ml3dLookAt(lat, lon)
 
     override fun metresPerDp(): Double {
         val v = ml3dCamera().split(',').map { it.toDoubleOrNull() ?: 0.0 }

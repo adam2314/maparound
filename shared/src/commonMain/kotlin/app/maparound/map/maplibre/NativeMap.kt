@@ -57,3 +57,18 @@ interface NativeMapCallbacks {
     /** The finger was lifted after a long press (or the gesture was cancelled). */
     fun onLongPressEnd(lat: Double, lon: Double)
 }
+
+/**
+ * A map view that can show navigation's view (Android, the web; not the iPhone's yet, whose map
+ * then just follows): tilted, turned so the way ahead is up, our position low in the view.
+ */
+interface NavCamera {
+    /**
+     * Eases over [durationMs] to ([lat], [lon]) at MapLibre's [zoom], [bearing] up, tilted [pitch]
+     * degrees, the point [anchor] of the way down the view (0 the top, 1 the bottom).
+     */
+    fun navCamera(lat: Double, lon: Double, zoom: Double, bearing: Double, pitch: Double, anchor: Double, durationMs: Int)
+
+    /** Back to the flat map, north up, where it is. */
+    fun endNavCamera()
+}

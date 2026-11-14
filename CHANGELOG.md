@@ -33,10 +33,12 @@
   slider: drag it to zoom, tap it to jump there. Its thumb shows the scale now, a round distance
   in metres or kilometres above and in feet or miles below, each with a bar as long as it is on the
   map. It replaces the scale bar in the map's corner. On Android, iPhone and the web.
-- **More of the 3D view.** Its buttons are where the map's are, in the column on the right (left
-  in Hebrew), with the same zoom slider and the scale at the view's middle on its thumb. The relief
-  and buildings settings are behind a button there, so the view is clear, and the 3D view credits
-  what it shows, as the map does: the map's sources, the imagery when it's on, and the relief data.
+- **The 3D view keeps the map's buttons.** The same column as on the map, in the same places:
+  search (the view goes to what you pick), layers, route (greyed out in 3D), and the 3D button,
+  lit while in 3D, which switches back; the tools button becomes the relief's (relief, buildings,
+  satellite imagery), and the zoom slider shows the scale at the view's middle. A compass appears
+  on the other side while the view is turned; a tap faces north. The 3D view credits what it
+  shows, as the map does: the map's sources, the imagery when it's on, and the relief data.
 - **Buildings on slopes in 3D.** A building on a hillside sank into the slope on its uphill side.
   Now its roof is its height above the highest corner and its walls go down into the ground below
   the lowest, following the relief as you raise it. On Android and in the web app.
@@ -91,6 +93,15 @@
   and *Where it was taken* on the map. Online; on Android, iPhone and the web.
 - **Hebrew names in offline search on Android.** A phone set to Hebrew (or Indonesian) now gets
   the map's names in its language where the map has them; it got the local names.
+
+### Navigation
+- **Navigation looks ahead.** While navigating the map tilts, turns so the way ahead is up, and
+  puts you low on the screen, so most of it shows what's coming. The faster you go, the further
+  out it zooms: close in on foot, a few streets ahead on a bike, well down the road in a car. A
+  round badge shows your speed, in the unit chosen on the Speed screen. The tab bar steps aside
+  while navigating so the map has the whole screen; Stop brings it back with the flat, north-up
+  map. Drag the map to look around; the location button goes back to the navigation view. On
+  Android and in the web app (the iPhone keeps the flat map that follows you for now).
 
 ### Web app
 - **MapAround in the browser** at [adam2314.github.io/maparound/app](https://adam2314.github.io/maparound/app/),

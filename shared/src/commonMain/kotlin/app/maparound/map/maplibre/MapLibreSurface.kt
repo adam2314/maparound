@@ -10,6 +10,7 @@ import app.maparound.map.PartyMarker
 import app.maparound.map.PlaceMarker
 import app.maparound.map.ToolLine
 import app.maparound.routing.GeoPoint
+import app.maparound.routing.NavView
 import app.maparound.sensors.GeoFix
 import app.maparound.three.Camera3D
 import app.maparound.tools.Viewshed
@@ -116,6 +117,16 @@ class MapLibreSurface(
                 points.minOf { it.lat }, points.minOf { it.lon }, points.maxOf { it.lat }, points.maxOf { it.lon }, animated = true,
             )
         }
+    }
+
+    override fun followNavigation(lat: Double, lon: Double, bearing: Double, zoom: Double) {
+        val nav = native as? NavCamera ?: return animateTo(lat, lon, zoom.toInt())
+        val z = zoom.coerceIn(MIN_ZOOM.toDouble(), MAX_ZOOM.toDouble()) - ZOOM_OFFSET
+        nav.navCamera(lat, lon, z, bearing, NavView.PITCH, NavView.ANCHOR, NAV_EASE_MS)
+    }
+
+    override fun endNavigation() {
+        (native as? NavCamera)?.endNavCamera()
     }
 
     override fun camera3D(): Camera3D? {
@@ -281,6 +292,9 @@ class MapLibreSurface(
         private const val COLOR_A = 0xFF1565C0.toInt()
         private const val COLOR_B = 0xFFEF6C00.toInt()
         private const val EARTH_CIRCUMFERENCE_M = 40_075_016.686
+
+        /** Navigation's view eases from fix to fix over this long (a fix a second). */
+        private const val NAV_EASE_MS = 900
 
         /** How near a tap must be to a point of interest's symbol (as the markers'). */
         const val TAP_RADIUS_DP = 22.0

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
@@ -42,6 +43,8 @@ import app.maparound.i18n.T
 import app.maparound.routing.Guidance
 import app.maparound.routing.NavigationSession
 import app.maparound.routing.Turn
+import app.maparound.sensors.GeoFix
+import app.maparound.sensors.SpeedUnit
 import app.maparound.routing.TurnGlyph
 import app.maparound.shared.util.nowMillis
 
@@ -180,6 +183,31 @@ fun NavigationPanel(nav: NavigationSession.State, voice: Boolean, onVoice: (Bool
                 ),
                 contentPadding = PaddingValues(horizontal = 20.dp),
             ) { Text(T.nav.stopNavigation) }
+        }
+    }
+}
+
+/**
+ * How fast we're going while navigating, in the unit chosen on the Speed screen ([unit]): a round
+ * badge as on a car's dashboard; a dash while the location has no speed.
+ */
+@Composable
+fun NavSpeed(fix: GeoFix?, unit: SpeedUnit, modifier: Modifier = Modifier) {
+    val mps = fix?.speedMps?.toDouble()?.takeIf { it.isFinite() && it >= 0 }
+    Surface(modifier.size(64.dp), shape = CircleShape, tonalElevation = 3.dp, shadowElevation = 6.dp) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Text(
+                mps?.let { fmtSpeed(it, unit) } ?: "–",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+            )
+            Text(
+                unit.label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
         }
     }
 }

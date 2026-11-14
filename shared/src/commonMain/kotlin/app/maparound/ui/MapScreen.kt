@@ -102,6 +102,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.Color
@@ -149,6 +150,7 @@ import app.maparound.raster.LocalRasters
 import app.maparound.routing.Geo
 import app.maparound.routing.GeoPoint
 import app.maparound.routing.MapFocus
+import app.maparound.routing.NavView
 import app.maparound.routing.NavigationSession
 import app.maparound.routing.PlannerSession
 import app.maparound.routing.RouteProfile
@@ -318,6 +320,7 @@ fun MapScreen(
     // ---- routes & tracks ------------------------------------------------------------------------
     val planner by PlannerSession.state.collectAsState()
     val nav by NavigationSession.state.collectAsState()
+    val speedUnit by prefs.speedUnit.collectAsState()
     val navVoice by prefs.navVoice.collectAsState()
     val recorder by TrackRecorder.state.collectAsState()
     val savedTracks by tracksRepo.tracks.collectAsState()
@@ -550,19 +553,39 @@ fun MapScreen(
             }
         }
     }
+    // Navigation's view: tilted, the way ahead up, our position low, further out the faster we go.
+    val navView = remember { NavView() }
+    var navShown by remember { mutableStateOf(false) }
+
+    /** Navigation's view at [loc], now. */
+    fun showNavigation(loc: GeoFix) {
+        if (navView.zoom.isNaN()) navView.update(loc, NavigationSession.state.value)
+        controller.followNavigation(loc.lat, loc.lon, navView.bearing, navView.zoom)
+        navShown = true
+    }
     LaunchedEffect(location) {
         val loc = location
         controller.updateLocation(loc)
-        // The background service feeds navigation too; the same fix counts once.
-        if (loc != null && NavigationSession.state.value.active) NavigationSession.onFix(loc)
-        if (follow && loc != null) controller.animateTo(loc.lat, loc.lon)
+        val navigating = loc != null && NavigationSession.state.value.active
+        if (navigating) {
+            // The background service feeds navigation too; the same fix counts once.
+            NavigationSession.onFix(loc!!)
+            navView.update(loc, NavigationSession.state.value)
+        }
+        if (follow && loc != null) {
+            if (navigating) showNavigation(loc) else controller.animateTo(loc.lat, loc.lon)
+        }
     }
     LaunchedEffect(nav.active) {
         if (nav.active) {
             follow = true
             pin = null
             showMe = false
-            location?.let { controller.animateTo(it.lat, it.lon, minZoom = if (nav.profile == RouteProfile.CAR) 16 else 17) }
+            navView.reset()
+            location?.let(::showNavigation)
+        } else if (navShown) {
+            navShown = false
+            controller.endNavigation()
         }
     }
     if (nav.active) KeepScreenOn()
@@ -607,7 +630,82 @@ fun MapScreen(
     var showLayers by remember { mutableStateOf(false) }
     var showLegend by remember { mutableStateOf(false) }
     var scene3d by remember { mutableStateOf<app.maparound.three.Camera3D?>(null) }
+    var scene3dControl by remember { mutableStateOf<Scene3DControl?>(null) }
     var searching by remember { mutableStateOf(false) }
+
+    /**
+     * The map's button column, the same in 2D and 3D: search, layers, route and tools, 3D, the zoom
+     * slider. In 3D ([in3d]) the 3D button is lit and goes back to 2D, route is greyed out, and tools
+     * gives way to the relief's settings ([relief] open, [onRelief] toggles them).
+     */
+    @Composable
+    fun MapButtons(
+        modifier: Modifier,
+        in3d: Boolean,
+        zoom: app.maparound.map.ZoomTarget?,
+        relief: Boolean,
+        onRelief: () -> Unit,
+        onSwitch3d: () -> Unit,
+        bottomLimit: Float?,
+    ) {
+        Column(
+            modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalAlignment = Alignment.End,
+        ) {
+            SmallFloatingActionButton(onClick = { searching = true }) {
+                Icon(Icons.Filled.Search, contentDescription = T.map.searchPlaces)
+            }
+            SmallFloatingActionButton(onClick = { showLayers = true }) {
+                Icon(Icons.Filled.Layers, contentDescription = T.map.mapLayers)
+            }
+            if (!nav.active) SmallFloatingActionButton(
+                onClick = {
+                    if (in3d) return@SmallFloatingActionButton
+                    if (planner.active) {
+                        PlannerSession.close()
+                    } else {
+                        ToolsSession.close()
+                        PlannerSession.open()
+                    }
+                },
+                modifier = Modifier.alpha(if (in3d) 0.38f else 1f),
+                containerColor = if (planner.active && !in3d) MaterialTheme.colorScheme.primary else FloatingActionButtonDefaults.containerColor,
+                contentColor = if (planner.active && !in3d) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+            ) {
+                Icon(Icons.Filled.Route, contentDescription = T.map.planRoute)
+            }
+            if (in3d) SmallFloatingActionButton(
+                onClick = onRelief,
+                containerColor = if (relief) MaterialTheme.colorScheme.primary else FloatingActionButtonDefaults.containerColor,
+                contentColor = if (relief) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+            ) {
+                Icon(Icons.Filled.Terrain, contentDescription = T.map.view3dSettings)
+            } else if (!nav.active) SmallFloatingActionButton(
+                onClick = {
+                    if (tools.active) {
+                        ToolsSession.close()
+                    } else {
+                        PlannerSession.close()
+                        ToolsSession.open()
+                    }
+                },
+                containerColor = if (tools.active) MaterialTheme.colorScheme.primary else FloatingActionButtonDefaults.containerColor,
+                contentColor = if (tools.active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+            ) {
+                Icon(Icons.Filled.Straighten, contentDescription = T.map.mapToolsButton)
+            }
+            SmallFloatingActionButton(
+                onClick = onSwitch3d,
+                containerColor = if (in3d) MaterialTheme.colorScheme.primary else FloatingActionButtonDefaults.containerColor,
+                contentColor = if (in3d) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+            ) {
+                Icon(Icons.Filled.ViewInAr, contentDescription = if (in3d) T.map.close3d else T.map.view3dHere)
+            }
+            // The zoom, with the scale on its thumb.
+            zoom?.let { ZoomScale(it, Modifier.padding(top = 4.dp), bottomLimit = bottomLimit) }
+        }
+    }
 
     Box(Modifier.fillMaxSize()) {
         mapView(controller, Modifier.fillMaxSize())
@@ -657,54 +755,14 @@ fun MapScreen(
             }
         }
 
-        Column(
-            Modifier.align(Alignment.TopEnd).padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            horizontalAlignment = Alignment.End,
-        ) {
-            SmallFloatingActionButton(onClick = { searching = true }) {
-                Icon(Icons.Filled.Search, contentDescription = T.map.searchPlaces)
-            }
-            SmallFloatingActionButton(onClick = { showLayers = true }) {
-                Icon(Icons.Filled.Layers, contentDescription = T.map.mapLayers)
-            }
-            if (!nav.active) SmallFloatingActionButton(
-                onClick = {
-                    if (planner.active) {
-                        PlannerSession.close()
-                    } else {
-                        ToolsSession.close()
-                        PlannerSession.open()
-                    }
-                },
-                containerColor = if (planner.active) MaterialTheme.colorScheme.primary else FloatingActionButtonDefaults.containerColor,
-                contentColor = if (planner.active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
-            ) {
-                Icon(Icons.Filled.Route, contentDescription = T.map.planRoute)
-            }
-            if (!nav.active) SmallFloatingActionButton(
-                onClick = {
-                    if (tools.active) {
-                        ToolsSession.close()
-                    } else {
-                        PlannerSession.close()
-                        ToolsSession.open()
-                    }
-                },
-                containerColor = if (tools.active) MaterialTheme.colorScheme.primary else FloatingActionButtonDefaults.containerColor,
-                contentColor = if (tools.active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
-            ) {
-                Icon(Icons.Filled.Straighten, contentDescription = T.map.mapToolsButton)
-            }
-            SmallFloatingActionButton(onClick = {
+        MapButtons(
+            Modifier.align(Alignment.TopEnd), in3d = false, zoom = controller, relief = false, onRelief = {},
+            onSwitch3d = {
                 follow = false
                 controller.camera3D()?.let { scene3d = it }
-            }) {
-                Icon(Icons.Filled.ViewInAr, contentDescription = T.map.view3dHere)
-            }
-            // The zoom, with the scale on its thumb.
-            ZoomScale(controller, Modifier.padding(top = 4.dp), bottomLimit = bottomButtonsTop)
-        }
+            },
+            bottomLimit = bottomButtonsTop,
+        )
 
         if (nav.active) {
             // Left of the button column on the right.
@@ -746,6 +804,8 @@ fun MapScreen(
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
         Column(Modifier.weight(1f).padding(start = 8.dp, bottom = 8.dp)) {
+            // Navigating: how fast we're going.
+            if (nav.active) NavSpeed(location, speedUnit, Modifier.padding(bottom = 4.dp))
             if (showMe) {
                 location?.let { me ->
                     PinCard(
@@ -910,7 +970,7 @@ fun MapScreen(
                         follow = true
                         val loc = location
                         if (loc != null) {
-                            controller.animateTo(loc.lat, loc.lon, minZoom = 15)
+                            if (nav.active) showNavigation(loc) else controller.animateTo(loc.lat, loc.lon, minZoom = 15)
                         } else {
                             scope.launch { snackbar.showSnackbar(T.map.waitingForFix) }
                         }
@@ -1002,11 +1062,19 @@ fun MapScreen(
             if (showingOffline) backgroundAttribution(background, rasterMaps) else null,
             if (trailOverlay) TileSources.trailsOverlay.attribution else null,
         ).joinToString(" · ")
-        Scene3DScreen(req, mapCredits, onClose = { last ->
-            scene3d = null
-            // The 2D map comes back where the 3D view was looking.
-            last?.let(controller::showFrom3D)
-        }) { view3d(it) }
+        Scene3DScreen(
+            req, mapCredits,
+            onClose = { last ->
+                scene3d = null
+                scene3dControl = null
+                // The 2D map comes back where the 3D view was looking.
+                last?.let(controller::showFrom3D)
+            },
+            onControl = { scene3dControl = it },
+            buttons = { zoom, relief, onRelief, close, limit ->
+                MapButtons(Modifier, in3d = true, zoom = zoom, relief = relief, onRelief = onRelief, onSwitch3d = close, bottomLimit = limit)
+            },
+        ) { view3d(it) }
     }
 
     if (searching) {
@@ -1025,6 +1093,8 @@ fun MapScreen(
                     pinLabel = r.name
                 }
                 controller.moveTo(MapPos(r.lat, r.lon, maxOf(controller.position().zoom, 14)))
+                // In 3D: the view goes there too.
+                scene3dControl?.lookAt(r.lat, r.lon)
             },
             onClose = { searching = false },
         )

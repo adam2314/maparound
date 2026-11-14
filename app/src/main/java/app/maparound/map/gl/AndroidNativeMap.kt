@@ -8,8 +8,10 @@ import android.view.MotionEvent
 import android.view.Gravity
 import app.maparound.map.maplibre.MapStyle
 import app.maparound.map.maplibre.NativeCamera
+import app.maparound.map.maplibre.NavCamera
 import app.maparound.map.maplibre.NativeMap
 import app.maparound.map.maplibre.NativeMapCallbacks
+import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
@@ -33,7 +35,7 @@ class AndroidNativeMap(
     context: Context,
     /** Draws text, symbols and lines this much larger (the car screen, read at a glance). */
     textScale: Float = 1f,
-) : NativeMap {
+) : NativeMap, NavCamera {
     private val density = context.resources.displayMetrics.density * textScale
     private val markers = MarkerBitmaps(density)
 
@@ -202,6 +204,30 @@ class AndroidNativeMap(
         val d = density
         val update = CameraUpdateFactory.newLatLngBounds(bounds, (48 * d).toInt(), (100 * d).toInt(), (48 * d).toInt(), (160 * d).toInt())
         if (animated) m.animateCamera(update, ANIMATION_MS) else m.moveCamera(update)
+    }
+
+    override fun navCamera(lat: Double, lon: Double, zoom: Double, bearing: Double, pitch: Double, anchor: Double, durationMs: Int) {
+        val m = map ?: return
+        // The middle of what's below the top padding is the point: (2·anchor − 1) of the height.
+        val top = ((2 * anchor - 1) * view.height).coerceAtLeast(0.0)
+        val position = CameraPosition.Builder()
+            .target(LatLng(lat, lon))
+            .zoom(zoom)
+            .bearing(bearing)
+            .tilt(pitch)
+            .padding(0.0, top, 0.0, 0.0)
+            .build()
+        // The compass would sit under navigation's banner; the view turns by itself.
+        m.uiSettings.isCompassEnabled = false
+        m.easeCamera(CameraUpdateFactory.newCameraPosition(position), durationMs, false)
+    }
+
+    override fun endNavCamera() {
+        val m = map ?: return
+        m.uiSettings.isCompassEnabled = true
+        val c = m.cameraPosition
+        val position = CameraPosition.Builder(c).bearing(0.0).tilt(0.0).padding(0.0, 0.0, 0.0, 0.0).build()
+        m.animateCamera(CameraUpdateFactory.newCameraPosition(position), ANIMATION_MS)
     }
 
     override fun setCallbacks(callbacks: NativeMapCallbacks?) {

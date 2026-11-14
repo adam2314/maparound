@@ -159,7 +159,7 @@ fun SpeedScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
     }
 }
 
-private fun fmtSpeed(mps: Double, unit: SpeedUnit): String {
+internal fun fmtSpeed(mps: Double, unit: SpeedUnit): String {
     val v = mps * unit.perMps
     return if (v < 10) localFixed(v, 1) else v.roundToInt().toString()
 }

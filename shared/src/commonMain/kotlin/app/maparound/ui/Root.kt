@@ -82,6 +82,7 @@ fun MapAroundRoot(
     var tab by rememberSaveable { mutableStateOf(initialTab) }
 
     val snackbar = remember { SnackbarHostState() }
+    val navigating = app.maparound.routing.NavigationSession.state.collectAsState().value.active
     val party = LocalParty.current
     // Messages from downloads and other background work.
     LaunchedEffect(Unit) { messages.collect { snackbar.showSnackbar(it) } }
@@ -118,7 +119,8 @@ fun MapAroundRoot(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
-            NavigationBar {
+            // Navigating on the map: the map has the whole screen.
+            if (!(navigating && tab == Tab.Map)) NavigationBar {
                 tabs.forEach { t ->
                     NavigationBarItem(
                         selected = tab == t,
