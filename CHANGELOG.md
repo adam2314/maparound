@@ -27,6 +27,10 @@
   zoom in (from zoom 10).
 - **Smooth 3D.** The 3D view tilts in from the map as it opens and eases back to a flat, north-up map
   as it closes; the map then shows where you were looking in 3D.
+- **A zoom slider with the scale.** The map's button column has + and −, and between them a
+  slider: drag it to zoom, tap it to jump there. Its thumb shows the scale now, a round distance
+  in metres or kilometres above and in feet or miles below, each with a bar as long as it is on the
+  map. It replaces the scale bar in the map's corner. On Android, iPhone and the web.
 - **More of the 3D view.** The relief and buildings settings are behind a button (next to
   satellite), so the view is clear, and the 3D view now credits what it shows, as the map does:
   the map's sources, the imagery when it's on, and the relief data.
@@ -106,7 +110,6 @@
 - **Offline maps in the browser.** Download MapAround's maps (with the marked trails) from the
   Offline tab, then add the file with the file button: the map is kept in the browser's storage
   and drawn offline, like on the phone. A `.map` file you already have can be added the same way.
-- **A scale bar** on the web map (metres and feet), as on the phone.
 - **The address follows the map** (`#map=zoom/lat/lon`, as on openstreetmap.org): reload, bookmark
   or share the link and the map opens at the same place and zoom. A pin is in it too, as
   OpenStreetMap's pinpoint (`?mlat=…&mlon=…`), so the link opens with the pin.

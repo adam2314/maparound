@@ -462,7 +462,7 @@ Library) chooses: the device's language, English or עברית. The language cha
   `I18n.language` is snapshot state, so they redraw in a new language. Hebrew is gender-neutral
   (actions as nouns and infinitives).
 - **Right to left**: the app root sets Compose's layout direction from the language, so screens
-  mirror on every platform (the map's buttons go left, its scale bar and compass right).
+  mirror on every platform (the map's buttons and zoom slider go left, its compass right).
   Coordinates and other runs that must read left to right are wrapped in Unicode isolates
   (`ltr()`) where they're shown, never in what's copied or shared. Units, dates and directions
   are translated (ק״מ, דק׳, 3 בנוב׳, צפון־מזרח).
@@ -504,8 +504,7 @@ How it fits together (`webApp/`, `shared/src/wasmJsMain/`):
   over it. Compose gets the touches first; a press that reaches the map "claims" it, and
   `mapview.js` moves the map from the browser's own pointer events (Compose's web input reports
   one finger, so pinch and twist are done there). Taps, double taps and long presses come back
-  through Compose. The scale bar (as Android's) and the view in the address (`#map=…`) are
-  `mapview.js`'s too; the map screen makes a new map each time it's shown, which replaces the old
+  through Compose. The view in the address (`#map=…`) is `mapview.js`'s too; the map screen makes a new map each time it's shown, which replaces the old
   one.
 - **Tiles from the shared code, in a worker.** The offline map's tiles (`maparound://…`) are made
   by the shared `TileService`, as Android's interceptor and iOS's local server do, in a Web Worker
@@ -592,7 +591,7 @@ app/src/main/java/app/maparound/
                            download service that keeps terrain & trail downloads going
   map/                     the map screen's MapSurface on MapLibre (AndroidMapSurface), the styles
                            (AndroidMapThemes: built in and imported), the 3D view's mapsforge data
-    gl/                    MapLibre on Android: the MapView wrapper, marker images, scale bar, the
+    gl/                    MapLibre on Android: the MapView wrapper, marker images, the
                            tile server (GlTiles: shared TileService plus raster maps, trails,
                            viewshed) and the styles made from the mapsforge themes (GlStyles)
   terrain/                 elevation tiles, contour tracing, contour data source, coast mask

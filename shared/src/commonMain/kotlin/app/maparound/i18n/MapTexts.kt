@@ -264,6 +264,8 @@ open class MapTexts {
     // ---- the 3D view ----
     open val close3d = "Close 3D view"
     open val faceNorth = "Face north"
+    open val zoomIn = "Zoom in"
+    open val zoomOut = "Zoom out"
 
     /** The 3D view's button that shows its settings. */
     open val view3dSettings = "Relief and buildings"
@@ -523,6 +525,8 @@ object MapTextsHe : MapTexts() {
 
     override val close3d = "סגירת תצוגת התלת־ממד"
     override val faceNorth = "פנייה צפונה"
+    override val zoomIn = "התקרבות"
+    override val zoomOut = "התרחקות"
     override val view3dSettings = "תבליט ומבנים"
     override val backToMap = "חזרה למפה"
     override fun relief(times: String) = "תבליט ⁦×${times}⁩"

@@ -63,25 +63,12 @@ class AndroidNativeMap(
 
     private var longPressing = false
 
-    private val scaleBar = ScaleBarView(context)
-
     // The app's language decides the side (the phone's may be another): the buttons are mirrored with it.
     private val rtl = app.maparound.i18n.I18n.rtl
     private val side = if (rtl) Gravity.RIGHT else Gravity.LEFT
 
     init {
         view.onCreate(null)
-        view.addView(
-            scaleBar,
-            android.widget.FrameLayout.LayoutParams(
-                android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
-                Gravity.TOP or side,
-            ).apply {
-                // On the side away from the buttons: right in a right-to-left language.
-                val m = (8 * density).toInt()
-                if (rtl) setMargins(0, m, m, 0) else setMargins(m, m, 0, 0)
-            },
-        )
         // Marker and symbol images are drawn from their names when the map first needs them.
         view.addOnStyleImageMissingListener { id ->
             val style = map?.style ?: return@addOnStyleImageMissingListener
@@ -93,10 +80,10 @@ class AndroidNativeMap(
                 isTiltGesturesEnabled = false
                 isLogoEnabled = false
                 isAttributionEnabled = false
-                // Under the scale bar, clear of the buttons on the right.
+                // In the top corner away from the buttons (the scale is the app's zoom slider's).
                 compassGravity = Gravity.TOP or side
-                if (rtl) setCompassMargins(0, (112 * density).toInt(), (12 * density).toInt(), 0)
-                else setCompassMargins((12 * density).toInt(), (112 * density).toInt(), 0, 0)
+                if (rtl) setCompassMargins(0, (12 * density).toInt(), (12 * density).toInt(), 0)
+                else setCompassMargins((12 * density).toInt(), (12 * density).toInt(), 0, 0)
             }
             // Fewer lower-zoom tiles fetched ahead: the app makes its tiles on the phone.
             m.prefetchZoomDelta = 2
@@ -105,9 +92,6 @@ class AndroidNativeMap(
             m.addOnCameraMoveStartedListener { reason ->
                 if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) callbacks?.onUserGesture()
             }
-            val scale = { m.cameraPosition.let { c -> c.target?.let { scaleBar.update(it.latitude, c.zoom) } } }
-            m.addOnCameraMoveListener { scale() }
-            m.addOnCameraIdleListener { scale() }
             m.addOnMapClickListener { p ->
                 val screen = m.projection.toScreenLocation(p)
                 callbacks?.onTap(p.latitude, p.longitude, tapped(m, screen))

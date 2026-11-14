@@ -455,7 +455,6 @@
     if (map && dpr() !== ratio) {
       ratio = dpr();
       if (map.setPixelRatio) map.setPixelRatio(ratio);
-      drawScale();
     }
   });
 
@@ -464,82 +463,9 @@
   window.addEventListener('pointerup', up, true);
   window.addEventListener('pointercancel', up, true);
 
-  // ---- the scale bar (as Android's ScaleBarView): metric above the line, imperial below -------------
-
-  const SCALE_MAX = 100; // the longest bar, CSS px
-  const EARTH_M = 40075016.686;
-  let scaleEl = null;
-  let scaleMpp = 0;
-  let scaleRatio = 0;
-  // Right to left (Hebrew): the scale bar on the right, where the app's buttons aren't.
+  // The scale is the app's (its zoom slider's thumb), not drawn here. Right to left (Hebrew): kept
+  // for what the map itself may place on a side.
   let rtl = false;
-
-  /** The largest 1, 2 or 5 × 10ⁿ not over v. */
-  function nice(v) {
-    if (v <= 0) return 0;
-    const p = Math.pow(10, Math.floor(Math.log10(v)));
-    const f = v / p;
-    return p * (f >= 5 ? 5 : f >= 2 ? 2 : 1);
-  }
-
-  function amount(v) { return v >= 1 || v === 0 ? String(Math.round(v)) : v.toFixed(1); }
-
-  function drawScale() {
-    if (!map || !container) return;
-    // None in the 3D view: a scale means little in perspective.
-    if (scaleEl) scaleEl.style.display = view3d ? 'none' : '';
-    if (view3d) return;
-    // Metres per CSS pixel at the map's centre (MapLibre's zoom: 512-pixel tiles).
-    const mpp = EARTH_M * Math.cos(map.getCenter().lat * Math.PI / 180) / (512 * Math.pow(2, map.getZoom()));
-    const d = dpr();
-    if (scaleEl && scaleEl.parentNode === container && mpp === scaleMpp && d === scaleRatio) return;
-    scaleMpp = mpp;
-    scaleRatio = d;
-    const W = SCALE_MAX + 16, H = 40;
-    if (!scaleEl) {
-      scaleEl = document.createElement('canvas');
-      // Over the map's own canvas; the app's screens (over the whole map) still cover it.
-      scaleEl.style.cssText = 'position:absolute;top:8px;width:' + W + 'px;height:' + H + 'px;z-index:2;pointer-events:none';
-    }
-    scaleEl.style.left = rtl ? '' : '8px';
-    scaleEl.style.right = rtl ? '8px' : '';
-    if (scaleEl.parentNode !== container) container.appendChild(scaleEl);
-    scaleEl.width = Math.ceil(W * d);
-    scaleEl.height = Math.ceil(H * d);
-    const g = scaleEl.getContext('2d');
-    g.setTransform(d, 0, 0, d, 0, 0);
-    g.clearRect(0, 0, W, H);
-    const x0 = 4, mid = 20;
-    const metres = nice(mpp * SCALE_MAX);
-    const feet = mpp * SCALE_MAX / 0.3048;
-    const imperial = feet >= 5280 ? nice(feet / 5280) * 1609.344 : nice(feet) * 0.3048;
-    const wMetric = metres / mpp, wImperial = imperial / mpp, w = Math.max(wMetric, wImperial);
-    g.lineCap = 'square';
-    for (const [color, width] of [['#fff', 5], ['#000', 2]]) {
-      g.strokeStyle = color;
-      g.lineWidth = width;
-      g.beginPath();
-      g.moveTo(x0, mid); g.lineTo(x0 + w, mid);
-      g.moveTo(x0, mid - 8); g.lineTo(x0, mid + 8);
-      g.moveTo(x0 + wMetric, mid); g.lineTo(x0 + wMetric, mid - 8);
-      g.moveTo(x0 + wImperial, mid); g.lineTo(x0 + wImperial, mid + 8);
-      g.stroke();
-    }
-    const miles = imperial / 1609.344;
-    const top = metres >= 1000 ? amount(metres / 1000) + ' km' : amount(metres) + ' m';
-    const bottom = miles >= 0.999 ? amount(miles) + ' mi' : amount(imperial / 0.3048) + ' ft';
-    g.font = font(12, true);
-    g.textAlign = 'left';
-    g.lineJoin = 'round';
-    g.strokeStyle = '#fff';
-    g.lineWidth = 3;
-    g.fillStyle = '#000';
-    for (const [text, y, base] of [[top, mid - 3, 'alphabetic'], [bottom, mid + 3, 'top']]) {
-      g.textBaseline = base;
-      g.strokeText(text, x0 + 4, y);
-      g.fillText(text, x0 + 4, y);
-    }
-  }
 
   // ---- where the map is, in the page's address: #map=zoom/lat/lon ----------------------------------
   // As on openstreetmap.org (its zoom, the app's: one more than MapLibre's), so a link or a reload
@@ -856,11 +782,9 @@
   });
 
   window.MapAroundMap = {
-    /** Right to left: the map's own things (the scale bar) on the other side. */
+    /** Right to left: the map's own things on the other side. */
     setRtl(v) {
       rtl = !!v;
-      scaleMpp = 0;
-      drawScale();
     },
     create(containerId, styleJson, symbols, onTile, onUserGesture) {
       container = document.getElementById(containerId);
@@ -885,8 +809,6 @@
       map.on('styleimagemissing', onMissingImage);
       map.on('style.load', applyGeo);
       map.on('style.load', apply3d);
-      map.on('move', drawScale);
-      map.on('resize', drawScale);
       map.on('moveend', writeHash);
       map.on('moveend', settle3d);
       map.on('data', onData3d);
@@ -939,7 +861,6 @@
         view3d = { back: { center: [c.lng, c.lat], zoom: map.getZoom(), bearing: map.getBearing(), pitch: 0 } };
         map.setMaxPitch(MAX_PITCH_3D);
         container.style.background = SPACE;
-        drawScale();
       }
       Object.assign(view3d, { satellite: satellite, exaggeration: exaggeration, buildings: buildings, leaving: false });
       apply3d();
@@ -975,7 +896,6 @@
         map.setMaxPitch(MAX_PITCH_2D);
         container.style.background = '';
         map.jumpTo(back);
-        drawScale();
       }, 0);
     },
     exaggeration3d(e) {

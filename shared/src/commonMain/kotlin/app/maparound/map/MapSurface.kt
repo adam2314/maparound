@@ -99,6 +99,15 @@ interface MapSurface {
 
     fun position(): MapPos
     fun moveTo(pos: MapPos)
+
+    /** The zoom now with its fraction, in [position]'s terms. */
+    fun zoomLevel(): Double = position().zoom.toDouble()
+
+    /** Zooms about the middle of the view to [zoom] (with its fraction), at once. */
+    fun setZoom(zoom: Double) = moveTo(position().copy(zoom = kotlin.math.round(zoom).toInt()))
+
+    /** The zooms the map goes to, in [position]'s terms. */
+    val zoomRange: ClosedFloatingPointRange<Double> get() = 2.0..21.0
     fun animateTo(lat: Double, lon: Double, minZoom: Int? = null)
 
     /** Moves so that all [points] are in view. */

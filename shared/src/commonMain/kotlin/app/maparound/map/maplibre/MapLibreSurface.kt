@@ -93,6 +93,15 @@ class MapLibreSurface(
         )
     }
 
+    override fun zoomLevel(): Double = native.camera().zoom + ZOOM_OFFSET
+
+    override fun setZoom(zoom: Double) {
+        val c = native.camera()
+        native.moveCamera(c.lat, c.lon, zoom.coerceIn(MIN_ZOOM.toDouble(), MAX_ZOOM.toDouble()) - ZOOM_OFFSET, animated = false)
+    }
+
+    override val zoomRange: ClosedFloatingPointRange<Double> get() = MIN_ZOOM.toDouble()..MAX_ZOOM.toDouble()
+
     override fun animateTo(lat: Double, lon: Double, minZoom: Int?) {
         val zoom = native.camera().zoom
         val target = if (minZoom != null && zoom + ZOOM_OFFSET < minZoom) (minZoom - ZOOM_OFFSET).toDouble() else zoom

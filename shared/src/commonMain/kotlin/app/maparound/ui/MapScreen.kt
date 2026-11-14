@@ -439,7 +439,7 @@ fun MapScreen(
         launch { stats.loadCountries() }
         launch { stats.loadLocalities() }
         while (true) {
-            dataZoom = controller.position().zoom.toDouble()
+            dataZoom = controller.zoomLevel()
             delay(400)
         }
     }
@@ -656,6 +656,7 @@ fun MapScreen(
         Column(
             Modifier.align(Alignment.TopEnd).padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalAlignment = Alignment.End,
         ) {
             SmallFloatingActionButton(onClick = { searching = true }) {
                 Icon(Icons.Filled.Search, contentDescription = T.map.searchPlaces)
@@ -697,6 +698,8 @@ fun MapScreen(
             }) {
                 Icon(Icons.Filled.ViewInAr, contentDescription = T.map.view3dHere)
             }
+            // The zoom, with the scale on its thumb.
+            ZoomScale(controller, Modifier.padding(top = 4.dp))
         }
 
         if (nav.active) {
@@ -1825,7 +1828,7 @@ private fun overlap(a: GeoBounds, b: GeoBounds): GeoBounds? {
 private const val OFFER_ZOOM = 7
 private const val OFFER_CHECK_MS = 1_500L
 
-/** The data view shows Israel's localities from this zoom (MapLibre's), the countries below it. */
-private const val LOCALITIES_ZOOM = 6.0
+/** The data view shows Israel's localities from this zoom (the app's: MapLibre's 6), the countries below it. */
+private const val LOCALITIES_ZOOM = 7.0
 
 private fun Set<Int>.toggled(c: Int): Set<Int> = if (c in this) this - c else this + c
