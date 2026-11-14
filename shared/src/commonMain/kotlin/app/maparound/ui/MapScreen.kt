@@ -756,7 +756,9 @@ fun MapScreen(
             }
         }
 
-        MapButtons(
+        // Under the 3D view the 3D view's own column is shown: this one (its zoom slider following the
+        // map as it moves) would only redraw the screen behind it.
+        if (scene3d == null) MapButtons(
             Modifier.align(Alignment.TopEnd), in3d = false, zoom = controller, relief = false, onRelief = {},
             onSwitch3d = {
                 follow = false

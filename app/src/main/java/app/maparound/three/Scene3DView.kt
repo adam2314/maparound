@@ -125,6 +125,7 @@ class Scene3DView(
         renderer.stopMotion()
         renderer.lat = lat
         renderer.lon = lon
+        renderer.snapGround()
         gl.requestRender()
     }
 
@@ -136,7 +137,7 @@ class Scene3DView(
 
     override fun setZoom(zoom: Double) {
         renderer.stopMotion()
-        renderer.distance = (Renderer3D.MAX_DISTANCE / 2.0.pow(zoom)).toFloat().coerceIn(Renderer3D.MIN_DISTANCE, Renderer3D.MAX_DISTANCE)
+        renderer.zoomTo((Renderer3D.MAX_DISTANCE / 2.0.pow(zoom)).toFloat())
         gl.requestRender()
     }
 
@@ -163,6 +164,10 @@ class Scene3DView(
     private var lastY2 = 0f
     private var velocity: VelocityTracker? = null
     private var twoFingers = false
+
+    /** The twist since two fingers came down, and whether it turns the view yet (not a pinch's wobble). */
+    private var twist = 0f
+    private var turning = false
 
     private val taps = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onDoubleTap(e: MotionEvent): Boolean {
@@ -198,8 +203,9 @@ class Scene3DView(
             }
             MotionEvent.ACTION_MOVE -> {
                 velocity?.addMovement(e)
+                // Collected for the next frame, which applies them at once (see Renderer3D.queuePan).
                 if (e.pointerCount == 1) {
-                    renderer.pan(e.x - lastX, e.y - lastY, height.toFloat())
+                    renderer.queuePan(e.x - lastX, e.y - lastY, height.toFloat())
                     lastX = e.x
                     lastY = e.y
                 } else {
@@ -207,17 +213,23 @@ class Scene3DView(
                     val span = hypot(x2 - x1, y2 - y1)
                     val angle = Math.toDegrees(atan2((y2 - y1).toDouble(), (x2 - x1).toDouble())).toFloat()
                     val midY = (y1 + y2) / 2
-                    if (lastSpan > 0 && span > 0) renderer.distance = (renderer.distance * lastSpan / span).coerceIn(Renderer3D.MIN_DISTANCE, Renderer3D.MAX_DISTANCE)
+                    val zoom = if (lastSpan > 0 && span > 0) lastSpan / span else 1f
                     var dAngle = angle - lastAngle
                     if (dAngle > 180) dAngle -= 360
                     if (dAngle < -180) dAngle += 360
-                    renderer.yaw = (renderer.yaw + dAngle + 360f) % 360f
-                    // Both fingers sliding up or down together: tilt.
+                    // A twist turns the view once it's clearly meant, not with every wobble of a pinch.
+                    twist += dAngle
+                    val turn = when {
+                        turning -> dAngle
+                        abs(twist) > TWIST_START_DEG -> { turning = true; twist }
+                        else -> 0f
+                    }
+                    // Both fingers sliding up or down together, more than they spread: tilt.
                     val dy1 = y1 - lastY1
                     val dy2 = y2 - lastY2
-                    if (dy1 * dy2 > 0 && abs(span - lastSpan) < 6f) {
-                        renderer.pitch = (renderer.pitch + (midY - lastMidY) * 0.2f).coerceIn(12f, 89f)
-                    }
+                    val dMid = midY - lastMidY
+                    val tilt = if (dy1 * dy2 > 0 && abs(span - lastSpan) < abs(dMid)) dMid * 0.2f else 0f
+                    renderer.queueTwoFinger(zoom, turn, tilt)
                     lastSpan = span
                     lastAngle = angle
                     lastMidY = midY
@@ -254,6 +266,8 @@ class Scene3DView(
         lastMidY = (y1 + y2) / 2
         lastY1 = y1
         lastY2 = y2
+        twist = 0f
+        turning = false
     }
 
     /** 4× multisampling when the GPU offers it (smoother edges), else a plain config. */
@@ -275,6 +289,9 @@ class Scene3DView(
     }
 
     private companion object {
+        /** A two-finger twist turns the view once it passes this (degrees). */
+        const val TWIST_START_DEG = 8f
+
         /** Slower lifts of the finger don't fling (dp per second). */
         const val FLING_MIN_PX_S = 400f
 
@@ -357,8 +374,99 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
 
     fun camera() = Camera3D(lat, lon, distance, yaw, pitch)
 
-    private fun globeCamera(e: Float): GlobeCamera =
-        GlobeCamera(lat, lon, engine.groundAt(lat, lon).toDouble() * e, distance.toDouble(), yaw.toDouble(), pitch.toDouble())
+    private fun globeCamera(e: Float): GlobeCamera {
+        val ground = targetGround.takeUnless { it.isNaN() } ?: engine.groundAt(lat, lon)
+        return GlobeCamera(lat, lon, ground.toDouble() * e, distance.toDouble(), yaw.toDouble(), pitch.toDouble())
+    }
+
+    /**
+     * The ground the camera turns around, under the target: averaged over an area that grows with
+     * the distance and eased in time, so the view glides over ridges and gullies instead of bobbing
+     * with every rise of the elevation grid. NaN until the first frame (then it's taken as it is).
+     */
+    @Volatile private var targetGround = Float.NaN
+
+    /** The target moved somewhere else entirely (a search): its ground is taken as it is. */
+    fun snapGround() {
+        targetGround = Float.NaN
+    }
+
+    /** Eases [targetGround] towards the ground around the target by [dt] seconds; true while it still moves. */
+    private fun settleGround(dt: Float): Boolean {
+        val g = groundAround(lat, lon, (distance * 0.2f).coerceIn(15f, 4_000f).toDouble())
+        val now = targetGround
+        if (now.isNaN() || dt <= 0f) {
+            targetGround = g
+            return false
+        }
+        targetGround = now + (g - now) * (1 - exp(-dt / GROUND_EASE_S))
+        return abs(g - targetGround) > 0.3f
+    }
+
+    /** The ground at ([lat], [lon]) and on a ring [r] metres around it, the middle counting double. */
+    private fun groundAround(lat: Double, lon: Double, r: Double): Float {
+        val dLat = r / 111_195.0
+        val dLon = dLat / max(kotlin.math.cos(Math.toRadians(lat)), 0.05)
+        var sum = engine.groundAt(lat, lon) * 2
+        for (i in 0 until 8) {
+            val a = i * Math.PI / 4
+            sum += engine.groundAt(lat + kotlin.math.sin(a) * dLat, lon + kotlin.math.cos(a) * dLon)
+        }
+        return sum / 10
+    }
+
+    // ---- gestures: the UI thread collects them, the GL thread applies them as a frame starts ----
+    // (several touch events between frames make one step, and no frame shows half a gesture)
+    private val gestureLock = Any()
+    private var queuedPanX = 0f
+    private var queuedPanY = 0f
+    private var queuedViewPx = 1f
+    private var queuedZoom = 1f
+    private var queuedYaw = 0f
+    private var queuedPitch = 0f
+
+    fun queuePan(dx: Float, dy: Float, viewPx: Float) = synchronized(gestureLock) {
+        queuedPanX += dx
+        queuedPanY += dy
+        queuedViewPx = viewPx
+    }
+
+    /** Two fingers: [zoom] multiplies the distance, [yaw] and [pitch] turn and tilt (degrees). */
+    fun queueTwoFinger(zoom: Float, yaw: Float, pitch: Float) = synchronized(gestureLock) {
+        queuedZoom *= zoom
+        queuedYaw += yaw
+        queuedPitch += pitch
+    }
+
+    private fun applyGestures() {
+        val px: Float
+        val py: Float
+        val viewPx: Float
+        val z: Float
+        val dYaw: Float
+        val dPitch: Float
+        synchronized(gestureLock) {
+            px = queuedPanX; py = queuedPanY; viewPx = queuedViewPx
+            z = queuedZoom; dYaw = queuedYaw; dPitch = queuedPitch
+            queuedPanX = 0f; queuedPanY = 0f; queuedZoom = 1f; queuedYaw = 0f; queuedPitch = 0f
+        }
+        if (px != 0f || py != 0f) pan(px, py, viewPx)
+        if (z != 1f) distance = (distance * z).coerceIn(MIN_DISTANCE, MAX_DISTANCE)
+        if (dYaw != 0f) yaw = (yaw + dYaw + 360f) % 360f
+        if (dPitch != 0f) pitch = (pitch + dPitch).coerceIn(12f, 89f)
+    }
+
+    /** The time between frames, smoothed: the display's rhythm, not when this thread happened to wake. */
+    private var frameDt = 0f
+
+    /** Shader settings' locations by program and name, looked up once (not per frame and tile). */
+    private val uniforms = HashMap<Int, HashMap<String, Int>>()
+
+    private fun u(program: Int, name: String): Int =
+        uniforms.getOrPut(program) { HashMap() }.getOrPut(name) { GLES30.glGetUniformLocation(program, name) }
+
+    /** Last frame's tiles: one split then stays split a little further out (no flipping while moving). */
+    private var lastSelection: TileSelection? = null
 
     /** Moves the target so the ground follows the finger. */
     fun pan(dx: Float, dy: Float, viewPx: Float) {
@@ -425,7 +533,8 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
     }
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
-        // A new GL context: everything uploaded before is gone.
+        // A new GL context: everything uploaded before is gone, the programs too.
+        uniforms.clear()
         tiles.keys.forEach(engine::forgetTile)
         buildings.keys.forEach(engine::forgetBuildings)
         tiles.clear()
@@ -461,9 +570,13 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
     override fun onDrawFrame(gl: GL10?) {
         frameNo++
         val now = System.nanoTime()
-        val dt = if (lastFrameNanos == 0L) 0f else ((now - lastFrameNanos) / 1e9f).coerceAtMost(0.1f)
+        val dt = if (lastFrameNanos == 0L) 0f else ((now - lastFrameNanos) / 1e9f).coerceIn(1 / 240f, 0.1f)
         lastFrameNanos = now
-        var again = animate(now, dt)
+        // A pause (nothing moved for a while) starts the rhythm afresh.
+        frameDt = if (dt == 0f || dt >= 0.1f || frameDt == 0f) dt else frameDt * 0.75f + dt * 0.25f
+        applyGestures()
+        var again = animate(now, frameDt)
+        again = settleGround(frameDt) || again
         upload(now)
         GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT or GLES30.GL_DEPTH_BUFFER_BIT)
 
@@ -483,7 +596,8 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
         Matrix.invertM(invViewProj, 0, viewProj, 0)
 
         // Which tiles, and what to load next (coarse first so there are no holes, then nearest).
-        val sel = GlobeTileSelector.select(eye, viewProj, engine.textures.maxZoom, maxHeight = (MAX_TERRAIN_M * e).toDouble())
+        val sel = GlobeTileSelector.select(eye, viewProj, engine.textures.maxZoom, maxHeight = (MAX_TERRAIN_M * e).toDouble(), previous = lastSelection)
+        lastSelection = sel
         val wanted = HashMap<TileId, Double>()
         for (t in sel.nodes) if (t !in tiles) wanted[t] = t.z * 1e9 + distTo(t, eye)
         val wantBuildings = HashMap<TileId, Double>()
@@ -510,7 +624,7 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
         GLES30.glUseProgram(terrainProgram)
         val light = lightDirection(cam)
         uniforms(terrainProgram, viewProj, e, light, alt)
-        GLES30.glUniform1i(GLES30.glGetUniformLocation(terrainProgram, "uTex"), 0)
+        GLES30.glUniform1i(u(terrainProgram, "uTex"), 0)
         GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
         val drawable = HashMap<TileId, Boolean>()
         fun canDraw(t: TileId): Boolean = drawable.getOrPut(t) {
@@ -543,8 +657,8 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
                 b.used = frameNo
                 if (b.vertexCount == 0) continue
                 val off = b.center - eye
-                GLES30.glUniform3f(GLES30.glGetUniformLocation(buildingProgram, "uOffset"), off.x.toFloat(), off.y.toFloat(), off.z.toFloat())
-                GLES30.glUniformMatrix3fv(GLES30.glGetUniformLocation(buildingProgram, "uBasis"), 1, false, b.basis, 0)
+                GLES30.glUniform3f(u(buildingProgram, "uOffset"), off.x.toFloat(), off.y.toFloat(), off.z.toFloat())
+                GLES30.glUniformMatrix3fv(u(buildingProgram, "uBasis"), 1, false, b.basis, 0)
                 GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, b.vbo)
                 val stride = Buildings.STRIDE * 4
                 GLES30.glEnableVertexAttribArray(0)
@@ -580,14 +694,14 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
         GLES30.glDepthMask(false)
         GLES30.glUseProgram(skyProgram)
         val up = eye.normalized()
-        GLES30.glUniformMatrix4fv(GLES30.glGetUniformLocation(skyProgram, "uInvViewProj"), 1, false, invViewProj, 0)
-        GLES30.glUniform3f(GLES30.glGetUniformLocation(skyProgram, "uUp"), up.x.toFloat(), up.y.toFloat(), up.z.toFloat())
-        GLES30.glUniform1f(GLES30.glGetUniformLocation(skyProgram, "uHorizon"), horizon)
-        GLES30.glUniform1f(GLES30.glGetUniformLocation(skyProgram, "uSpace"), space)
-        GLES30.glUniform3f(GLES30.glGetUniformLocation(skyProgram, "uHorizonColor"), HORIZON[0], HORIZON[1], HORIZON[2])
-        GLES30.glUniform3f(GLES30.glGetUniformLocation(skyProgram, "uZenithColor"), ZENITH[0], ZENITH[1], ZENITH[2])
-        GLES30.glUniform3f(GLES30.glGetUniformLocation(skyProgram, "uSpaceColor"), SPACE[0], SPACE[1], SPACE[2])
-        GLES30.glUniform3f(GLES30.glGetUniformLocation(skyProgram, "uEarthColor"), EARTH[0], EARTH[1], EARTH[2])
+        GLES30.glUniformMatrix4fv(u(skyProgram, "uInvViewProj"), 1, false, invViewProj, 0)
+        GLES30.glUniform3f(u(skyProgram, "uUp"), up.x.toFloat(), up.y.toFloat(), up.z.toFloat())
+        GLES30.glUniform1f(u(skyProgram, "uHorizon"), horizon)
+        GLES30.glUniform1f(u(skyProgram, "uSpace"), space)
+        GLES30.glUniform3f(u(skyProgram, "uHorizonColor"), HORIZON[0], HORIZON[1], HORIZON[2])
+        GLES30.glUniform3f(u(skyProgram, "uZenithColor"), ZENITH[0], ZENITH[1], ZENITH[2])
+        GLES30.glUniform3f(u(skyProgram, "uSpaceColor"), SPACE[0], SPACE[1], SPACE[2])
+        GLES30.glUniform3f(u(skyProgram, "uEarthColor"), EARTH[0], EARTH[1], EARTH[2])
         GLES30.glBindVertexArray(skyVao)
         GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 3)
         GLES30.glBindVertexArray(0)
@@ -600,8 +714,8 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
         val (ibo, count) = indexBuffer(t.n)
         val off = t.center - eye
         val fade = if (t.fadeFrom == 0L) 1f else ((now - t.fadeFrom) / 1e9f / FADE_SECONDS).coerceIn(0f, 1f)
-        GLES30.glUniform3f(GLES30.glGetUniformLocation(terrainProgram, "uOffset"), off.x.toFloat(), off.y.toFloat(), off.z.toFloat())
-        GLES30.glUniform1f(GLES30.glGetUniformLocation(terrainProgram, "uFade"), fade)
+        GLES30.glUniform3f(u(terrainProgram, "uOffset"), off.x.toFloat(), off.y.toFloat(), off.z.toFloat())
+        GLES30.glUniform1f(u(terrainProgram, "uFade"), fade)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, if (t.tex != 0) t.tex else blankTexture)
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, t.vbo)
         val stride = GlobeMesh.STRIDE * 4
@@ -630,10 +744,16 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
         id[0] to idx.size
     }
 
-    /** Moves a few finished tiles to the GPU each frame (textures are the slow part). */
+    /**
+     * Moves finished tiles to the GPU, a few milliseconds' worth a frame (textures are the slow
+     * part): one long frame shows as a stutter, more frames each a little longer don't.
+     */
     private fun upload(now: Long) {
-        repeat(6) {
-            val t = engine.readyTiles.poll() ?: return@repeat
+        val until = System.nanoTime() + UPLOAD_BUDGET_NS
+        var uploaded = 0
+        while (uploaded < 6 && (uploaded == 0 || System.nanoTime() < until)) {
+            val t = engine.readyTiles.poll() ?: break
+            uploaded++
             tiles.remove(t.id)?.let(::free)
             val vbo = buffer(t.mesh.vertices)
             var tex = 0
@@ -703,16 +823,16 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
     }
 
     private fun uniforms(prog: Int, viewProj: FloatArray, e: Float, light: FloatArray, alt: Double) {
-        GLES30.glUniformMatrix4fv(GLES30.glGetUniformLocation(prog, "uViewProj"), 1, false, viewProj, 0)
-        GLES30.glUniform1f(GLES30.glGetUniformLocation(prog, "uExag"), e)
-        GLES30.glUniform3f(GLES30.glGetUniformLocation(prog, "uLight"), light[0], light[1], light[2])
+        GLES30.glUniformMatrix4fv(u(prog, "uViewProj"), 1, false, viewProj, 0)
+        GLES30.glUniform1f(u(prog, "uExag"), e)
+        GLES30.glUniform3f(u(prog, "uLight"), light[0], light[1], light[2])
         // Haze: thick near the ground, thin from high up; the atmosphere's rim seen from space.
         val a = max(alt, 0.0)
-        GLES30.glUniform1f(GLES30.glGetUniformLocation(prog, "uHazeDist"), (60_000.0 + a * 3).toFloat())
-        GLES30.glUniform1f(GLES30.glGetUniformLocation(prog, "uHazeMax"), (0.8 - 0.65 * GlobeCamera.smoothstep(50_000.0, 3_000_000.0, a)).toFloat())
-        GLES30.glUniform1f(GLES30.glGetUniformLocation(prog, "uRim"), (0.75 * GlobeCamera.smoothstep(150_000.0, 2_500_000.0, a)).toFloat())
-        GLES30.glUniform3f(GLES30.glGetUniformLocation(prog, "uHaze"), HORIZON[0], HORIZON[1], HORIZON[2])
-        GLES30.glUniform3f(GLES30.glGetUniformLocation(prog, "uRimColor"), RIM[0], RIM[1], RIM[2])
+        GLES30.glUniform1f(u(prog, "uHazeDist"), (60_000.0 + a * 3).toFloat())
+        GLES30.glUniform1f(u(prog, "uHazeMax"), (0.8 - 0.65 * GlobeCamera.smoothstep(50_000.0, 3_000_000.0, a)).toFloat())
+        GLES30.glUniform1f(u(prog, "uRim"), (0.75 * GlobeCamera.smoothstep(150_000.0, 2_500_000.0, a)).toFloat())
+        GLES30.glUniform3f(u(prog, "uHaze"), HORIZON[0], HORIZON[1], HORIZON[2])
+        GLES30.glUniform3f(u(prog, "uRimColor"), RIM[0], RIM[1], RIM[2])
     }
 
     private fun buffer(data: FloatArray): Int {
@@ -757,6 +877,12 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
         private const val LABEL_ZOOM = 14
         private const val FADE_SECONDS = 0.35f
         private const val ZOOM_SECONDS = 0.35f
+
+        /** How fast the ground the camera turns around follows the ground under it (seconds). */
+        private const val GROUND_EASE_S = 0.3f
+
+        /** Tile uploads a frame may take (more wait for the next frame). */
+        private const val UPLOAD_BUDGET_NS = 3_000_000L
         private const val FLING_DECAY = 3.2f
 
         private val HORIZON = floatArrayOf(0.80f, 0.87f, 0.94f)

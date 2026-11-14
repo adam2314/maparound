@@ -343,6 +343,11 @@
   let last = null; // { cx, cy, span, angle } at the last applied move
   let samples = []; // recent { t, cx, cy } for the fling
   let onGesture = null;
+  /** A move waits for the next frame: several pointer events between frames make one step. */
+  let frameQueued = false;
+  /** The twist since the fingers came down, and whether it turns the map yet (not a pinch's wobble). */
+  let twist = 0, twisting = false;
+  const TWIST_START = 8;
 
   function local(e) {
     const r = container.getBoundingClientRect();
@@ -361,7 +366,7 @@
 
   function apply() {
     const now = shape();
-    if (!last || last.n !== now.n) { last = now; return; } // finger count changed: start over from here
+    if (!last || last.n !== now.n) { last = now; twist = 0; twisting = false; return; } // finger count changed: start over from here
     if (!moved) {
       if (now.n < 2 && Math.hypot(now.cx - start.cx, now.cy - start.cy) < SLOP) return;
       moved = true;
@@ -374,18 +379,23 @@
       // Two fingers in 3D: up and down tilt the view (pinch and twist below), they don't move it.
       if (dy) map.jumpTo({ pitch: tilt3d(dy) });
     } else if (dx || dy) {
-      map.panBy([-dx, -dy], { animate: false });
+      if (view3d) pan3d(dx, dy); else map.panBy([-dx, -dy], { animate: false });
     }
     if (now.n >= 2 && last.span > 0 && now.span > 0) {
       let turn = now.angle - last.angle;
       if (turn > 180) turn -= 360;
       if (turn < -180) turn += 360;
-      map.easeTo({
-        zoom: map.getZoom() + Math.log2(now.span / last.span),
-        bearing: map.getBearing() - turn,
-        around: map.unproject([now.cx, now.cy]),
-        duration: 0,
-      });
+      // A twist turns the map once it's clearly meant, not with every wobble of a pinch.
+      twist += turn;
+      if (!twisting) {
+        if (Math.abs(twist) > TWIST_START) { twisting = true; turn = twist; } else turn = 0;
+      }
+      const zoom = map.getZoom() + Math.log2(now.span / last.span), bearing = map.getBearing() - turn;
+      if (view3d) {
+        zoomAround3d(zoom, bearing, now.cx, now.cy);
+      } else {
+        map.easeTo({ zoom: zoom, bearing: bearing, around: map.unproject([now.cx, now.cy]), duration: 0 });
+      }
     }
     if (view3d) keepClear();
     last = now;
@@ -411,7 +421,13 @@
   function move(e) {
     if (!pointers.has(e.pointerId)) return;
     pointers.set(e.pointerId, local(e));
-    if (claimed && !holding) apply();
+    if (claimed && !holding && !frameQueued) {
+      frameQueued = true;
+      requestAnimationFrame(() => {
+        frameQueued = false;
+        if (claimed && !holding) apply();
+      });
+    }
   }
 
   function up(e) {
@@ -423,7 +439,7 @@
     if (claimed && !holding && moved && !turning && samples.length >= 2) {
       const a = samples[0], b = samples[samples.length - 1];
       const dt = (b.t - a.t) / 1000;
-      if (dt > 0 && a.n === 1 && b.n === 1) {
+      if (dt > 0 && a.n === 1 && b.n === 1 && performance.now() - b.t < 60) {
         const vx = (b.cx - a.cx) / dt, vy = (b.cy - a.cy) / dt;
         if (Math.hypot(vx, vy) > 150) map.panBy([-vx * 0.3, -vy * 0.3], { duration: 700, easing: t => 1 - Math.pow(1 - t, 3) });
       }
@@ -485,6 +501,13 @@
   let startView = hashView();
   /** The view the new map takes instead of the first place the app puts it (its last position). */
   let firstView = null;
+
+  let hashTimer = null;
+  /** The address follows the map once it rests (every move rewrote it; browsers throttle that). */
+  function writeHashSoon() {
+    if (hashTimer) clearTimeout(hashTimer);
+    hashTimer = setTimeout(() => { hashTimer = null; writeHash(); }, 400);
+  }
 
   function writeHash() {
     if (!map) return;
@@ -732,12 +755,81 @@
     return view3d.pitch;
   }
 
-  /** During gestures and the relief's slider: the middle on the ground, the camera out of it, at once. */
+  /**
+   * During gestures and the relief's slider: the camera out of the ground, at once, by tilting up.
+   * The height of the view's middle stays as it is while moving (it's grounded when the view stops):
+   * following the ground under the middle with every move made the whole view bob over hills.
+   */
   function keepClear() {
     if (!view3d || !map || !map.terrain) return;
     const now = map.getCenterElevation(), g = middleGround(), middle = isNaN(g) ? now : g;
-    const pitch = map.getPitch(), p = clearPitch(pitch, middle, true);
-    if (p < pitch - 0.25 || Math.abs(middle - now) > 1) map.jumpTo({ pitch: p, elevation: middle }, SETTLING);
+    const pitch = map.getPitch(), p = clearPitch(pitch, Math.max(now, middle), true);
+    if (p < pitch - 0.25) map.jumpTo({ pitch: p, elevation: now }, SETTLING);
+  }
+
+  /** The height of the view's middle stays put (MapLibre re-grounds it each frame otherwise). */
+  function freeze3d() {
+    if (view3d && map && map.terrain) map._elevationFreeze = true;
+  }
+
+  /**
+   * The view's middle onto the ground with the camera where it is: nothing on the screen moves.
+   * Along the line from the camera through the screen's middle, the first point in the ground is
+   * the new middle; the zoom follows its distance, the tilt and the bearing stay.
+   */
+  function groundMiddle() {
+    if (!map.terrain) return;
+    const k = Math.PI / 180, c = map.getCenter(), e0 = map.transform.elevation, zoom = map.getZoom();
+    const d = cameraDistance(), p = map.getPitch() * k, b = map.getBearing() * k, cosLat = Math.cos(c.lat * k);
+    const back = d * Math.sin(p), up = d * Math.cos(p);
+    // s along the line: 0 the camera, 1 the middle now, beyond 1 further on.
+    const at = (s) => {
+      const m = (s - 1) * back;
+      return { lng: c.lng + m * Math.sin(b) / (EARTH_R * cosLat) / k, lat: c.lat + m * Math.cos(b) / EARTH_R / k, alt: e0 + (1 - s) * up };
+    };
+    const below = (q) => q.alt <= map.terrain.getElevationForLngLatZoom(new maplibregl.LngLat(q.lng, q.lat), map.transform.tileZoom);
+    if (below(at(0.05))) return; // the camera itself in the ground: the tilt sees to that
+    let lo = 0.05, hi = 0;
+    for (let s = 0.1; s <= 4; s += 0.05) { if (below(at(s))) { hi = s; break; } lo = s; }
+    if (!hi) return; // nothing to ground on (the ground not loaded yet): next time
+    for (let i = 0; i < 12; i++) { const m = (lo + hi) / 2; if (below(at(m))) hi = m; else lo = m; }
+    if (Math.abs(hi - 1) < 0.002) return; // already there
+    const q = at(hi);
+    map.jumpTo({ center: [q.lng, q.lat], zoom: zoom - Math.log2(hi), elevation: q.alt, pitch: map.getPitch(), bearing: map.getBearing() }, SETTLING);
+  }
+
+  /** A pan in 3D: the ground under the finger follows it, at the height the view's middle has now. */
+  function pan3d(dx, dy) {
+    const tr = map.transform, c = tr.centerPoint;
+    const to = tr.screenPointToLocation(new maplibregl.Point(c.x - dx, c.y - dy));
+    map.jumpTo({ center: to, elevation: tr.elevation });
+  }
+
+  /**
+   * A pinch and twist in 3D around the fingers at (x, y): the place under them stays there. The
+   * place is found on the view's plane, not by reading the terrain (that stalls the GPU each time).
+   */
+  function zoomAround3d(zoom, bearing, x, y) {
+    const pt = new maplibregl.Point(x, y), elevation = map.transform.elevation;
+    const before = map.transform.screenPointToLocation(pt);
+    map.jumpTo({ zoom: zoom, bearing: bearing, elevation: elevation });
+    const after = map.transform.screenPointToLocation(pt), c = map.getCenter();
+    map.jumpTo({ center: [c.lng + before.lng - after.lng, c.lat + before.lat - after.lat], elevation: elevation });
+  }
+
+  /** The tilt eased to pitch over ms, the middle's height held (an ease of MapLibre's re-grounds it). */
+  let tween = 0;
+  function tweenPitch(to, ms) {
+    if (tween) cancelAnimationFrame(tween);
+    const from = map.getPitch(), elevation = map.transform.elevation, t0 = performance.now();
+    const step = (now) => {
+      tween = 0;
+      if (!view3d || view3d.leaving || pointers.size) return; // a touch takes over
+      const k = Math.min(1, (now - t0) / ms);
+      map.jumpTo({ pitch: from + (to - from) * SMOOTH(k), elevation: elevation }, SETTLING);
+      if (k < 1) tween = requestAnimationFrame(step);
+    };
+    tween = requestAnimationFrame(step);
   }
 
   /** The moves made here (their moveend doesn't settle again). */
@@ -748,18 +840,23 @@
    * tilt it was given as far as the ground lets it (back up when it was lowered for a hill).
    */
   function settle3d(e) {
-    if (!view3d || view3d.leaving || !map || !map.terrain || pointers.size || map.isMoving()) return;
+    if (!view3d || view3d.leaving || !map || !map.terrain || pointers.size || map.isMoving() || tween) return;
     if (e && e.settling) { keepClear(); return; }
-    const now = map.getCenterElevation(), pitch = map.getPitch();
+    freeze3d();
     const g = middleGround();
-    const middle = isNaN(g) ? now : g;
-    const p = clearPitch(view3d.pitch, middle);
-    if (Math.abs(p - pitch) <= 0.25 && Math.abs(middle - now) <= 1) return;
-    if (clearPitch(pitch, now, true) < pitch - 0.25) {
-      map.jumpTo({ pitch: p, elevation: middle }, SETTLING); // in the ground now: out at once
+    if (!isNaN(g) && g - map.getCenterElevation() > 50) {
+      // The view has sunk below the ground (entering 3D, the elevation only now known): up with it.
+      map.jumpTo({ elevation: g }, SETTLING);
     } else {
-      // MapLibre's ease brings the middle onto the ground: the camera rises (or sinks) with it.
-      map.easeTo({ pitch: p, duration: 500, easing: SMOOTH }, SETTLING);
+      groundMiddle(); // as finer elevation arrives too: nothing on the screen moves
+    }
+    const now = map.getCenterElevation(), pitch = map.getPitch();
+    const p = clearPitch(view3d.pitch, now);
+    if (Math.abs(p - pitch) <= 0.25) return;
+    if (clearPitch(pitch, now, true) < pitch - 0.25) {
+      map.jumpTo({ pitch: p, elevation: now }, SETTLING); // in the ground now: out at once
+    } else {
+      tweenPitch(p, 500); // back to the tilt it was given, or down for a hill behind
     }
   }
 
@@ -817,7 +914,7 @@
       map.on('styleimagemissing', onMissingImage);
       map.on('style.load', applyGeo);
       map.on('style.load', apply3d);
-      map.on('moveend', writeHash);
+      map.on('moveend', writeHashSoon);
       map.on('moveend', settle3d);
       map.on('data', onData3d);
     },
@@ -890,6 +987,7 @@
         const c = map.getCenter();
         view3d = { back: { center: [c.lng, c.lat], zoom: map.getZoom(), bearing: map.getBearing(), pitch: 0 } };
         map.setMaxPitch(MAX_PITCH_3D);
+        if (map.setPixelRatio) map.setPixelRatio(Math.min(dpr(), 2));
         container.style.background = SPACE;
       }
       Object.assign(view3d, { satellite: satellite, exaggeration: exaggeration, buildings: buildings, leaving: false });
@@ -924,6 +1022,7 @@
         view3d = null;
         try { remove3d(); } catch (e) { /* a new style came meanwhile */ }
         map.setMaxPitch(MAX_PITCH_2D);
+        if (map.setPixelRatio) map.setPixelRatio(dpr());
         container.style.background = '';
         map.jumpTo(back);
       }, 0);
@@ -953,7 +1052,10 @@
     hasBuildings3d() { return !!map.getSource(OSM_SOURCE); },
     /** The zoom slider: to MapLibre's zoom [z] at once (the camera's kept out of the ground after). */
     zoom3d(z) {
-      if (view3d) map.jumpTo({ zoom: z });
+      if (!view3d) return;
+      freeze3d();
+      map.jumpTo({ zoom: z, elevation: map.transform.elevation });
+      keepClear();
     },
     /** The 3D view's terrain tiles: a {z}/{x}/{y} template, Terrarium or (mapbox) Terrain-RGB; from the next time it opens. */
     setTerrain3d(template, mapbox) {
@@ -972,7 +1074,7 @@
 
     // ---- gestures, positions in CSS pixels within the map ----
     /** The press that's down now reached the map (not something over it): the map follows it. */
-    claim() { claimed = true; map.stop(); apply(); },
+    claim() { claimed = true; map.stop(); if (tween) { cancelAnimationFrame(tween); tween = 0; } freeze3d(); apply(); },
     /** A long press holds the map still (its drag goes to the app). */
     hold(on) { holding = on; },
     /** Whether the current gesture has moved the map (so it's not a tap). */

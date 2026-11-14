@@ -41,7 +41,16 @@ fun Scene3DAndroidView(args: Scene3DViewArgs) {
     var glView by remember { mutableStateOf<Scene3DView?>(null) }
     // Where the view was when it's rebuilt (with new elevation data).
     var lastCamera by remember { mutableStateOf<Camera3D?>(null) }
-    val terrainVersion = AppGraph.terrain.state.collectAsState().value.version
+    val terrain = AppGraph.terrain.state.collectAsState().value
+    // New elevation data rebuilds the view (the meshes are made from it): once a download run is
+    // over, not after every tile, carrying on from where the view is now.
+    var terrainVersion by remember { mutableStateOf(terrain.version) }
+    LaunchedEffect(terrain.version, terrain.progress == null) {
+        if (terrain.version != terrainVersion && terrain.progress == null) {
+            glView?.let { lastCamera = it.camera }
+            terrainVersion = terrain.version
+        }
+    }
     // Elevation around the camera, fetched as the view moves; cells that didn't come aren't asked again.
     val tried = remember { HashSet<Pair<Int, Int>>() }
     LaunchedEffect(Unit) {

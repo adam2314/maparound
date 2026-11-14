@@ -94,6 +94,17 @@
 - **Hebrew names in offline search on Android.** A phone set to Hebrew (or Indonesian) now gets
   the map's names in its language where the map has them; it got the local names.
 
+### 3D
+- **A steadier 3D view.** Panning over ridges and gullies no longer bobs the view: on Android the
+  point the camera turns around follows the ground averaged around it, eased; in the web app the
+  view's height holds while you move and the middle is grounded with the camera still, also as
+  finer elevation arrives (no more drifting after a stop). Gestures are applied once per frame, a
+  pinch no longer wobbles the view round (a twist turns it once it's meant), tilting keeps every
+  bit of the move, the zoom slider eases and no longer sinks the view, names keep up with the
+  ground, tiles reach the screen a few at a time instead of in one long frame, a tile near the
+  edge of a finer level no longer flips back and forth, and new elevation data rebuilds the
+  Android view once a download is over instead of after every tile.
+
 ### The Topo style
 - **Dirt roads by how passable they are, paths by difficulty.** Dirt roads show whether any car,
   a high vehicle or only a 4×4 gets through, or none (from the map's smoothness and track grade);

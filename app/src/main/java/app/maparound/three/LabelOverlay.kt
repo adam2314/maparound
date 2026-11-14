@@ -31,7 +31,11 @@ class LabelOverlay(context: Context, private val engine: TerrainEngine) : View(c
     /** Ground heights of labels (no exaggeration), looked up once. */
     private val heights = HashMap<Label3D, Float>()
 
-    private class Placed(val label: Label3D, val gx: Float, val gy: Float, val box: RectF, val alpha: Int)
+    /** A placed name: where the layout's [frame] had it on the screen, and where it is ([p], ECEF). */
+    private class Placed(val label: Label3D, val gx: Float, val gy: Float, val box: RectF, val alpha: Int, val p: Vec3, val frame: FrameState)
+
+    /** The newest frame: names are drawn where it shows them (the layout runs behind). */
+    @Volatile private var latest: FrameState? = null
 
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = 13 * density
@@ -55,8 +59,11 @@ class LabelOverlay(context: Context, private val engine: TerrainEngine) : View(c
 
     /** What the last frame showed; the labels follow when their layout is done. */
     fun publish(frame: FrameState) {
+        latest = frame
         pending = frame
         if (!busy) schedule()
+        // Drawn again with each frame, at its positions, while the layout catches up.
+        if (placed.isNotEmpty()) postInvalidateOnAnimation()
     }
 
     fun release() {
@@ -120,7 +127,7 @@ class LabelOverlay(context: Context, private val engine: TerrainEngine) : View(c
             shown.getOrPut(l.name) { ArrayList() } += l
             // Far ones fade a little.
             val alpha = (255 * (1 - 0.45 * (dist / range))).toInt().coerceIn(120, 255)
-            out += Placed(l, sx, sy, box, alpha)
+            out += Placed(l, sx, sy, box, alpha, p, f)
         }
         return out
     }
@@ -137,40 +144,51 @@ class LabelOverlay(context: Context, private val engine: TerrainEngine) : View(c
         return false
     }
 
+    /** Where [pl] is on the screen in [f] (the layout's own frame: where it placed it); null behind the eye. */
+    private fun onScreen(pl: Placed, f: FrameState?): Pair<Float, Float>? {
+        if (f == null || f === pl.frame) return pl.gx to pl.gy
+        val rel = pl.p - f.eye
+        val c = clip(f.viewProj, rel.x, rel.y, rel.z)
+        if (c[3] <= 0) return null
+        return ((c[0] / c[3] + 1) / 2 * f.width).toFloat() to ((1 - c[1] / c[3]) / 2 * f.height).toFloat()
+    }
+
     override fun onDraw(canvas: Canvas) {
         val list = placed
+        val frame = latest
         val stickLen = STICK_DP * density
         for (pl in list) {
             val l = pl.label
+            val (gx, gy) = onScreen(pl, frame) ?: continue
             val colour = COLOURS[l.kind.ordinal]
             // The stick from the ground up to the name, and a mark on the ground.
             stick.color = Color.WHITE
             stick.alpha = pl.alpha
             stick.strokeWidth = 3f * density
-            canvas.drawLine(pl.gx, pl.gy, pl.gx, pl.gy - stickLen, stick)
+            canvas.drawLine(gx, gy, gx, gy - stickLen, stick)
             stick.color = colour
             stick.alpha = pl.alpha
             stick.strokeWidth = 1.5f * density
-            canvas.drawLine(pl.gx, pl.gy, pl.gx, pl.gy - stickLen, stick)
+            canvas.drawLine(gx, gy, gx, gy - stickLen, stick)
             mark.color = colour
             mark.alpha = pl.alpha
             if (l.kind == Label3D.Kind.PEAK) {
                 val s = 5 * density
                 canvas.drawPath(Path().apply {
-                    moveTo(pl.gx, pl.gy - s)
-                    lineTo(pl.gx - s, pl.gy + s * 0.6f)
-                    lineTo(pl.gx + s, pl.gy + s * 0.6f)
+                    moveTo(gx, gy - s)
+                    lineTo(gx - s, gy + s * 0.6f)
+                    lineTo(gx + s, gy + s * 0.6f)
                     close()
                 }, mark)
             } else {
-                canvas.drawCircle(pl.gx, pl.gy, 3 * density, mark)
+                canvas.drawCircle(gx, gy, 3 * density, mark)
             }
-            val baseline = pl.gy - stickLen - text.descent()
+            val baseline = gy - stickLen - text.descent()
             halo.alpha = pl.alpha
-            canvas.drawText(l.text, pl.gx, baseline, halo)
+            canvas.drawText(l.text, gx, baseline, halo)
             text.color = colour
             text.alpha = pl.alpha
-            canvas.drawText(l.text, pl.gx, baseline, text)
+            canvas.drawText(l.text, gx, baseline, text)
         }
     }
 

@@ -212,6 +212,7 @@ object GlobeTileSelector {
         maxLeaves: Int = 150,
         maxHeight: Double = 9_000.0,
         rootZoom: Int = 2,
+        previous: TileSelection? = null,
     ): TileSelection {
         val roots = ArrayList<TileId>()
         val n = 1 shl rootZoom
@@ -274,8 +275,12 @@ object GlobeTileSelector {
         while (level.isNotEmpty()) {
             val next = ArrayList<TileId>()
             for (t in level.sortedBy(::distance)) {
+                // A tile split last frame stays split a little further out ([previous]): near the
+                // threshold, moving doesn't flip it back and forth between coarse and fine.
+                val wasSplit = previous != null && t in previous.nodes && t !in previous.leaves
+                val reach = detail * (if (wasSplit) SPLIT_HYSTERESIS else 1.0)
                 val split = t.z < maxZoom &&
-                    distance(t) < detail * TileId.sizeM(t.z, (t.north + t.south) / 2).coerceAtLeast(TileId.sizeM(t.z, 0.0) * 0.1) &&
+                    distance(t) < reach * TileId.sizeM(t.z, (t.north + t.south) / 2).coerceAtLeast(TileId.sizeM(t.z, 0.0) * 0.1) &&
                     leaves.size + next.size + 4 <= maxLeaves + level.size
                 if (split) {
                     val kids = t.children.filter(::visible)
@@ -292,6 +297,9 @@ object GlobeTileSelector {
 
     /** Points this far (m) below the eye's line of sight to their horizon still count as seen. */
     private const val HORIZON_SLACK = 2_000.0
+
+    /** How much further out a split tile stays split (see select's `previous`). */
+    private const val SPLIT_HYSTERESIS = 1.15
 }
 
 /** A tile's terrain on the globe: its centre (ECEF) and the vertices around it. */
