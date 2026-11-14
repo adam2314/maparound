@@ -2,7 +2,8 @@
 <!--
   MapAround Topo: a hiking style for mapsforge vector maps.
   Cream base, soft land cover, hill shading, brown contour lines with elevation labels,
-  brown trails with white casing, double-line tracks and colour-coded roads.
+  paths coloured by difficulty and dirt roads by passability (as Israeli hiking maps show them),
+  marked trails as waymark dots, colour-coded roads.
 
   Contour lines come from MapAround's on-device ContourDataStore as ways tagged
   contour=minor|major + ele=<metres>. Hill shading needs elevation (.hgt) data.
@@ -200,8 +201,19 @@
         <rule e="way" k="waterway" v="ditch|drain" zoom-min="14">
             <line stroke="#8EBDF0" stroke-width="0.4" />
         </rule>
+        <!-- streams: flowing all year solid, seasonal (intermittent or seasonal) dashed -->
         <rule e="way" k="waterway" v="stream" zoom-min="11">
-            <line stroke="#8EBDF0" stroke-width="0.7" />
+            <rule e="way" k="intermittent" v="yes">
+                <line stroke="#86B6EA" stroke-dasharray="6,3" stroke-linecap="butt" stroke-width="0.5" />
+            </rule>
+            <rule e="way" k="intermittent" v="~|no">
+                <rule e="way" k="seasonal" v="yes">
+                    <line stroke="#86B6EA" stroke-dasharray="6,3" stroke-linecap="butt" stroke-width="0.5" />
+                </rule>
+                <rule e="way" k="seasonal" v="~|no">
+                    <line stroke="#5AA0EC" stroke-width="0.8" />
+                </rule>
+            </rule>
         </rule>
         <rule e="way" k="waterway" v="canal">
             <line stroke="#8EBDF0" stroke-width="1.0" />
@@ -449,54 +461,121 @@
                 <line stroke="#808080" stroke-width="2.3" />
             </rule>
 
-            <!-- ===== tracks: light fill between two brown edges ===== -->
+            <!-- ===== dirt roads by how passable they are (as Israeli hiking maps show them) =====
+                 any vehicle: smoothness good or better, else tracktype grade1-2; high vehicles:
+                 smoothness bad, else grade3; 4x4: 4wd_only, smoothness very bad or horrible,
+                 else grade4-5; impassable: smoothness very horrible or impassable; nothing known: minor. -->
             <rule e="way" k="highway" v="track" zoom-max="12">
                 <line stroke="#AA8166" stroke-dasharray="6,3" stroke-width="0.9" scale="none" />
             </rule>
             <rule e="way" k="highway" v="track" zoom-min="13">
-                <rule e="way" k="tracktype" v="grade1|grade2">
+                <rule e="way" k="4wd_only" v="yes">
                     <rule e="any" k="*" v="*" zoom-max="14">
-                        <line stroke="#E8D3B2" stroke-width="4.2" scale="none" />
+                        <line stroke="#CCFFFFFF" stroke-width="3.2" scale="none" />
+                        <line stroke="#3B2E24" stroke-dasharray="6,3" stroke-linecap="butt" stroke-width="1.6" scale="none" />
                     </rule>
                     <rule e="any" k="*" v="*" zoom-min="15">
-                        <line stroke="#E8D3B2" stroke-width="6.0" scale="none" />
+                        <line stroke="#CCFFFFFF" stroke-width="4.0" scale="none" />
+                        <line stroke="#3B2E24" stroke-dasharray="7,3" stroke-linecap="butt" stroke-width="2.0" scale="none" />
                     </rule>
                 </rule>
-                <rule e="way" k="tracktype" v="~|grade3|grade4|grade5">
-                    <rule e="any" k="*" v="*" zoom-max="14">
-                        <line stroke="#F7F4F2" stroke-width="4.2" scale="none" />
+                <rule e="way" k="4wd_only" v="~|no">
+                    <rule e="way" k="smoothness" v="excellent|good|intermediate">
+                        <rule e="any" k="*" v="*" zoom-max="14">
+                            <line stroke="#FFFFFF" stroke-width="4.2" scale="none" />
+                            <line stroke="#3B2E24" stroke-width="0.8" dy="1.7" scale="none" />
+                            <line stroke="#3B2E24" stroke-width="0.8" dy="-1.7" scale="none" />
+                        </rule>
+                        <rule e="any" k="*" v="*" zoom-min="15">
+                            <line stroke="#FFFFFF" stroke-width="6.0" scale="none" />
+                            <line stroke="#3B2E24" stroke-width="1.0" dy="2.6" scale="none" />
+                            <line stroke="#3B2E24" stroke-width="1.0" dy="-2.6" scale="none" />
+                        </rule>
                     </rule>
-                    <rule e="any" k="*" v="*" zoom-min="15">
-                        <line stroke="#F7F4F2" stroke-width="6.0" scale="none" />
+                    <rule e="way" k="smoothness" v="bad">
+                        <rule e="any" k="*" v="*" zoom-max="14">
+                            <line stroke="#FFFFFF" stroke-width="4.2" scale="none" />
+                            <line stroke="#3B2E24" stroke-dasharray="5,3" stroke-linecap="butt" stroke-width="0.8" dy="1.7" scale="none" />
+                            <line stroke="#3B2E24" stroke-dasharray="5,3" stroke-linecap="butt" stroke-width="0.8" dy="-1.7" scale="none" />
+                        </rule>
+                        <rule e="any" k="*" v="*" zoom-min="15">
+                            <line stroke="#FFFFFF" stroke-width="6.0" scale="none" />
+                            <line stroke="#3B2E24" stroke-dasharray="6,4" stroke-linecap="butt" stroke-width="1.0" dy="2.6" scale="none" />
+                            <line stroke="#3B2E24" stroke-dasharray="6,4" stroke-linecap="butt" stroke-width="1.0" dy="-2.6" scale="none" />
+                        </rule>
                     </rule>
-                </rule>
-                <rule e="way" k="tracktype" v="~|grade1|grade2|grade3">
-                    <rule e="any" k="*" v="*" zoom-max="14">
-                        <line stroke="#AA8166" stroke-width="0.8" dy="1.7" scale="none" />
-                        <line stroke="#AA8166" stroke-width="0.8" dy="-1.7" scale="none" />
+                    <rule e="way" k="smoothness" v="very_bad|horrible">
+                        <rule e="any" k="*" v="*" zoom-max="14">
+                            <line stroke="#CCFFFFFF" stroke-width="3.2" scale="none" />
+                            <line stroke="#3B2E24" stroke-dasharray="6,3" stroke-linecap="butt" stroke-width="1.6" scale="none" />
+                        </rule>
+                        <rule e="any" k="*" v="*" zoom-min="15">
+                            <line stroke="#CCFFFFFF" stroke-width="4.0" scale="none" />
+                            <line stroke="#3B2E24" stroke-dasharray="7,3" stroke-linecap="butt" stroke-width="2.0" scale="none" />
+                        </rule>
                     </rule>
-                    <rule e="any" k="*" v="*" zoom-min="15">
-                        <line stroke="#AA8166" stroke-width="1.0" dy="2.6" scale="none" />
-                        <line stroke="#AA8166" stroke-width="1.0" dy="-2.6" scale="none" />
+                    <rule e="way" k="smoothness" v="very_horrible|impassable">
+                        <rule e="any" k="*" v="*" zoom-max="14">
+                            <line stroke="#3B2E24" stroke-dasharray="1,3" stroke-linecap="round" stroke-width="1.4" scale="none" />
+                        </rule>
+                        <rule e="any" k="*" v="*" zoom-min="15">
+                            <line stroke="#3B2E24" stroke-dasharray="1,4" stroke-linecap="round" stroke-width="1.8" scale="none" />
+                        </rule>
                     </rule>
-                </rule>
-                <rule e="way" k="tracktype" v="grade4|grade5">
-                    <rule e="any" k="*" v="*" zoom-max="14">
-                        <line stroke="#AA8166" stroke-dasharray="5,3" stroke-linecap="butt"
-                            stroke-width="0.8" dy="1.7" scale="none" />
-                        <line stroke="#AA8166" stroke-dasharray="5,3" stroke-linecap="butt"
-                            stroke-width="0.8" dy="-1.7" scale="none" />
-                    </rule>
-                    <rule e="any" k="*" v="*" zoom-min="15">
-                        <line stroke="#AA8166" stroke-dasharray="6,4" stroke-linecap="butt"
-                            stroke-width="1.0" dy="2.6" scale="none" />
-                        <line stroke="#AA8166" stroke-dasharray="6,4" stroke-linecap="butt"
-                            stroke-width="1.0" dy="-2.6" scale="none" />
+                    <rule e="way" k="smoothness" v="~">
+                        <rule e="way" k="tracktype" v="grade1|grade2">
+                            <rule e="any" k="*" v="*" zoom-max="14">
+                                <line stroke="#FFFFFF" stroke-width="4.2" scale="none" />
+                                <line stroke="#3B2E24" stroke-width="0.8" dy="1.7" scale="none" />
+                                <line stroke="#3B2E24" stroke-width="0.8" dy="-1.7" scale="none" />
+                            </rule>
+                            <rule e="any" k="*" v="*" zoom-min="15">
+                                <line stroke="#FFFFFF" stroke-width="6.0" scale="none" />
+                                <line stroke="#3B2E24" stroke-width="1.0" dy="2.6" scale="none" />
+                                <line stroke="#3B2E24" stroke-width="1.0" dy="-2.6" scale="none" />
+                            </rule>
+                        </rule>
+                        <rule e="way" k="tracktype" v="grade3">
+                            <rule e="any" k="*" v="*" zoom-max="14">
+                                <line stroke="#FFFFFF" stroke-width="4.2" scale="none" />
+                                <line stroke="#3B2E24" stroke-dasharray="5,3" stroke-linecap="butt" stroke-width="0.8" dy="1.7" scale="none" />
+                                <line stroke="#3B2E24" stroke-dasharray="5,3" stroke-linecap="butt" stroke-width="0.8" dy="-1.7" scale="none" />
+                            </rule>
+                            <rule e="any" k="*" v="*" zoom-min="15">
+                                <line stroke="#FFFFFF" stroke-width="6.0" scale="none" />
+                                <line stroke="#3B2E24" stroke-dasharray="6,4" stroke-linecap="butt" stroke-width="1.0" dy="2.6" scale="none" />
+                                <line stroke="#3B2E24" stroke-dasharray="6,4" stroke-linecap="butt" stroke-width="1.0" dy="-2.6" scale="none" />
+                            </rule>
+                        </rule>
+                        <rule e="way" k="tracktype" v="grade4|grade5">
+                            <rule e="any" k="*" v="*" zoom-max="14">
+                                <line stroke="#CCFFFFFF" stroke-width="3.2" scale="none" />
+                                <line stroke="#3B2E24" stroke-dasharray="6,3" stroke-linecap="butt" stroke-width="1.6" scale="none" />
+                            </rule>
+                            <rule e="any" k="*" v="*" zoom-min="15">
+                                <line stroke="#CCFFFFFF" stroke-width="4.0" scale="none" />
+                                <line stroke="#3B2E24" stroke-dasharray="7,3" stroke-linecap="butt" stroke-width="2.0" scale="none" />
+                            </rule>
+                        </rule>
+                        <rule e="way" k="tracktype" v="~">
+                            <rule e="any" k="*" v="*" zoom-max="14">
+                                <line stroke="#8A7560" stroke-dasharray="3,3" stroke-linecap="butt" stroke-width="0.7" dy="1.4" scale="none" />
+                                <line stroke="#8A7560" stroke-dasharray="3,3" stroke-linecap="butt" stroke-width="0.7" dy="-1.4" scale="none" />
+                            </rule>
+                            <rule e="any" k="*" v="*" zoom-min="15">
+                                <line stroke="#8A7560" stroke-dasharray="4,3" stroke-linecap="butt" stroke-width="0.8" dy="2.0" scale="none" />
+                                <line stroke="#8A7560" stroke-dasharray="4,3" stroke-linecap="butt" stroke-width="0.8" dy="-2.0" scale="none" />
+                            </rule>
+                        </rule>
                     </rule>
                 </rule>
             </rule>
 
-            <!-- ===== paths & trails: brown with a white casing ===== -->
+            <!-- ===== paths & trails: white casing, the line by difficulty (as Israeli hiking maps show them) =====
+                 paved or compacted: green; cycle path: blue; easy (SAC T1, mtb 0-1): green dashes;
+                 medium (T2, mtb 2, or nothing known): blue dashes; hard (T3, mtb 3): black dashes;
+                 very hard (T4+, mtb 4+): red with ticks; hard to see (visibility bad or worse): black
+                 dots; sand: orange dashes. -->
             <rule e="way" k="highway" v="path|footway|cycleway|bridleway|steps">
                 <rule e="any" k="*" v="*" zoom-max="12">
                     <line stroke="#AA8166" stroke-width="0.8" scale="none" />
@@ -507,15 +586,151 @@
                 <rule e="any" k="*" v="*" zoom-min="15">
                     <line stroke="#E6FFFFFF" stroke-width="4.4" scale="none" />
                 </rule>
+                <rule e="way" k="highway" v="steps" zoom-min="13" zoom-max="14">
+                    <line stroke="#3B2E24" stroke-width="1.5" scale="none" />
+                </rule>
                 <rule e="way" k="highway" v="steps" zoom-min="15">
-                    <line stroke="#8E5632" stroke-dasharray="2,2" stroke-linecap="butt"
+                    <line stroke="#3B2E24" stroke-dasharray="2,2" stroke-linecap="butt"
                         stroke-width="3.6" scale="none" />
                 </rule>
-                <rule e="way" k="highway" v="path|footway|cycleway|bridleway|steps" zoom-min="13" zoom-max="14">
-                    <line stroke="#AA8166" stroke-width="1.5" scale="none" />
+                <rule e="way" k="highway" v="cycleway" zoom-min="13">
+                    <rule e="any" k="*" v="*" zoom-max="14">
+                        <line stroke="#1E63D6" stroke-width="1.5" scale="none" />
+                    </rule>
+                    <rule e="any" k="*" v="*" zoom-min="15">
+                        <line stroke="#1E63D6" stroke-width="2.0" scale="none" />
+                    </rule>
                 </rule>
-                <rule e="way" k="highway" v="path|footway|cycleway|bridleway" zoom-min="15">
-                    <line stroke="#AA8166" stroke-width="2.0" scale="none" />
+                <rule e="way" k="highway" v="path|footway|bridleway" zoom-min="13">
+                    <rule e="way" k="surface" v="paved|asphalt|concrete|concrete:plates|paving_stones|sett|cobblestone|unhewn_cobblestone|compacted|wood|metal|grass_paver">
+                        <rule e="any" k="*" v="*" zoom-max="14">
+                            <line stroke="#2E9E3E" stroke-width="1.5" scale="none" />
+                        </rule>
+                        <rule e="any" k="*" v="*" zoom-min="15">
+                            <line stroke="#2E9E3E" stroke-width="2.0" scale="none" />
+                        </rule>
+                    </rule>
+                    <rule e="way" k="surface" v="~|sand|unpaved|fine_gravel|gravel|pebblestone|rock|ground|dirt|earth|grass|mud|snow|ice|salt">
+                        <rule e="way" k="trail_visibility" v="bad|horrible|no">
+                            <rule e="any" k="*" v="*" zoom-max="14">
+                                <line stroke="#222222" stroke-dasharray="1,3" stroke-linecap="round" stroke-width="1.7" scale="none" />
+                            </rule>
+                            <rule e="any" k="*" v="*" zoom-min="15">
+                                <line stroke="#222222" stroke-dasharray="1,4" stroke-linecap="round" stroke-width="2.2" scale="none" />
+                            </rule>
+                        </rule>
+                        <rule e="way" k="trail_visibility" v="~|excellent|good|intermediate">
+                            <rule e="way" k="surface" v="sand">
+                                <rule e="any" k="*" v="*" zoom-max="14">
+                                    <line stroke="#E07B00" stroke-dasharray="4,3" stroke-linecap="butt" stroke-width="1.5" scale="none" />
+                                </rule>
+                                <rule e="any" k="*" v="*" zoom-min="15">
+                                    <line stroke="#E07B00" stroke-dasharray="5,3" stroke-linecap="butt" stroke-width="2.0" scale="none" />
+                                </rule>
+                            </rule>
+                            <rule e="way" k="surface" v="~|unpaved|fine_gravel|gravel|pebblestone|rock|ground|dirt|earth|grass|mud|snow|ice|salt">
+                                <rule e="way" k="sac_scale" v="hiking">
+                                    <rule e="any" k="*" v="*" zoom-max="14">
+                                        <line stroke="#2E9E3E" stroke-dasharray="5,3" stroke-linecap="butt" stroke-width="1.5" scale="none" />
+                                    </rule>
+                                    <rule e="any" k="*" v="*" zoom-min="15">
+                                        <line stroke="#2E9E3E" stroke-dasharray="6,3" stroke-linecap="butt" stroke-width="2.0" scale="none" />
+                                    </rule>
+                                </rule>
+                                <rule e="way" k="sac_scale" v="mountain_hiking">
+                                    <rule e="any" k="*" v="*" zoom-max="14">
+                                        <line stroke="#1E63D6" stroke-dasharray="5,3" stroke-linecap="butt" stroke-width="1.5" scale="none" />
+                                    </rule>
+                                    <rule e="any" k="*" v="*" zoom-min="15">
+                                        <line stroke="#1E63D6" stroke-dasharray="6,3" stroke-linecap="butt" stroke-width="2.0" scale="none" />
+                                    </rule>
+                                </rule>
+                                <rule e="way" k="sac_scale" v="demanding_mountain_hiking">
+                                    <rule e="any" k="*" v="*" zoom-max="14">
+                                        <line stroke="#222222" stroke-dasharray="5,3" stroke-linecap="butt" stroke-width="1.5" scale="none" />
+                                    </rule>
+                                    <rule e="any" k="*" v="*" zoom-min="15">
+                                        <line stroke="#222222" stroke-dasharray="6,3" stroke-linecap="butt" stroke-width="2.0" scale="none" />
+                                    </rule>
+                                </rule>
+                                <rule e="way" k="sac_scale" v="alpine_hiking|demanding_alpine_hiking|difficult_alpine_hiking">
+                                    <rule e="any" k="*" v="*" zoom-max="14">
+                                        <line stroke="#D32F2F" stroke-width="1.2" scale="none" />
+                                        <line stroke="#D32F2F" stroke-dasharray="1.2,5" stroke-linecap="butt" stroke-width="4.2" scale="none" />
+                                    </rule>
+                                    <rule e="any" k="*" v="*" zoom-min="15">
+                                        <line stroke="#D32F2F" stroke-width="1.5" scale="none" />
+                                        <line stroke="#D32F2F" stroke-dasharray="1.4,6" stroke-linecap="butt" stroke-width="5.4" scale="none" />
+                                    </rule>
+                                </rule>
+                                <rule e="way" k="sac_scale" v="~">
+                                    <rule e="way" k="mtb:scale" v="0|1">
+                                        <rule e="any" k="*" v="*" zoom-max="14">
+                                            <line stroke="#2E9E3E" stroke-dasharray="5,3" stroke-linecap="butt" stroke-width="1.5" scale="none" />
+                                        </rule>
+                                        <rule e="any" k="*" v="*" zoom-min="15">
+                                            <line stroke="#2E9E3E" stroke-dasharray="6,3" stroke-linecap="butt" stroke-width="2.0" scale="none" />
+                                        </rule>
+                                    </rule>
+                                    <rule e="way" k="mtb:scale" v="2">
+                                        <rule e="any" k="*" v="*" zoom-max="14">
+                                            <line stroke="#1E63D6" stroke-dasharray="5,3" stroke-linecap="butt" stroke-width="1.5" scale="none" />
+                                        </rule>
+                                        <rule e="any" k="*" v="*" zoom-min="15">
+                                            <line stroke="#1E63D6" stroke-dasharray="6,3" stroke-linecap="butt" stroke-width="2.0" scale="none" />
+                                        </rule>
+                                    </rule>
+                                    <rule e="way" k="mtb:scale" v="3">
+                                        <rule e="any" k="*" v="*" zoom-max="14">
+                                            <line stroke="#222222" stroke-dasharray="5,3" stroke-linecap="butt" stroke-width="1.5" scale="none" />
+                                        </rule>
+                                        <rule e="any" k="*" v="*" zoom-min="15">
+                                            <line stroke="#222222" stroke-dasharray="6,3" stroke-linecap="butt" stroke-width="2.0" scale="none" />
+                                        </rule>
+                                    </rule>
+                                    <rule e="way" k="mtb:scale" v="4|5|6">
+                                        <rule e="any" k="*" v="*" zoom-max="14">
+                                            <line stroke="#D32F2F" stroke-width="1.2" scale="none" />
+                                            <line stroke="#D32F2F" stroke-dasharray="1.2,5" stroke-linecap="butt" stroke-width="4.2" scale="none" />
+                                        </rule>
+                                        <rule e="any" k="*" v="*" zoom-min="15">
+                                            <line stroke="#D32F2F" stroke-width="1.5" scale="none" />
+                                            <line stroke="#D32F2F" stroke-dasharray="1.4,6" stroke-linecap="butt" stroke-width="5.4" scale="none" />
+                                        </rule>
+                                    </rule>
+                                    <rule e="way" k="mtb:scale" v="~">
+                                        <!-- nothing known: a footway is a walkway (a dirt one an easy path), any other path a medium one -->
+                                        <rule e="way" k="highway" v="footway">
+                                            <rule e="way" k="surface" v="~">
+                                                <rule e="any" k="*" v="*" zoom-max="14">
+                                                    <line stroke="#2E9E3E" stroke-width="1.5" scale="none" />
+                                                </rule>
+                                                <rule e="any" k="*" v="*" zoom-min="15">
+                                                    <line stroke="#2E9E3E" stroke-width="2.0" scale="none" />
+                                                </rule>
+                                            </rule>
+                                            <rule e="way" k="surface" v="unpaved|fine_gravel|gravel|pebblestone|rock|ground|dirt|earth|grass|mud|snow|ice|salt">
+                                                <rule e="any" k="*" v="*" zoom-max="14">
+                                                    <line stroke="#2E9E3E" stroke-dasharray="5,3" stroke-linecap="butt" stroke-width="1.5" scale="none" />
+                                                </rule>
+                                                <rule e="any" k="*" v="*" zoom-min="15">
+                                                    <line stroke="#2E9E3E" stroke-dasharray="6,3" stroke-linecap="butt" stroke-width="2.0" scale="none" />
+                                                </rule>
+                                            </rule>
+                                        </rule>
+                                        <rule e="way" k="highway" v="path|bridleway">
+                                            <rule e="any" k="*" v="*" zoom-max="14">
+                                                <line stroke="#1E63D6" stroke-dasharray="5,3" stroke-linecap="butt" stroke-width="1.5" scale="none" />
+                                            </rule>
+                                            <rule e="any" k="*" v="*" zoom-min="15">
+                                                <line stroke="#1E63D6" stroke-dasharray="6,3" stroke-linecap="butt" stroke-width="2.0" scale="none" />
+                                            </rule>
+                                        </rule>
+                                    </rule>
+                                </rule>
+                            </rule>
+                        </rule>
+                    </rule>
                 </rule>
             </rule>
 
@@ -538,13 +753,13 @@
                 </rule>
             </rule>
             <rule e="way" k="highway" v="tertiary|tertiary_link">
-                <line stroke="#FFE66B" stroke-width="1.5" />
+                <line stroke="#A0662B" stroke-width="1.5" />
             </rule>
             <rule e="way" k="highway" v="secondary|secondary_link">
-                <line stroke="#303030" stroke-width="1.6" />
+                <line stroke="#1E8C2E" stroke-width="1.6" />
             </rule>
             <rule e="way" k="highway" v="primary|primary_link">
-                <line stroke="#1E8C2E" stroke-width="1.8" />
+                <line stroke="#E31B1B" stroke-width="1.8" />
             </rule>
             <rule e="way" k="highway" v="trunk|trunk_link">
                 <line stroke="#E31B1B" stroke-width="1.8" />
@@ -559,121 +774,105 @@
         <circle fill="#FFFFFF" radius="1.2" scale-radius="true" />
     </rule>
 
-    <!-- ===== marked hiking trails: waymark colours side by side (from TrailDataStore) ===== -->
+    <!-- ===== marked hiking trails: waymark dots, colour ringed in white, side by side ===== -->
     <rule e="way" k="trail" v="hiking" zoom-min="12">
-        <!-- white band under the colours; wider when several routes share the path -->
-        <rule e="way" k="trail_n" v="*" zoom-max="13">
-            <line stroke="#E6FFFFFF" stroke-width="3.4" scale="none" />
-        </rule>
-        <rule e="way" k="trail_n" v="1" zoom-min="14">
-            <line stroke="#E6FFFFFF" stroke-width="4.4" scale="none" />
-        </rule>
-        <rule e="way" k="trail_n" v="2" zoom-min="14">
-            <line stroke="#E6FFFFFF" stroke-width="6.6" scale="none" />
-        </rule>
-        <rule e="way" k="trail_n" v="3" zoom-min="14">
-            <line stroke="#E6FFFFFF" stroke-width="8.9" scale="none" />
-        </rule>
-        <rule e="way" k="trail_n" v="4" zoom-min="14">
-            <line stroke="#E6FFFFFF" stroke-width="11.2" scale="none" />
-        </rule>
         <!-- zoom 12-13: the most important route colour only -->
         <rule e="way" k="trail_n" v="*" zoom-max="13">
-            <rule e="way" k="trail_colour" v="red"><line stroke="#D32F2F" stroke-width="1.8" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="blue"><line stroke="#1E63D6" stroke-width="1.8" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="green"><line stroke="#2E9E3E" stroke-width="1.8" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="yellow"><line stroke="#F2C200" stroke-width="1.8" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="black"><line stroke="#222222" stroke-width="1.8" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="white"><line stroke="#9E9E9E" stroke-width="2.2" scale="none" /><line stroke="#FFFFFF" stroke-width="1.2" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="orange"><line stroke="#F57C00" stroke-width="1.8" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="purple"><line stroke="#8E24AA" stroke-width="1.8" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="brown"><line stroke="#8D5524" stroke-width="1.8" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="other"><line stroke="#C2185B" stroke-width="1.8" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="red"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.6" scale="none" /><line stroke="#D32F2F" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.4" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="blue"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.6" scale="none" /><line stroke="#1E63D6" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.4" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="green"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.6" scale="none" /><line stroke="#2E9E3E" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.4" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="yellow"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.6" scale="none" /><line stroke="#F2C200" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.4" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="black"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.6" scale="none" /><line stroke="#222222" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.4" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="white"><line stroke="#7A7A7A" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.6" scale="none" /><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.4" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="orange"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.6" scale="none" /><line stroke="#F57C00" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.4" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="purple"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.6" scale="none" /><line stroke="#8E24AA" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.4" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="brown"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.6" scale="none" /><line stroke="#8D5524" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.4" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="other"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.6" scale="none" /><line stroke="#C2185B" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.4" scale="none" /></rule>
         </rule>
         <!-- zoom 14+: every route colour, offset across the path -->
         <rule e="way" k="trail_offset" v="0" zoom-min="14">
-            <rule e="way" k="trail_colour" v="red"><line stroke="#D32F2F" stroke-width="2.0" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="blue"><line stroke="#1E63D6" stroke-width="2.0" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="green"><line stroke="#2E9E3E" stroke-width="2.0" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="yellow"><line stroke="#F2C200" stroke-width="2.0" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="black"><line stroke="#222222" stroke-width="2.0" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="white"><line stroke="#9E9E9E" stroke-width="2.2" scale="none" /><line stroke="#FFFFFF" stroke-width="1.2" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="orange"><line stroke="#F57C00" stroke-width="2.0" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="purple"><line stroke="#8E24AA" stroke-width="2.0" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="brown"><line stroke="#8D5524" stroke-width="2.0" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="other"><line stroke="#C2185B" stroke-width="2.0" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="red"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" scale="none" /><line stroke="#D32F2F" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="blue"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" scale="none" /><line stroke="#1E63D6" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="green"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" scale="none" /><line stroke="#2E9E3E" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="yellow"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" scale="none" /><line stroke="#F2C200" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="black"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" scale="none" /><line stroke="#222222" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="white"><line stroke="#7A7A7A" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.6" scale="none" /><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.4" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="orange"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" scale="none" /><line stroke="#F57C00" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="purple"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" scale="none" /><line stroke="#8E24AA" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="brown"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" scale="none" /><line stroke="#8D5524" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="other"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" scale="none" /><line stroke="#C2185B" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" scale="none" /></rule>
         </rule>
         <rule e="way" k="trail_offset" v="l05" zoom-min="14">
-            <rule e="way" k="trail_colour" v="red"><line stroke="#D32F2F" stroke-width="2.0" dy="-1.15" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="blue"><line stroke="#1E63D6" stroke-width="2.0" dy="-1.15" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="green"><line stroke="#2E9E3E" stroke-width="2.0" dy="-1.15" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="yellow"><line stroke="#F2C200" stroke-width="2.0" dy="-1.15" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="black"><line stroke="#222222" stroke-width="2.0" dy="-1.15" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="white"><line stroke="#9E9E9E" stroke-width="2.2" dy="-1.15" scale="none" /><line stroke="#FFFFFF" stroke-width="1.2" dy="-1.15" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="orange"><line stroke="#F57C00" stroke-width="2.0" dy="-1.15" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="purple"><line stroke="#8E24AA" stroke-width="2.0" dy="-1.15" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="brown"><line stroke="#8D5524" stroke-width="2.0" dy="-1.15" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="other"><line stroke="#C2185B" stroke-width="2.0" dy="-1.15" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="red"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-1.15" scale="none" /><line stroke="#D32F2F" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-1.15" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="blue"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-1.15" scale="none" /><line stroke="#1E63D6" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-1.15" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="green"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-1.15" scale="none" /><line stroke="#2E9E3E" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-1.15" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="yellow"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-1.15" scale="none" /><line stroke="#F2C200" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-1.15" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="black"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-1.15" scale="none" /><line stroke="#222222" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-1.15" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="white"><line stroke="#7A7A7A" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.6" dy="-1.15" scale="none" /><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.4" dy="-1.15" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="orange"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-1.15" scale="none" /><line stroke="#F57C00" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-1.15" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="purple"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-1.15" scale="none" /><line stroke="#8E24AA" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-1.15" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="brown"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-1.15" scale="none" /><line stroke="#8D5524" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-1.15" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="other"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-1.15" scale="none" /><line stroke="#C2185B" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-1.15" scale="none" /></rule>
         </rule>
         <rule e="way" k="trail_offset" v="r05" zoom-min="14">
-            <rule e="way" k="trail_colour" v="red"><line stroke="#D32F2F" stroke-width="2.0" dy="1.15" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="blue"><line stroke="#1E63D6" stroke-width="2.0" dy="1.15" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="green"><line stroke="#2E9E3E" stroke-width="2.0" dy="1.15" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="yellow"><line stroke="#F2C200" stroke-width="2.0" dy="1.15" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="black"><line stroke="#222222" stroke-width="2.0" dy="1.15" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="white"><line stroke="#9E9E9E" stroke-width="2.2" dy="1.15" scale="none" /><line stroke="#FFFFFF" stroke-width="1.2" dy="1.15" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="orange"><line stroke="#F57C00" stroke-width="2.0" dy="1.15" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="purple"><line stroke="#8E24AA" stroke-width="2.0" dy="1.15" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="brown"><line stroke="#8D5524" stroke-width="2.0" dy="1.15" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="other"><line stroke="#C2185B" stroke-width="2.0" dy="1.15" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="red"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="1.15" scale="none" /><line stroke="#D32F2F" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="1.15" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="blue"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="1.15" scale="none" /><line stroke="#1E63D6" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="1.15" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="green"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="1.15" scale="none" /><line stroke="#2E9E3E" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="1.15" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="yellow"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="1.15" scale="none" /><line stroke="#F2C200" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="1.15" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="black"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="1.15" scale="none" /><line stroke="#222222" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="1.15" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="white"><line stroke="#7A7A7A" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.6" dy="1.15" scale="none" /><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.4" dy="1.15" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="orange"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="1.15" scale="none" /><line stroke="#F57C00" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="1.15" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="purple"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="1.15" scale="none" /><line stroke="#8E24AA" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="1.15" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="brown"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="1.15" scale="none" /><line stroke="#8D5524" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="1.15" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="other"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="1.15" scale="none" /><line stroke="#C2185B" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="1.15" scale="none" /></rule>
         </rule>
         <rule e="way" k="trail_offset" v="l1" zoom-min="14">
-            <rule e="way" k="trail_colour" v="red"><line stroke="#D32F2F" stroke-width="2.0" dy="-2.3" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="blue"><line stroke="#1E63D6" stroke-width="2.0" dy="-2.3" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="green"><line stroke="#2E9E3E" stroke-width="2.0" dy="-2.3" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="yellow"><line stroke="#F2C200" stroke-width="2.0" dy="-2.3" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="black"><line stroke="#222222" stroke-width="2.0" dy="-2.3" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="white"><line stroke="#9E9E9E" stroke-width="2.2" dy="-2.3" scale="none" /><line stroke="#FFFFFF" stroke-width="1.2" dy="-2.3" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="orange"><line stroke="#F57C00" stroke-width="2.0" dy="-2.3" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="purple"><line stroke="#8E24AA" stroke-width="2.0" dy="-2.3" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="brown"><line stroke="#8D5524" stroke-width="2.0" dy="-2.3" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="other"><line stroke="#C2185B" stroke-width="2.0" dy="-2.3" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="red"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-2.3" scale="none" /><line stroke="#D32F2F" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-2.3" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="blue"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-2.3" scale="none" /><line stroke="#1E63D6" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-2.3" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="green"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-2.3" scale="none" /><line stroke="#2E9E3E" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-2.3" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="yellow"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-2.3" scale="none" /><line stroke="#F2C200" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-2.3" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="black"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-2.3" scale="none" /><line stroke="#222222" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-2.3" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="white"><line stroke="#7A7A7A" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.6" dy="-2.3" scale="none" /><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.4" dy="-2.3" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="orange"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-2.3" scale="none" /><line stroke="#F57C00" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-2.3" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="purple"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-2.3" scale="none" /><line stroke="#8E24AA" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-2.3" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="brown"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-2.3" scale="none" /><line stroke="#8D5524" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-2.3" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="other"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-2.3" scale="none" /><line stroke="#C2185B" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-2.3" scale="none" /></rule>
         </rule>
         <rule e="way" k="trail_offset" v="r1" zoom-min="14">
-            <rule e="way" k="trail_colour" v="red"><line stroke="#D32F2F" stroke-width="2.0" dy="2.3" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="blue"><line stroke="#1E63D6" stroke-width="2.0" dy="2.3" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="green"><line stroke="#2E9E3E" stroke-width="2.0" dy="2.3" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="yellow"><line stroke="#F2C200" stroke-width="2.0" dy="2.3" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="black"><line stroke="#222222" stroke-width="2.0" dy="2.3" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="white"><line stroke="#9E9E9E" stroke-width="2.2" dy="2.3" scale="none" /><line stroke="#FFFFFF" stroke-width="1.2" dy="2.3" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="orange"><line stroke="#F57C00" stroke-width="2.0" dy="2.3" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="purple"><line stroke="#8E24AA" stroke-width="2.0" dy="2.3" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="brown"><line stroke="#8D5524" stroke-width="2.0" dy="2.3" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="other"><line stroke="#C2185B" stroke-width="2.0" dy="2.3" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="red"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="2.3" scale="none" /><line stroke="#D32F2F" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="2.3" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="blue"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="2.3" scale="none" /><line stroke="#1E63D6" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="2.3" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="green"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="2.3" scale="none" /><line stroke="#2E9E3E" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="2.3" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="yellow"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="2.3" scale="none" /><line stroke="#F2C200" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="2.3" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="black"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="2.3" scale="none" /><line stroke="#222222" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="2.3" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="white"><line stroke="#7A7A7A" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.6" dy="2.3" scale="none" /><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.4" dy="2.3" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="orange"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="2.3" scale="none" /><line stroke="#F57C00" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="2.3" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="purple"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="2.3" scale="none" /><line stroke="#8E24AA" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="2.3" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="brown"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="2.3" scale="none" /><line stroke="#8D5524" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="2.3" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="other"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="2.3" scale="none" /><line stroke="#C2185B" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="2.3" scale="none" /></rule>
         </rule>
         <rule e="way" k="trail_offset" v="l15" zoom-min="14">
-            <rule e="way" k="trail_colour" v="red"><line stroke="#D32F2F" stroke-width="2.0" dy="-3.45" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="blue"><line stroke="#1E63D6" stroke-width="2.0" dy="-3.45" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="green"><line stroke="#2E9E3E" stroke-width="2.0" dy="-3.45" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="yellow"><line stroke="#F2C200" stroke-width="2.0" dy="-3.45" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="black"><line stroke="#222222" stroke-width="2.0" dy="-3.45" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="white"><line stroke="#9E9E9E" stroke-width="2.2" dy="-3.45" scale="none" /><line stroke="#FFFFFF" stroke-width="1.2" dy="-3.45" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="orange"><line stroke="#F57C00" stroke-width="2.0" dy="-3.45" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="purple"><line stroke="#8E24AA" stroke-width="2.0" dy="-3.45" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="brown"><line stroke="#8D5524" stroke-width="2.0" dy="-3.45" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="other"><line stroke="#C2185B" stroke-width="2.0" dy="-3.45" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="red"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-3.45" scale="none" /><line stroke="#D32F2F" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-3.45" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="blue"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-3.45" scale="none" /><line stroke="#1E63D6" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-3.45" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="green"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-3.45" scale="none" /><line stroke="#2E9E3E" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-3.45" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="yellow"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-3.45" scale="none" /><line stroke="#F2C200" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-3.45" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="black"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-3.45" scale="none" /><line stroke="#222222" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-3.45" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="white"><line stroke="#7A7A7A" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.6" dy="-3.45" scale="none" /><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.4" dy="-3.45" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="orange"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-3.45" scale="none" /><line stroke="#F57C00" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-3.45" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="purple"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-3.45" scale="none" /><line stroke="#8E24AA" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-3.45" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="brown"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-3.45" scale="none" /><line stroke="#8D5524" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-3.45" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="other"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="-3.45" scale="none" /><line stroke="#C2185B" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="-3.45" scale="none" /></rule>
         </rule>
         <rule e="way" k="trail_offset" v="r15" zoom-min="14">
-            <rule e="way" k="trail_colour" v="red"><line stroke="#D32F2F" stroke-width="2.0" dy="3.45" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="blue"><line stroke="#1E63D6" stroke-width="2.0" dy="3.45" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="green"><line stroke="#2E9E3E" stroke-width="2.0" dy="3.45" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="yellow"><line stroke="#F2C200" stroke-width="2.0" dy="3.45" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="black"><line stroke="#222222" stroke-width="2.0" dy="3.45" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="white"><line stroke="#9E9E9E" stroke-width="2.2" dy="3.45" scale="none" /><line stroke="#FFFFFF" stroke-width="1.2" dy="3.45" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="orange"><line stroke="#F57C00" stroke-width="2.0" dy="3.45" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="purple"><line stroke="#8E24AA" stroke-width="2.0" dy="3.45" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="brown"><line stroke="#8D5524" stroke-width="2.0" dy="3.45" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="other"><line stroke="#C2185B" stroke-width="2.0" dy="3.45" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="red"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="3.45" scale="none" /><line stroke="#D32F2F" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="3.45" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="blue"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="3.45" scale="none" /><line stroke="#1E63D6" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="3.45" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="green"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="3.45" scale="none" /><line stroke="#2E9E3E" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="3.45" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="yellow"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="3.45" scale="none" /><line stroke="#F2C200" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="3.45" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="black"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="3.45" scale="none" /><line stroke="#222222" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="3.45" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="white"><line stroke="#7A7A7A" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.6" dy="3.45" scale="none" /><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.4" dy="3.45" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="orange"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="3.45" scale="none" /><line stroke="#F57C00" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="3.45" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="purple"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="3.45" scale="none" /><line stroke="#8E24AA" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="3.45" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="brown"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="3.45" scale="none" /><line stroke="#8D5524" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="3.45" scale="none" /></rule>
+            <rule e="way" k="trail_colour" v="other"><line stroke="#FFFFFF" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="3.8" dy="3.45" scale="none" /><line stroke="#C2185B" stroke-dasharray="4,5" stroke-linecap="round" stroke-width="2.6" dy="3.45" scale="none" /></rule>
         </rule>
         <!-- route name along the trail, in the route colour -->
         <rule e="way" k="trail_n" v="*" zoom-min="14">

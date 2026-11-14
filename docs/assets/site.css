@@ -184,6 +184,21 @@ h1 .trail { color: var(--trail); }
 [dir="rtl"] .doc code { direction: ltr; unicode-bidi: isolate; }
 [dir="rtl"] .doc pre { direction: ltr; }
 
+/* The map legend and schema (docs/map, made by tools/map-docs) */
+.doc table.legend td:first-child { width: 76px; padding-inline-end: 4px; }
+.doc svg.sample { display: block; border-radius: 4px; box-shadow: 0 0 0 1px var(--line); }
+.doc .swatch { display: inline-block; width: 0.9em; height: 0.9em; border-radius: 3px; vertical-align: -0.1em; margin-inline-end: 4px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25); }
+.doc .badge { display: inline-block; font-size: 0.78em; padding: 0.05em 0.55em; border-radius: 999px; background: var(--brand); color: var(--brand-ink); }
+.doc .note { color: var(--muted); font-size: 0.9em; }
+.doc .doc-nav { font-size: 0.92rem; }
+.doc .keys { line-height: 2; }
+.doc a.tag code { white-space: nowrap; }
+.doc table.legend, .doc table.schema { display: table; }
+.doc table.legend .tags { margin-top: 4px; line-height: 1.9; }
+.doc table.legend .drawn { margin-top: 4px; font-size: 0.86em; color: var(--muted); line-height: 1.7; }
+.doc td.zoom { width: 3.5em; text-align: center; font-variant-numeric: tabular-nums; }
+.doc table.schema td { padding-top: 7px; padding-bottom: 7px; }
+
 /* Narrow screens */
 @media (max-width: 880px) {
   .wrap { padding: 0 16px; }

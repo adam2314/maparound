@@ -5,6 +5,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -79,6 +80,22 @@ fun LegendSheet(
             if (trailOverlay) item { Note(t.trailOverlayNote) }
             if (sections != null) {
                 item { Note(t.drawnLikeThis) }
+                // The website's: every feature with its tags, colours and zooms, and what the maps keep.
+                item {
+                  Column {
+                    Note(t.onTheWebsite)
+                    Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { platform.openUrl(Guides.map("legend")) }) {
+                            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(t.fullLegend)
+                        }
+                        OutlinedButton(onClick = { platform.openUrl(Guides.map("schema")) }) {
+                            Text(t.whatMapsContain)
+                        }
+                    }
+                  }
+                }
                 for (section in sections) {
                     item(key = "h-${section.title}") {
                         Text(

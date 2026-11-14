@@ -160,6 +160,17 @@ the style draws it differently from the plain kind. Nothing to add to a style fo
 To check a style on a PC, `tools/topo-preview` renders any theme file with the same engine (see
 the README).
 
+The website has the same legend for Topo, in full: [the map legend](https://adam2314.github.io/maparound/map/legend)
+with each feature's tags, the zoom it shows from and its colours and widths, and
+[what the maps contain](https://adam2314.github.io/maparound/map/schema), every tag my-pipeline's
+`tag-mapping.xml` keeps (in English and Hebrew). They're made by `tools/map-docs` from `topo.xml`, the
+app's legend code and a my-pipeline checkout; run it again after changing either:
+
+```
+./gradlew :shared:compileDebugKotlinAndroid
+./gradlew -p tools/map-docs run --args="--pipeline ../my-pipeline"
+```
+
 ## Online sources
 
 The built-in sources are listed in `shared/…/map/TileSources.kt`:

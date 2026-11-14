@@ -37,14 +37,19 @@ object MapLegend {
         val isEmpty: Boolean get() = areas.isEmpty() && lines.isEmpty() && circles.isEmpty() && symbol == null && !hillshade
     }
 
-    class Entry(val label: String, val sample: Sample)
+    /**
+     * One line of the legend: its [label] and [sample]; the OpenStreetMap [tags] of the sample
+     * feature, and (when asked for: [build]'s `zooms`) the first zoom the style draws it at.
+     */
+    class Entry(val label: String, val sample: Sample, val tags: Map<String, String> = emptyMap(), val fromZoom: Int? = null)
     class Section(val title: String, val entries: List<Entry>)
 
     /**
      * The legend of the style [themeXml] with the options [categories] on (null: all), in the app's
-     * language. Empty sections are left out.
+     * language. Empty sections are left out. [zooms]: also find each entry's first zoom (the
+     * website's legend, tools/map-docs).
      */
-    fun build(themeXml: String, categories: Set<String>? = null): List<Section> {
+    fun build(themeXml: String, categories: Set<String>? = null, zooms: Boolean = false): List<Section> {
         val theme = runCatching { parse(themeXml, categories) }.getOrNull() ?: return emptyList()
         return LegendCatalog.sections.mapNotNull { spec ->
             val entries = ArrayList<Entry>()
@@ -61,14 +66,20 @@ object MapLegend {
                 if (group != null) {
                     val base = plain[group]
                     if (base == null) plain[group] = sample else if (base == sample) continue
+                    // The same drawing as another variant already shown (tracks by grade and by passability): once.
+                    if (entries.any { it.sample == sample }) continue
                 }
                 // The same drawing twice in a section (two names for one thing): once.
                 if (entries.any { it.sample == sample && it.sample.symbol == null && item.group == null }) continue
-                entries += Entry(item.label(), sample)
+                val from = if (zooms && !item.hillshade) (0..MAX_ZOOM).firstOrNull { z -> !theme.sample(item.element, item.tags, item.closed, z).isEmpty } else null
+                entries += Entry(item.label(), sample, item.tags, from)
             }
             if (entries.isEmpty()) null else Section(spec.title(), entries)
         }
     }
+
+    /** The closest zoom a style is asked about. */
+    private const val MAX_ZOOM = 21
 
     // ---- the theme's rules, as mapsforge reads them -------------------------------------------------
 
@@ -226,16 +237,23 @@ internal object LegendCatalog {
                 way({ l.serviceRoad }, "highway" to "service"),
             )),
             SectionSpec({ l.tracks }, listOf(
+                // By how passable they are (smoothness, else tracktype), as Israeli hiking maps show them;
+                // a style that draws tracks by grade shows the grades.
                 way({ l.track }, "highway" to "track", group = "track"),
-                way({ l.trackGrade(1) }, "highway" to "track", "tracktype" to "grade1", group = "track"),
-                way({ l.trackGrade(2) }, "highway" to "track", "tracktype" to "grade2", group = "track"),
-                way({ l.trackGrade(3) }, "highway" to "track", "tracktype" to "grade3", group = "track"),
-                way({ l.trackGrade(4) }, "highway" to "track", "tracktype" to "grade4", group = "track"),
-                way({ l.trackGrade(5) }, "highway" to "track", "tracktype" to "grade5", group = "track"),
+                way({ l.dirtAnyVehicle }, "highway" to "track", "smoothness" to "good", group = "track"),
+                way({ l.dirtHighVehicle }, "highway" to "track", "smoothness" to "bad", group = "track"),
                 way({ l.fourWdOnly }, "highway" to "track", "4wd_only" to "yes", group = "track"),
+                way({ l.dirtBroken }, "highway" to "track", "smoothness" to "impassable", group = "track"),
+                way({ l.trackGrade(1) }, "highway" to "track", "tracktype" to "grade1", group = "trackGrade"),
+                way({ l.trackGrade(2) }, "highway" to "track", "tracktype" to "grade2", group = "trackGrade"),
+                way({ l.trackGrade(3) }, "highway" to "track", "tracktype" to "grade3", group = "trackGrade"),
+                way({ l.trackGrade(4) }, "highway" to "track", "tracktype" to "grade4", group = "trackGrade"),
+                way({ l.trackGrade(5) }, "highway" to "track", "tracktype" to "grade5", group = "trackGrade"),
             )),
             SectionSpec({ l.paths }, listOf(
                 way({ l.path }, "highway" to "path", group = "path"),
+                way({ l.pathPaved }, "highway" to "path", "surface" to "asphalt", group = "path"),
+                way({ l.pathSandy }, "highway" to "path", "surface" to "sand", group = "path"),
                 way({ l.sacScale(1) }, "highway" to "path", "sac_scale" to "hiking", group = "path"),
                 way({ l.sacScale(2) }, "highway" to "path", "sac_scale" to "mountain_hiking", group = "path"),
                 way({ l.sacScale(3) }, "highway" to "path", "sac_scale" to "demanding_mountain_hiking", group = "path"),
@@ -262,7 +280,8 @@ internal object LegendCatalog {
             )),
             SectionSpec({ l.water }, listOf(
                 way({ l.river }, "waterway" to "river", zoom = 15),
-                way({ l.stream }, "waterway" to "stream"),
+                way({ l.stream }, "waterway" to "stream", group = "stream"),
+                way({ l.streamSeasonal }, "waterway" to "stream", "intermittent" to "yes", group = "stream"),
                 way({ l.canal }, "waterway" to "canal"),
                 area({ l.lake }, "natural" to "water"),
                 area({ l.wetland }, "natural" to "wetland"),

@@ -37,6 +37,9 @@ object Guides {
 
     /** The guide [topic]'s page in the app's language. */
     fun url(topic: String): String = if (I18n.language == Language.HE) "$SITE/he/guide/$topic" else "$SITE/guide/$topic"
+
+    /** The map legend ("legend") or the maps' data schema ("schema") in the app's language (docs/map, tools/map-docs). */
+    fun map(page: String): String = if (I18n.language == Language.HE) "$SITE/he/map/$page" else "$SITE/map/$page"
 }
 
 /** The credit for the elevation data from [template] (null: the default's own credit, else its server). */

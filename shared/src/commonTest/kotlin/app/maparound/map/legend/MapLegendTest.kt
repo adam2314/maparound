@@ -34,10 +34,18 @@ class MapLegendTest {
         val legend = MapLegend.build(xml)
         val byTitle = legend.associateBy { it.title }
 
-        // Track grades the style draws apart show; those drawn as the plain track don't.
+        // Track grades the style draws apart show; those drawn as the plain track don't, and two
+        // grades drawn alike show once.
         val tracks = byTitle.getValue("Tracks").entries
-        assertEquals(listOf("Track", "Track, mostly soft", "Track, soft (sand, grass)"), tracks.map { it.label })
+        assertEquals(listOf("Track", "Track, mostly soft"), tracks.map { it.label })
         assertEquals(2, tracks[1].sample.lines.size)
+        // The website's legend: each entry's tags, and the first zoom the style draws it at.
+        val withZooms = MapLegend.build(xml, zooms = true).associateBy { it.title }
+        val track = withZooms.getValue("Tracks").entries.first()
+        assertEquals(mapOf("highway" to "track"), track.tags)
+        assertEquals(13, track.fromZoom)
+        assertEquals(14, withZooms.getValue("Paths").entries.first().fromZoom)
+        assertNull(tracks[0].fromZoom) // not asked for: the app's legend
         assertEquals(listOf(4f, 3f), tracks[1].sample.lines[1].dash)
         assertEquals(0xFF8D6E63, tracks[0].sample.lines[0].color)
 
@@ -75,8 +83,14 @@ class MapLegendTest {
         val titles = legend.map { it.title }
         for (t in listOf("Roads", "Tracks", "Paths", "Marked trails", "Water", "Land", "Terrain")) assertTrue(t in titles, "$t in $titles")
         val all = legend.flatMap { it.entries }
-        // Topo tells track grades apart and draws marked trails in their colours.
-        assertTrue(all.count { it.label.startsWith("Track,") } >= 3)
+        // Topo tells dirt roads apart by how passable they are and paths by difficulty (as Israeli
+        // hiking maps do), seasonal streams from the others, and draws marked trails in their colours.
+        val labels = all.map { it.label }
+        for (l in listOf(
+            "Dirt road, any vehicle", "Dirt road, high vehicles", "Track, 4×4 only", "Dirt road, impassable",
+            "Path, easy (T1)", "Path, hard (T3)", "Path, very hard: scrambling (T4)",
+            "Path, paved or compacted", "Path, sandy", "Path, hard to see on the ground", "Stream, seasonal",
+        )) assertTrue(l in labels, "$l in $labels")
         val red = all.first { it.label == "Trail marked red" }.sample.lines
         assertTrue(red.any { it.color == 0xFFD32F2F })
         assertNotNull(all.firstOrNull { it.label == "Contour line" })

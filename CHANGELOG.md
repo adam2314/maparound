@@ -94,7 +94,19 @@
 - **Hebrew names in offline search on Android.** A phone set to Hebrew (or Indonesian) now gets
   the map's names in its language where the map has them; it got the local names.
 
+### The Topo style
+- **Dirt roads by how passable they are, paths by difficulty.** Dirt roads show whether any car,
+  a high vehicle or only a 4×4 gets through, or none (from the map's smoothness and track grade);
+  paths are coloured by difficulty: easy green, medium blue, hard black, very hard red with ticks,
+  paved green, sand orange, hard to see dotted. Marked trails are drawn as their waymarks, colour
+  and white, so the path's own line shows through. Main roads are red, secondary green, regional
+  brown; seasonal streams are dashed. The legend shows it all.
+
 ### Offline maps and sources
+- **The legend and what the maps contain, on the website.** The Topo style's full legend, each
+  feature with its OpenStreetMap tags, the zoom it shows from and its colours and widths, and every
+  tag MapAround's maps keep and from which zoom (English and Hebrew). Layers → Legend links there.
+  Made from the style and the pipeline's tag list by `tools/map-docs`, so they stay in step.
 - **One import for every map file.** **Import a map file** in Offline maps takes a vector map
   (.map, e.g. one downloaded from the web app: it's recognised as that MapAround map, updates and
   all) and, on Android, a raster map (.rmap, .mbtiles, .sqlitedb) alike.

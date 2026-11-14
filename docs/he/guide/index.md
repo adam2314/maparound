@@ -25,3 +25,8 @@ lang: he
 
 עוד (באנגלית): [סגנונות מפה]({{ '/map-styles' | relative_url }}) ו[מדיניות
 הפרטיות]({{ '/privacy' | relative_url }}).
+
+## המפה עצמה
+
+- [מקרא המפה]({{ '/he/map/legend' | relative_url }}): מה פירוש כל קו, שטח וסמל בסגנון Topo, עם התגים שלו ב־OpenStreetMap, הזום שממנו הוא מופיע והצבעים שלו.
+- [מה יש במפות]({{ '/he/map/schema' | relative_url }}): כל התגים שנשמרים במפות של MapAround, ומאיזה זום.

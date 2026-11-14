@@ -6,6 +6,9 @@ open class LegendTexts {
 
     /** Under the offline style's legend. */
     open val drawnLikeThis = "As this style draws them, close up. Not everything shows at every zoom."
+    open val fullLegend = "Full legend"
+    open val whatMapsContain = "What the maps contain"
+    open val onTheWebsite = "On the website: Topo's legend with each feature's tags, colours and zooms, and every tag MapAround's maps keep."
 
     // ---- sections ----
     open val roads = "Roads"
@@ -45,20 +48,27 @@ open class LegendTexts {
 
     open val fourWdOnly = "Track, 4×4 only"
 
+    /** Dirt roads by how passable they are (as Israeli hiking maps show them). */
+    open val dirtAnyVehicle = "Dirt road, any vehicle"
+    open val dirtHighVehicle = "Dirt road, high vehicles"
+    open val dirtBroken = "Dirt road, impassable"
+
     // ---- paths ----
     open val path = "Path"
 
     /** Paths by their difficulty, the SAC scale T1–T6. */
     open fun sacScale(level: Int) = when (level) {
         1 -> "Path, easy (T1)"
-        2 -> "Mountain path (T2)"
-        3 -> "Demanding mountain path (T3)"
-        4 -> "Alpine route (T4)"
+        2 -> "Path, medium (T2)"
+        3 -> "Path, hard (T3)"
+        4 -> "Path, very hard: scrambling (T4)"
         5 -> "Demanding alpine route (T5)"
         else -> "Difficult alpine route (T6)"
     }
 
     open val faintPath = "Path, hard to see on the ground"
+    open val pathPaved = "Path, paved or compacted"
+    open val pathSandy = "Path, sandy"
     open val footway = "Footway"
     open val cycleway = "Cycle path"
     open val bridleway = "Bridleway"
@@ -92,6 +102,7 @@ open class LegendTexts {
     // ---- water ----
     open val river = "River"
     open val stream = "Stream"
+    open val streamSeasonal = "Stream, seasonal"
     open val canal = "Canal, ditch"
     open val lake = "Lake, pond"
     open val wetland = "Wetland"
@@ -146,6 +157,9 @@ open class LegendTexts {
 
 /** Hebrew. */
 object LegendTextsHe : LegendTexts() {
+    override val fullLegend = "המקרא המלא"
+    override val whatMapsContain = "מה יש במפות"
+    override val onTheWebsite = "באתר: המקרא של Topo עם התגים, הצבעים והזומים של כל פריט, וכל התגים שנשמרים במפות של MapAround."
     override val legend = "מקרא"
     override val drawnLikeThis = "כפי שהסגנון הזה מצייר אותם מקרוב. לא הכול מוצג בכל רמת זום."
 
@@ -180,17 +194,22 @@ object LegendTextsHe : LegendTexts() {
         else -> "דרך עפר רכה (חול, עשב)"
     }
     override val fourWdOnly = "דרך עפר לרכבי 4×4 בלבד"
+    override val dirtAnyVehicle = "דרך עפר לכל רכב"
+    override val dirtHighVehicle = "דרך עפר לרכב גבוה"
+    override val dirtBroken = "דרך עפר שאינה עבירה"
 
     override val path = "שביל"
     override fun sacScale(level: Int) = when (level) {
         1 -> "שביל קל (T1)"
-        2 -> "שביל הררי (T2)"
-        3 -> "שביל הררי תובעני (T3)"
-        4 -> "מסלול אלפיני (T4)"
+        2 -> "שביל בינוני (T2)"
+        3 -> "שביל קשה (T3)"
+        4 -> "שביל קשה מאוד, טיפוס (T4)"
         5 -> "מסלול אלפיני תובעני (T5)"
         else -> "מסלול אלפיני קשה (T6)"
     }
     override val faintPath = "שביל שקשה לראות בשטח"
+    override val pathPaved = "שביל סלול או מהודק"
+    override val pathSandy = "שביל בחול"
     override val footway = "שביל להולכי רגל"
     override val cycleway = "שביל אופניים"
     override val bridleway = "שביל רכיבה על סוסים"
@@ -220,6 +239,7 @@ object LegendTextsHe : LegendTexts() {
 
     override val river = "נהר"
     override val stream = "נחל"
+    override val streamSeasonal = "נחל אכזב"
     override val canal = "תעלה"
     override val lake = "אגם, בריכה"
     override val wetland = "ביצה"

@@ -25,3 +25,8 @@ the space it takes and what it shares. The **Offline maps** and **Party** screen
 
 More: [map styles]({{ '/map-styles' | relative_url }}) and the
 [privacy policy]({{ '/privacy' | relative_url }}).
+
+## The map itself
+
+- [Map legend]({{ '/map/legend' | relative_url }}): what each line, area and symbol on the Topo style means, with its OpenStreetMap tags, the zoom it shows from, and its colours.
+- [What the maps contain]({{ '/map/schema' | relative_url }}): every tag MapAround's maps keep, and from which zoom.
