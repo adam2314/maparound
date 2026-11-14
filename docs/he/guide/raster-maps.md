@@ -1,7 +1,6 @@
 ---
 title: מפות רסטר · מדריך MapAround
 lang: he
-dir: rtl
 ---
 
 [English]({{ '/guide/raster-maps' | relative_url }}) · [כל המדריכים]({{ '/he/guide/' | relative_url }})

@@ -1,7 +1,6 @@
 ---
 title: ניתוב אופליין · מדריך MapAround
 lang: he
-dir: rtl
 ---
 
 [English]({{ '/guide/offline-routing' | relative_url }}) · [כל המדריכים]({{ '/he/guide/' | relative_url }})

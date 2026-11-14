@@ -1,7 +1,6 @@
 ---
 title: נתוני גובה · מדריך MapAround
 lang: he
-dir: rtl
 ---
 
 [English]({{ '/guide/elevation' | relative_url }}) · [כל המדריכים]({{ '/he/guide/' | relative_url }})

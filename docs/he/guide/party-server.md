@@ -1,7 +1,6 @@
 ---
 title: שרת הקבוצה · מדריך MapAround
 lang: he
-dir: rtl
 ---
 
 [English]({{ '/guide/party-server' | relative_url }}) · [כל המדריכים]({{ '/he/guide/' | relative_url }})

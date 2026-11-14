@@ -1,7 +1,6 @@
 ---
 title: מפות אופליין · מדריך MapAround
 lang: he
-dir: rtl
 ---
 
 [English]({{ '/guide/offline-maps' | relative_url }}) · [כל המדריכים]({{ '/he/guide/' | relative_url }})

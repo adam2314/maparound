@@ -1,7 +1,6 @@
 ---
 title: מדריכים · MapAround
 lang: he
-dir: rtl
 ---
 
 [English]({{ '/guide/' | relative_url }})

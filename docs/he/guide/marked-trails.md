@@ -1,7 +1,6 @@
 ---
 title: שבילים מסומנים · מדריך MapAround
 lang: he
-dir: rtl
 ---
 
 [English]({{ '/guide/marked-trails' | relative_url }}) · [כל המדריכים]({{ '/he/guide/' | relative_url }})
