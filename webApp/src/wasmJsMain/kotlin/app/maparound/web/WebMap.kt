@@ -57,6 +57,11 @@ private fun mlZoomAt(delta: Double, x: Double, y: Double, animated: Boolean): Un
 private fun mlLngLat(x: Double, y: Double): String = js("MapAroundMap.lngLat(x, y)")
 private fun mlTapped(x: Double, y: Double): String = js("MapAroundMap.tapped(x, y)")
 private fun mlPoisNear(lat: Double, lon: Double, radius: Double): String = js("MapAroundMap.poisNear(lat, lon, radius)")
+private fun mlSetTerrain3d(template: String, mapbox: Boolean): Unit = js("{ MapAroundMap.setTerrain3d(template, mapbox); }")
+
+/** The 3D view's terrain tiles ({z}/{x}/{y}; Terrarium, else Mapbox Terrain-RGB): used from the next time it opens. */
+fun setTerrain3dSource(template: String, mapbox: Boolean) = mlSetTerrain3d(template, mapbox)
+
 private fun mlNavCamera(lat: Double, lon: Double, zoom: Double, bearing: Double, pitch: Double, anchor: Double, ms: Int): Unit =
     js("{ MapAroundMap.navCamera(lat, lon, zoom, bearing, pitch, anchor, ms); }")
 private fun mlEndNav(): Unit = js("{ MapAroundMap.endNav(); }")

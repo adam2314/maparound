@@ -94,6 +94,21 @@
 - **Hebrew names in offline search on Android.** A phone set to Hebrew (or Indonesian) now gets
   the map's names in its language where the map has them; it got the local names.
 
+### Offline maps and sources
+- **One import for every map file.** **Import a map file** in Offline maps takes a vector map
+  (.map, e.g. one downloaded from the web app: it's recognised as that MapAround map, updates and
+  all) and, on Android, a raster map (.rmap, .mbtiles, .sqlitedb) alike.
+- **Every section explains itself.** Maps on the device, raster maps, terrain, offline routing,
+  marked trails, the map downloads and the party's server each say what they are, with a link to
+  where the data comes from and to a new **guide** on the website (English and Hebrew).
+- **Your own elevation source.** Terrain → Source → Change takes another address for the 1°
+  elevation tiles (contours, hill shading, line of sight, the viewshed, the 3D view), and in the
+  web app for the 3D view's tiles (Terrarium or Mapbox Terrain-RGB). The map's credits name it.
+- **Your own party server.** Party → Connections → Server → Change moves the party to your own
+  MQTT server (a wss:// address, for phones and browsers alike). The invite link and QR code carry
+  it, so everyone who joins meets there; new parties start on it. Everything stays end-to-end
+  encrypted.
+
 ### Navigation
 - **Navigation looks ahead.** While navigating the map tilts, turns so the way ahead is up, and
   puts you low on the screen, so most of it shows what's coming. The faster you go, the further

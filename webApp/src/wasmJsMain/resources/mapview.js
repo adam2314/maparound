@@ -547,7 +547,8 @@
   // When the 3D view closes, the 2D map shows where it was looking, flat and north up.
 
   const DEM3D = 'mr3d-dem', SHADE3D = 'mr3d-shade', SAT3D = 'mr3d-sat', BUILDINGS3D = 'mr3d-buildings';
-  const TERRARIUM = 'https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png';
+  /** The terrain tiles (ElevationSources): Terrain Tiles on AWS unless others were chosen. */
+  let terrain3d = { tiles: 'https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png', encoding: 'terrarium' };
   const IMAGERY = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
   const OSM_SOURCE = 'osm'; // MapStyle.OSM_SOURCE: the downloaded maps
   const MAX_PITCH_2D = 60, MAX_PITCH_3D = 80;
@@ -567,7 +568,7 @@
   }
 
   function dem(id) {
-    if (!map.getSource(id)) map.addSource(id, { type: 'raster-dem', tiles: [TERRARIUM], encoding: 'terrarium', tileSize: 256, maxzoom: 15 });
+    if (!map.getSource(id)) map.addSource(id, { type: 'raster-dem', tiles: [terrain3d.tiles], encoding: terrain3d.encoding, tileSize: 256, maxzoom: 15 });
   }
 
   function apply3d() {
@@ -662,7 +663,8 @@
     if (groundTiles.has(key)) return groundTiles.get(key);
     groundTiles.set(key, 'loading');
     if (groundTiles.size > 48) groundTiles.delete(groundTiles.keys().next().value);
-    const url = TERRARIUM.replace('{z}', z).replace('{x}', x).replace('{y}', y);
+    const src = terrain3d;
+    const url = src.tiles.replace('{z}', z).replace('{x}', x).replace('{y}', y);
     fetch(url)
       .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
       .then((b) => createImageBitmap(b, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' }))
@@ -673,8 +675,12 @@
         g.drawImage(bmp, 0, 0, 256, 256);
         const px = g.getImageData(0, 0, 256, 256).data;
         const h = new Float32Array(256 * 256);
-        for (let i = 0; i < h.length; i++) h[i] = px[4 * i] * 256 + px[4 * i + 1] + px[4 * i + 2] / 256 - 32768;
-        groundTiles.set(key, h);
+        if (src.encoding === 'mapbox') {
+          for (let i = 0; i < h.length; i++) h[i] = -10000 + (px[4 * i] * 65536 + px[4 * i + 1] * 256 + px[4 * i + 2]) * 0.1;
+        } else {
+          for (let i = 0; i < h.length; i++) h[i] = px[4 * i] * 256 + px[4 * i + 1] + px[4 * i + 2] / 256 - 32768;
+        }
+        if (src === terrain3d) groundTiles.set(key, h);
         settleSoon();
       })
       .catch(() => groundTiles.set(key, null));
@@ -948,6 +954,12 @@
     /** The zoom slider: to MapLibre's zoom [z] at once (the camera's kept out of the ground after). */
     zoom3d(z) {
       if (view3d) map.jumpTo({ zoom: z });
+    },
+    /** The 3D view's terrain tiles: a {z}/{x}/{y} template, Terrarium or (mapbox) Terrain-RGB; from the next time it opens. */
+    setTerrain3d(template, mapbox) {
+      if (terrain3d.tiles === template && (terrain3d.encoding === 'mapbox') === !!mapbox) return;
+      terrain3d = { tiles: template, encoding: mapbox ? 'mapbox' : 'terrarium' };
+      groundTiles.clear();
     },
     /** A search's result: the 3D view eases over to it. */
     lookAt3d(lat, lon) {

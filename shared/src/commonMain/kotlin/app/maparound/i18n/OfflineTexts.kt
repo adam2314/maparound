@@ -6,6 +6,45 @@ open class OfflineTexts {
     open val screenTitle = "Offline maps"
     open val importMapFile = "Import a .map file"
     open val addRasterMap = "Add a raster map"
+    open val importAnyMapFile = "Import a map file"
+    open val importHelpAll = "Vector maps (.map) are copied into the app; raster maps (.rmap, .mbtiles, .sqlitedb) are read where they are."
+    open val importHelpVector = "A vector map (.map), e.g. one downloaded from the MapAround web app or OpenAndroMaps, is copied into the app."
+
+    // ---- each section's explanation, with its source's site and the guide ----
+    open val guide = "Guide"
+    open val vectorMapsInfo =
+        "Vector maps from OpenStreetMap, drawn on the device: sharp at every zoom and in the app's styles. " +
+            "MapAround's own maps carry the marked trails and terrain details."
+    open val downloadInfo = "MapAround's own maps, built from OpenStreetMap every month, with the marked trails and terrain details built in."
+    open val howTheyreMade = "How they're made"
+    open val terrainInfo =
+        "Heights in 1°×1° tiles, for contour lines, hill shading, line of sight, the viewshed and the 3D view. They're downloaded when needed."
+    open val noTerrainYet =
+        "None yet: they come when something needs them (contours as you zoom in, line of sight, 3D), or for a whole map from its ⋮ menu."
+    open val routingInfo = "Routing data from BRouter in 5°×5° blocks, so routes are worked out on the device without a connection."
+    open val noRoutingYet = "None yet: get it for a map from its ⋮ menu."
+    open val trailsInfo =
+        "Marked hiking and walking routes from OpenStreetMap, downloaded by area, for maps that don't have them built in " +
+            "(the same routes Waymarked Trails shows)."
+    open val noTrailsYet = "None yet: get them for a map from its ⋮ menu. MapAround's own maps have them built in."
+
+    // ---- where the elevation data comes from ----
+    open val terrainSource = "Source"
+    open val terrainSourceDefault = "Terrain Tiles on AWS (Mapzen)"
+    open val change = "Change"
+    open val terrainSourceTitle = "Elevation source"
+    open val terrainSourceText =
+        "An address for the 1° tiles, with {folder} (N47) and {name} (N47E009): .hgt files, gzipped when the address ends in .gz. " +
+            "Tiles already downloaded stay; delete them to fetch them again from the new source."
+    open val terrainSourceCors = "The server has to let other sites read its files (CORS)."
+    open val tilesAddress = "Address of the 1° tiles"
+    open val terrain3dText = "The 3D view's image tiles, with {z}, {x} and {y}:"
+    open val terrain3dAddress = "Address of the 3D view's tiles"
+    open val encodingTerrarium = "Terrarium"
+    open val encodingMapbox = "Mapbox Terrain-RGB"
+    open val needsTilesTemplate = "An http(s) address with {name}"
+    open val needs3dTemplate = "An http(s) address with {z}, {x} and {y}"
+    open val useDefault = "Use the default"
     open fun imported(title: String) = "Imported $title"
     open fun importFailed(error: String?) = "Import failed: $error"
     open val networkError = "Network error"
@@ -291,6 +330,44 @@ object OfflineTextsHe : OfflineTexts() {
     override val screenTitle = "מפות אופליין"
     override val importMapFile = "ייבוא קובץ ${iso(".map")}"
     override val addRasterMap = "הוספת מפת רסטר"
+    override val importAnyMapFile = "ייבוא קובץ מפה"
+    override val importHelpAll =
+        "מפות וקטוריות (${iso(".map")}) מועתקות לאפליקציה; מפות רסטר (${iso(".rmap, .mbtiles, .sqlitedb")}) נקראות במקומן."
+    override val importHelpVector =
+        "מפה וקטורית (${iso(".map")}), למשל כזו שהורדה מאפליקציית הרשת של MapAround או מ־OpenAndroMaps, מועתקת לאפליקציה."
+
+    override val guide = "מדריך"
+    override val vectorMapsInfo =
+        "מפות וקטוריות מ־OpenStreetMap שמצוירות במכשיר: חדות בכל זום ובסגנונות של האפליקציה. " +
+            "במפות של MapAround יש גם את השבילים המסומנים ואת פרטי השטח."
+    override val downloadInfo = "המפות של MapAround, שנבנות מ־OpenStreetMap כל חודש, עם השבילים המסומנים ופרטי השטח בפנים."
+    override val howTheyreMade = "איך הן נבנות"
+    override val terrainInfo =
+        "גבהים באריחים של ${iso("1°×1°")}, לקווי גובה, להצללת תבליט, לקו ראייה, לשדה ראייה ולתצוגת התלת־ממד. הם יורדים כשצריך אותם."
+    override val noTerrainYet =
+        "אין עדיין: הם מגיעים כשמשהו צריך אותם (קווי גובה כשמתקרבים, קו ראייה, תלת־ממד), או למפה שלמה מתפריט ⋮ שלה."
+    override val routingInfo = "נתוני ניתוב של BRouter בבלוקים של ${iso("5°×5°")}, כדי לחשב מסלולים במכשיר בלי חיבור."
+    override val noRoutingYet = "אין עדיין: מורידים אותם למפה מתפריט ⋮ שלה."
+    override val trailsInfo =
+        "מסלולי הליכה מסומנים מ־OpenStreetMap, לפי אזורים, למפות שאין בהן אותם " +
+            "(אותם מסלולים ש־Waymarked Trails מציג)."
+    override val noTrailsYet = "אין עדיין: מורידים אותם למפה מתפריט ⋮ שלה. במפות של MapAround הם כבר בפנים."
+
+    override val terrainSource = "מקור"
+    override val terrainSourceDefault = "Terrain Tiles ב־AWS (Mapzen)"
+    override val change = "שינוי"
+    override val terrainSourceTitle = "מקור נתוני הגובה"
+    override val terrainSourceText =
+        "כתובת לאריחי ה־${iso("1°")}, עם ${iso("{folder}")} (${iso("N47")}) ו־${iso("{name}")} (${iso("N47E009")}): " +
+            "קובצי ${iso(".hgt")}, דחוסים כשהכתובת מסתיימת ב־${iso(".gz")}. " +
+            "אריחים שכבר ירדו נשארים; מוחקים אותם כדי להוריד אותם שוב מהמקור החדש."
+    override val terrainSourceCors = "השרת צריך לאפשר לאתרים אחרים לקרוא את הקבצים שלו (CORS)."
+    override val tilesAddress = "כתובת אריחי ה־${iso("1°")}"
+    override val terrain3dText = "אריחי התמונה של תצוגת התלת־ממד, עם ${iso("{z}")}, ${iso("{x}")} ו־${iso("{y}")}:"
+    override val terrain3dAddress = "כתובת האריחים של תצוגת התלת־ממד"
+    override val needsTilesTemplate = "כתובת ${iso("http(s)")} עם ${iso("{name}")}"
+    override val needs3dTemplate = "כתובת ${iso("http(s)")} עם ${iso("{z}")}, ${iso("{x}")} ו־${iso("{y}")}"
+    override val useDefault = "חזרה לברירת המחדל"
     override fun imported(title: String) = "המפה $title יובאה"
     override fun importFailed(error: String?) = "הייבוא נכשל: $error"
     override val networkError = "שגיאת רשת"

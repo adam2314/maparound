@@ -133,9 +133,17 @@
     document.title = "Join “" + name + "” on MapAround";
   }
 
-  var appLink = "party/" + code + (name ? "?n=" + encodeURIComponent(name) : "");
+  // A party on its own MQTT server: the app and the web app go there too.
+  var server = "";
+  var sm = /[?&]s=([^&]*)/.exec(hash);
+  if (sm) {
+    try { server = decodeURIComponent(sm[1]); } catch (e) { server = ""; }
+    if (!/^wss:\/\/[A-Za-z0-9.-]+(:\d+)?(\/\S*)?$/i.test(server)) server = "";
+  }
+  var extra = server ? "&s=" + encodeURIComponent(server) : "";
+  var appLink = "party/" + code + "?n=" + encodeURIComponent(name) + extra;
   // The web app joins the party (it asks first); it takes the code out of its address once it has read it.
-  document.getElementById("watch").href = "app/#party=" + code + (name ? "?n=" + encodeURIComponent(name) : "");
+  document.getElementById("watch").href = "app/#party=" + code + "?n=" + encodeURIComponent(name) + extra;
   var open = document.getElementById("open");
   if (/Android/i.test(navigator.userAgent)) {
     // Chrome and most Android browsers: opens MapAround, or Google Play when it isn't installed.

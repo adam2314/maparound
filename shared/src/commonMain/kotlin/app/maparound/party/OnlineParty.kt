@@ -111,7 +111,21 @@ class OnlineParty(
         gateway = store.getBoolean(K_GATEWAY, true),
     )
 
-    override fun create(partyName: String, myName: String) = join(PartyKey.create(partyName), myName)
+    override fun create(partyName: String, myName: String) = join(PartyKey.create(partyName, defaultServer), myName)
+
+    override val defaultServer: String? get() = store.getString(K_SERVER)
+
+    override fun setServer(server: String?) {
+        if (server == null) store.remove(K_SERVER) else store.putString(K_SERVER, server)
+        val key = _state.value.party?.withServer(server) ?: return
+        store.putString(K_LINK, key.toLink())
+        update { it.copy(party = key) }
+        broker = 0
+        if (_state.value.active && _state.value.onlineEnabled) connect()
+    }
+
+    /** Where this party meets: its own server, else the public ones. */
+    private val brokers: List<String> get() = PartyRelays.websockets(_state.value.party?.server)
 
     override fun join(key: PartyKey, myName: String) {
         leaveSilently()
@@ -347,7 +361,7 @@ class OnlineParty(
     private fun connect() {
         closeSocket()
         val gen = ++generation
-        val url = PartyRelays.WEBSOCKET[broker % PartyRelays.WEBSOCKET.size]
+        val url = brokers[broker % brokers.size]
         val host = PartyRelays.host(url)
         update { it.copy(online = TransportStatus(TransportStatus.State.CONNECTING, host)) }
         reader = MqttWire.Reader()
@@ -435,7 +449,7 @@ class OnlineParty(
         } else {
             broker++
             update { it.copy(online = TransportStatus(TransportStatus.State.ERROR, why)) }
-            if (broker % PartyRelays.WEBSOCKET.size == 0) ROUND_PAUSE_MS else RETRY_MS
+            if (broker % brokers.size == 0) ROUND_PAUSE_MS else RETRY_MS
         }
         watchdog = scope.launch {
             delay(pause)
@@ -572,6 +586,7 @@ class OnlineParty(
         private fun topic(e: PartyEngine, sender: String, kind: String) = "${PartyRelays.ROOT}/${e.key.tagHex}/$sender/$kind"
 
         private const val K_LINK = "link"
+        private const val K_SERVER = "server"
         private const val K_ACTIVE = "active"
         private const val K_ID = "my_id"
         private const val K_NAME = "my_name"

@@ -35,6 +35,9 @@ open class MapTexts {
     open val osmAttribution = "© OpenStreetMap contributors · mapsforge"
     open val terrainAttribution = "terrain: Mapzen, AWS Terrain Tiles"
 
+    /** The credit for elevation data from another source ([host]: its server). */
+    open fun terrainFrom(host: String) = "terrain: $host"
+
     // ---- what other apps shared, on the map ----
     open fun importedTrack(name: String, waypoints: Int) =
         "Imported “$name” into Library" + (if (waypoints > 0) " and $waypoints waypoint${if (waypoints == 1) "" else "s"} into Places" else "")
@@ -308,6 +311,7 @@ object MapTextsHe : MapTexts() {
 
     override val osmAttribution = "© תורמי OpenStreetMap · mapsforge"
     override val terrainAttribution = "נתוני גובה: Mapzen, AWS Terrain Tiles"
+    override fun terrainFrom(host: String) = "נתוני גובה: ${ltr(host)}"
 
     override fun importedTrack(name: String, waypoints: Int) = when (waypoints) {
         0 -> "\"$name\" יובא לספרייה"

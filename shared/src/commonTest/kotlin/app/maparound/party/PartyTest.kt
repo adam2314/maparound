@@ -11,6 +11,42 @@ class PartyTest {
     private val key = PartyKey.create("Desert run")
 
     @Test
+    fun anInviteCarriesThePartysOwnServer() {
+        val key = PartyKey.create("Ridge walk", server = "wss://mqtt.example.org:8084/mqtt")
+        val link = key.toLink()
+        assertTrue(link, link.endsWith("&s=wss%3A%2F%2Fmqtt.example.org%3A8084%2Fmqtt"))
+        val back = PartyKey.parse(link)!!
+        assertEquals(key, back)
+        assertEquals("Ridge walk", back.name)
+        assertEquals("wss://mqtt.example.org:8084/mqtt", back.server)
+        // The app link the invite page opens, and the web app's address, carry it too.
+        val code = link.substringAfter('#').substringBefore('?')
+        assertEquals("wss://mqtt.example.org:8084/mqtt", PartyKey.parse("maparound://party/$code?n=Ridge+walk&s=wss%3A%2F%2Fmqtt.example.org%3A8084%2Fmqtt")!!.server)
+        // No server: the public ones; and none that isn't a secure WebSocket.
+        assertNull(PartyKey.create("Plain").let { PartyKey.parse(it.toLink()) }!!.server)
+        assertNull(PartyKey.parse("maparound://party/$code?n=X&s=http%3A%2F%2Fevil.example")!!.server)
+        assertEquals("wss://other.example", key.withServer("wss://other.example").server)
+        // The same party elsewhere: not equal (so the screens see the move), the same id and secret.
+        val public = key.withServer(null)
+        assertFalse(key == public)
+        assertTrue(public.id.contentEquals(key.id) && public.secret.contentEquals(key.secret))
+    }
+
+    @Test
+    fun serverAddresses() {
+        assertEquals("wss://mqtt.example.org:8084/mqtt", PartyRelays.server("  wss://mqtt.example.org:8084/mqtt "))
+        assertEquals("wss://Broker.example", PartyRelays.server("WSS://Broker.example"))
+        assertNull(PartyRelays.server("ws://mqtt.example.org/mqtt"))
+        assertNull(PartyRelays.server("ssl://mqtt.example.org:8883"))
+        assertNull(PartyRelays.server("wss://"))
+        assertNull(PartyRelays.server("wss://bad host/mqtt"))
+        assertNull(PartyRelays.server("wss://mqtt.example.org:99999/mqtt"))
+        assertEquals(listOf("wss://a.example/mqtt"), PartyRelays.websockets("wss://a.example/mqtt"))
+        assertEquals(PartyRelays.WEBSOCKET, PartyRelays.websockets(null))
+        assertEquals(PartyRelays.MQTT_TLS, PartyRelays.apps(null))
+    }
+
+    @Test
     fun linkRoundTrip() {
         val link = key.toLink()
         assertTrue(link.startsWith("https://adam2314.github.io/maparound/party#"))

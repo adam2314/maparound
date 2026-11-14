@@ -18,6 +18,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import kotlinx.coroutines.launch
 import app.maparound.data.InstalledMaps
+import app.maparound.data.ImportedMap
 import app.maparound.i18n.T
 
 /** The map's file (Android code works with files). */
@@ -76,6 +77,35 @@ class MapFilesRepository(private val context: Context) : InstalledMaps {
         return { launcher.launch(arrayOf("*/*")) }
     }
 
+    override val importsRasters: Boolean get() = true
+
+    /** One picker for both: a raster map (.rmap, .mbtiles, .sqlitedb) is read where it is, anything else imported as a .map. */
+    @Composable
+    override fun rememberAnyImporter(onStart: () -> Unit, onResult: (Result<ImportedMap>) -> Unit): () -> Unit {
+        val scope = rememberCoroutineScope()
+        val start = rememberUpdatedState(onStart)
+        val done = rememberUpdatedState(onResult)
+        val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) {
+                scope.launch {
+                    start.value()
+                    val name = withContext(Dispatchers.IO) { displayName(uri) }.orEmpty().lowercase()
+                    val raster = RASTER_ENDINGS.any { name.endsWith(it) }
+                    done.value(
+                        if (raster) withContext(Dispatchers.IO) { runCatching { ImportedMap.Raster(app.maparound.AppGraph.rasters.add(uri)) } }
+                        else import(uri).map { ImportedMap.Vector(it) },
+                    )
+                }
+            }
+        }
+        return { launcher.launch(arrayOf("*/*")) }
+    }
+
+    private fun displayName(uri: Uri): String? =
+        context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.getString(0) else null
+        }
+
     override fun delete(map: LocalMap) {
         map.file.delete()
         refresh()
@@ -85,9 +115,9 @@ class MapFilesRepository(private val context: Context) : InstalledMaps {
     suspend fun import(uri: Uri): Result<LocalMap> = withContext(Dispatchers.IO) {
         runCatching {
             val resolver = context.contentResolver
-            var name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
-                if (c.moveToFirst()) c.getString(0) else null
-            } ?: "imported.map"
+            var name = displayName(uri) ?: "imported.map"
+            // A second download of the same map ("europe__liechtenstein (1).map") is still that map.
+            name = name.replace(Regex("""\s*\(\d+\)(?=\.map$)""", RegexOption.IGNORE_CASE), "")
             name = name.replace(Regex("[^A-Za-z0-9._-]"), "_")
             if (!name.endsWith(".map")) name += ".map"
             val tmp = File(dir, "$name.import")
@@ -103,5 +133,10 @@ class MapFilesRepository(private val context: Context) : InstalledMaps {
             refresh()
             LocalMap(target.path, target.length(), target.lastModified())
         }
+    }
+
+    private companion object {
+        /** Raster maps the picker hands to the raster library instead. */
+        val RASTER_ENDINGS = listOf(".rmap", ".mbtiles", ".sqlitedb")
     }
 }

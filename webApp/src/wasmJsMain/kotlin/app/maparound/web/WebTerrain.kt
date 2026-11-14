@@ -1,6 +1,7 @@
 package app.maparound.web
 
 import app.maparound.data.DownloadProgress
+import app.maparound.data.ElevationSources
 import app.maparound.data.TerrainData
 import app.maparound.data.TerrainState
 import app.maparound.data.TerrainStore
@@ -18,15 +19,16 @@ import okio.Buffer
 import okio.Path.Companion.toPath
 
 /**
- * Fetches an elevation tile ([url]: 1″, .hgt.gz), unpacks it with the browser's own gzip and keeps
- * every third sample (3″, 1201×1201): [done] gets those big-endian samples, or null and the HTTP
- * status (404: no tile there, the sea) or a negative number for a failure.
+ * Fetches an elevation tile ([url]: 1″ or 3″ .hgt, [gzip]ped or not), unpacks it with the
+ * browser's own gzip and keeps every third sample of a 1″ tile (3″, 1201×1201): [done] gets those
+ * big-endian samples, or null and the HTTP status (404: no tile there, the sea) or a negative
+ * number for a failure.
  */
-private fun fetchHgt3(url: String, done: (JsAny?, Int) -> Unit): Unit = js(
+private fun fetchHgt3(url: String, gzip: Boolean, done: (JsAny?, Int) -> Unit): Unit = js(
     """{
     fetch(url).then((r) => {
         if (!r.ok) { done(null, r.status); return; }
-        return new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer().then((buf) => {
+        return new Response(gzip ? r.body.pipeThrough(new DecompressionStream('gzip')) : r.body).arrayBuffer().then((buf) => {
             const src = new Uint8Array(buf);
             const n = Math.round(Math.sqrt(src.length / 2));
             if (n === 1201) { done(src, 200); return; }
@@ -58,10 +60,11 @@ private fun cellsOf(bounds: GeoBounds): List<Pair<Int, Int>> {
 
 /**
  * Elevation data in the browser, for line of sight and viewshed (the 3D view gets its own online):
- * the apps' 1° tiles (skadi, on Amazon's servers), fetched and unpacked by the browser and kept at
+ * the apps' 1° tiles (from [source], Terrain Tiles on Amazon's servers unless another was set),
+ * fetched and unpacked by the browser and kept at
  * standard detail (~90 m, 2.9 MB a tile) with the app's files. Fetched as they're needed.
  */
-class WebTerrain(demDir: String) : TerrainData {
+class WebTerrain(demDir: String, private val source: () -> String?) : TerrainData {
     private val dir = demDir.toPath()
     private val _state = MutableStateFlow(TerrainState())
     override val state: StateFlow<TerrainState> = _state.asStateFlow()
@@ -108,7 +111,9 @@ class WebTerrain(demDir: String) : TerrainData {
             }
             val (lat, lon) = cells[i]
             val name = DemIndex.nameFor(lat, lon)
-            fetchHgt3("$SOURCE/${name.take(3)}/$name.hgt.gz") { data, status ->
+            // From the chosen source (Terrain Tiles on AWS unless another was set; it has to allow other sites).
+            val url = ElevationSources.tileUrl(source(), name)
+            fetchHgt3(url, ElevationSources.isGzip(url)) { data, status ->
                 if (id != run) return@fetchHgt3
                 val ok = when {
                     data != null -> runCatching { store(lat, lon, data.toByteArray()) }.isSuccess
@@ -143,8 +148,6 @@ class WebTerrain(demDir: String) : TerrainData {
     }
 
     private companion object {
-        const val SOURCE = "https://elevation-tiles-prod.s3.amazonaws.com/skadi"
-
         /** About what one tile's download is (1″, gzipped). */
         const val DOWNLOAD_BYTES = 12_000_000L
     }

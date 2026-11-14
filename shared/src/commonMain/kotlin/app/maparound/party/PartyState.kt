@@ -59,6 +59,15 @@ interface PartyController {
 
     fun create(partyName: String, myName: String)
     fun join(key: PartyKey, myName: String)
+
+    /**
+     * The party's own MQTT server ([PartyRelays.server]), or null for the public ones: the party
+     * moves there (its invite carries it, so it has to be shared again), and new parties start there.
+     */
+    fun setServer(server: String?) = Unit
+
+    /** The server new parties start on (the last one chosen), or null for the public ones. */
+    val defaultServer: String? get() = null
     fun leave()
     fun setActive(on: Boolean)
     fun setSharing(on: Boolean)

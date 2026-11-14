@@ -89,7 +89,7 @@ class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: Str
         app.maparound.shared.net.httpGetAsync("${base}countries.json", 60_000).decodeToString()
     })
     /** Elevation data for line of sight and viewshed, fetched as they need it. */
-    val terrain = WebTerrain(demDir)
+    val terrain = WebTerrain(demDir) { prefs.elevationSource.value }
 
     val offline = OfflineData(
         maps = maps,
@@ -102,6 +102,7 @@ class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: Str
         builtInWorld = true,
         addOns = false,
         terrainAddOn = true,
+        webTerrain = true,
     )
 
     init {

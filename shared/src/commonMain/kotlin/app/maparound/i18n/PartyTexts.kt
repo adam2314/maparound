@@ -192,6 +192,21 @@ open class PartyTexts {
 
     // ---- connections ----
     open val connections = "Connections"
+
+    // ---- the party's server ----
+    open val server = "Server"
+    open val publicServers = "Public servers"
+    open val serverInfo =
+        "Online, the party meets on an MQTT server. Everything is end-to-end encrypted: the server passes on what it can't read."
+    open val serverTitle = "The party's server"
+    open val serverText =
+        "The secure WebSocket address (wss://…) of an MQTT server that phones and browsers can reach, lets anyone connect " +
+            "and keeps the latest messages. The invite carries it, so everyone who joins meets there."
+    open val serverAddress = "Server address"
+    open val needsServer = "A wss:// address"
+    open val usePublicServers = "Use the public servers"
+    open val shareInviteAgain = "Share the invite again: the others are still on the old server."
+    open fun onOwnServer(host: String) = "On its own server: $host"
     open val online = "Online"
 
     /** A connection switched off. */
@@ -429,6 +444,20 @@ object PartyTextsHe : PartyTexts() {
     override val iconCaravan = "קרוואן"
 
     override val connections = "חיבורים"
+
+    override val server = "שרת"
+    override val publicServers = "שרתים ציבוריים"
+    override val serverInfo =
+        "באונליין הקבוצה נפגשת בשרת MQTT. הכול מוצפן מקצה לקצה: השרת מעביר הלאה מה שהוא לא יכול לקרוא."
+    override val serverTitle = "השרת של הקבוצה"
+    override val serverText =
+        "כתובת WebSocket מאובטחת (⁦wss://…⁩) של שרת MQTT שטלפונים ודפדפנים יכולים להגיע אליו, שמאפשר לכל אחד " +
+            "להתחבר ושומר את ההודעות האחרונות. ההזמנה נושאת אותה, כך שכל מי שמצטרף נפגש שם."
+    override val serverAddress = "כתובת השרת"
+    override val needsServer = "כתובת ⁦wss://⁩"
+    override val usePublicServers = "חזרה לשרתים הציבוריים"
+    override val shareInviteAgain = "צריך לשתף שוב את ההזמנה: האחרים עדיין בשרת הקודם."
+    override fun onOwnServer(host: String) = "בשרת משלה: ${ltr(host)}"
     override val online = "אונליין"
     override val off = "כבוי"
     override val loraRadio = "מכשיר קשר LoRa"

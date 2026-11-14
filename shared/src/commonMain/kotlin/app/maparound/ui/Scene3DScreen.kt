@@ -35,6 +35,8 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.maparound.data.LocalOfflineData
+import app.maparound.data.LocalPrefs
 import app.maparound.i18n.T
 import app.maparound.map.satelliteSource
 import app.maparound.shared.util.localFixed
@@ -200,7 +202,8 @@ fun Scene3DScreen(
                 listOfNotNull(
                     if (satellite) satelliteSource.attribution else null,
                     mapCredits.ifBlank { null },
-                    T.map.terrainAttribution,
+                    // The relief: the 1° tiles (the apps), or the web app's own 3D tiles.
+                    terrainCredit(if (LocalOfflineData.current.webTerrain) LocalPrefs.current.terrain3dSource.value?.template else LocalPrefs.current.elevationSource.value),
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.labelSmall,
                 maxLines = 3,

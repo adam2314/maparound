@@ -25,6 +25,27 @@ object PartyRelays {
         "wss://broker.hivemq.com:8884/mqtt",
     )
 
+    /**
+     * A party's own server as typed or read from an invite: a secure WebSocket address
+     * (`wss://host[:port][/path]`, MQTT 3.1.1), which phones and browsers alike can reach; null if
+     * it isn't one.
+     */
+    fun server(text: String): String? {
+        val t = text.trim()
+        if (!t.startsWith("wss://", ignoreCase = true) || t.any { it.isWhitespace() }) return null
+        val host = host(t)
+        if (host.isEmpty() || !host.all { it.isLetterOrDigit() || it == '.' || it == '-' }) return null
+        val port = t.substringAfter("://").substringBefore('/').substringAfter(':', "")
+        if (port.isNotEmpty() && port.toIntOrNull()?.let { it in 1..65535 } != true) return null
+        return "wss://" + t.substring(6)
+    }
+
+    /** Where a party on [server] meets, for the web app (and the apps' WebSocket): its server, else the public ones. */
+    fun websockets(server: String?): List<String> = server?.let { listOf(it) } ?: WEBSOCKET
+
+    /** The same for the apps: its server (over WebSockets), else the public ones over MQTT with TLS. */
+    fun apps(server: String?): List<String> = server?.let { listOf(it) } ?: MQTT_TLS
+
     /** Everything sent in the party with [tagHex] ([PartyKey.tagHex]). */
     fun allOf(tagHex: String) = "$ROOT/$tagHex/+/+"
 

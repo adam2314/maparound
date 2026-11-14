@@ -72,6 +72,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.FilterChip
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
+import app.maparound.data.ElevationSources
+import app.maparound.data.ImportedMap
+import app.maparound.data.Terrain3dSource
 import app.maparound.data.Catalog
 import app.maparound.data.CatalogEntry
 import app.maparound.data.DownloadInfo
@@ -207,14 +215,22 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
 
     PlatformBackHandler(enabled = path.isNotEmpty()) { openFolder(parentPath(path)) }
 
-    val importLauncher = repo.rememberImporter(onStart = { importing = true }) { result ->
+    // One picker for every kind of map file: vector maps are copied in, raster maps read where they are.
+    val importLauncher = repo.rememberAnyImporter(onStart = { importing = true }) { result ->
         importing = false
-        scope.launch {
-            snackbar.showSnackbar(
-                result.fold({ T.offline.imported(it.title) }, { T.offline.importFailed(it.message) }),
-            )
-        }
+        result.fold(
+            { added ->
+                when (added) {
+                    is ImportedMap.Vector -> scope.launch { snackbar.showSnackbar(T.offline.imported(added.map.title)) }
+                    is ImportedMap.Raster -> { showRasterOnMap(prefs, added.map); onShowOnMap() }
+                }
+            },
+            { e -> scope.launch { snackbar.showSnackbar(T.offline.importFailed(e.message)) } },
+        )
     }
+    val elevationSource by prefs.elevationSource.collectAsState()
+    val terrain3dSource by prefs.terrain3dSource.collectAsState()
+    var editElevationSource by remember { mutableStateOf(false) }
 
     fun startDownload(entry: CatalogEntry) {
         val error = downloader.enqueue(entry, catalog.urlFor(entry), wifiOnly)
@@ -247,12 +263,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
             title = { Text(T.offline.screenTitle) },
             actions = {
                 IconButton(onClick = { importLauncher() }) {
-                    Icon(Icons.Filled.FileOpen, contentDescription = T.offline.importMapFile)
-                }
-                if (rasters.available) {
-                    IconButton(onClick = addRaster) {
-                        Icon(Icons.Filled.AddPhotoAlternate, contentDescription = T.offline.addRasterMap)
-                    }
+                    Icon(Icons.Filled.FileOpen, contentDescription = T.offline.importAnyMapFile)
                 }
             },
             windowInsets = WindowInsets(0, 0, 0, 0),
@@ -286,6 +297,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                     if (installed.isEmpty()) null else Fmt.fileSize(installed.sumOf { it.sizeBytes }),
                 )
             }
+            item { SectionInfo(T.offline.vectorMapsInfo, SourceSite("OpenStreetMap", "https://www.openstreetmap.org/about"), Guides.OFFLINE_MAPS) }
             if (installed.isEmpty()) {
                 item {
                     Text(
@@ -294,6 +306,14 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     )
                 }
+            }
+            item {
+                ListItem(
+                    modifier = Modifier.clickable { importLauncher() },
+                    leadingContent = { Icon(Icons.Filled.FileOpen, contentDescription = null) },
+                    headlineContent = { Text(T.offline.importAnyMapFile) },
+                    supportingContent = { Text(if (repo.importsRasters) T.offline.importHelpAll else T.offline.importHelpVector) },
+                )
             }
             items(installed, key = { it.fileName }) { map ->
                 val ex = extras[map.fileName]
@@ -356,20 +376,54 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
 
             // ---- raster maps (RMAP), read in place ----
             if (rasters.available) {
-                rasterMapsSection(rasterMaps, addRaster, { showRasterOnMap(prefs, it); onShowOnMap() }, { removeRaster(prefs, rasters, it) }) {
-                    SectionHeader(T.offline.rasterMaps, if (rasterMaps.isEmpty()) null else Fmt.fileSize(rasterMaps.sumOf { it.sizeBytes }))
+                val addAny = if (repo.importsRasters) ({ importLauncher() }) else addRaster
+                rasterMapsSection(rasterMaps, addAny, { showRasterOnMap(prefs, it); onShowOnMap() }, { removeRaster(prefs, rasters, it) }) {
+                    Column {
+                        SectionHeader(T.offline.rasterMaps, if (rasterMaps.isEmpty()) null else Fmt.fileSize(rasterMaps.sumOf { it.sizeBytes }))
+                        SectionInfo(T.offline.rasterHelp, SourceSite("MOBAC", "https://mobac.sourceforge.io/"), Guides.RASTER_MAPS)
+                    }
                 }
             }
 
             // ---- terrain (elevation data for contours & hill shading) ----
             val progress = terrainState.progress
-            if (terrainState.tiles > 0 || progress != null) {
-                item {
+            item {
+                Column {
                     SectionHeader(
                         T.offline.terrain,
                         if (terrainState.tiles > 0) Fmt.fileSize(terrainState.bytes) else null,
                     )
+                    val host = ElevationSources.customHost(elevationSource)
+                    SectionInfo(
+                        T.offline.terrainInfo,
+                        SourceSite(host ?: "Terrain Tiles", ElevationSources.site(elevationSource)),
+                        Guides.ELEVATION,
+                    )
+                    ListItem(
+                        headlineContent = { Text(T.offline.terrainSource) },
+                        supportingContent = {
+                            Text(
+                                listOfNotNull(
+                                    elevationSource ?: T.offline.terrainSourceDefault,
+                                    terrain3dSource?.template?.takeIf { offline.webTerrain },
+                                ).joinToString("\n"),
+                                maxLines = 4,
+                            )
+                        },
+                        trailingContent = { TextButton(onClick = { editElevationSource = true }) { Text(T.offline.change) } },
+                    )
                 }
+            }
+            if (terrainState.tiles == 0 && progress == null) {
+                item {
+                    Text(
+                        T.offline.noTerrainYet,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
+            }
+            run {
                 if (progress != null) {
                     item {
                         ListItem(
@@ -405,24 +459,27 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                         )
                     }
                 }
-            } else if ((offline.addOns || offline.terrainAddOn) && installed.any { !it.isWorld }) {
-                item {
-                    Text(
-                        if (offline.addOns) T.offline.tipAddOns else T.offline.tipTerrain,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                    )
-                }
             }
 
             // ---- offline routing data ----
-            if (routingState.installed.isNotEmpty() || routingState.downloads.isNotEmpty()) {
+            if (offline.addOns) {
                 item {
-                    SectionHeader(
-                        T.offline.offlineRouting,
-                        Fmt.fileSize(routingState.installed.sumOf { it.bytes }).takeIf { routingState.installed.isNotEmpty() },
-                    )
+                    Column {
+                        SectionHeader(
+                            T.offline.offlineRouting,
+                            Fmt.fileSize(routingState.installed.sumOf { it.bytes }).takeIf { routingState.installed.isNotEmpty() },
+                        )
+                        SectionInfo(T.offline.routingInfo, SourceSite("BRouter", "https://brouter.de/brouter/"), Guides.OFFLINE_ROUTING)
+                    }
+                }
+                if (routingState.installed.isEmpty() && routingState.downloads.isEmpty()) {
+                    item {
+                        Text(
+                            T.offline.noRoutingYet,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        )
+                    }
                 }
                 items(routingState.downloads, key = { "rd-${it.id}" }) { d ->
                     ListItem(
@@ -455,12 +512,24 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
 
             // ---- marked trails ----
             val trailProgress = trailState.progress
-            if (trailState.cells > 0 || trailProgress != null) {
+            if (offline.addOns) {
                 item {
-                    SectionHeader(
-                        T.offline.markedTrails,
-                        Fmt.fileSize(trailState.bytes).takeIf { trailState.cells > 0 },
-                    )
+                    Column {
+                        SectionHeader(
+                            T.offline.markedTrails,
+                            Fmt.fileSize(trailState.bytes).takeIf { trailState.cells > 0 },
+                        )
+                        SectionInfo(T.offline.trailsInfo, SourceSite("Waymarked Trails", "https://waymarkedtrails.org/"), Guides.MARKED_TRAILS)
+                    }
+                }
+                if (trailState.cells == 0 && trailProgress == null) {
+                    item {
+                        Text(
+                            T.offline.noTrailsYet,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        )
+                    }
                 }
                 if (trailProgress != null) {
                     item {
@@ -504,7 +573,17 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                 items(downloads, key = { "dl-${it.id}" }) { d -> DownloadRow(d, onCancel = { downloader.cancel(d.id) }) }
             }
 
-            item { SectionHeader(T.offline.downloadMaps, (listing as? Listing.Ready)?.attribution) }
+            item {
+                Column {
+                    SectionHeader(T.offline.downloadMaps, (listing as? Listing.Ready)?.attribution)
+                    SectionInfo(
+                        T.offline.downloadInfo,
+                        if (basicList) SourceSite("mapsforge.org", "https://mapsforge.org/")
+                        else SourceSite(T.offline.howTheyreMade, "https://github.com/adam2314/my-pipeline"),
+                        Guides.OFFLINE_MAPS,
+                    )
+                }
+            }
             if (downloader.canWaitForWifi) {
                 item {
                     Row(
@@ -657,6 +736,18 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
         )
     }
 
+    if (editElevationSource) {
+        ElevationSourceDialog(
+            elevationSource, terrain3dSource, offline.webTerrain,
+            onSave = { tiles, tiles3d ->
+                prefs.setElevationSource(tiles)
+                if (offline.webTerrain) prefs.setTerrain3dSource(tiles3d)
+                editElevationSource = false
+            },
+            onDismiss = { editElevationSource = false },
+        )
+    }
+
     if (confirmDeleteTerrain) {
         AlertDialog(
             onDismissRequest = { confirmDeleteTerrain = false },
@@ -688,6 +779,82 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
             dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text(T.common.cancel) } },
         )
     }
+}
+
+/**
+ * Where the elevation data comes from: the 1° tiles' address and, in the web app ([web]), the 3D
+ * view's image tiles. Saving the defaults (or "Use the default") gives null: the defaults.
+ */
+@Composable
+private fun ElevationSourceDialog(
+    tiles: String?,
+    tiles3d: Terrain3dSource?,
+    web: Boolean,
+    onSave: (tiles: String?, tiles3d: Terrain3dSource?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var text by remember { mutableStateOf(tiles ?: ElevationSources.DEFAULT_TILES) }
+    var text3d by remember { mutableStateOf(tiles3d?.template ?: ElevationSources.DEFAULT_3D) }
+    var mapbox by remember { mutableStateOf(tiles3d?.mapbox == true) }
+    val ok = ElevationSources.tilesTemplate(text)
+    val ok3d = ElevationSources.tiles3dTemplate(text3d)
+    val small = MaterialTheme.typography.bodySmall
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(T.offline.terrainSourceTitle) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(T.offline.terrainSourceText, style = small)
+                if (web) Text(T.offline.terrainSourceCors, style = small)
+                // Addresses read left to right, also in a right-to-left language.
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                    OutlinedTextField(
+                        value = text,
+                        onValueChange = { text = it },
+                        label = { Text(T.offline.tilesAddress) },
+                        isError = ok == null,
+                        supportingText = if (ok == null) ({ Text(T.offline.needsTilesTemplate) }) else null,
+                        textStyle = small,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (web) {
+                    Text(T.offline.terrain3dText, style = small)
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        OutlinedTextField(
+                            value = text3d,
+                            onValueChange = { text3d = it },
+                            label = { Text(T.offline.terrain3dAddress) },
+                            isError = ok3d == null,
+                            supportingText = if (ok3d == null) ({ Text(T.offline.needs3dTemplate) }) else null,
+                            textStyle = small,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selected = !mapbox, onClick = { mapbox = false }, label = { Text(T.offline.encodingTerrarium) })
+                        FilterChip(selected = mapbox, onClick = { mapbox = true }, label = { Text(T.offline.encodingMapbox) })
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = ok != null && (!web || ok3d != null),
+                onClick = {
+                    val t = ok?.takeIf { it != ElevationSources.DEFAULT_TILES }
+                    val t3 = if (!web) tiles3d else ok3d?.let { Terrain3dSource(it, mapbox) }?.takeIf { it.template != ElevationSources.DEFAULT_3D || it.mapbox }
+                    onSave(t, t3)
+                },
+            ) { Text(T.common.save) }
+        },
+        dismissButton = {
+            Row {
+                TextButton(onClick = { onSave(null, null) }) { Text(T.offline.useDefault) }
+                TextButton(onClick = onDismiss) { Text(T.common.cancel) }
+            }
+        },
+    )
 }
 
 @Composable

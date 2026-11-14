@@ -1,5 +1,10 @@
 package app.maparound.ui
 
+import app.maparound.party.PartyRelays
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.material.icons.filled.Dns
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.Image
@@ -183,6 +188,7 @@ fun PartyScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(T.party.watchExplanation)
+                    key.server?.let { Text(T.party.onOwnServer(PartyRelays.host(it)), style = MaterialTheme.typography.bodySmall) }
                     if (s.party != null) Text(T.party.stopWatchingWarning(s.party!!.name), color = MaterialTheme.colorScheme.error)
                 }
             },
@@ -202,6 +208,7 @@ fun PartyScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(T.party.joinExplanation)
+                    key.server?.let { Text(T.party.onOwnServer(PartyRelays.host(it)), style = MaterialTheme.typography.bodySmall) }
                     if (s.party != null) Text(T.party.leaveWarning(s.party!!.name), color = MaterialTheme.colorScheme.error)
                     OutlinedTextField(name, { name = it }, label = { Text(T.party.yourName) }, singleLine = true)
                 }
@@ -490,8 +497,83 @@ private fun Connections(s: PartyState, onRadio: () -> Unit) {
                 AppConnections(s, onRadio)
             }
             LocalPartyPlatform.current.connectionsNote(s.active)?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            if (!party.watchOnly) ServerLine(s)
         }
     }
+}
+
+/**
+ * Where the party meets online: the public servers or its own (a tap changes it, also for new
+ * parties), what that is, MQTT's site and the guide.
+ */
+@Composable
+private fun ServerLine(s: PartyState) {
+    val party = LocalParty.current
+    var edit by remember { mutableStateOf(false) }
+    var reshare by remember { mutableStateOf(false) }
+    val server = s.party?.server ?: if (s.party == null) party.defaultServer else null
+    HorizontalDivider(Modifier.padding(vertical = 4.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Filled.Dns, contentDescription = null)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(T.party.server, style = MaterialTheme.typography.bodyMedium)
+            Text(server?.let(PartyRelays::host) ?: T.party.publicServers, style = MaterialTheme.typography.bodySmall)
+        }
+        TextButton(onClick = { edit = true }) { Text(T.offline.change) }
+    }
+    // The card has its own padding: the explanation lines up with it.
+    SectionInfo(T.party.serverInfo, SourceSite("MQTT", "https://mqtt.org/"), Guides.PARTY_SERVER, sidePadding = 0.dp)
+    if (reshare) Text(T.party.shareInviteAgain, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+    if (edit) {
+        ServerDialog(
+            server,
+            onSave = { new ->
+                edit = false
+                if (new != server) {
+                    party.setServer(new)
+                    reshare = s.party != null
+                }
+            },
+            onDismiss = { edit = false },
+        )
+    }
+}
+
+/** The party's own MQTT server: a wss:// address, or (null) the public servers. */
+@Composable
+private fun ServerDialog(server: String?, onSave: (String?) -> Unit, onDismiss: () -> Unit) {
+    var text by remember { mutableStateOf(server ?: "wss://") }
+    val ok = PartyRelays.server(text)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(T.party.serverTitle) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(T.party.serverText, style = MaterialTheme.typography.bodySmall)
+                // Addresses read left to right, also in a right-to-left language.
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                    OutlinedTextField(
+                        value = text,
+                        onValueChange = { text = it },
+                        label = { Text(T.party.serverAddress) },
+                        placeholder = { Text("wss://mqtt.example.org:8084/mqtt") },
+                        isError = ok == null && text.length > 6,
+                        supportingText = if (ok == null) ({ Text(T.party.needsServer) }) else null,
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        },
+        confirmButton = { TextButton(enabled = ok != null, onClick = { onSave(ok) }) { Text(T.common.save) } },
+        dismissButton = {
+            Row {
+                TextButton(onClick = { onSave(null) }) { Text(T.party.usePublicServers) }
+                TextButton(onClick = onDismiss) { Text(T.common.cancel) }
+            }
+        },
+    )
 }
 
 /** The app's connections: online and the LoRa radio. */

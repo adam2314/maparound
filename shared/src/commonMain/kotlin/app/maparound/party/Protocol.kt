@@ -22,8 +22,11 @@ import kotlin.math.roundToInt
 // A party is a 16-byte id plus a 32-byte secret, shared by QR code or link. Every message is
 // end-to-end encrypted with AES-256-GCM, so MQTT brokers and LoRa radios only relay ciphertext.
 
-/** The shared secret that defines a party. */
-class PartyKey(val id: ByteArray, val secret: ByteArray, val name: String) {
+/**
+ * The shared secret that defines a party. [server]: the party's own MQTT server (a `wss://`
+ * address, [PartyRelays.server]), or null for the public ones; it travels in the invite.
+ */
+class PartyKey(val id: ByteArray, val secret: ByteArray, val name: String, val server: String? = null) {
     init {
         require(id.size == 16 && secret.size == 32)
     }
@@ -40,14 +43,19 @@ class PartyKey(val id: ByteArray, val secret: ByteArray, val name: String) {
      * A web link, so messaging apps make it tappable and a phone camera can open the QR code: the
      * page ([INVITE_PAGE]) opens MapAround with the app link `maparound://party/<code>?n=<name>`,
      * or offers the app on Google Play. The code is in the part after `#`, which browsers keep on
-     * the phone: the website never receives it.
+     * the phone: the website never receives it. A party with its own server adds `&s=<server>`.
      */
-    fun toLink(): String = "$INVITE_PAGE#" + B64.encode(id + secret) + "?n=" + urlEncode(name)
+    fun toLink(): String = "$INVITE_PAGE#" + B64.encode(id + secret) + "?n=" + urlEncode(name) +
+        (server?.let { "&s=" + urlEncode(it) } ?: "")
+
+    /** The same party on [server] (null: the public servers). */
+    fun withServer(server: String?): PartyKey = PartyKey(id, secret, name, server)
 
     fun hmac(label: String): ByteArray = hmacSha256(secret, label.encodeToByteArray())
 
-    override fun equals(other: Any?) = other is PartyKey && id.contentEquals(other.id)
-    override fun hashCode() = id.contentHashCode()
+    /** The same party on the same server (moving it to another one is a change the screens see). */
+    override fun equals(other: Any?) = other is PartyKey && id.contentEquals(other.id) && server == other.server
+    override fun hashCode() = id.contentHashCode() * 31 + server.hashCode()
 
     companion object {
         /** Host and path of the invite page (docs/party.html on the project's GitHub Pages site). */
@@ -61,8 +69,8 @@ class PartyKey(val id: ByteArray, val secret: ByteArray, val name: String) {
         /** URL-safe Base64, written without padding; read with or without. */
         private val B64 = Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT_OPTIONAL)
 
-        fun create(name: String): PartyKey =
-            PartyKey(randomBytes(16), randomBytes(32), name.trim().ifEmpty { T.party.defaultPartyName })
+        fun create(name: String, server: String? = null): PartyKey =
+            PartyKey(randomBytes(16), randomBytes(32), name.trim().ifEmpty { T.party.defaultPartyName }, server)
 
         /** True if [text] contains an invite link (web or app link). */
         fun hasLink(text: String): Boolean = LINK_STARTS.any { it in text }
@@ -82,7 +90,9 @@ class PartyKey(val id: ByteArray, val secret: ByteArray, val name: String) {
             if (raw.size != 48) return null
             val name = link.substringAfter("?n=", "").substringBefore('&').substringBefore('#')
                 .let(::urlDecode).ifEmpty { T.party.defaultPartyName }
-            PartyKey(raw.copyOfRange(0, 16), raw.copyOfRange(16, 48), name)
+            // A server that isn't a secure WebSocket address is ignored (the public ones, then).
+            val server = Regex("[?&]s=([^&#]*)").find(link)?.groupValues?.get(1)?.let(::urlDecode)?.let(PartyRelays::server)
+            PartyKey(raw.copyOfRange(0, 16), raw.copyOfRange(16, 48), name, server)
         }.getOrNull()
     }
 }

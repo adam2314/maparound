@@ -86,7 +86,17 @@ object PartySession : PartyController {
         if (engine != null && prefs.getBoolean("active", false) && !_state.value.active) setActive(true)
     }
 
-    override fun create(partyName: String, myName: String) = join(PartyKey.create(partyName), myName)
+    override fun create(partyName: String, myName: String) = join(PartyKey.create(partyName, defaultServer), myName)
+
+    override val defaultServer: String? get() = prefs.getString("server", null)
+
+    override fun setServer(server: String?) {
+        prefs.edit { if (server == null) remove("server") else putString("server", server) }
+        val key = _state.value.party?.withServer(server) ?: return
+        prefs.edit { putString("link", key.toLink()) }
+        update { it.copy(party = key) }
+        if (_state.value.active) restartTransports()
+    }
 
     override fun join(key: PartyKey, myName: String) {
         leaveSilently()
@@ -265,6 +275,8 @@ object PartySession : PartyController {
         if (_state.value.onlineEnabled) {
             mqtt = MqttTransport(
                 e.key.tagHex,
+                // The party's own server (over WebSockets, as the web app reaches it), else the public ones.
+                brokers = PartyRelays.apps(_state.value.party?.server),
                 onPacket = { bytes -> main.post { onPacket(bytes, Via.ONLINE) } },
                 onStatus = { st ->
                     main.post {

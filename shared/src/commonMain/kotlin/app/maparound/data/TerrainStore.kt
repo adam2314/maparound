@@ -171,14 +171,19 @@ class TerrainStore(
         val prepared = tmpDir / "$name.hgt"
         val context = currentCoroutineContext()
         try {
+            // From the chosen source (Terrain Tiles on AWS unless another was set): gzipped or not.
+            val url = ElevationSources.tileUrl(prefs.elevationSource.value, name)
+            val gzipped = ElevationSources.isGzip(url)
             try {
-                httpDownload("$SOURCE/${name.take(3)}/$name.hgt.gz", gz.toString(), 60_000) { context.isActive }
+                httpDownload(url, (if (gzipped) gz else raw).toString(), 60_000) { context.isActive }
             } catch (e: HttpException) {
                 return e.status == 403 || e.status == 404 // no tile for this cell
             }
             context.ensureActive()
-            gunzipFile(gz, raw)
-            fileSystem.delete(gz)
+            if (gzipped) {
+                gunzipFile(gz, raw)
+                fileSystem.delete(gz)
+            }
             val size = HgtProcessor.sizeForLength(fileSystem.metadata(raw).size ?: 0L) ?: return false
             val mask = coast?.let { runCatching { it.build(lat, lon, HgtProcessor.outputSize(size, highDetail)) }.getOrNull() }
             fileSystem.source(raw).use {
@@ -196,7 +201,6 @@ class TerrainStore(
     }
 
     companion object {
-        private const val SOURCE = "https://elevation-tiles-prod.s3.amazonaws.com/skadi"
         private const val PARALLEL = 3
         const val BYTES_1_ARCSEC = 3601L * 3601 * 2
         const val BYTES_3_ARCSEC = 1201L * 1201 * 2

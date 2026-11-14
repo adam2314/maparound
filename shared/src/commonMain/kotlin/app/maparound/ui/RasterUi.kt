@@ -64,10 +64,8 @@ fun LazyListScope.rasterMapsSection(
             ListItem(
                 modifier = Modifier.clickable(onClick = onAdd),
                 leadingContent = { Icon(Icons.Filled.AddPhotoAlternate, contentDescription = null) },
+                // What they are is under the section's heading.
                 headlineContent = { Text(T.offline.addRasterMapFormats) },
-                supportingContent = {
-                    Text(T.offline.rasterHelp)
-                },
             )
         }
     }

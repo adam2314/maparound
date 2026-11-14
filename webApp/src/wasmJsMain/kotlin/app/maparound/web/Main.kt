@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.LocalFontFamilyResolver
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.platform.Font
 import androidx.compose.ui.window.ComposeViewport
+import app.maparound.data.ElevationSources
 import app.maparound.data.LocalOfflineData
 import app.maparound.data.LocalPrefs
 import app.maparound.map.LocalMapThemes
@@ -74,16 +75,19 @@ private fun pinFromAddress() {
 }
 
 /**
- * A party invite in the page's address (`#party=<code>?n=<name>`, from the invite page), or "".
- * It's taken out of the address: the code is the party's secret.
+ * A party invite in the page's address (`#party=<code>?n=<name>`, from the invite page, with
+ * `&s=<server>` for a party on its own server), or "". It's taken out of the address: the code is
+ * the party's secret.
  */
 private fun takeInviteFromAddress(): String = js(
     """(() => {
     const parts = location.hash.replace(/^#/, '').split('&');
     const i = parts.findIndex((p) => p.startsWith('party='));
     if (i < 0) return '';
-    const invite = parts[i].substring(6);
+    let invite = parts[i].substring(6);
     parts.splice(i, 1);
+    const s = parts.findIndex((p) => p.startsWith('s='));
+    if (s >= 0) { invite += '&' + parts[s]; parts.splice(s, 1); }
     const rest = parts.filter((p) => p).join('&');
     try { history.replaceState(history.state, '', location.pathname + location.search + (rest ? '#' + rest : '')); } catch (e) {}
     return invite;
@@ -128,6 +132,12 @@ fun main() {
         inviteFromAddress(app)
         onAddressChange { inviteFromAddress(app) }
         notifyPartyEvents(app.party)
+        // The 3D view's terrain tiles: the default, or the ones chosen in Offline maps.
+        launch {
+            app.prefs.terrain3dSource.collect { s ->
+                setTerrain3dSource(s?.template ?: ElevationSources.DEFAULT_3D, s?.mapbox == true)
+            }
+        }
         onPageHide { app.onHide() }
         removeLoading()
         ComposeViewport("app") {

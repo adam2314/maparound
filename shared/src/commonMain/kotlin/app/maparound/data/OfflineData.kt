@@ -72,6 +72,23 @@ interface InstalledMaps {
     /** The platform's file picker for a .map file, which is copied into the app's map folder. */
     @Composable
     fun rememberImporter(onStart: () -> Unit, onResult: (Result<LocalMap>) -> Unit): () -> Unit
+
+    /** Whether [rememberAnyImporter] also takes raster maps (.rmap, .mbtiles, .sqlitedb). */
+    val importsRasters: Boolean get() = false
+
+    /**
+     * One file picker for every kind of map this platform can add: a vector map (copied in) and,
+     * where [importsRasters], a raster map (read where it is). Vector maps only by default.
+     */
+    @Composable
+    fun rememberAnyImporter(onStart: () -> Unit, onResult: (Result<ImportedMap>) -> Unit): () -> Unit =
+        rememberImporter(onStart) { r -> onResult(r.map { ImportedMap.Vector(it) }) }
+}
+
+/** What an import added: a vector map (copied into the app) or a raster map (read where it is). */
+sealed interface ImportedMap {
+    data class Vector(val map: LocalMap) : ImportedMap
+    data class Raster(val map: app.maparound.raster.RasterMap) : ImportedMap
 }
 
 interface MapDownloads {
@@ -195,6 +212,11 @@ class OfflineData(
     val addOns: Boolean = true,
     /** Terrain (contour lines & hill shading) can be added to a map. */
     val terrainAddOn: Boolean = addOns,
+    /**
+     * The 3D view reads its own terrain image tiles (the web app), whose source can be set beside
+     * the 1° tiles'; and those are read by the browser, so their server has to allow it (CORS).
+     */
+    val webTerrain: Boolean = false,
 )
 
 val LocalOfflineData = staticCompositionLocalOf<OfflineData> { error("No OfflineData provided") }

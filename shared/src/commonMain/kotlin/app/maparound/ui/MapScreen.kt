@@ -321,6 +321,7 @@ fun MapScreen(
     val planner by PlannerSession.state.collectAsState()
     val nav by NavigationSession.state.collectAsState()
     val speedUnit by prefs.speedUnit.collectAsState()
+    val elevationSourceNow by prefs.elevationSource.collectAsState()
     val navVoice by prefs.navVoice.collectAsState()
     val recorder by TrackRecorder.state.collectAsState()
     val savedTracks by tracksRepo.tracks.collectAsState()
@@ -940,7 +941,7 @@ fun MapScreen(
                 text = listOfNotNull(
                     if (!showingOffline) onlineSource?.attribution else T.map.osmAttribution,
                     if (showingOffline) backgroundAttribution(background, rasterMaps) else null,
-                    if (terrainShown) T.map.terrainAttribution else null,
+                    if (terrainShown) terrainCredit(elevationSourceNow) else null,
                     if (trailOverlay) TileSources.trailsOverlay.attribution else null,
                     if (dataView && stats != null) T.stats.credits else null,
                 ).joinToString(" · "),

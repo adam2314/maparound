@@ -230,6 +230,8 @@ class Prefs(private val sp: KeyValueStore) {
         private const val K_TERRAIN_HIGH = "terrain_high_detail"
         private const val K_TRAILS = "trails"
         private const val K_COORD_FORMAT = "coord_format"
+        private const val K_ELEVATION_SOURCE = "elevation_source"
+        private const val K_TERRAIN_3D = "terrain_3d_source"
         private const val K_LEVEL_UP = "level_up"
         private const val K_SPEED_UNIT = "speed_unit"
         private const val K_PLACES_ON_MAP = "places_on_map"
@@ -288,6 +290,23 @@ class Prefs(private val sp: KeyValueStore) {
     fun setSpeedUnit(value: SpeedUnit) {
         _speedUnit.value = value
         sp.putString(K_SPEED_UNIT, value.name)
+    }
+
+    // ---- where elevation data comes from ([ElevationSources]) ----
+    /** The address template for the 1° elevation tiles, or null for the default (Terrain Tiles on AWS). */
+    private val _elevationSource = MutableStateFlow(sp.getString(K_ELEVATION_SOURCE)?.let(ElevationSources::tilesTemplate))
+    val elevationSource: StateFlow<String?> = _elevationSource.asStateFlow()
+    fun setElevationSource(value: String?) {
+        _elevationSource.value = value
+        if (value == null) sp.remove(K_ELEVATION_SOURCE) else sp.putString(K_ELEVATION_SOURCE, value)
+    }
+
+    /** The web app's 3D terrain tiles, or null for the default (Terrarium tiles on AWS). */
+    private val _terrain3dSource = MutableStateFlow(Terrain3dSource.parse(sp.getString(K_TERRAIN_3D)))
+    val terrain3dSource: StateFlow<Terrain3dSource?> = _terrain3dSource.asStateFlow()
+    fun setTerrain3dSource(value: Terrain3dSource?) {
+        _terrain3dSource.value = value
+        if (value == null) sp.remove(K_TERRAIN_3D) else sp.putString(K_TERRAIN_3D, value.encode())
     }
 
     // ---- how coordinates are shown on pins and cards ----
