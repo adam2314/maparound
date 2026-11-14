@@ -32,7 +32,7 @@ targets:
       path: MapAround/Info.plist
       properties:
         CFBundleDisplayName: MapAround
-        CFBundleShortVersionString: "0.5.0"
+        CFBundleShortVersionString: "0.5.1"
         NSLocationWhenInUseUsageDescription: "MapAround shows where you are on the map and measures your speed and altitude."
         NSMotionUsageDescription: "MapAround shows the air pressure and motion sensors on the Sensors tab."
         UILaunchScreen: {}

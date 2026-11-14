@@ -34,6 +34,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -83,6 +85,8 @@ class Scene3DViewArgs(
 fun Scene3DScreen(start: Camera3D, mapCredits: String, onClose: (last: Camera3D?) -> Unit, view: @Composable (Scene3DViewArgs) -> Unit) {
     var satellite by rememberSaveable { mutableStateOf(false) }
     var settings by rememberSaveable { mutableStateOf(false) }
+    // Where the panel at the bottom starts: the zoom slider fits above it.
+    var bottomTop by remember { mutableStateOf<Float?>(null) }
     var exaggeration by remember { mutableFloatStateOf(1.5f) }
     var buildings by remember { mutableStateOf(true) }
     // The camera survives rebuilding the view (satellite on/off).
@@ -161,10 +165,13 @@ fun Scene3DScreen(start: Camera3D, mapCredits: String, onClose: (last: Camera3D?
                 containerColor = if (settings) MaterialTheme.colorScheme.primary else FloatingActionButtonDefaults.containerColor,
                 contentColor = if (settings) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
             ) { Icon(Icons.Filled.Tune, contentDescription = T.map.view3dSettings) }
-            control?.let { ZoomScale(it, Modifier.padding(top = 4.dp)) }
+            control?.let { ZoomScale(it, Modifier.padding(top = 4.dp), bottomLimit = bottomTop) }
         }
 
-        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().onGloballyPositioned { bottomTop = it.positionInRoot().y }.padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
             if (settings) Settings3D(exaggeration, { exaggeration = it }, hasBuildings, buildings, { buildings = it }, status, notes)
             else if (status.isNotEmpty() || notes.isNotEmpty()) {
                 // Closed: only what's loading, and problems.

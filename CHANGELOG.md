@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.5.0 (not released yet)
+## 0.5.1 (not released yet)
+
+0.5.0 went to Google Play's testing track only; 0.5.1 has all of the below.
 
 ### Languages
 - **MapAround in Hebrew (עברית)**, right to left: every screen, message, notification, unit and

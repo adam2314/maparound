@@ -102,6 +102,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -420,6 +422,8 @@ fun MapScreen(
     var follow by rememberSaveable { mutableStateOf(false) }
     var pin by remember { mutableStateOf<GeoPoint?>(null) }
     var pinLabel by remember { mutableStateOf<String?>(null) }
+    // Where the buttons at the bottom right start: the zoom slider above them fits in what's left.
+    var bottomButtonsTop by remember { mutableStateOf<Float?>(null) }
 
     // The data view (the web app): countries and Israel's localities coloured by their figures.
     val stats = LocalStats.current
@@ -699,7 +703,7 @@ fun MapScreen(
                 Icon(Icons.Filled.ViewInAr, contentDescription = T.map.view3dHere)
             }
             // The zoom, with the scale on its thumb.
-            ZoomScale(controller, Modifier.padding(top = 4.dp))
+            ZoomScale(controller, Modifier.padding(top = 4.dp), bottomLimit = bottomButtonsTop)
         }
 
         if (nav.active) {
@@ -889,7 +893,7 @@ fun MapScreen(
             )
         }
         Column(
-            Modifier.padding(12.dp),
+            Modifier.onGloballyPositioned { bottomButtonsTop = it.positionInRoot().y }.padding(12.dp),
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {

@@ -33,6 +33,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -57,9 +59,13 @@ private val TRACK = 150.dp
  * at the bottom, and between them a track whose thumb shows the scale now at the middle of the view
  * (a bar as long as a round distance, metric above it and imperial below). Dragging along the
  * track zooms; a tap on it jumps there.
+ *
+ * It fits above [bottomLimit] (px in the root's coordinates: where the buttons or panel below it
+ * start), as much of it as there's room for: the whole slider (its track shorter if needed), else
+ * + and − around the scale, else the scale alone.
  */
 @Composable
-fun ZoomScale(map: ZoomTarget, modifier: Modifier = Modifier) {
+fun ZoomScale(map: ZoomTarget, modifier: Modifier = Modifier, bottomLimit: Float? = null) {
     val range = map.zoomRange
     var zoom by remember { mutableDoubleStateOf(map.zoomLevel()) }
     var metresPerDp by remember { mutableDoubleStateOf(map.metresPerDp()) }
@@ -78,42 +84,71 @@ fun ZoomScale(map: ZoomTarget, modifier: Modifier = Modifier) {
         metresPerDp = map.metresPerDp()
     }
 
-    Column(modifier, horizontalAlignment = Alignment.End) {
-        SmallFloatingActionButton(onClick = { zoomTo(floor(zoom + 1.0001)) }) { Icon(Icons.Filled.Add, contentDescription = T.map.zoomIn) }
-        var trackPx by remember { mutableStateOf(1) }
-        val density = LocalDensity.current
-        val thumbH = 40.dp
-        val thumbPx = with(density) { thumbH.toPx() }
-        // The thumb's middle runs from half a thumb below the top to half a thumb above the bottom.
-        fun zoomAt(y: Float) =
-            range.endInclusive - ((y - thumbPx / 2) / (trackPx - thumbPx).coerceAtLeast(1f)).coerceIn(0f, 1f) * (range.endInclusive - range.start)
-        BoxWithConstraints(
-            Modifier.padding(vertical = 4.dp).width(SCALE_MAX + 16.dp).height(TRACK)
-                .onSizeChanged { trackPx = it.height.coerceAtLeast(1) }
-                .pointerInput(range) { detectTapGestures { zoomTo(zoomAt(it.y)) } }
-                .pointerInput(range) { detectVerticalDragGestures { change, _ -> change.consume(); zoomTo(zoomAt(change.position.y)) } },
-        ) {
-            // The track, under the buttons' middle: a rail that shows on light and dark maps.
-            Box(
-                Modifier.align(Alignment.TopEnd).padding(end = 16.dp).width(8.dp).fillMaxHeight()
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f), RoundedCornerShape(4.dp))
-                    .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f), RoundedCornerShape(4.dp)),
-            )
-            val fraction = ((range.endInclusive - zoom) / (range.endInclusive - range.start)).toFloat().coerceIn(0f, 1f)
-            val top: Dp = with(density) { (fraction * (trackPx - thumbPx).coerceAtLeast(0f)).toDp() }
-            Surface(
-                Modifier.align(Alignment.TopEnd).offset(y = top),
-                shape = RoundedCornerShape(8.dp),
-                tonalElevation = 3.dp,
-                shadowElevation = 2.dp,
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
-            ) {
-                ScaleBars(metresPerDp)
+    val density = LocalDensity.current
+    var topPx by remember { mutableStateOf(0f) }
+    // The room below the slider's top, down to the limit (a margin kept).
+    val room: Dp = bottomLimit?.let { with(density) { (it - topPx).toDp() } - 8.dp } ?: Dp.Infinity
+    val buttons = BUTTON * 2 + 8.dp // + and −, and the track's padding
+    val thumbH = 40.dp
+    val track = (room - buttons).coerceAtMost(TRACK)
+
+    Column(modifier.onGloballyPositioned { topPx = it.positionInRoot().y }, horizontalAlignment = Alignment.End) {
+        when {
+            // The whole slider.
+            track >= thumbH + 24.dp -> {
+                SmallFloatingActionButton(onClick = { zoomTo(floor(zoom + 1.0001)) }) { Icon(Icons.Filled.Add, contentDescription = T.map.zoomIn) }
+                var trackPx by remember { mutableStateOf(1) }
+                val thumbPx = with(density) { thumbH.toPx() }
+                // The thumb's middle runs from half a thumb below the top to half a thumb above the bottom.
+                fun zoomAt(y: Float) =
+                    range.endInclusive - ((y - thumbPx / 2) / (trackPx - thumbPx).coerceAtLeast(1f)).coerceIn(0f, 1f) * (range.endInclusive - range.start)
+                BoxWithConstraints(
+                    Modifier.padding(vertical = 4.dp).width(SCALE_MAX + 16.dp).height(track)
+                        .onSizeChanged { trackPx = it.height.coerceAtLeast(1) }
+                        .pointerInput(range) { detectTapGestures { zoomTo(zoomAt(it.y)) } }
+                        .pointerInput(range) { detectVerticalDragGestures { change, _ -> change.consume(); zoomTo(zoomAt(change.position.y)) } },
+                ) {
+                    // The track, under the buttons' middle: a rail that shows on light and dark maps.
+                    Box(
+                        Modifier.align(Alignment.TopEnd).padding(end = 16.dp).width(8.dp).fillMaxHeight()
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f), RoundedCornerShape(4.dp))
+                            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f), RoundedCornerShape(4.dp)),
+                    )
+                    val fraction = ((range.endInclusive - zoom) / (range.endInclusive - range.start)).toFloat().coerceIn(0f, 1f)
+                    val top: Dp = with(density) { (fraction * (trackPx - thumbPx).coerceAtLeast(0f)).toDp() }
+                    ScaleThumb(metresPerDp, Modifier.align(Alignment.TopEnd).offset(y = top))
+                }
+                SmallFloatingActionButton(onClick = { zoomTo(kotlin.math.ceil(zoom - 1.0001)) }) { Icon(Icons.Filled.Remove, contentDescription = T.map.zoomOut) }
             }
+            // + and − around the scale.
+            room >= buttons + thumbH -> {
+                SmallFloatingActionButton(onClick = { zoomTo(floor(zoom + 1.0001)) }) { Icon(Icons.Filled.Add, contentDescription = T.map.zoomIn) }
+                ScaleThumb(metresPerDp, Modifier.padding(vertical = 4.dp))
+                SmallFloatingActionButton(onClick = { zoomTo(kotlin.math.ceil(zoom - 1.0001)) }) { Icon(Icons.Filled.Remove, contentDescription = T.map.zoomOut) }
+            }
+            // The scale alone.
+            room >= thumbH -> ScaleThumb(metresPerDp)
+            else -> Unit
         }
-        SmallFloatingActionButton(onClick = { zoomTo(kotlin.math.ceil(zoom - 1.0001)) }) { Icon(Icons.Filled.Remove, contentDescription = T.map.zoomOut) }
     }
 }
+
+/** The scale on its little card (the slider's thumb). */
+@Composable
+private fun ScaleThumb(metresPerDp: Double, modifier: Modifier = Modifier) {
+    Surface(
+        modifier,
+        shape = RoundedCornerShape(8.dp),
+        tonalElevation = 3.dp,
+        shadowElevation = 2.dp,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+    ) {
+        ScaleBars(metresPerDp)
+    }
+}
+
+/** A small floating action button's size. */
+private val BUTTON = 40.dp
 
 /** A round metric distance and a round imperial one, as bars as long as they are on the map. */
 @Composable
