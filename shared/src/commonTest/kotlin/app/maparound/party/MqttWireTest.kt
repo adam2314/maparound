@@ -15,6 +15,15 @@ class MqttWireTest {
         assertEquals("82 08 00 01 00 03 61 2f 62 00", MqttWire.subscribe(1, "a/b").hex())
         assertEquals("40 02 01 02", MqttWire.pubAck(0x0102).hex())
         assertEquals("c0 00", MqttWire.PINGREQ.hex())
+        assertEquals("31 06 00 03 61 2f 62 07", MqttWire.publish("a/b", byteArrayOf(7), retained = true).hex())
+        assertEquals("30 05 00 03 61 2f 62", MqttWire.publish("a/b", ByteArray(0), retained = false).hex())
+        // A long payload: the length in two bytes.
+        assertEquals("30 85 01", MqttWire.publish("a/b", ByteArray(128), retained = false).hex().take(8))
+        // Read back as the broker would send it.
+        val back = MqttWire.Reader().feed(MqttWire.publish("x/y", byteArrayOf(1, 2), retained = true)).single() as MqttWire.Packet.Publish
+        assertEquals("x/y", back.topic)
+        assertEquals(listOf<Byte>(1, 2), back.payload.toList())
+        assertEquals(true, back.retained)
         assertEquals("e0 00", MqttWire.DISCONNECT.hex())
         // A body over 127 bytes takes two length bytes.
         val long = MqttWire.connect("x".repeat(200), 60)

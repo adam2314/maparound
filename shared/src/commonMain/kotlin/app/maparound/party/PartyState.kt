@@ -37,7 +37,7 @@ data class PartyState(
     val myPosition: GeoFix? = null,
 )
 
-/** The party session as the shared screens drive it (Android: PartySession with MQTT and BLE). */
+/** The party session as the shared screens drive it (Android: PartySession with MQTT and BLE; the web: OnlineParty). */
 interface PartyController {
     val state: StateFlow<PartyState>
 
@@ -48,11 +48,14 @@ interface PartyController {
     val pendingInvite: MutableStateFlow<PartyKey?>
 
     /**
-     * Only watches the party (the web app): sees the members, the meeting point, SOS alerts and
-     * messages, and sends nothing, so it shares no position and the others don't see it. Creating
-     * a party, [join]'s name and the sending calls do nothing.
+     * Only watches the party: sees the members, the meeting point, SOS alerts and messages, and
+     * sends nothing, so it shares no position and the others don't see it. Creating a party,
+     * [join]'s name and the sending calls do nothing.
      */
     val watchOnly: Boolean get() = false
+
+    /** Has the LoRa radio (and so the online switch and gateway); online only otherwise (the web app). */
+    val hasRadio: Boolean get() = true
 
     fun create(partyName: String, myName: String)
     fun join(key: PartyKey, myName: String)
@@ -74,6 +77,9 @@ val LocalParty = staticCompositionLocalOf<PartyController> { error("No PartyCont
 
 /** The party features that need the platform's own UI. */
 interface PartyPlatform {
+    /** Whether [rememberQrScanner] can scan (not in every browser). */
+    val canScanQr: Boolean get() = true
+
     /** Opens the camera to scan an invite QR code; [onResult] gets its text. */
     @Composable
     fun rememberQrScanner(onResult: (String) -> Unit): () -> Unit

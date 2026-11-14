@@ -55,6 +55,8 @@
   out of each downloaded map's whole rectangle, though the map only covers its region: a
   neighbour's border inside the rectangle (the Rhine north of Liechtenstein) was missing. Now only
   the region is cut (its outline, from the download list's regions).
+- **A member's battery in words** ("battery 80%") in the party list: the browser had no battery
+  sign to show.
 - **Borders in Israel and Palestine, and maps like it.** From zoom 8 their borders were gone: the
   world's were left out for the map to draw its own, but the map's border lines don't say they're
   countries' (OpenStreetMap keeps that on the border's relation). Now the world's borders stay
@@ -105,10 +107,11 @@
 - **The address follows the map** (`#map=zoom/lat/lon`, as on openstreetmap.org): reload, bookmark
   or share the link and the map opens at the same place and zoom. A pin is in it too, as
   OpenStreetMap's pinpoint (`?mlat=…&mlon=…`), so the link opens with the pin.
-- **Watch a party in the browser.** An invite link now also offers *Watch in your browser*: the
-  web app shows the group live on the map, with the meeting point, SOS alerts and messages,
-  through the same encrypted relays. It only watches: it doesn't share your position, and the
-  members don't see a watcher. To share yours, join with the app.
+- **Join a party in the browser.** An invite link now also offers *Join in your browser*, and the
+  web app can start a party too: a full member, sharing your position (the browser's) with the
+  group, with SOS, the meeting point, messages and the invite's QR code, through the same
+  encrypted relays as the app. Online only (no LoRa radio), and your position goes while the page
+  is open; SOS alerts and messages show as notifications while it's in the background.
 - **Shared points open in MapAround's web app.** Sharing a point now also gives a MapAround link
   (OpenStreetMap's pinpoint form, on MapAround's site), next to the Google Maps and OpenStreetMap
   ones: whoever gets it sees the pin in MapAround, in any browser.

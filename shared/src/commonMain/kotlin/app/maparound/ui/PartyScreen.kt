@@ -140,7 +140,7 @@ fun PartyScreen(
                 ensureNotifications()
                 party.create(partyName, me)
                 showQr = true
-            }, onScan = scan, onLink = { text ->
+            }, onScan = scan.takeIf { partyPlatform.canScanQr }, onLink = { text ->
                 val key = PartyKey.parse(text)
                 if (key == null) scope.launch { snackbar.showSnackbar(T.party.invalidLink) }
                 else party.pendingInvite.value = key
@@ -289,7 +289,7 @@ private fun WatchNoParty(onLink: (String) -> Unit) {
 }
 
 @Composable
-private fun NoParty(onCreate: (String, String) -> Unit, onScan: () -> Unit, onLink: (String) -> Unit) {
+private fun NoParty(onCreate: (String, String) -> Unit, onScan: (() -> Unit)?, onLink: (String) -> Unit) {
     var party by remember { mutableStateOf("") }
     var me by remember { mutableStateOf("") }
     var link by remember { mutableStateOf("") }
@@ -314,12 +314,18 @@ private fun NoParty(onCreate: (String, String) -> Unit, onScan: () -> Unit, onLi
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(T.party.joinAParty, style = MaterialTheme.typography.titleMedium)
-                    FilledTonalButton(onClick = onScan) {
-                        Icon(Icons.Filled.QrCodeScanner, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(T.party.scanInviteQr)
+                    if (onScan != null) {
+                        FilledTonalButton(onClick = onScan) {
+                            Icon(Icons.Filled.QrCodeScanner, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(T.party.scanInviteQr)
+                        }
                     }
-                    OutlinedTextField(link, { link = it }, label = { Text(T.party.orPasteInviteLink) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(
+                        link, { link = it },
+                        label = { Text(if (onScan != null) T.party.orPasteInviteLink else T.party.inviteLink) },
+                        singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    )
                     TextButton(onClick = { onLink(link) }, enabled = link.isNotBlank()) { Text(T.party.joinWithLink) }
                 }
             }
@@ -365,7 +371,15 @@ private fun InParty(
         } else item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    SwitchLine(T.party.partyOn, if (s.active) T.party.partyOnSubtitle else T.party.partyOffSubtitle, s.active, onToggleActive)
+                    SwitchLine(
+                        T.party.partyOn,
+                        when {
+                            !s.active -> T.party.partyOffSubtitle
+                            party.hasRadio -> T.party.partyOnSubtitle
+                            else -> T.party.partyOnBrowserSubtitle
+                        },
+                        s.active, onToggleActive,
+                    )
                     SwitchLine(T.party.shareMyLocation, if (s.sharing) T.party.sharingOnSubtitle else T.party.sharingOffSubtitle, s.sharing) { party.setSharing(it) }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         s.me?.let { me ->
@@ -468,6 +482,13 @@ private fun Connections(s: PartyState, onRadio: () -> Unit) {
             if (party.watchOnly) {
                 StatusLine(Icons.Filled.Cloud, T.party.online, s.online) {}
                 if (!s.active) Text(T.party.turnWatchingOnToConnect, style = MaterialTheme.typography.bodySmall)
+            } else if (!party.hasRadio) {
+                // Online only (the web app): no switch, no radio.
+                StatusLine(Icons.Filled.Cloud, T.party.online, s.online) {}
+                Text(
+                    if (s.active) T.party.browserKeepOpen else T.party.turnPartyOnToConnect,
+                    style = MaterialTheme.typography.bodySmall,
+                )
             } else {
                 AppConnections(s, onRadio)
             }
@@ -561,7 +582,7 @@ private fun MemberRow(m: Member, me: GeoFix?, now: Long, onShow: (GeoPoint) -> U
             p?.let { pos ->
                 distanceText(me, pos.lat, pos.lon)?.let(parts::add)
                 pos.speedKmh?.takeIf { it >= 3 }?.let { parts += "$it ${T.common.unitKmh}" }
-                pos.batteryPct?.let { parts += "🔋$it%" }
+                pos.batteryPct?.let { parts += T.party.battery(it) }
             } ?: parts.add(T.party.noPositionYet)
             ago(now, m.positionAt.takeIf { it > 0 } ?: m.lastHeard)?.let(parts::add)
             parts += m.heard.keys.joinToString("+") { it.label }

@@ -1,31 +1,29 @@
 package app.maparound.web
 
-import app.maparound.data.KeyValueStore
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import app.maparound.i18n.T
-import app.maparound.party.Member
-import app.maparound.party.MqttWire
+import app.maparound.party.MqttSocket
+import app.maparound.party.MqttSockets
 import app.maparound.party.PartyController
-import app.maparound.party.PartyEngine
 import app.maparound.party.PartyEvent
-import app.maparound.party.PartyKey
-import app.maparound.party.PartyRelays
-import app.maparound.party.PartyState
-import app.maparound.party.TransportStatus
-import app.maparound.party.Via
-import app.maparound.shared.crypto.randomBytes
+import app.maparound.party.PartyPlatform
 import app.maparound.shared.toByteArray
 import app.maparound.shared.toUint8Array
-import app.maparound.shared.util.nowMillis
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+
+// The party in the web app is the shared OnlineParty: a full member online (no LoRa radio). Here are
+// the browser's parts: its WebSocket, the battery level, notifications, and the invite's QR code.
 
 // ---- the browser's WebSocket (MQTT over WebSocket: binary messages, subprotocol "mqtt") ---------
 
@@ -45,234 +43,127 @@ private fun wsSend(ws: JsAny, data: JsAny): Unit = js("{ try { if (ws.readyState
 
 private fun wsClose(ws: JsAny): Unit = js("{ ws.onopen = null; ws.onmessage = null; ws.onclose = null; try { ws.close(); } catch (e) {} }")
 
-/**
- * The party in the web app, watch only: it reads the party's packets from the same public MQTT
- * brokers as the app (over a secure WebSocket), decrypts them with the invite's key and shows the
- * members, the meeting point, SOS alerts and messages. It sends nothing to the party, so it shares
- * no position and the members don't see it. The invite (its key) is kept in [store].
- */
-class WebPartyWatcher(private val store: KeyValueStore) : PartyController {
-    override val watchOnly: Boolean get() = true
+/** The party's connections to the brokers: the browser's WebSockets. */
+object WebMqttSockets : MqttSockets {
+    override fun open(url: String, onOpen: () -> Unit, onData: (ByteArray) -> Unit, onClose: (String) -> Unit): MqttSocket? {
+        val ws = wsOpen(url, onOpen, { data -> onData(data.toByteArray()) }, onClose) ?: return null
+        return object : MqttSocket {
+            override fun send(bytes: ByteArray) = wsSend(ws, bytes.toUint8Array())
+            override fun close() = wsClose(ws)
+        }
+    }
+}
 
-    private val _state = MutableStateFlow(PartyState())
-    override val state: StateFlow<PartyState> = _state.asStateFlow()
-    private val _events = MutableSharedFlow<PartyEvent>(extraBufferCapacity = 16)
-    override val events: SharedFlow<PartyEvent> = _events.asSharedFlow()
-    override val pendingInvite = MutableStateFlow<PartyKey?>(null)
+// ---- the battery (Chrome and Edge; others don't say) ----------------------------------------------
 
-    private val scope = MainScope()
-    private var engine: PartyEngine? = null
-    private var socket: JsAny? = null
-    private var reader = MqttWire.Reader()
-    private var watchdog: Job? = null
+private fun batteryWatch(onLevel: (Int) -> Unit): Unit = js(
+    """{
+    if (navigator.getBattery) navigator.getBattery().then((b) => {
+        const f = () => onLevel(Math.round(b.level * 100));
+        f();
+        b.addEventListener('levelchange', f);
+    }).catch(() => {});
+}""",
+)
 
-    /** Which connection the callbacks are about (older sockets' come late, and are ignored). */
-    private var generation = 0
-    private var broker = 0
-    private var subscribed = false
-    private var lastHeard = 0L
-    private val clientId = "maparound-web-" + randomBytes(6).joinToString("") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
+/** The battery level for the party's positions, null where the browser doesn't tell. */
+object WebBattery {
+    var level: Int? = null
+        private set
 
     init {
-        store.getString(K_LINK)?.let(PartyKey::parse)?.let { key ->
-            watch(key)
-            if (store.getBoolean(K_ACTIVE, true)) setActive(true)
-        }
+        batteryWatch { level = it }
     }
+}
 
-    private fun watch(key: PartyKey) {
-        // Our id only tells our own packets apart, and we send none.
-        engine = PartyEngine(key, randomBytes(4).let { b -> (b[0].toInt() shl 24) or ((b[1].toInt() and 0xFF) shl 16) or ((b[2].toInt() and 0xFF) shl 8) or (b[3].toInt() and 0xFF) })
-        _state.value = PartyState(party = key)
+// ---- notifications: SOS alerts and messages while the page is in the background ---------------
+
+private fun notificationsAllowed(): Boolean = js("typeof Notification !== 'undefined' && Notification.permission === 'granted'")
+
+private fun askForNotifications(): Unit = js(
+    "{ if (typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission().catch(() => {}); }",
+)
+
+private fun pageHidden(): Boolean = js("document.visibilityState === 'hidden'")
+
+/** Through the service worker where there is one (phones allow no other way), else directly. */
+private fun showNotification(title: String, body: String, urgent: Boolean): Unit = js(
+    """{
+    const opts = { body: body, icon: 'icon-192.png', tag: urgent ? 'party-sos' : 'party', renotify: true, requireInteraction: urgent };
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.ready.then((r) => r.showNotification(title, opts)).catch(() => {});
+    } else {
+        try { const n = new Notification(title, opts); n.onclick = () => { window.focus(); n.close(); }; } catch (e) {}
     }
+}""",
+)
 
-    /** A watcher can't start a party. */
-    override fun create(partyName: String, myName: String) = Unit
-
-    override fun join(key: PartyKey, myName: String) {
-        stop()
-        store.putString(K_LINK, key.toLink())
-        watch(key)
-        setActive(true)
-    }
-
-    override fun leave() {
-        stop()
-        engine = null
-        store.remove(K_LINK)
-        store.remove(K_ACTIVE)
-        _state.value = PartyState()
-    }
-
-    override fun setActive(on: Boolean) {
-        if (engine == null) return
-        store.putBoolean(K_ACTIVE, on)
-        if (on) {
-            update { it.copy(active = true) }
-            broker = 0
-            connect()
-        } else {
-            stop()
-        }
-    }
-
-    // Watch only: nothing is sent, and there's no radio in the browser.
-    override fun setSharing(on: Boolean) = Unit
-    override fun setProfile(name: String, color: Int, icon: Int) = Unit
-    override fun setOnlineEnabled(on: Boolean) = Unit
-    override fun setGateway(on: Boolean) = Unit
-    override fun setRadio(address: String, name: String) = Unit
-    override fun forgetRadio() = Unit
-    override fun sos(active: Boolean, text: String) = Unit
-    override fun setMeeting(lat: Double, lon: Double, label: String) = Unit
-    override fun clearMeeting() = Unit
-    override fun sendText(text: String) = Unit
-
-    // ---- the connection ---------------------------------------------------------------------------
-
-    private fun connect() {
-        closeSocket()
-        val gen = ++generation
-        val url = PartyRelays.WEBSOCKET[broker % PartyRelays.WEBSOCKET.size]
-        val host = PartyRelays.host(url)
-        update { it.copy(online = TransportStatus(TransportStatus.State.CONNECTING, host)) }
-        reader = MqttWire.Reader()
-        subscribed = false
-        lastHeard = nowMillis()
-        socket = wsOpen(
-            url,
-            onOpen = { if (gen == generation) send(MqttWire.connect(clientId, KEEP_ALIVE_S)) },
-            onData = { data -> if (gen == generation) onData(data.toByteArray(), host) },
-            onClose = { why -> if (gen == generation) lost(T.party.hostProblem(host, why.ifEmpty { T.party.connectionClosed })) },
-        )
-        if (socket == null) {
-            lost(T.party.hostProblem(host, T.party.cantConnect))
-            return
-        }
-        watchdog = scope.launch {
-            delay(CONNECT_TIMEOUT_MS)
-            if (gen != generation) return@launch
-            if (!subscribed) {
-                lost(T.party.hostProblem(host, T.party.noAnswer))
-                return@launch
-            }
-            while (gen == generation) {
-                delay(PING_MS)
-                if (gen != generation) break
-                if (nowMillis() - lastHeard > 2 * PING_MS + 15_000) {
-                    lost(T.party.hostProblem(host, T.party.noAnswer))
-                    break
-                }
-                send(MqttWire.PINGREQ)
-            }
-        }
-    }
-
-    private fun onData(bytes: ByteArray, host: String) {
-        lastHeard = nowMillis()
-        val packets = try {
-            reader.feed(bytes)
-        } catch (e: Exception) {
-            lost(T.party.hostProblem(host, "${e.message}"))
-            return
-        }
-        for (p in packets) {
-            when (p) {
-                is MqttWire.Packet.ConnAck ->
-                    if (p.code == 0) {
-                        send(MqttWire.subscribe(1, PartyRelays.allOf(engine?.key?.tagHex ?: return)))
-                    } else {
-                        lost(T.party.refusedConnection(host, p.code))
-                        return
-                    }
-                is MqttWire.Packet.SubAck ->
-                    if (p.codes.any { it >= 0x80 }) {
-                        lost(T.party.refusedSubscription(host))
-                        return
-                    } else {
-                        subscribed = true
-                        update { it.copy(online = TransportStatus(TransportStatus.State.CONNECTED, host)) }
-                    }
-                is MqttWire.Packet.Publish -> {
-                    p.packetId?.let { send(MqttWire.pubAck(it)) }
-                    // An empty retained message is a member's state removed (they left).
-                    if (p.payload.isNotEmpty()) onPacket(p.payload, p.retained)
-                }
+/** The party's alerts as notifications while the page isn't showing (as Android's). */
+fun notifyPartyEvents(party: PartyController) {
+    MainScope().launch {
+        party.events.collect { ev ->
+            if (!pageHidden() || !notificationsAllowed()) return@collect
+            when (ev) {
+                is PartyEvent.SosRaised -> showNotification(T.party.sosNotificationTitle(ev.member.displayName), ev.text.ifBlank { T.party.sosNeedsHelp }, true)
+                is PartyEvent.TextReceived -> showNotification(ev.member.displayName, ev.text, false)
+                is PartyEvent.MeetingSet -> ev.meeting?.let { showNotification(T.party.newMeetingPoint, it.label.ifBlank { T.party.tapToSeeOnMap }, false) }
                 else -> Unit
             }
         }
     }
+}
 
-    /** Lost or refused: the same broker again after it worked, else the next one (a pause after them all). */
-    private fun lost(why: String) {
-        val wasSubscribed = subscribed
-        closeSocket()
-        if (!_state.value.active) return
-        val gen = ++generation
-        val pause = if (wasSubscribed) {
-            update { it.copy(online = TransportStatus(TransportStatus.State.CONNECTING, T.party.reconnectingBecause(why))) }
-            RETRY_MS
-        } else {
-            broker++
-            update { it.copy(online = TransportStatus(TransportStatus.State.ERROR, why)) }
-            if (broker % PartyRelays.WEBSOCKET.size == 0) ROUND_PAUSE_MS else RETRY_MS
+// ---- the invite's QR code ------------------------------------------------------------------------
+
+/** The QR code of [text] as "n:" and n × n of 0 and 1 (row by row), or "" (qrcode.js not loaded). */
+private fun qrBits(text: String): String = js(
+    """(() => {
+    try {
+        if (typeof qrcode !== 'function') return '';
+        if (qrcode.stringToBytesFuncs && qrcode.stringToBytesFuncs['UTF-8']) qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
+        const q = qrcode(0, 'M');
+        q.addData(text);
+        q.make();
+        const n = q.getModuleCount();
+        let s = n + ':';
+        for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) s += q.isDark(r, c) ? '1' : '0';
+        return s;
+    } catch (e) { return ''; }
+})()""",
+)
+
+/** The party's platform parts in the browser: the invite's QR code and notifications; no camera scanning or radio. */
+object WebPartyPlatform : PartyPlatform {
+    override val canScanQr: Boolean get() = false
+
+    @Composable
+    override fun rememberQrScanner(onResult: (String) -> Unit): () -> Unit = remember { {} }
+
+    @Composable
+    override fun QrImage(text: String, modifier: Modifier) {
+        val bits = remember(text) { qrBits(text) }
+        val n = bits.substringBefore(':', "").toIntOrNull()
+        if (n == null) {
+            Box(modifier) { Text(text) }
+            return
         }
-        watchdog = scope.launch {
-            delay(pause)
-            if (gen == generation && _state.value.active) connect()
-        }
-    }
-
-    private fun stop() {
-        generation++
-        socket?.let { send(MqttWire.DISCONNECT) }
-        closeSocket()
-        update { it.copy(active = false, online = TransportStatus(TransportStatus.State.OFF)) }
-    }
-
-    private fun closeSocket() {
-        watchdog?.cancel()
-        watchdog = null
-        socket?.let(::wsClose)
-        socket = null
-        subscribed = false
-    }
-
-    private fun send(bytes: ByteArray) {
-        socket?.let { wsSend(it, bytes.toUint8Array()) }
-    }
-
-    // ---- the party's packets --------------------------------------------------------------------
-
-    private fun onPacket(bytes: ByteArray, retained: Boolean) {
-        val e = engine ?: return
-        val accepted = e.receive(bytes, Via.ONLINE) ?: return
-        for (ev in accepted.events) {
-            // On connecting, the broker sends everyone's kept state: they didn't just join.
-            if (retained && ev is PartyEvent.Joined) continue
-            _events.tryEmit(ev)
-        }
-        update { s ->
-            s.copy(
-                members = e.members.values.filterNot { it.left }
-                    .sortedWith(compareByDescending<Member> { it.sos }.thenBy { it.displayName.lowercase() }),
-                meeting = e.meeting,
-                chat = e.chat.toList(),
-            )
+        val cells = bits.substringAfter(':')
+        Canvas(modifier.background(Color.White)) {
+            // A quiet zone of 4 modules all round, as scanners want.
+            val m = size.minDimension / (n + 8)
+            val x0 = (size.width - m * n) / 2
+            val y0 = (size.height - m * n) / 2
+            for (r in 0 until n) for (c in 0 until n) {
+                if (cells[r * n + c] == '1') drawRect(Color.Black, Offset(x0 + c * m, y0 + r * m), Size(m + 0.5f, m + 0.5f))
+            }
         }
     }
 
-    private inline fun update(f: (PartyState) -> PartyState) {
-        _state.value = f(_state.value)
+    @Composable
+    override fun RadioPicker(onPick: (address: String, name: String) -> Unit, onDismiss: () -> Unit) {
+        LaunchedEffect(Unit) { onDismiss() }
     }
 
-    private companion object {
-        const val K_LINK = "link"
-        const val K_ACTIVE = "active"
-        const val KEEP_ALIVE_S = 120
-        const val PING_MS = 50_000L
-        const val CONNECT_TIMEOUT_MS = 15_000L
-        const val RETRY_MS = 2_000L
-        const val ROUND_PAUSE_MS = 30_000L
-    }
+    @Composable
+    override fun rememberNotificationPermission(): () -> Unit = remember { { askForNotifications() } }
 }

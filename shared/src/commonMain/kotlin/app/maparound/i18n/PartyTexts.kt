@@ -72,6 +72,10 @@ open class PartyTexts {
     /** The switch that runs the party (sending and receiving). */
     open val partyOn = "Party on"
     open val partyOnSubtitle = "Sending and receiving, also with the screen off"
+    open val partyOnBrowserSubtitle = "Sending and receiving while this page is open"
+
+    /** A member's battery, in the members list (words: the web's fonts have no battery emoji). */
+    open fun battery(pct: Int) = "battery $pct%"
     open val partyOffSubtitle = "Off: not sending or receiving"
     open val shareMyLocation = "Share my location"
     open val sharingOnSubtitle = "Others see you"
@@ -201,6 +205,9 @@ open class PartyTexts {
     open val gateway = "Gateway"
     open val gatewaySubtitle = "Relay between radio and online, so off-grid and online members see each other"
     open val turnPartyOnToConnect = "Turn the party on to connect."
+
+    /** The web app, with the party on. */
+    open val browserKeepOpen = "In the browser, online only. Keep this page open to share your position: a phone stops pages in the background."
     open val connected = "Connected"
 
     /** Connected, and to what: a server, a radio's name. */
@@ -334,6 +341,8 @@ object PartyTextsHe : PartyTexts() {
     override val invite = "הזמנה"
     override val partyOn = "קבוצה פעילה"
     override val partyOnSubtitle = "שליחה וקבלה, גם כשהמסך כבוי"
+    override val partyOnBrowserSubtitle = "שליחה וקבלה כל עוד הדף פתוח"
+    override fun battery(pct: Int) = "סוללה $pct%"
     override val partyOffSubtitle = "כבוי: אין שליחה או קבלה"
     override val shareMyLocation = "שיתוף המיקום שלי"
     override val sharingOnSubtitle = "האחרים רואים אותך"
@@ -423,6 +432,7 @@ object PartyTextsHe : PartyTexts() {
     override val gateway = "גשר"
     override val gatewaySubtitle = "העברה בין מכשיר הקשר לאינטרנט, כך שמשתתפים בלי קליטה ומשתתפים מחוברים יראו אלה את אלה"
     override val turnPartyOnToConnect = "כדי להתחבר, יש להפעיל את הקבוצה."
+    override val browserKeepOpen = "בדפדפן, דרך האינטרנט בלבד. כדי לשתף את המיקום שלך יש להשאיר את הדף פתוח: בטלפון, דף ברקע נעצר."
     override val connected = "מחובר"
     override fun connectedTo(detail: String) = "מחובר · $detail"
     override val stateOff = "כבוי"

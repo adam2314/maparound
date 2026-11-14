@@ -1,5 +1,6 @@
 package app.maparound.web
 
+import app.maparound.party.OnlineParty
 import app.maparound.terrain.DemIndex
 import app.maparound.data.MapAroundCatalog
 import app.maparound.data.OfflineData
@@ -76,8 +77,8 @@ class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: Str
     val tracks = TrackRepository(WebFiles.ROOT, WebStorageStore("tracks"))
     val sensors = WebSensors()
 
-    /** The party, watch only (WebParty.kt). */
-    val party = WebPartyWatcher(WebStorageStore("party"))
+    /** The party, online (no LoRa radio in a browser): our position from the browser's (WebParty.kt). */
+    val party = OnlineParty(WebStorageStore("party"), WebMqttSockets, locations = { sensors.locations() }, battery = { WebBattery.level })
     val searcher = WebSearcher(places, maps)
     /** Elevation data for line of sight and viewshed, fetched as they need it. */
     val terrain = WebTerrain(demDir)

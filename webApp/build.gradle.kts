@@ -17,6 +17,9 @@ val maplibreVersion = "5.24.0"
 /** MapLibre's plugin that puts right-to-left text (Hebrew, Arabic) in order on the map. */
 val rtlTextVersion = "0.3.0"
 
+/** QR codes for party invites: kazuhikoarase's qrcode-generator (MIT). */
+val qrcodeVersion = "1.4.4"
+
 /** The style's SVG symbols come from mapsforge's themes (LGPL-3.0), as on Android. */
 val mapsforgeThemes: Configuration by configurations.creating
 
@@ -52,6 +55,21 @@ val rtlTextFiles = layout.buildDirectory.dir("rtltext/$rtlTextVersion").also { d
             out.mkdirs()
             val f = out.resolve("mapbox-gl-rtl-text.js")
             if (!f.exists()) URI("https://unpkg.com/@mapbox/mapbox-gl-rtl-text@$rtlTextVersion/dist/mapbox-gl-rtl-text.js").toURL().openStream().use { input ->
+                f.outputStream().use { input.copyTo(it) }
+            }
+        }
+    }
+}
+
+/** The QR code encoder, downloaded once. */
+val qrcodeFiles = layout.buildDirectory.dir("qrcode/$qrcodeVersion").also { dir ->
+    tasks.register("downloadQrcode") {
+        val out = dir.get().asFile
+        outputs.dir(out)
+        doLast {
+            out.mkdirs()
+            val f = out.resolve("qrcode.js")
+            if (!f.exists()) URI("https://unpkg.com/qrcode-generator@$qrcodeVersion/qrcode.js").toURL().openStream().use { input ->
                 f.outputStream().use { input.copyTo(it) }
             }
         }
@@ -100,13 +118,14 @@ val webAssets by tasks.registering(Sync::class) {
     from("../docs/store") { include("icon-512.png") }
     from(maplibreFiles)
     from(rtlTextFiles)
+    from(qrcodeFiles)
     from(uiFontFiles) { into("uifonts") }
     // The tile worker (webTiles), always its production build (see webTiles/webpack.config.d).
     from(rootProject.layout.projectDirectory.dir("webTiles/build/dist/wasmJs/productionExecutable")) {
         into("tiles")
         exclude("*.js.map", "*.LICENSE.txt")
     }
-    dependsOn("downloadMapLibre", "downloadRtlText", "downloadUiFonts", ":webTiles:wasmJsBrowserDistribution")
+    dependsOn("downloadMapLibre", "downloadRtlText", "downloadQrcode", "downloadUiFonts", ":webTiles:wasmJsBrowserDistribution")
 }
 
 

@@ -92,7 +92,7 @@ private fun takeInviteFromAddress(): String = js(
 /** [f] when another address is typed or opened in this page (the part after #). */
 private fun onAddressChange(f: () -> Unit): Unit = js("{ window.addEventListener('hashchange', () => f()); }")
 
-/** An invite in the address opens the party screen, which asks before watching. */
+/** An invite in the address opens the party screen, which asks before joining. */
 private fun inviteFromAddress(app: WebApp) {
     takeInviteFromAddress().takeIf { it.isNotEmpty() }?.let(PartyKey::parse)?.let { app.party.pendingInvite.value = it }
 }
@@ -126,6 +126,7 @@ fun main() {
         pinFromAddress()
         inviteFromAddress(app)
         onAddressChange { inviteFromAddress(app) }
+        notifyPartyEvents(app.party)
         onPageHide { app.onHide() }
         removeLoading()
         ComposeViewport("app") {
@@ -163,7 +164,7 @@ fun WebRoot(app: WebApp) {
         LocalRasters provides PendingRasters,
         LocalMapThemes provides app.themes,
         LocalParty provides app.party,
-        LocalPartyPlatform provides PendingPartyPlatform,
+        LocalPartyPlatform provides WebPartyPlatform,
         LocalOfflineData provides app.offline,
     ) {
         MapAroundTheme {

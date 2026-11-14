@@ -1,7 +1,7 @@
 package app.maparound.party
 
-// Plain Kotlin: where the party meets online, and the few MQTT 3.1.1 packets the web app needs
-// to watch a party over a WebSocket (it only listens). Unit-tested.
+// Plain Kotlin: where the party meets online, and the few MQTT 3.1.1 packets a party needs over
+// a WebSocket (the web app: OnlineParty). Unit-tested.
 
 /**
  * The public MQTT brokers that relay party packets (end-to-end encrypted). Everyone tries them
@@ -43,6 +43,10 @@ object MqttWire {
 
     /** The answer to a QoS 1 PUBLISH. */
     fun pubAck(packetId: Int): ByteArray = packet(0x40, u16(packetId))
+
+    /** PUBLISH at QoS 0; [retained]: the broker keeps it for whoever subscribes later. */
+    fun publish(topic: String, payload: ByteArray, retained: Boolean): ByteArray =
+        packet(0x30 or (if (retained) 1 else 0), str(topic) + payload)
 
     val PINGREQ: ByteArray get() = byteArrayOf(0xC0.toByte(), 0)
     val DISCONNECT: ByteArray get() = byteArrayOf(0xE0.toByte(), 0)

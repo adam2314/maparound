@@ -23,7 +23,6 @@ import app.maparound.map.MapTheme
 import app.maparound.map.MapThemeLibrary
 import app.maparound.map.MapThemes
 import app.maparound.map.StyleMenu
-import app.maparound.party.PartyPlatform
 import app.maparound.places.Place
 import app.maparound.places.PlaceRepository
 import app.maparound.places.Places
@@ -270,7 +269,13 @@ class WebSensors : DeviceSensors {
                     ),
                 )
             },
-            onError = { code -> if (code == 1) _permission.value = false },
+            onError = { code ->
+                // Denied: the browser's watch is over; the flow ends (as without permission).
+                if (code == 1) {
+                    _permission.value = false
+                    close()
+                }
+            },
         )
         awaitClose { geoClear(id) }
     }
@@ -482,25 +487,6 @@ object PendingRasters : RasterLibrary {
         val done = rememberUpdatedState(onResult)
         return remember { { done.value(Result.failure(Exception(T.offline.rastersLater(LATER)))) } }
     }
-}
-
-/** The party's platform parts the web app doesn't have: no camera scanning, QR image or radio. */
-object PendingPartyPlatform : PartyPlatform {
-    @Composable
-    override fun rememberQrScanner(onResult: (String) -> Unit): () -> Unit = remember { {} }
-
-    @Composable
-    override fun QrImage(text: String, modifier: Modifier) {
-        Box(modifier) { Text(text) }
-    }
-
-    @Composable
-    override fun RadioPicker(onPick: (address: String, name: String) -> Unit, onDismiss: () -> Unit) {
-        LaunchedEffect(Unit) { onDismiss() }
-    }
-
-    @Composable
-    override fun rememberNotificationPermission(): () -> Unit = remember { {} }
 }
 
 /** The styles on the web: Topo with its options (as on iPhone). */

@@ -4,9 +4,16 @@
 // copy offline. Other sites (online maps, search) aren't cached here; downloaded maps are in the
 // browser's file storage, not in this cache.
 const CACHE = 'maparound-app-v1';
-const CORE = ['./', 'index.html', 'app.css', 'mapview.js', 'maplibre-gl.js', 'maplibre-gl.css', 'mapbox-gl-rtl-text.js', 'maparound.js',
+const CORE = ['./', 'index.html', 'app.css', 'mapview.js', 'maplibre-gl.js', 'maplibre-gl.css', 'mapbox-gl-rtl-text.js', 'qrcode.js', 'maparound.js',
   'manifest.webmanifest', 'icon-192.png', 'themes/topo.xml', 'world.bin', 'borders.bin', 'regions.bin',
   'tiles/tiles-worker.js', 'tiles/maptiles.js'];
+
+// A party notification tapped: back to the app.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    .then((cs) => (cs.length ? cs[0].focus() : self.clients.openWindow('./'))));
+});
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE)).catch(() => {}).then(() => self.skipWaiting()));
