@@ -263,6 +263,7 @@ internal object LegendCatalog {
                 way({ l.faintPath }, "highway" to "path", "trail_visibility" to "bad", group = "path"),
                 way({ l.footway }, "highway" to "footway"),
                 way({ l.cycleway }, "highway" to "cycleway"),
+                way({ l.bikeTrail }, "highway" to "path", "bicycle" to "designated", "surface" to "dirt", "mtb:scale" to "1"),
                 way({ l.bridleway }, "highway" to "bridleway"),
                 way({ l.steps }, "highway" to "steps"),
                 way({ l.viaFerrata }, "highway" to "via_ferrata"),

@@ -28,6 +28,9 @@ object ThemeStyle {
     const val CONTOURS = "contours"
     const val TRAILS = "trails"
 
+    /** The keys of the marked-trail lines (MapAround's maps and the trail tiles); their rules read those. */
+    private val TRAIL_KEYS = setOf("trail", "trail_colour", "trail_offset", "trail_n")
+
     /** Image names of theme symbols: "sym:" + the path in the theme, e.g. `sym:symbols/peak.svg`. */
     const val SYMBOL_PREFIX = "sym:"
 
@@ -382,7 +385,8 @@ object ThemeStyle {
         val keys = ctx.keys
         return when {
             "contour" in keys -> CONTOURS to CONTOURS
-            keys.any { it == "trail" || it.startsWith("trail_") } -> TRAILS to TRAILS
+            // MapAround's marked-trail lines (not OpenStreetMap's trail_visibility, which is on paths).
+            keys.any { it in TRAIL_KEYS } -> TRAILS to TRAILS
             else -> MapStyle.OSM_SOURCE to osmLayer
         }
     }

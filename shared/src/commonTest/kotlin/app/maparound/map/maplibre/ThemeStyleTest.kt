@@ -155,6 +155,14 @@ class ThemeStyleTest {
         // ...and the same trail lines when they're built into the map (MapAround's maps).
         assertTrue(drawn(trail, "line", MapsforgeToMvt.TRAILS).any { it.str("source") == MapStyle.OSM_SOURCE })
 
+        // Paths by difficulty come from the map's own paths: a path's trail_visibility (an
+        // OpenStreetMap tag) isn't a marked trail's key, whatever the rule's other conditions.
+        fun colours(l: List<JsonObject>) = l.mapNotNull { it["paint"]?.jsonObject?.get("line-color")?.jsonPrimitive?.content }
+        val green = "rgb(46,158,62)"
+        assertTrue(green in colours(drawn(mapOf("highway" to "path", "sac_scale" to "hiking"), "line", "line")))
+        assertTrue(green in colours(drawn(mapOf("highway" to "path", "bicycle" to "designated", "mtb:scale" to "0"), "line", "line")))
+        assertTrue("rgb(34,34,34)" in colours(drawn(mapOf("highway" to "path", "trail_visibility" to "bad"), "line", "line")))
+
         // Town names on points; peaks' names above the (later) symbol.
         assertTrue(drawn(mapOf("place" to "town", "name" to "Vaduz"), "symbol", "poi").isNotEmpty())
         val peak = drawn(mapOf("natural" to "peak", "name" to "Naafkopf"), "symbol", "poi")

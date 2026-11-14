@@ -1,6 +1,73 @@
 # Changelog
 
-## 0.5.1 (not released yet)
+## 0.5.3 (not released yet)
+
+### The Topo style
+- **Bike paths you can see.** Bike paths, and the many paths shared by walkers and bikes (in
+  parks like HaYarkon), are blue with a white dashed line down the middle, like a painted lane,
+  and drawn over the streets they run beside (in Tel Aviv they were hidden under them). Bike
+  trails out in the open (singletracks) keep their difficulty colours with a blue line along them.
+- **Path colours on the map itself.** The difficulty colours of paths only showed in the legend:
+  the map read them from the wrong data. They're on the map now.
+- **4×4 dirt roads as a double line** too, its edges dash-dot, after any vehicle (solid edges)
+  and high vehicles (dashed).
+
+## 0.5.2
+
+### 3D
+- **The 3D view keeps the map's buttons.** The same column as on the map, in the same places:
+  search (the view goes to what you pick), layers, route (greyed out in 3D), and the 3D button,
+  lit while in 3D, which switches back; the tools button becomes the relief's (relief, buildings,
+  satellite imagery), and the zoom slider shows the scale at the view's middle. A compass appears
+  on the other side while the view is turned; a tap faces north. The 3D view credits what it
+  shows, as the map does: the map's sources, the imagery when it's on, and the relief data.
+- **A steadier 3D view.** Panning over ridges and gullies no longer bobs the view: on Android the
+  point the camera turns around follows the ground averaged around it, eased; in the web app the
+  view's height holds while you move and the middle is grounded with the camera still, also as
+  finer elevation arrives (no more drifting after a stop). Gestures are applied once per frame, a
+  pinch no longer wobbles the view round (a twist turns it once it's meant), tilting keeps every
+  bit of the move, the zoom slider eases and no longer sinks the view, names keep up with the
+  ground, tiles reach the screen a few at a time instead of in one long frame, a tile near the
+  edge of a finer level no longer flips back and forth, and new elevation data rebuilds the
+  Android view once a download is over instead of after every tile.
+
+### The Topo style
+- **Dirt roads by how passable they are, paths by difficulty.** Dirt roads show whether any car,
+  a high vehicle or only a 4×4 gets through, or none (from the map's smoothness and track grade);
+  paths are coloured by difficulty: easy green, medium blue, hard black, very hard red with ticks,
+  paved green, sand orange, hard to see dotted. Marked trails are drawn as their waymarks, colour
+  and white, so the path's own line shows through. Main roads are red, secondary green, regional
+  brown; seasonal streams are dashed. The legend shows it all.
+
+### Offline maps and sources
+- **The legend and what the maps contain, on the website.** The Topo style's full legend, each
+  feature with its OpenStreetMap tags, the zoom it shows from and its colours and widths, and every
+  tag MapAround's maps keep and from which zoom (English and Hebrew). Layers → Legend links there.
+  Made from the style and the pipeline's tag list by `tools/map-docs`, so they stay in step.
+- **One import for every map file.** **Import a map file** in Offline maps takes a vector map
+  (.map, e.g. one downloaded from the web app: it's recognised as that MapAround map, updates and
+  all) and, on Android, a raster map (.rmap, .mbtiles, .sqlitedb) alike.
+- **Every section explains itself.** Maps on the device, raster maps, terrain, offline routing,
+  marked trails, the map downloads and the party's server each say what they are, with a link to
+  where the data comes from and to a new **guide** on the website (English and Hebrew).
+- **Your own elevation source.** Terrain → Source → Change takes another address for the 1°
+  elevation tiles (contours, hill shading, line of sight, the viewshed, the 3D view), and in the
+  web app for the 3D view's tiles (Terrarium or Mapbox Terrain-RGB). The map's credits name it.
+- **Your own party server.** Party → Connections → Server → Change moves the party to your own
+  MQTT server (a wss:// address, for phones and browsers alike). The invite link and QR code carry
+  it, so everyone who joins meets there; new parties start on it. Everything stays end-to-end
+  encrypted.
+
+### Navigation
+- **Navigation looks ahead.** While navigating the map tilts, turns so the way ahead is up, and
+  puts you low on the screen, so most of it shows what's coming. The faster you go, the further
+  out it zooms: close in on foot, a few streets ahead on a bike, well down the road in a car. A
+  round badge shows your speed, in the unit chosen on the Speed screen. The tab bar steps aside
+  while navigating so the map has the whole screen; Stop brings it back with the flat, north-up
+  map. Drag the map to look around; the location button goes back to the navigation view. On
+  Android and in the web app (the iPhone keeps the flat map that follows you for now).
+
+## 0.5.1
 
 0.5.0 went to Google Play's testing track only; 0.5.1 has all of the below.
 
@@ -33,12 +100,6 @@
   slider: drag it to zoom, tap it to jump there. Its thumb shows the scale now, a round distance
   in metres or kilometres above and in feet or miles below, each with a bar as long as it is on the
   map. It replaces the scale bar in the map's corner. On Android, iPhone and the web.
-- **The 3D view keeps the map's buttons.** The same column as on the map, in the same places:
-  search (the view goes to what you pick), layers, route (greyed out in 3D), and the 3D button,
-  lit while in 3D, which switches back; the tools button becomes the relief's (relief, buildings,
-  satellite imagery), and the zoom slider shows the scale at the view's middle. A compass appears
-  on the other side while the view is turned; a tap faces north. The 3D view credits what it
-  shows, as the map does: the map's sources, the imagery when it's on, and the relief data.
 - **Buildings on slopes in 3D.** A building on a hillside sank into the slope on its uphill side.
   Now its roof is its height above the highest corner and its walls go down into the ground below
   the lowest, following the relief as you raise it. On Android and in the web app.
@@ -93,53 +154,6 @@
   and *Where it was taken* on the map. Online; on Android, iPhone and the web.
 - **Hebrew names in offline search on Android.** A phone set to Hebrew (or Indonesian) now gets
   the map's names in its language where the map has them; it got the local names.
-
-### 3D
-- **A steadier 3D view.** Panning over ridges and gullies no longer bobs the view: on Android the
-  point the camera turns around follows the ground averaged around it, eased; in the web app the
-  view's height holds while you move and the middle is grounded with the camera still, also as
-  finer elevation arrives (no more drifting after a stop). Gestures are applied once per frame, a
-  pinch no longer wobbles the view round (a twist turns it once it's meant), tilting keeps every
-  bit of the move, the zoom slider eases and no longer sinks the view, names keep up with the
-  ground, tiles reach the screen a few at a time instead of in one long frame, a tile near the
-  edge of a finer level no longer flips back and forth, and new elevation data rebuilds the
-  Android view once a download is over instead of after every tile.
-
-### The Topo style
-- **Dirt roads by how passable they are, paths by difficulty.** Dirt roads show whether any car,
-  a high vehicle or only a 4×4 gets through, or none (from the map's smoothness and track grade);
-  paths are coloured by difficulty: easy green, medium blue, hard black, very hard red with ticks,
-  paved green, sand orange, hard to see dotted. Marked trails are drawn as their waymarks, colour
-  and white, so the path's own line shows through. Main roads are red, secondary green, regional
-  brown; seasonal streams are dashed. The legend shows it all.
-
-### Offline maps and sources
-- **The legend and what the maps contain, on the website.** The Topo style's full legend, each
-  feature with its OpenStreetMap tags, the zoom it shows from and its colours and widths, and every
-  tag MapAround's maps keep and from which zoom (English and Hebrew). Layers → Legend links there.
-  Made from the style and the pipeline's tag list by `tools/map-docs`, so they stay in step.
-- **One import for every map file.** **Import a map file** in Offline maps takes a vector map
-  (.map, e.g. one downloaded from the web app: it's recognised as that MapAround map, updates and
-  all) and, on Android, a raster map (.rmap, .mbtiles, .sqlitedb) alike.
-- **Every section explains itself.** Maps on the device, raster maps, terrain, offline routing,
-  marked trails, the map downloads and the party's server each say what they are, with a link to
-  where the data comes from and to a new **guide** on the website (English and Hebrew).
-- **Your own elevation source.** Terrain → Source → Change takes another address for the 1°
-  elevation tiles (contours, hill shading, line of sight, the viewshed, the 3D view), and in the
-  web app for the 3D view's tiles (Terrarium or Mapbox Terrain-RGB). The map's credits name it.
-- **Your own party server.** Party → Connections → Server → Change moves the party to your own
-  MQTT server (a wss:// address, for phones and browsers alike). The invite link and QR code carry
-  it, so everyone who joins meets there; new parties start on it. Everything stays end-to-end
-  encrypted.
-
-### Navigation
-- **Navigation looks ahead.** While navigating the map tilts, turns so the way ahead is up, and
-  puts you low on the screen, so most of it shows what's coming. The faster you go, the further
-  out it zooms: close in on foot, a few streets ahead on a bike, well down the road in a car. A
-  round badge shows your speed, in the unit chosen on the Speed screen. The tab bar steps aside
-  while navigating so the map has the whole screen; Stop brings it back with the flat, north-up
-  map. Drag the map to look around; the location button goes back to the navigation view. On
-  Android and in the web app (the iPhone keeps the flat map that follows you for now).
 
 ### Web app
 - **MapAround in the browser** at [adam2314.github.io/maparound/app](https://adam2314.github.io/maparound/app/),
