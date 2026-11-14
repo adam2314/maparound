@@ -689,7 +689,8 @@ The app's privacy policy (also for the stores) is [docs/privacy.md](docs/privacy
 ## Data sources & licences
 
 - **Offline maps**: © OpenStreetMap contributors (ODbL), extracts from [Geofabrik](https://download.geofabrik.de) and land polygons from [osmdata.openstreetmap.de](https://osmdata.openstreetmap.de), written as mapsforge maps by MapAround's monthly build in its own repository, [my-pipeline](https://github.com/adam2314/my-pipeline) (Osmosis, public domain; the mapsforge map writer and the tag mapping and transform it's based on, LGPL-3.0), hosted as GitHub releases there. Maps from download.mapsforge.org (the fallback) are converted by the mapsforge project.
-- **The web app's data view**: the countries' outlines are Natural Earth's 1:50m countries (public
+- **The web app's data view** ([docs/data-view.md](docs/data-view.md): what it shows, how to add data,
+  what's next): the countries' outlines are Natural Earth's 1:50m countries (public
   domain), simplified to about 1.5 km by `tools/stats/make_countries.py` into
   `webApp/.../resources/countries.json`; the countries' figures come from
   [Our World in Data](https://ourworldindata.org) (CC BY 4.0, and their sources' terms), Israel's
