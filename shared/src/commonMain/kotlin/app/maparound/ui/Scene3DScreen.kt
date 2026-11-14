@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.SatelliteAlt
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -34,8 +35,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.maparound.i18n.T
+import app.maparound.map.satelliteSource
 import app.maparound.shared.util.localFixed
 import app.maparound.three.Camera3D
 import kotlinx.coroutines.delay
@@ -73,11 +76,13 @@ class Scene3DViewArgs(
 
 /**
  * The map in 3D, streamed around the camera: terrain relief, the map draped on it, buildings.
- * The platform draws it ([view]); this screen has the controls.
+ * The platform draws it ([view]); this screen has the controls: the relief's and the buildings'
+ * behind a button, and the credits of what's shown ([mapCredits]: the map's, as in 2D).
  */
 @Composable
-fun Scene3DScreen(start: Camera3D, onClose: (last: Camera3D?) -> Unit, view: @Composable (Scene3DViewArgs) -> Unit) {
+fun Scene3DScreen(start: Camera3D, mapCredits: String, onClose: (last: Camera3D?) -> Unit, view: @Composable (Scene3DViewArgs) -> Unit) {
     var satellite by rememberSaveable { mutableStateOf(false) }
+    var settings by rememberSaveable { mutableStateOf(false) }
     var exaggeration by remember { mutableFloatStateOf(1.5f) }
     var buildings by remember { mutableStateOf(true) }
     // The camera survives rebuilding the view (satellite on/off).
@@ -146,36 +151,82 @@ fun Scene3DScreen(start: Camera3D, onClose: (last: Camera3D?) -> Unit, view: @Co
                 containerColor = if (satellite) MaterialTheme.colorScheme.primary else FloatingActionButtonDefaults.containerColor,
                 contentColor = if (satellite) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
             ) { Icon(Icons.Filled.SatelliteAlt, contentDescription = if (satellite) T.map.backToMap else T.map.satelliteImagery) }
+            SmallFloatingActionButton(
+                onClick = { settings = !settings },
+                containerColor = if (settings) MaterialTheme.colorScheme.primary else FloatingActionButtonDefaults.containerColor,
+                contentColor = if (settings) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+            ) { Icon(Icons.Filled.Tune, contentDescription = T.map.view3dSettings) }
         }
 
-        Surface(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(8.dp),
-            shape = RoundedCornerShape(16.dp),
-            tonalElevation = 3.dp,
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-        ) {
-            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        T.map.relief(localFixed(exaggeration.toDouble(), 1)),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.width(90.dp),
-                    )
-                    Slider(value = exaggeration, onValueChange = { exaggeration = it }, valueRange = 1f..4f, modifier = Modifier.weight(1f))
-                }
-                if (hasBuildings) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(T.map.buildingsCloseUp, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                        Switch(checked = buildings, onCheckedChange = { buildings = it })
-                    }
-                }
+        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (settings) Settings3D(exaggeration, { exaggeration = it }, hasBuildings, buildings, { buildings = it }, status, notes)
+            else if (status.isNotEmpty() || notes.isNotEmpty()) {
+                // Closed: only what's loading, and problems.
                 Text(
-                    status.ifEmpty { T.map.gestures3d },
+                    (listOf(status) + notes).filter { it.isNotEmpty() }.joinToString(" · "),
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (notes.isNotEmpty()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
                 )
-                notes.forEach { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error) }
             }
+            // What's shown, as on the 2D map: the map (or the imagery), the relief.
+            Text(
+                listOfNotNull(
+                    if (satellite) satelliteSource.attribution else null,
+                    mapCredits.ifBlank { null },
+                    T.map.terrainAttribution,
+                ).joinToString(" · "),
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f), RoundedCornerShape(4.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+            )
+        }
+    }
+}
+
+/** The relief's exaggeration, the buildings, how to move, and what's loading. */
+@Composable
+private fun Settings3D(
+    exaggeration: Float,
+    onExaggeration: (Float) -> Unit,
+    hasBuildings: Boolean,
+    buildings: Boolean,
+    onBuildings: (Boolean) -> Unit,
+    status: String,
+    notes: List<String>,
+) {
+    Surface(
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        tonalElevation = 3.dp,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+    ) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    T.map.relief(localFixed(exaggeration.toDouble(), 1)),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.width(90.dp),
+                )
+                Slider(value = exaggeration, onValueChange = onExaggeration, valueRange = 1f..4f, modifier = Modifier.weight(1f))
+            }
+            if (hasBuildings) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(T.map.buildingsCloseUp, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    Switch(checked = buildings, onCheckedChange = onBuildings)
+                }
+            }
+            Text(
+                status.ifEmpty { T.map.gestures3d },
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            notes.forEach { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error) }
         }
     }
 }

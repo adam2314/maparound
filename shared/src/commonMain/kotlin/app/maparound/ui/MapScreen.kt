@@ -900,7 +900,13 @@ fun MapScreen(
     viewPhoto?.let { photo -> PhotoViewer(photo, onDismiss = { viewPhoto = null }) }
 
     scene3d?.let { req ->
-        Scene3DScreen(req, onClose = { last ->
+        // The 3D view drapes the same map: its sources' credits (the relief's are the 3D screen's).
+        val mapCredits = listOfNotNull(
+            if (!showingOffline) onlineSource?.attribution else T.map.osmAttribution,
+            if (showingOffline) backgroundAttribution(background, rasterMaps) else null,
+            if (trailOverlay) TileSources.trailsOverlay.attribution else null,
+        ).joinToString(" · ")
+        Scene3DScreen(req, mapCredits, onClose = { last ->
             scene3d = null
             // The 2D map comes back where the 3D view was looking.
             last?.let(controller::showFrom3D)

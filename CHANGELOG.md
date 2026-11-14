@@ -27,6 +27,9 @@
   zoom in (from zoom 10).
 - **Smooth 3D.** The 3D view tilts in from the map as it opens and eases back to a flat, north-up map
   as it closes; the map then shows where you were looking in 3D.
+- **More of the 3D view.** The relief and buildings settings are behind a button (next to
+  satellite), so the view is clear, and the 3D view now credits what it shows, as the map does:
+  the map's sources, the imagery when it's on, and the relief data.
 - **Buildings on slopes in 3D.** A building on a hillside sank into the slope on its uphill side.
   Now its roof is its height above the highest corner and its walls go down into the ground below
   the lowest, following the relief as you raise it. On Android and in the web app.
