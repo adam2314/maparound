@@ -19,15 +19,16 @@ class Texts(
     val nav: NavTexts,
     val poi: PoiTexts,
     val legend: LegendTexts,
+    val stats: StatsTexts,
 ) {
     companion object {
         val English = Texts(
             CommonTexts(), MapTexts(), OfflineTexts(), PartyTexts(), ToolsTexts(), LibraryTexts(), SensorTexts(),
-            NavTexts(), PoiTexts(), LegendTexts(),
+            NavTexts(), PoiTexts(), LegendTexts(), StatsTexts(),
         )
         val Hebrew = Texts(
             CommonTextsHe, MapTextsHe, OfflineTextsHe, PartyTextsHe, ToolsTextsHe, LibraryTextsHe, SensorTextsHe,
-            NavTextsHe, PoiTextsHe, LegendTextsHe,
+            NavTextsHe, PoiTextsHe, LegendTextsHe, StatsTextsHe,
         )
     }
 }

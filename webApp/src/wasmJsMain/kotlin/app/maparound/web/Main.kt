@@ -22,6 +22,7 @@ import app.maparound.map.maplibre.MapLibreSurface
 import app.maparound.party.LocalParty
 import app.maparound.party.PartyKey
 import app.maparound.party.LocalPartyPlatform
+import app.maparound.stats.LocalStats
 import app.maparound.places.LocalPlaces
 import app.maparound.raster.LocalRasters
 import app.maparound.sensors.LocalDeviceSensors
@@ -165,6 +166,7 @@ fun WebRoot(app: WebApp) {
         LocalMapThemes provides app.themes,
         LocalParty provides app.party,
         LocalPartyPlatform provides WebPartyPlatform,
+        LocalStats provides app.stats,
         LocalOfflineData provides app.offline,
     ) {
         MapAroundTheme {

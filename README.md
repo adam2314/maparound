@@ -690,6 +690,14 @@ The app's privacy policy (also for the stores) is [docs/privacy.md](docs/privacy
 ## Data sources & licences
 
 - **Offline maps**: © OpenStreetMap contributors (ODbL), extracts from [Geofabrik](https://download.geofabrik.de) and land polygons from [osmdata.openstreetmap.de](https://osmdata.openstreetmap.de), written as mapsforge maps by MapAround's monthly build in its own repository, [my-pipeline](https://github.com/adam2314/my-pipeline) (Osmosis, public domain; the mapsforge map writer and the tag mapping and transform it's based on, LGPL-3.0), hosted as GitHub releases there. Maps from download.mapsforge.org (the fallback) are converted by the mapsforge project.
+- **The web app's data view**: the countries' outlines are Natural Earth's 1:50m countries (public
+  domain), simplified to about 1.5 km by `tools/stats/make_countries.py` into
+  `webApp/.../resources/countries.json`; the countries' figures come from
+  [Our World in Data](https://ourworldindata.org) (CC BY 4.0, and their sources' terms), Israel's
+  localities from [data.gov.il](https://data.gov.il): the Central Bureau of Statistics' list of
+  localities and the 2019 socio-economic clusters (open licence), and the Population and
+  Immigration Authority's residents by age group (no licence stated on the portal). Downloaded
+  when the view is first used and kept for a week (`shared/.../stats/`).
 - **Built-in world map** (Android), drawn at the overview zooms and outside the downloaded maps: [Natural Earth](https://www.naturalearthdata.com) (public domain) at 1:10m: land, minor islands, lakes, rivers, populated places, marine area names and land boundary lines, and the 1:50m countries for country names. Packed into `app/src/main/assets/world.bin` by `tools/world/make_world.py` and `borders.bin` by `tools/borders/make_borders.py`.
 - **Map regions** (which map is made for a place): the outlines of [Geofabrik](https://download.geofabrik.de)'s download regions (from OpenStreetMap data, © OpenStreetMap contributors, ODbL), simplified to about a kilometre and packed into `app/src/main/assets/regions.bin` by `tools/regions/make_regions.py`.
 - **Terrain**: [Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) on AWS Open Data, © Mapzen and its sources (SRTM, GMTED, ETOPO1 and others; see the dataset's attribution page).

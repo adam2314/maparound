@@ -183,6 +183,32 @@ class MapStyle(
     }
 
     private fun overlayLayers(): List<JsonObject> = listOf(
+        // The data view (the web app): countries coloured by a figure until zoom 7, Israel's localities from 6.
+        layer("${TAP_PREFIX}data-countries", "fill") {
+            put("source", DATA_COUNTRIES)
+            put("maxzoom", 7)
+            put("paint", obj(
+                "fill-color" to arr("get", "color"),
+                "fill-opacity" to arr("interpolate", arr("linear"), arr("zoom"), 2, 0.8, 6.5, 0.45),
+                "fill-outline-color" to "rgba(255,255,255,0.9)",
+            ))
+        },
+        layer("${TAP_PREFIX}data-localities", "circle") {
+            put("source", DATA_LOCALITIES)
+            put("minzoom", 6)
+            put("paint", obj(
+                "circle-color" to arr("get", "color"),
+                // Zoom may only be a top-level interpolation's input: the radius is in each stop.
+                "circle-radius" to arr(
+                    "interpolate", arr("linear"), arr("zoom"),
+                    6, arr("*", arr("get", "r"), 0.45), 9, arr("*", arr("get", "r"), 0.8),
+                    12, arr("*", arr("get", "r"), 1.4), 15, arr("*", arr("get", "r"), 2.2),
+                ),
+                "circle-opacity" to 0.88,
+                "circle-stroke-color" to "#FFFFFF",
+                "circle-stroke-width" to 0.8,
+            ))
+        },
         line("tracks-casing", TRACKS, "#FFFFFF", 7.0),
         line("tracks-line", TRACKS, "#E65100", 4.0),
         line("recording", RECORDING, "#D50000", 4.0),
@@ -261,7 +287,9 @@ class MapStyle(
         const val PARTY = "mr-party"
         const val ME = "mr-me"
         const val PIN = "mr-pin"
-        val OVERLAY_SOURCES = listOf(TRACKS, RECORDING, ROUTE, TOOLS, PLACES, PARTY, ME, PIN)
+        const val DATA_COUNTRIES = "mr-data-countries"
+        const val DATA_LOCALITIES = "mr-data-localities"
+        val OVERLAY_SOURCES = listOf(DATA_COUNTRIES, DATA_LOCALITIES, TRACKS, RECORDING, ROUTE, TOOLS, PLACES, PARTY, ME, PIN)
 
         /** Colour around the maps (no data). */
         const val OUTSIDE = "#EDEADA"

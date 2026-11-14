@@ -11,3 +11,6 @@ fun isoTime(epochMs: Long): String = Instant.fromEpochMilliseconds(epochMs).toSt
 
 /** Milliseconds since 1970 from an ISO 8601 time ("…Z" or with an offset); null if it isn't one. */
 fun parseIsoTime(s: String): Long? = runCatching { Instant.parse(s.trim()).toEpochMilliseconds() }.getOrNull()
+
+/** This year (UTC). */
+fun currentYear(): Int = isoTime(nowMillis()).take(4).toInt()

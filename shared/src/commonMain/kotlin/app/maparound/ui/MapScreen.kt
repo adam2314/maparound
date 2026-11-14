@@ -25,6 +25,11 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.runtime.mutableStateListOf
 import app.maparound.map.MapRegions
+import app.maparound.stats.CountryIndicator
+import app.maparound.stats.LocalStats
+import app.maparound.stats.LocalityIndicator
+import app.maparound.stats.StatsLayers
+import app.maparound.shared.util.currentYear
 import androidx.compose.material3.CircularProgressIndicator
 import app.maparound.data.mapBounds
 import app.maparound.terrain.GeoBounds
@@ -415,6 +420,47 @@ fun MapScreen(
     var follow by rememberSaveable { mutableStateOf(false) }
     var pin by remember { mutableStateOf<GeoPoint?>(null) }
     var pinLabel by remember { mutableStateOf<String?>(null) }
+
+    // The data view (the web app): countries and Israel's localities coloured by their figures.
+    val stats = LocalStats.current
+    var dataView by rememberSaveable { mutableStateOf(false) }
+    var countryIndicator by rememberSaveable { mutableStateOf(CountryIndicator.POPULATION) }
+    var localityIndicator by rememberSaveable { mutableStateOf(LocalityIndicator.SIZE) }
+    var hiddenCountryClasses by remember { mutableStateOf(emptySet<Int>()) }
+    var hiddenLocalityClasses by remember { mutableStateOf(emptySet<Int>()) }
+    var dataSelected by remember { mutableStateOf<String?>(null) }
+    var dataZoom by remember { mutableStateOf(0.0) }
+    val statsCountries = stats?.countries?.collectAsState()?.value
+    val statsFigures = stats?.figures?.collectAsState()?.value.orEmpty()
+    val statsLocalities = stats?.localities?.collectAsState()?.value
+    val statsStatus = stats?.status?.collectAsState()?.value.orEmpty()
+    LaunchedEffect(stats, dataView) {
+        if (stats == null || !dataView) return@LaunchedEffect
+        launch { stats.loadCountries() }
+        launch { stats.loadLocalities() }
+        while (true) {
+            dataZoom = controller.position().zoom.toDouble()
+            delay(400)
+        }
+    }
+    LaunchedEffect(stats, dataView, countryIndicator) {
+        if (stats != null && dataView) stats.loadFigures(countryIndicator, currentYear())
+    }
+    LaunchedEffect(dataView, statsCountries, statsFigures, countryIndicator, hiddenCountryClasses, statsLocalities, localityIndicator, hiddenLocalityClasses) {
+        if (!dataView) {
+            controller.setStats(null, null)
+            return@LaunchedEffect
+        }
+        val countriesJson = statsCountries?.let { cs ->
+            withContext(Dispatchers.Default) {
+                StatsLayers.countries(cs.mapValues { it.value.geometry }, countryIndicator, statsFigures[countryIndicator].orEmpty(), hiddenCountryClasses)
+            }
+        }
+        val localitiesJson = statsLocalities?.let { ls ->
+            withContext(Dispatchers.Default) { StatsLayers.localities(ls, localityIndicator, hiddenLocalityClasses) }
+        }
+        controller.setStats(countriesJson, localitiesJson)
+    }
     // The point of interest the pin is on (tapped on the map), while the pin stays there.
     var pinPoi by remember { mutableStateOf<app.maparound.map.MapPoi?>(null) }
     // "What's here?" open for a point (and the point of interest there).
@@ -493,6 +539,10 @@ fun MapScreen(
 
             override fun onPlaceTap(id: String) {
                 selectedPlace = id
+            }
+
+            override fun onDataTap(key: String) {
+                dataSelected = key
             }
         }
     }
@@ -780,6 +830,44 @@ fun MapScreen(
                     }) else null,
                 )
             }
+            if (dataView && stats != null && pin == null) {
+                // A tapped country or locality, else what colours the map.
+                val key = dataSelected
+                val country = key?.takeIf { it.startsWith(StatsLayers.TAP_COUNTRY) }?.let { statsCountries?.get(it.removePrefix(StatsLayers.TAP_COUNTRY)) }
+                val locality = key?.takeIf { it.startsWith(StatsLayers.TAP_LOCALITY) }
+                    ?.let { k -> statsLocalities?.firstOrNull { it.code.toString() == k.removePrefix(StatsLayers.TAP_LOCALITY) } }
+                val showLocalities = dataZoom >= LOCALITIES_ZOOM
+                when {
+                    country != null -> CountryCard(country, statsFigures, onClose = { dataSelected = null })
+                    locality != null -> LocalityCard(
+                        locality,
+                        onPin = {
+                            pin = GeoPoint(locality.lat, locality.lon)
+                            pinLabel = if (app.maparound.i18n.I18n.language == app.maparound.i18n.Language.HE) locality.nameHe else locality.nameEn
+                            dataSelected = null
+                        },
+                        onClose = { dataSelected = null },
+                    )
+                    else -> DataViewPanel(
+                        showLocalities = showLocalities,
+                        countryIndicator = countryIndicator,
+                        onCountryIndicator = { countryIndicator = it; hiddenCountryClasses = emptySet() },
+                        localityIndicator = localityIndicator,
+                        onLocalityIndicator = { localityIndicator = it; hiddenLocalityClasses = emptySet() },
+                        hidden = if (showLocalities) hiddenLocalityClasses else hiddenCountryClasses,
+                        onToggleClass = { c ->
+                            if (showLocalities) hiddenLocalityClasses = hiddenLocalityClasses.toggled(c)
+                            else hiddenCountryClasses = hiddenCountryClasses.toggled(c)
+                        },
+                        status = statsStatus,
+                        onGoTo = {
+                            if (showLocalities) controller.moveTo(MapPos(30.0, 20.0, 2))
+                            else controller.animateTo(31.6, 35.0, minZoom = 7)
+                        },
+                        onClose = { dataView = false; dataSelected = null },
+                    )
+                }
+            }
             Spacer(Modifier.padding(top = 6.dp))
             Text(
                 text = listOfNotNull(
@@ -787,9 +875,10 @@ fun MapScreen(
                     if (showingOffline) backgroundAttribution(background, rasterMaps) else null,
                     if (terrainShown) T.map.terrainAttribution else null,
                     if (trailOverlay) TileSources.trailsOverlay.attribution else null,
+                    if (dataView && stats != null) T.stats.credits else null,
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.labelSmall,
-                maxLines = 2,
+                maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f), RoundedCornerShape(4.dp))
@@ -998,6 +1087,12 @@ fun MapScreen(
             onLegend = {
                 showLayers = false
                 showLegend = true
+            },
+            dataView = if (stats != null) dataView else null,
+            onDataView = {
+                dataView = it
+                dataSelected = null
+                showLayers = false
             },
             onDismiss = { showLayers = false },
         )
@@ -1230,6 +1325,9 @@ private fun LayersSheet(
     onAddCustom: (OnlineSource) -> Unit,
     onRemoveCustom: (String) -> Unit,
     onLegend: () -> Unit,
+    /** The data view: on, off, or null where the app has none. */
+    dataView: Boolean?,
+    onDataView: (Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val prefs = LocalPrefs.current
@@ -1274,6 +1372,18 @@ private fun LayersSheet(
                 Icon(Icons.Filled.Info, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(T.legend.legend)
+            }
+            if (dataView != null) {
+                Row(
+                    Modifier.fillMaxWidth().clickable { onDataView(!dataView) }.padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(T.stats.dataView, style = MaterialTheme.typography.bodyLarge)
+                        Text(T.stats.dataViewSubtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Switch(checked = dataView, onCheckedChange = onDataView)
+                }
             }
             SheetHeader(T.map.sectionOffline)
             LayerRow(
@@ -1714,3 +1824,8 @@ private fun overlap(a: GeoBounds, b: GeoBounds): GeoBounds? {
 /** From which zoom the map offers the map made for where it looks, and how often it looks. */
 private const val OFFER_ZOOM = 7
 private const val OFFER_CHECK_MS = 1_500L
+
+/** The data view shows Israel's localities from this zoom (MapLibre's), the countries below it. */
+private const val LOCALITIES_ZOOM = 6.0
+
+private fun Set<Int>.toggled(c: Int): Set<Int> = if (c in this) this - c else this + c

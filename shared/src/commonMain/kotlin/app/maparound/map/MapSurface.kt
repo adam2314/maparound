@@ -87,6 +87,9 @@ interface MapListener {
     fun onWaypointTap(index: Int)
     fun onPartyMarkerTap(key: String)
     fun onPlaceTap(id: String)
+
+    /** A country or locality of the data view ([app.maparound.stats.StatsLayers.TAP_COUNTRY]…). */
+    fun onDataTap(key: String) {}
     fun onMyLocationTap()
 }
 
@@ -125,6 +128,9 @@ interface MapSurface {
     fun setPlaces(places: List<PlaceMarker>)
     fun updateLocation(fix: GeoFix?)
     fun setPin(point: GeoPoint?)
+
+    /** The data view's layers ([app.maparound.stats.StatsLayers]' GeoJSON), or null for none. */
+    fun setStats(countries: String?, localities: String?) {}
 
     fun onResume()
     fun onPause()

@@ -59,6 +59,7 @@ class MapLibreSurface(
                     tapped.startsWith(TAP_WAYPOINT) -> tapped.removePrefix(TAP_WAYPOINT).toIntOrNull()?.let(l::onWaypointTap)
                     tapped.startsWith(TAP_PARTY) -> l.onPartyMarkerTap(tapped.removePrefix(TAP_PARTY))
                     tapped.startsWith(TAP_PLACE) -> l.onPlaceTap(tapped.removePrefix(TAP_PLACE))
+                    tapped.startsWith("data:") -> l.onDataTap(tapped)
                     else -> tapMap(l, GeoPoint(lat, lon))
                 }
             }
@@ -220,6 +221,11 @@ class MapLibreSurface(
         native.setGeoJson(MapStyle.PARTY, GeoJson.collection(markers.map { m ->
             GeoJson.point(m.lat, m.lon, mapOf("icon" to MarkerIcons.party(m.kind, m.color, m.label, m.stale, m.icon), "tap" to "$TAP_PARTY${m.key}"))
         }))
+    }
+
+    override fun setStats(countries: String?, localities: String?) {
+        native.setGeoJson(MapStyle.DATA_COUNTRIES, countries ?: GeoJson.collection(emptyList()))
+        native.setGeoJson(MapStyle.DATA_LOCALITIES, localities ?: GeoJson.collection(emptyList()))
     }
 
     override fun setPlaces(places: List<PlaceMarker>) {

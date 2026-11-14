@@ -110,6 +110,15 @@
 - **The address follows the map** (`#map=zoom/lat/lon`, as on openstreetmap.org): reload, bookmark
   or share the link and the map opens at the same place and zoom. A pin is in it too, as
   OpenStreetMap's pinpoint (`?mlat=…&mlon=…`), so the link opens with the pin.
+- **A data view in the browser.** Layers → *Data view*: the countries coloured by population,
+  density, GDP per person, life expectancy or median age (Our World in Data), and, zoomed in on
+  Israel, its localities as circles as big as their population, coloured by size, children, young
+  adults or people 65 and over, Arab residents, kind of place (city, kibbutz, moshav, community
+  settlement…), religion, founding year, altitude, socio-economic cluster or district (the Central
+  Bureau of Statistics' and the Population Authority's data, from data.gov.il). Tap a colour in the
+  legend to hide those; tap a country or a locality for its figures and an age chart, and *Pin it*
+  for What's here and Wikipedia. Downloaded when first used and kept for a week, so it works
+  offline too. In Hebrew as well.
 - **Join a party in the browser.** An invite link now also offers *Join in your browser*, and the
   web app can start a party too: a full member, sharing your position (the browser's) with the
   group, with SOS, the meeting point, messages and the invite's QR code, through the same
