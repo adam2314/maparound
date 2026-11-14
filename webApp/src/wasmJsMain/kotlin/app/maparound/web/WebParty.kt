@@ -22,8 +22,9 @@ import app.maparound.shared.toUint8Array
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 
-// The party in the web app is the shared OnlineParty: a full member online (no LoRa radio). Here are
-// the browser's parts: its WebSocket, the battery level, notifications, and the invite's QR code.
+// The party in the web app is the shared OnlineParty: a full member online, and over a LoRa radio
+// where the browser has Bluetooth (WebRadio.kt). Here are the browser's parts: its WebSocket, the
+// battery level, notifications, the invite's QR code and the radio picker.
 
 // ---- the browser's WebSocket (MQTT over WebSocket: binary messages, subprotocol "mqtt") ---------
 
@@ -132,7 +133,7 @@ private fun qrBits(text: String): String = js(
 })()""",
 )
 
-/** The party's platform parts in the browser: the invite's QR code and notifications; no camera scanning or radio. */
+/** The party's platform parts in the browser: the invite's QR code, notifications, the radio picker; no camera scanning. */
 object WebPartyPlatform : PartyPlatform {
     override val canScanQr: Boolean get() = false
 
@@ -159,10 +160,21 @@ object WebPartyPlatform : PartyPlatform {
         }
     }
 
+    /** The browser's own chooser of Meshtastic radios (right after the tap on Pair, as it requires). */
     @Composable
     override fun RadioPicker(onPick: (address: String, name: String) -> Unit, onDismiss: () -> Unit) {
-        LaunchedEffect(Unit) { onDismiss() }
+        LaunchedEffect(Unit) {
+            val picked = if (WebRadios.available) WebRadios.pick() else null
+            if (picked != null) onPick(picked.first, picked.second) else onDismiss()
+        }
     }
+
+    override val runsInBackground: Boolean get() = false
+
+    override fun connectionsNote(active: Boolean): String? = listOfNotNull(
+        T.party.browserNoRadio.takeUnless { WebRadios.available },
+        T.party.browserKeepOpen.takeIf { active },
+    ).joinToString(" ").ifEmpty { null }
 
     @Composable
     override fun rememberNotificationPermission(): () -> Unit = remember { { askForNotifications() } }

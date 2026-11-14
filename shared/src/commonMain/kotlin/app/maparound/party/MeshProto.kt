@@ -98,6 +98,12 @@ object Mesh {
     /** Port reserved for private applications; MapAround's encrypted party packets go here. */
     const val PORT_PRIVATE = 256
 
+    /** The radio's Bluetooth LE "phone API": its service and characteristics. */
+    const val SERVICE = "6ba1b218-15a8-461f-9fa8-5dcae273eafd"
+    const val TO_RADIO = "f75c76d2-129e-4dad-a1dd-7866124401e7"
+    const val FROM_RADIO = "2c55e69e-4993-11ed-b878-0242ac120002"
+    const val FROM_NUM = "ed9da18c-a800-4f66-a670-aa7547e34453"
+
     data class Position(val lat: Double, val lon: Double, val altM: Int?, val time: Long?)
     data class User(val id: String, val longName: String, val shortName: String)
     data class Packet(val from: Long, val to: Long, val channel: Int, val portnum: Int, val payload: ByteArray, val rxTime: Long?)

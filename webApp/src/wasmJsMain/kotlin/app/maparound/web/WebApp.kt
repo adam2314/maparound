@@ -77,8 +77,11 @@ class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: Str
     val tracks = TrackRepository(WebFiles.ROOT, WebStorageStore("tracks"))
     val sensors = WebSensors()
 
-    /** The party, online (no LoRa radio in a browser): our position from the browser's (WebParty.kt). */
-    val party = OnlineParty(WebStorageStore("party"), WebMqttSockets, locations = { sensors.locations() }, battery = { WebBattery.level })
+    /** The party: online, and a LoRa radio where the browser has Bluetooth; our position from the browser's (WebParty.kt). */
+    val party = OnlineParty(
+        WebStorageStore("party"), WebMqttSockets, locations = { sensors.locations() }, battery = { WebBattery.level },
+        radios = WebRadios.takeIf { it.available },
+    )
     val searcher = WebSearcher(places, maps)
 
     /** The data view's data: the countries' outlines are the app's own file, the figures downloaded and kept. */

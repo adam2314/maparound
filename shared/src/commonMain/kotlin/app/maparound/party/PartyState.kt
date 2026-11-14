@@ -94,6 +94,12 @@ interface PartyPlatform {
     /** An action that asks for permission to show alerts (SOS), where the platform needs one. */
     @Composable
     fun rememberNotificationPermission(): () -> Unit
+
+    /** A line under the party's connections about the platform (the web: keep the page open), or null. */
+    fun connectionsNote(active: Boolean): String? = null
+
+    /** The party keeps going with the screen off (the apps); a web page only while it's open. */
+    val runsInBackground: Boolean get() = true
 }
 
 val LocalPartyPlatform = staticCompositionLocalOf<PartyPlatform> { error("No PartyPlatform provided") }

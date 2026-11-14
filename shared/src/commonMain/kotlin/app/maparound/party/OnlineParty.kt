@@ -31,16 +31,18 @@ fun interface MqttSockets {
 }
 
 /**
- * The party online only, as a full member: for the apps without a session of their own (the web
- * app; Android has PartySession, with the LoRa radio too). MQTT 3.1.1 over a WebSocket to the public
- * brokers ([PartyRelays.WEBSOCKET]), the packets end-to-end encrypted ([Envelope]), as the apps send
- * them: our position while sharing (or in an SOS), hellos with our name and look, SOS alerts, the
- * meeting point and messages. Positions, hellos, SOS and the meeting point are kept (retained) on the
- * broker, so whoever (re)joins gets everyone's latest at once.
+ * The party as a full member, for the apps without a session of their own (the web app; Android has
+ * PartySession). Online: MQTT 3.1.1 over a WebSocket to the public brokers ([PartyRelays.WEBSOCKET]).
+ * And a Meshtastic LoRa radio where the platform reaches one ([radios]: the web's Bluetooth), with
+ * the gateway relaying between the two, so off-grid and online members see each other. The packets
+ * are end-to-end encrypted ([Envelope]), as the apps send them: our position while sharing (or in
+ * an SOS), hellos with our name and look, SOS alerts, the meeting point and messages, each at its
+ * pace per connection ([SendPolicy]). Positions, hellos, SOS and the meeting point are kept
+ * (retained) on the broker, so whoever (re)joins gets everyone's latest at once.
  *
- * [store] keeps the invite, our id, name and look, sharing, and the packets' sequence numbers.
- * [locations] are our positions (the platform asks for permission); they're followed while the party
- * is on. Everything runs on the main thread.
+ * [store] keeps the invite, our id, name and look, sharing, the radio, and the packets' sequence
+ * numbers. [locations] are our positions (the platform asks for permission); they're followed while
+ * the party is on. Everything runs on the main thread.
  */
 class OnlineParty(
     private val store: KeyValueStore,
@@ -49,6 +51,7 @@ class OnlineParty(
     private val battery: () -> Int? = { null },
     private val scope: CoroutineScope = MainScope(),
     private val clock: () -> Long = ::nowMillis,
+    private val radios: RadioLinks? = null,
 ) : PartyController {
     private val _state = MutableStateFlow(PartyState())
     override val state: StateFlow<PartyState> = _state.asStateFlow()
@@ -56,15 +59,16 @@ class OnlineParty(
     override val events: SharedFlow<PartyEvent> = _events.asSharedFlow()
     override val pendingInvite = MutableStateFlow<PartyKey?>(null)
 
-    /** Online only: no LoRa radio. */
-    override val hasRadio: Boolean get() = false
+    /** A LoRa radio where the platform reaches one. */
+    override val hasRadio: Boolean get() = radios != null
 
     private var engine: PartyEngine? = null
     private var seq = 0L
     private var seqReserved = 0L
-    private var lastSent: SendPolicy.Last? = null
-    private var lastHello: Long? = null
+    private val lastSent = HashMap<Via, SendPolicy.Last>()
+    private val lastHello = HashMap<Via, Long>()
     private var lastFix: GeoFix? = null
+    private var radio: MeshRadio? = null
     private var following: Job? = null
     private var ticking: Job? = null
 
@@ -88,14 +92,24 @@ class OnlineParty(
             engine = PartyEngine(key, me.id, clock)
             seq = store.getString(K_SEQ)?.toLongOrNull() ?: 0
             reserveSeq()
-            _state.value = PartyState(party = key, me = me, sharing = store.getBoolean(K_SHARING, true))
+            _state.value = transportSettings(PartyState(party = key, me = me, sharing = store.getBoolean(K_SHARING, true)))
             if (store.getBoolean(K_ACTIVE, true)) setActive(true)
-        } else if (key != null) {
-            // Watched only (the web app before it could join): asked whether to join it now.
-            store.remove(K_LINK)
-            pendingInvite.value = key
+        } else {
+            _state.value = transportSettings(PartyState())
+            if (key != null) {
+                // Watched only (the web app before it could join): asked whether to join it now.
+                store.remove(K_LINK)
+                pendingInvite.value = key
+            }
         }
     }
+
+    /** The online switch, the radio and the gateway, as kept. */
+    private fun transportSettings(s: PartyState) = s.copy(
+        onlineEnabled = store.getBoolean(K_ONLINE, true),
+        radioName = if (radios != null) store.getString(K_RADIO_NAME) else null,
+        gateway = store.getBoolean(K_GATEWAY, true),
+    )
 
     override fun create(partyName: String, myName: String) = join(PartyKey.create(partyName), myName)
 
@@ -117,9 +131,9 @@ class OnlineParty(
         seq = 1
         reserveSeq()
         engine = PartyEngine(key, me.id, clock)
-        lastSent = null
-        lastHello = null
-        _state.value = _state.value.copy(party = key, me = me, members = emptyList(), meeting = null, chat = emptyList(), mySos = false)
+        lastSent.clear()
+        lastHello.clear()
+        _state.value = _state.value.copy(party = key, me = me, members = emptyList(), meshNodes = emptyList(), meeting = null, chat = emptyList(), mySos = false)
         setActive(true)
     }
 
@@ -140,7 +154,7 @@ class OnlineParty(
         stop()
         engine = null
         for (k in listOf(K_LINK, K_ID, K_SEQ, K_ACTIVE)) store.remove(k)
-        _state.value = PartyState()
+        _state.value = transportSettings(PartyState())
     }
 
     override fun setActive(on: Boolean) {
@@ -150,7 +164,8 @@ class OnlineParty(
             if (_state.value.active) return
             update { it.copy(active = true) }
             broker = 0
-            connect()
+            if (_state.value.onlineEnabled) connect()
+            startRadio()
             following = scope.launch {
                 // Again when they end (no permission yet, or it was taken back).
                 while (true) {
@@ -173,7 +188,7 @@ class OnlineParty(
         store.putBoolean(K_SHARING, on)
         update { it.copy(sharing = on) }
         if (on) {
-            lastSent = null // send soon
+            lastSent.clear() // send soon
             lastFix?.let(::onLocation)
         }
     }
@@ -188,16 +203,44 @@ class OnlineParty(
         sendHello(force = true)
     }
 
-    // Online only: always on, no radio.
-    override fun setOnlineEnabled(on: Boolean) = Unit
-    override fun setGateway(on: Boolean) = Unit
-    override fun setRadio(address: String, name: String) = Unit
-    override fun forgetRadio() = Unit
+    override fun setOnlineEnabled(on: Boolean) {
+        store.putBoolean(K_ONLINE, on)
+        update { it.copy(onlineEnabled = on) }
+        if (!_state.value.active) return
+        if (on) {
+            broker = 0
+            connect()
+        } else {
+            stopOnline()
+        }
+    }
+
+    override fun setGateway(on: Boolean) {
+        store.putBoolean(K_GATEWAY, on)
+        update { it.copy(gateway = on) }
+    }
+
+    /** The radio [address] (the platform's id for it) and its [name]; connected while the party is on. */
+    override fun setRadio(address: String, name: String) {
+        if (radios == null) return
+        store.putString(K_RADIO_ID, address)
+        store.putString(K_RADIO_NAME, name)
+        update { it.copy(radioName = name) }
+        stopRadio()
+        startRadio()
+    }
+
+    override fun forgetRadio() {
+        store.remove(K_RADIO_ID)
+        store.remove(K_RADIO_NAME)
+        stopRadio()
+        update { it.copy(radioName = null, radio = TransportStatus(TransportStatus.State.OFF)) }
+    }
 
     override fun sos(active: Boolean, text: String) {
         update { it.copy(mySos = active) }
         sendNow(PartyMessage.Sos(active, text))
-        lastSent = null // the position with the SOS flag goes out right away
+        lastSent.clear() // the position with the SOS flag goes out right away
         lastFix?.let(::onLocation)
     }
 
@@ -217,10 +260,12 @@ class OnlineParty(
         lastFix = fix
         update { it.copy(myPosition = fix) }
         val s = _state.value
-        if (engine == null || !subscribed || (!s.sharing && !s.mySos)) return
+        if (engine == null || (!s.sharing && !s.mySos)) return
         val now = clock()
         val speedKmh = (fix.speedMps ?: 0f) * 3.6
-        if (!SendPolicy.due(Via.ONLINE, lastSent, now, fix.lat, fix.lon, speedKmh, s.mySos)) return
+        // Each connection at its pace: the radio's airtime is scarce and shared.
+        val due = transports().filter { via -> SendPolicy.due(via, lastSent[via], now, fix.lat, fix.lon, speedKmh, s.mySos) }.toSet()
+        if (due.isEmpty()) return
         sendNow(
             PartyMessage.Position(
                 lat = fix.lat,
@@ -233,8 +278,9 @@ class OnlineParty(
                 sos = s.mySos,
                 driving = speedKmh >= SendPolicy.DRIVING_KMH,
             ),
+            due,
         )
-        lastSent = SendPolicy.Last(now, fix.lat, fix.lon)
+        due.forEach { lastSent[it] = SendPolicy.Last(now, fix.lat, fix.lon) }
     }
 
     /** Every few seconds while on: hellos when due, and the position while standing still. */
@@ -243,29 +289,44 @@ class OnlineParty(
         lastFix?.let(::onLocation)
     }
 
-    /** Hello carries name and look: on connecting (kept online), every 10 minutes, and to newcomers at most every 2. */
+    /**
+     * Hello carries name and look: on connecting (kept online), every 10 minutes online and 30 by
+     * radio, and to newcomers at most every 2.
+     */
     private fun sendHello(force: Boolean, reply: Boolean = false) {
         val e = engine ?: return
         val me = _state.value.me ?: return
-        if (!subscribed) return
         val now = clock()
-        val last = lastHello
-        val due = force || last == null || (if (reply) now - last > 120_000 else now - last > 10 * 60_000L)
-        if (!due) return
-        lastHello = now
-        sendNow(PartyMessage.Hello(me.name, me.color, e.myMeshNode, me.icon))
+        val due = transports().filter { via ->
+            val last = lastHello[via]
+            when {
+                force || last == null -> true
+                reply -> now - last > 120_000
+                else -> now - last > if (via == Via.LORA) 30 * 60_000L else 10 * 60_000L
+            }
+        }.toSet()
+        if (due.isEmpty()) return
+        due.forEach { lastHello[it] = now }
+        sendNow(PartyMessage.Hello(me.name, me.color, e.myMeshNode, me.icon), due)
     }
 
-    private fun sendNow(message: PartyMessage) {
+    /** The connections up now. */
+    private fun transports(): Set<Via> = buildSet {
+        if (subscribed) add(Via.ONLINE)
+        if (radio?.isReady == true) add(Via.LORA)
+    }
+
+    private fun sendNow(message: PartyMessage, vias: Set<Via> = transports()) {
         val e = engine ?: return
         val me = _state.value.me ?: return
         val now = clock()
         val bytes = Envelope.encode(e.key, me.id, nextSeq(), now, message)
         e.applyOwn(message, now)
-        if (subscribed) {
+        if (Via.ONLINE in vias && subscribed) {
             val (kind, retained) = kindOf(message)
             send(MqttWire.publish(topic(e, senderHex(me.id), kind), bytes, retained))
         }
+        if (Via.LORA in vias) radio?.send(bytes)
         refresh()
     }
 
@@ -346,15 +407,15 @@ class OnlineParty(
                         subscribed = true
                         update { it.copy(online = TransportStatus(TransportStatus.State.CONNECTED, host)) }
                         // On (re)connecting: our name and position again, kept for whoever comes.
-                        lastHello = null
-                        lastSent = null
+                        lastHello.remove(Via.ONLINE)
+                        lastSent.remove(Via.ONLINE)
                         sendHello(force = false)
                         lastFix?.let(::onLocation)
                     }
                 is MqttWire.Packet.Publish -> {
                     p.packetId?.let { send(MqttWire.pubAck(it)) }
                     // An empty retained message is a member's state removed (they left).
-                    if (p.payload.isNotEmpty()) onPacket(p.payload, p.retained)
+                    if (p.payload.isNotEmpty()) onPacket(p.payload, Via.ONLINE, p.retained)
                 }
                 else -> Unit
             }
@@ -366,6 +427,7 @@ class OnlineParty(
         val wasSubscribed = subscribed
         closeSocket()
         if (!_state.value.active) return
+        if (!_state.value.onlineEnabled) return
         val gen = ++generation
         val pause = if (wasSubscribed) {
             update { it.copy(online = TransportStatus(TransportStatus.State.CONNECTING, T.party.reconnectingBecause(why))) }
@@ -377,19 +439,60 @@ class OnlineParty(
         }
         watchdog = scope.launch {
             delay(pause)
-            if (gen == generation && _state.value.active) connect()
+            if (gen == generation && _state.value.active && _state.value.onlineEnabled) connect()
         }
     }
 
     private fun stop() {
-        generation++
         following?.cancel()
         following = null
         ticking?.cancel()
         ticking = null
+        stopOnline()
+        stopRadio()
+        update { it.copy(active = false) }
+    }
+
+    private fun stopOnline() {
+        generation++
         socket?.let { send(MqttWire.DISCONNECT) }
         closeSocket()
-        update { it.copy(active = false, online = TransportStatus(TransportStatus.State.OFF)) }
+        update { it.copy(online = TransportStatus(TransportStatus.State.OFF)) }
+    }
+
+    // ---- the radio ----------------------------------------------------------------------------------
+
+    private fun startRadio() {
+        val links = radios ?: return
+        if (radio != null || !_state.value.active) return
+        val id = store.getString(K_RADIO_ID) ?: return
+        radio = MeshRadio(links, id, store.getString(K_RADIO_NAME) ?: id, object : MeshRadio.Listener {
+            override fun onStatus(status: TransportStatus) {
+                update { it.copy(radio = status) }
+                if (status.state == TransportStatus.State.CONNECTED) {
+                    lastHello.remove(Via.LORA)
+                    lastSent.remove(Via.LORA)
+                    sendHello(force = false)
+                    lastFix?.let(::onLocation)
+                }
+            }
+
+            override fun onMyNode(num: Long) {
+                engine?.myMeshNode = num
+            }
+
+            override fun onPartyPacket(payload: ByteArray) = onPacket(payload, Via.LORA, retained = false)
+
+            override fun onNode(num: Long, longName: String?, shortName: String?, position: Mesh.Position?) {
+                engine?.meshNode(num, longName, shortName, position)
+                refresh()
+            }
+        }, scope).also { it.start() }
+    }
+
+    private fun stopRadio() {
+        radio?.stop()
+        radio = null
     }
 
     private fun closeSocket() {
@@ -406,9 +509,13 @@ class OnlineParty(
 
     // ---- the party's packets --------------------------------------------------------------------
 
-    private fun onPacket(bytes: ByteArray, retained: Boolean) {
+    private fun onPacket(bytes: ByteArray, via: Via, retained: Boolean) {
         val e = engine ?: return
-        val accepted = e.receive(bytes, Via.ONLINE) ?: return
+        val accepted = e.receive(bytes, via) ?: run { refresh(); return }
+        // Gateway: on to the other connection, so radio-only and online-only members meet.
+        if (_state.value.gateway) {
+            for (to in transports()) if (e.shouldForward(accepted, via, to)) forward(bytes, accepted, to)
+        }
         for (ev in accepted.events) {
             // On connecting, the broker sends everyone's kept state: they didn't just join.
             if (retained && ev is PartyEvent.Joined) continue
@@ -418,12 +525,26 @@ class OnlineParty(
         refresh()
     }
 
+    /** Someone else's packet, unchanged (still encrypted), over [to]. */
+    private fun forward(bytes: ByteArray, accepted: PartyEngine.Accepted, to: Via) {
+        val e = engine ?: return
+        when (to) {
+            Via.ONLINE -> {
+                val (kind, retained) = kindOf(accepted.received.message)
+                send(MqttWire.publish(topic(e, senderHex(accepted.received.sender), kind), bytes, retained))
+            }
+            Via.LORA -> radio?.send(bytes)
+            Via.NEARBY -> Unit
+        }
+    }
+
     private fun refresh() {
         val e = engine ?: return
         update { s ->
             s.copy(
                 members = e.members.values.filterNot { it.left }
                     .sortedWith(compareByDescending<Member> { it.sos }.thenBy { it.displayName.lowercase() }),
+                meshNodes = e.meshNodes.values.filter { it.position != null }.sortedBy { it.name },
                 meeting = e.meeting,
                 chat = e.chat.toList(),
             )
@@ -458,6 +579,10 @@ class OnlineParty(
         private const val K_ICON = "my_icon"
         private const val K_SHARING = "sharing"
         private const val K_SEQ = "seq"
+        private const val K_ONLINE = "online"
+        private const val K_GATEWAY = "gateway"
+        private const val K_RADIO_ID = "radio_id"
+        private const val K_RADIO_NAME = "radio_name"
         private const val KEEP_ALIVE_S = 120
         private const val PING_MS = 50_000L
         private const val CONNECT_TIMEOUT_MS = 15_000L

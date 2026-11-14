@@ -207,7 +207,13 @@ open class PartyTexts {
     open val turnPartyOnToConnect = "Turn the party on to connect."
 
     /** The web app, with the party on. */
-    open val browserKeepOpen = "In the browser, online only. Keep this page open to share your position: a phone stops pages in the background."
+    open val browserKeepOpen = "Keep this page open to share your position: a phone stops pages in the background."
+
+    /** The web app in a browser without Web Bluetooth. */
+    open val browserNoRadio = "This browser can't reach a LoRa radio; Chrome or Edge can (not on iPhone)."
+
+    /** The web app after a reload: the browser forgot the radio. */
+    open val pickRadioAgain = "Pick the radio again: Forget, then Pair."
     open val connected = "Connected"
 
     /** Connected, and to what: a server, a radio's name. */
@@ -432,7 +438,9 @@ object PartyTextsHe : PartyTexts() {
     override val gateway = "גשר"
     override val gatewaySubtitle = "העברה בין מכשיר הקשר לאינטרנט, כך שמשתתפים בלי קליטה ומשתתפים מחוברים יראו אלה את אלה"
     override val turnPartyOnToConnect = "כדי להתחבר, יש להפעיל את הקבוצה."
-    override val browserKeepOpen = "בדפדפן, דרך האינטרנט בלבד. כדי לשתף את המיקום שלך יש להשאיר את הדף פתוח: בטלפון, דף ברקע נעצר."
+    override val browserKeepOpen = "כדי לשתף את המיקום שלך יש להשאיר את הדף פתוח: בטלפון, דף ברקע נעצר."
+    override val browserNoRadio = "הדפדפן הזה לא יכול להתחבר למכשיר קשר LoRa; Chrome או Edge יכולים (לא באייפון)."
+    override val pickRadioAgain = "יש לבחור שוב את מכשיר הקשר: הסרה ואז צימוד."
     override val connected = "מחובר"
     override fun connectedTo(detail: String) = "מחובר · $detail"
     override val stateOff = "כבוי"

@@ -375,7 +375,7 @@ private fun InParty(
                         T.party.partyOn,
                         when {
                             !s.active -> T.party.partyOffSubtitle
-                            party.hasRadio -> T.party.partyOnSubtitle
+                            LocalPartyPlatform.current.runsInBackground -> T.party.partyOnSubtitle
                             else -> T.party.partyOnBrowserSubtitle
                         },
                         s.active, onToggleActive,
@@ -483,15 +483,13 @@ private fun Connections(s: PartyState, onRadio: () -> Unit) {
                 StatusLine(Icons.Filled.Cloud, T.party.online, s.online) {}
                 if (!s.active) Text(T.party.turnWatchingOnToConnect, style = MaterialTheme.typography.bodySmall)
             } else if (!party.hasRadio) {
-                // Online only (the web app): no switch, no radio.
+                // Online only (a browser without Bluetooth): no switch, no radio.
                 StatusLine(Icons.Filled.Cloud, T.party.online, s.online) {}
-                Text(
-                    if (s.active) T.party.browserKeepOpen else T.party.turnPartyOnToConnect,
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                if (!s.active) Text(T.party.turnPartyOnToConnect, style = MaterialTheme.typography.bodySmall)
             } else {
                 AppConnections(s, onRadio)
             }
+            LocalPartyPlatform.current.connectionsNote(s.active)?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
         }
     }
 }
