@@ -251,6 +251,7 @@ private fun ml3dCamera(): String = js("MapAroundMap.camera3d()")
 private fun ml3dLoading(): Boolean = js("MapAroundMap.loading3d()")
 private fun ml3dHasBuildings(): Boolean = js("MapAroundMap.hasBuildings3d()")
 private fun ml3dNorth(): Unit = js("{ MapAroundMap.north3d(); }")
+private fun ml3dZoom(z: Double): Unit = js("{ MapAroundMap.zoom3d(z); }")
 
 /** MapLibre's camera is 1.5 view heights from what it looks at (its 36.87° field of view). */
 private const val CAMERA_HEIGHTS = 1.5
@@ -274,6 +275,18 @@ private class WebScene3DControl : Scene3DControl {
     override val status: String get() = if (ml3dLoading()) T.map.loadingRelief else ""
 
     override fun faceNorth() = ml3dNorth()
+
+    // The zoom slider: MapLibre's zoom.
+    override val zoomRange: ClosedFloatingPointRange<Double> get() = 1.0..19.0
+
+    override fun zoomLevel(): Double = ml3dCamera().split(',').getOrNull(2)?.toDoubleOrNull() ?: 1.0
+
+    override fun setZoom(zoom: Double) = ml3dZoom(zoom)
+
+    override fun metresPerDp(): Double {
+        val v = ml3dCamera().split(',').map { it.toDoubleOrNull() ?: 0.0 }
+        return metresPerPoint(v[0], v[2])
+    }
 
     /** Where [leave] took the map: the 2D view to stay at when the 3D view goes. */
     var leftTo: Triple<Double, Double, Double>? = null

@@ -93,21 +93,35 @@ interface MapListener {
     fun onMyLocationTap()
 }
 
+/** What the zoom slider ([app.maparound.ui.ZoomScale]) drives: the map, the 3D view. */
+interface ZoomTarget {
+    /** The zooms it goes to. */
+    val zoomRange: ClosedFloatingPointRange<Double>
+
+    /** The zoom now, with its fraction. */
+    fun zoomLevel(): Double
+
+    /** Zooms about the middle of the view to [zoom], at once. */
+    fun setZoom(zoom: Double)
+
+    /** Ground metres per dp (a point on iOS) at the middle of the view: how much a finger covers. */
+    fun metresPerDp(): Double
+}
+
 /** The platform's map view, driven by the shared map screen (main thread). */
-interface MapSurface {
+interface MapSurface : ZoomTarget {
     var listener: MapListener?
 
     fun position(): MapPos
     fun moveTo(pos: MapPos)
 
     /** The zoom now with its fraction, in [position]'s terms. */
-    fun zoomLevel(): Double = position().zoom.toDouble()
+    override fun zoomLevel(): Double = position().zoom.toDouble()
 
-    /** Zooms about the middle of the view to [zoom] (with its fraction), at once. */
-    fun setZoom(zoom: Double) = moveTo(position().copy(zoom = kotlin.math.round(zoom).toInt()))
+    override fun setZoom(zoom: Double) = moveTo(position().copy(zoom = kotlin.math.round(zoom).toInt()))
 
     /** The zooms the map goes to, in [position]'s terms. */
-    val zoomRange: ClosedFloatingPointRange<Double> get() = 2.0..21.0
+    override val zoomRange: ClosedFloatingPointRange<Double> get() = 2.0..21.0
     fun animateTo(lat: Double, lon: Double, minZoom: Int? = null)
 
     /** Moves so that all [points] are in view. */
@@ -121,9 +135,6 @@ interface MapSurface {
 
     /** The points of interest drawn within [radiusDp] of [point], nearest first. */
     fun poisNear(point: GeoPoint, radiusDp: Double): List<MapPoi> = emptyList()
-
-    /** Ground metres per dp (a point on iOS) at the middle of the view: how much a finger covers. */
-    fun metresPerDp(): Double
 
     /** May open files (raster backgrounds): call from a coroutine. */
     suspend fun setBaseMap(base: BaseMap)

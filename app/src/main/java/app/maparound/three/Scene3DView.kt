@@ -27,6 +27,8 @@ import kotlin.math.hypot
 import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
+import kotlin.math.tan
 import kotlin.math.sqrt
 
 /** What one frame showed, for the names drawn over it. */
@@ -117,6 +119,25 @@ class Scene3DView(
     override fun faceNorth() {
         renderer.turnTo(0f, 45f, NORTH_SECONDS)
         gl.requestRender()
+    }
+
+    // The zoom slider: zoom 0 is the whole planet in view, each step half as far away.
+    override val zoomRange: ClosedFloatingPointRange<Double>
+        get() = 0.0..(ln(Renderer3D.MAX_DISTANCE.toDouble() / Renderer3D.MIN_DISTANCE) / ln(2.0))
+
+    override fun zoomLevel(): Double = ln(Renderer3D.MAX_DISTANCE.toDouble() / renderer.distance) / ln(2.0)
+
+    override fun setZoom(zoom: Double) {
+        renderer.stopMotion()
+        renderer.distance = (Renderer3D.MAX_DISTANCE / 2.0.pow(zoom)).toFloat().coerceIn(Renderer3D.MIN_DISTANCE, Renderer3D.MAX_DISTANCE)
+        gl.requestRender()
+    }
+
+    /** At the middle of the view: the camera's distance times the view's height in the field of view, per dp. */
+    override fun metresPerDp(): Double {
+        val heightDp = height / resources.displayMetrics.density
+        if (heightDp <= 0f) return Double.NaN
+        return 2 * renderer.distance * tan(Math.toRadians(Renderer3D.FOV / 2.0)) / heightDp
     }
 
     fun release() {

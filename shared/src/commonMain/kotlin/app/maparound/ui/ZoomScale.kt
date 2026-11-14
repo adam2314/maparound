@@ -39,7 +39,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.maparound.i18n.T
 import app.maparound.i18n.ltr
-import app.maparound.map.MapSurface
+import app.maparound.map.ZoomTarget
 import kotlin.math.floor
 import kotlin.math.log10
 import kotlin.math.pow
@@ -53,12 +53,13 @@ private val SCALE_MAX = 52.dp
 private val TRACK = 150.dp
 
 /**
- * The map's zoom as a vertical slider for the button column: + at the top, − at the bottom, and
- * between them a track whose thumb shows the scale now (a bar as long as a round distance, metric
- * above it and imperial below). Dragging along the track zooms; a tap on it jumps there.
+ * The zoom of the map or the 3D view as a vertical slider for the button column: + at the top, −
+ * at the bottom, and between them a track whose thumb shows the scale now at the middle of the view
+ * (a bar as long as a round distance, metric above it and imperial below). Dragging along the
+ * track zooms; a tap on it jumps there.
  */
 @Composable
-fun ZoomScale(map: MapSurface, modifier: Modifier = Modifier) {
+fun ZoomScale(map: ZoomTarget, modifier: Modifier = Modifier) {
     val range = map.zoomRange
     var zoom by remember { mutableDoubleStateOf(map.zoomLevel()) }
     var metresPerDp by remember { mutableDoubleStateOf(map.metresPerDp()) }
@@ -81,7 +82,11 @@ fun ZoomScale(map: MapSurface, modifier: Modifier = Modifier) {
         SmallFloatingActionButton(onClick = { zoomTo(floor(zoom + 1.0001)) }) { Icon(Icons.Filled.Add, contentDescription = T.map.zoomIn) }
         var trackPx by remember { mutableStateOf(1) }
         val density = LocalDensity.current
-        fun zoomAt(y: Float) = range.endInclusive - (y / trackPx).coerceIn(0f, 1f) * (range.endInclusive - range.start)
+        val thumbH = 40.dp
+        val thumbPx = with(density) { thumbH.toPx() }
+        // The thumb's middle runs from half a thumb below the top to half a thumb above the bottom.
+        fun zoomAt(y: Float) =
+            range.endInclusive - ((y - thumbPx / 2) / (trackPx - thumbPx).coerceAtLeast(1f)).coerceIn(0f, 1f) * (range.endInclusive - range.start)
         BoxWithConstraints(
             Modifier.padding(vertical = 4.dp).width(SCALE_MAX + 16.dp).height(TRACK)
                 .onSizeChanged { trackPx = it.height.coerceAtLeast(1) }
@@ -95,10 +100,9 @@ fun ZoomScale(map: MapSurface, modifier: Modifier = Modifier) {
                     .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f), RoundedCornerShape(4.dp)),
             )
             val fraction = ((range.endInclusive - zoom) / (range.endInclusive - range.start)).toFloat().coerceIn(0f, 1f)
-            val thumbH = 40.dp
-            val top: Dp = with(density) { (fraction * trackPx).toDp() } - thumbH / 2
+            val top: Dp = with(density) { (fraction * (trackPx - thumbPx).coerceAtLeast(0f)).toDp() }
             Surface(
-                Modifier.align(Alignment.TopEnd).offset(y = top.coerceIn(-thumbH / 2, TRACK - thumbH / 2)),
+                Modifier.align(Alignment.TopEnd).offset(y = top),
                 shape = RoundedCornerShape(8.dp),
                 tonalElevation = 3.dp,
                 shadowElevation = 2.dp,

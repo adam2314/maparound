@@ -31,9 +31,10 @@
   slider: drag it to zoom, tap it to jump there. Its thumb shows the scale now, a round distance
   in metres or kilometres above and in feet or miles below, each with a bar as long as it is on the
   map. It replaces the scale bar in the map's corner. On Android, iPhone and the web.
-- **More of the 3D view.** The relief and buildings settings are behind a button (next to
-  satellite), so the view is clear, and the 3D view now credits what it shows, as the map does:
-  the map's sources, the imagery when it's on, and the relief data.
+- **More of the 3D view.** Its buttons are where the map's are, in the column on the right (left
+  in Hebrew), with the same zoom slider and the scale at the view's middle on its thumb. The relief
+  and buildings settings are behind a button there, so the view is clear, and the 3D view credits
+  what it shows, as the map does: the map's sources, the imagery when it's on, and the relief data.
 - **Buildings on slopes in 3D.** A building on a hillside sank into the slope on its uphill side.
   Now its roof is its height above the highest corner and its walls go down into the ground below
   the lowest, following the relief as you raise it. On Android and in the web app.
@@ -125,8 +126,13 @@
 - **Join a party in the browser.** An invite link now also offers *Join in your browser*, and the
   web app can start a party too: a full member, sharing your position (the browser's) with the
   group, with SOS, the meeting point, messages and the invite's QR code, through the same
-  encrypted relays as the app. Online only (no LoRa radio), and your position goes while the page
-  is open; SOS alerts and messages show as notifications while it's in the background.
+  encrypted relays as the app. Your position goes while the page is open; SOS alerts and messages
+  show as notifications while it's in the background.
+- **A LoRa radio in the browser.** In Chrome or Edge (Android, Windows, Mac, Linux, Chromebooks),
+  the web party pairs with a Meshtastic radio over Bluetooth, as the app does: positions, alerts and
+  messages go over the radio too, at the radio's pace, and as a gateway the page relays between the
+  radio and online, so off-grid and online members see each other. Other radios' positions show too.
+  Not on iPhone (its browsers have no Web Bluetooth) or in Firefox.
 - **Shared points open in MapAround's web app.** Sharing a point now also gives a MapAround link
   (OpenStreetMap's pinpoint form, on MapAround's site), next to the Google Maps and OpenStreetMap
   ones: whoever gets it sees the pin in MapAround, in any browser.

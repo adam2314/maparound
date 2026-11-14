@@ -921,6 +921,10 @@
     },
     loading3d() { return !!view3d && !map.areTilesLoaded(); },
     hasBuildings3d() { return !!map.getSource(OSM_SOURCE); },
+    /** The zoom slider: to MapLibre's zoom [z] at once (the camera's kept out of the ground after). */
+    zoom3d(z) {
+      if (view3d) map.jumpTo({ zoom: z });
+    },
     north3d() {
       if (view3d) view3d.pitch = 45;
       map.easeTo({ bearing: 0, pitch: 45, duration: 600, easing: SMOOTH });

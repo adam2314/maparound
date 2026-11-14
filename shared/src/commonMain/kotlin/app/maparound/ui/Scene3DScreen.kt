@@ -43,8 +43,8 @@ import app.maparound.shared.util.localFixed
 import app.maparound.three.Camera3D
 import kotlinx.coroutines.delay
 
-/** What the shared 3D screen needs from the platform's 3D view once it exists. */
-interface Scene3DControl {
+/** What the shared 3D screen needs from the platform's 3D view once it exists; its zoom for the slider. */
+interface Scene3DControl : app.maparound.map.ZoomTarget {
     /** Where the camera is now (kept when the view is rebuilt). */
     val camera: Camera3D
 
@@ -140,7 +140,12 @@ fun Scene3DScreen(start: Camera3D, mapCredits: String, onClose: (last: Camera3D?
             )
         }
 
-        Row(Modifier.align(Alignment.TopStart).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Where the map's buttons are (on the right; left in a right-to-left language), with its zoom slider.
+        Column(
+            Modifier.align(Alignment.TopEnd).padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalAlignment = Alignment.End,
+        ) {
             SmallFloatingActionButton(onClick = { close() }) { Icon(Icons.Filled.Close, contentDescription = T.map.close3d) }
             SmallFloatingActionButton(onClick = { control?.faceNorth() }) { Icon(Icons.Filled.Explore, contentDescription = T.map.faceNorth) }
             SmallFloatingActionButton(
@@ -156,6 +161,7 @@ fun Scene3DScreen(start: Camera3D, mapCredits: String, onClose: (last: Camera3D?
                 containerColor = if (settings) MaterialTheme.colorScheme.primary else FloatingActionButtonDefaults.containerColor,
                 contentColor = if (settings) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
             ) { Icon(Icons.Filled.Tune, contentDescription = T.map.view3dSettings) }
+            control?.let { ZoomScale(it, Modifier.padding(top = 4.dp)) }
         }
 
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
