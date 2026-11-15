@@ -40,6 +40,7 @@
     .linkbtn { background: none; border: 0; padding: 4px; font: inherit; font-weight: 650; color: var(--brand); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
     .linkbtn:hover { color: var(--brand-strong); }
     [hidden] { display: none !important; }
+.invite-shots { position: relative; z-index: 1; margin: 48px auto 0; justify-content: center; }
     @media (max-width: 880px) {
       .invite-card { padding: 28px 20px 24px; border-radius: 22px; }
     }
@@ -98,6 +99,11 @@
           <a class="btn btn-ghost" href="https://play.google.com/store/apps/details?id=app.maparound">Get MapAround on Google Play</a>
         </div>
       </div>
+    </div>
+    <!-- What joining looks like (tools/shots: party-join, party-map). -->
+    <div class="invite-shots visual pair">
+      <div class="phone"><img src="assets/party-join.webp" alt="MapAround opened from an invite link: Join the party? with the name to show" width="720" height="1280" loading="lazy"></div>
+      <div class="phone"><img src="assets/party-map.webp" alt="The party on the map: three hikers, a 4×4 and the meeting point at the dam" width="720" height="1280" loading="lazy"></div>
     </div>
   </div>
 </main>

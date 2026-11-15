@@ -30,3 +30,4 @@ keystore.properties
 tools/map-docs/build/
 tools/map-docs/.gradle/
 tools/map-docs/.kotlin/
+__pycache__/
