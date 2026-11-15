@@ -1,0 +1,11 @@
+{
+  "party": "Pyrenees trip",
+  "minutes": 30,
+  "members": [
+    {"name": "Marc", "icon": "HIKE", "color": "#43A047", "lat": 42.64070, "lon": 1.48790, "battery": 58},
+    {"name": "Noa", "icon": "WALK", "color": "#E53935", "lat": 42.64255, "lon": 1.48950, "battery": 91},
+    {"name": "Lena", "icon": "NORDIC", "color": "#FB8C00", "lat": 42.64370, "lon": 1.49300, "battery": 76, "speed": 0.85},
+    {"name": "Tom", "icon": "OFFROAD", "color": "#8E24AA", "lat": 42.63380, "lon": 1.49750, "battery": 64}
+  ],
+  "meeting": {"lat": 42.64400, "lon": 1.48420, "label": "Lunch at the dam"}
+}
