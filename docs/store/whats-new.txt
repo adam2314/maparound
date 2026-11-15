@@ -1,0 +1,16 @@
+<en-US>
+• The map now works online wherever you haven't downloaded one, in the same style, with the marked trails.
+• GeoTIFF scans and orthophotos as raster maps.
+• Share a track as a link; open GPX links.
+• Topo: dirt roads by how passable they are, marked trails on their edges, bike paths, clearer cliffs, bigger names and icons.
+• The map on a TV or second screen.
+• Back works as expected; no more crash when starting navigation after Android Auto.
+</en-US>
+<iw-IL>
+• המפה עובדת עכשיו גם אונליין איפה שלא הורדה מפה, באותו סגנון ועם השבילים המסומנים.
+• סריקות ותצלומי אוויר ב־GeoTIFF כמפות רסטר.
+• שיתוף מסלול כקישור, ופתיחת קישורי GPX.
+• Topo: דרכי עפר לפי עבירות, שבילים מסומנים על שוליהן, שבילי אופניים, מצוקים ברורים יותר, שמות וסמלים גדולים יותר.
+• המפה על טלוויזיה או מסך נוסף.
+• כפתור החזרה עובד כמצופה; אין יותר קריסה בהתחלת ניווט אחרי Android Auto.
+</iw-IL>

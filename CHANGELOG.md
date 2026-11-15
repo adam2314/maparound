@@ -16,6 +16,12 @@
   view), and only then leaves the app. The app uses Android's own back (as Android 16 requires),
   so the back gesture's preview works too.
 
+### 3D on the web
+- **Opening the 3D view waits for the relief, then moves in one smooth go.** The map stays as it
+  is ("Loading the relief…") while the relief and the tilted view's tiles load, the camera's place
+  above the ground worked out first; then a single eased tilt into 3D, with nothing popping in or
+  jumping after it. Without a network it goes ahead after a few seconds.
+
 ### The map online, as nice as offline
 - **Where no map is downloaded, the map reads it over the internet** (Android), in the same style:
   MapAround's own map where there is one, with the marked trails, path grades and 4×4 tracks, else

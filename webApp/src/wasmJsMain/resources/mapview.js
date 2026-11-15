@@ -600,7 +600,8 @@
     try {
       for (const id of [SAT3D, SHADE3D, BUILDINGS3D]) if (map.getLayer(id)) map.removeLayer(id);
       dem(DEM3D);
-      map.setTerrain({ source: DEM3D, exaggeration: v.exaggeration });
+      // Entering: the relief comes on once the ground under the view is known (intro3d).
+      if (!v.holdTerrain) map.setTerrain({ source: DEM3D, exaggeration: v.exaggeration });
       map.setProjection({ type: 'globe' });
       map.setSky({
         'sky-color': '#5d97d6',
@@ -711,8 +712,8 @@
   }
 
   /** The ground's height (metres, exaggerated as drawn) at (lng, lat); NaN while its tile loads. */
-  function groundAt(lng, lat) {
-    const z = Math.max(0, Math.min(14, Math.round(map.getZoom()) - 2));
+  function groundAt(lng, lat, zoom) {
+    const z = Math.max(0, Math.min(14, Math.round(zoom === undefined ? map.getZoom() : zoom) - 2));
     const n = 1 << z, s = Math.sin(lat * Math.PI / 180);
     const x = (lng + 180) / 360 * n, y = (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * n;
     const tx = Math.floor(x), ty = Math.floor(y);
@@ -724,10 +725,30 @@
 
   /** Metres from the camera to the view's middle. */
   function cameraDistance() {
+    return distanceAt(map.getZoom(), map.getCenter().lat);
+  }
+
+  /** Metres from the camera to the view's middle at zoom, the middle at latitude lat. */
+  function distanceAt(zoom, lat) {
     const fov = map.getVerticalFieldOfView() * Math.PI / 180;
     const px = container.clientHeight / 2 / Math.tan(fov / 2);
-    const lat = map.getCenter().lat * Math.PI / 180;
-    return px * 2 * Math.PI * EARTH_R * Math.cos(lat) / (512 * Math.pow(2, map.getZoom()));
+    return px * 2 * Math.PI * EARTH_R * Math.cos(lat * Math.PI / 180) / (512 * Math.pow(2, zoom));
+  }
+
+  /**
+   * Like clearPitch, for a view still to come (cam: lng, lat, bearing, zoom): the most tilt up to
+   * pitch that keeps its camera clear of the ground; NaN while the ground behind isn't known yet.
+   */
+  function clearPitchAt(cam, pitch, middle) {
+    const k = Math.PI / 180, b = cam.bearing * k, cosLat = Math.cos(cam.lat * k), d = distanceAt(cam.zoom, cam.lat);
+    const clearance = Math.max(15, d * 0.05);
+    for (let p = pitch; p > 0; p -= 0.5) {
+      const h = d * Math.sin(p * k);
+      const g = groundAt(cam.lng - h * Math.sin(b) / (EARTH_R * cosLat) / k, cam.lat - h * Math.cos(b) / EARTH_R / k, cam.zoom);
+      if (isNaN(g)) return NaN;
+      if (middle + d * Math.cos(p * k) >= g + clearance) return p;
+    }
+    return 0;
   }
 
   /**
@@ -834,6 +855,144 @@
 
   /** The moves made here (their moveend doesn't settle again). */
   const SETTLING = { settling: true };
+
+  // ---- entering from the 2D map ----
+  // The map stays as it is until the relief under the view is in and where the camera will be is
+  // known: the ground at the middle, and the tilt that keeps it clear of the hills behind. The
+  // relief comes on only then, the view's middle put on the ground at once (on at sea level, a
+  // close view would be inside the hill, a far one would jump). Then one eased move there, every
+  // part of the camera at once, its height too: nothing to correct after.
+
+  const INTRO_MS = 1400, INTRO_WAIT_MS = 5000;
+
+  /** The relief and what's drawn on it are in for the view now. */
+  function reliefIn() {
+    for (const id of [DEM3D, SHADE3D, SAT3D]) if (map.getSource(id) && !map.isSourceLoaded(id)) return false;
+    return true;
+  }
+
+  /** The ground's height at (lng, lat) as the map draws it, else from the relief's tiles; NaN: not yet. */
+  function groundFor(lng, lat, zoom) {
+    const h = map.terrain ? map.terrain.getElevationForLngLatZoom(new maplibregl.LngLat(lng, lat), map.transform.tileZoom) : 0;
+    if (h) return h;
+    return groundAt(lng, lat, zoom);
+  }
+
+  /**
+   * The tiles of the view still to come (to), loaded by a map no one sees: relief, its shading or
+   * the imagery, and the online pictures the map shows. The browser keeps them, so the map's own
+   * requests for them as it moves there are answered at once. done(): loaded, or given up.
+   */
+  function preload3d(to, v, done) {
+    let m2 = null, over = false;
+    const box = document.createElement('div');
+    const finish = () => {
+      if (over) return;
+      over = true;
+      try { if (m2) m2.remove(); } catch (e) { /* gone */ }
+      box.remove();
+      done();
+    };
+    box.style.cssText = 'position:fixed;left:-20000px;top:0;pointer-events:none;width:' +
+      container.clientWidth + 'px;height:' + container.clientHeight + 'px';
+    document.body.appendChild(box);
+    const dem = () => ({ type: 'raster-dem', tiles: [terrain3d.tiles], encoding: terrain3d.encoding, tileSize: 256, maxzoom: 15 });
+    const sources = { dem: dem() }, layers = [];
+    // The map's pictures from the internet (an online map, the trails' overlay): the same addresses.
+    const style = map.getStyle();
+    for (const id of Object.keys(style.sources)) {
+      const src = style.sources[id];
+      const url = src.type === 'raster' && src.tiles && src.tiles[0];
+      if (url && /^https?:/.test(url) && url.indexOf(location.host) < 0) {
+        sources['p' + layers.length] = src;
+        layers.push({ id: 'p' + layers.length, type: 'raster', source: 'p' + layers.length });
+      }
+    }
+    if (v.satellite) {
+      sources.sat = { type: 'raster', tiles: [IMAGERY], tileSize: 256, maxzoom: 19 };
+      layers.push({ id: 'sat', type: 'raster', source: 'sat' });
+    } else {
+      sources.shade = dem();
+      layers.push({ id: 'shade', type: 'hillshade', source: 'shade' });
+    }
+    try {
+      m2 = new maplibregl.Map({
+        container: box,
+        style: { version: 8, sources: sources, layers: layers, projection: { type: 'globe' } },
+        interactive: false,
+        attributionControl: false,
+        center: to.center, zoom: to.zoom, bearing: to.bearing, pitch: to.pitch,
+        maxPitch: MAX_PITCH_3D,
+        pixelRatio: 1,
+      });
+      m2.on('load', () => m2.setTerrain({ source: 'dem', exaggeration: v.exaggeration }));
+      m2.on('idle', () => { if (m2 && m2.terrain && m2.areTilesLoaded()) finish(); });
+      m2.on('error', () => { /* a tile that isn't there: idle comes anyway */ });
+    } catch (e) {
+      finish(); // no second map (WebGL): straight on
+      return;
+    }
+    setTimeout(finish, INTRO_WAIT_MS);
+  }
+
+  /**
+   * The relief on and its middle onto the ground (middle metres), the height then held: as the
+   * relief arrives the view doesn't move. MapLibre puts the relief on a moment after it's asked to
+   * (and its height at sea level): done() once it has, the height set.
+   */
+  function reliefOn(v, middle, done) {
+    if (!v.holdTerrain) { done(); return; }
+    v.holdTerrain = false;
+    map.setTerrain({ source: DEM3D, exaggeration: v.exaggeration });
+    const t0 = performance.now();
+    const ground = () => {
+      if (view3d !== v || v.leaving) return;
+      if (!map.terrain && performance.now() - t0 < 2000) { requestAnimationFrame(ground); return; }
+      const h = isNaN(middle) ? map.transform.elevation : middle;
+      map.jumpTo({ elevation: h }, SETTLING);
+      freeze3d();
+      done();
+    };
+    ground();
+  }
+
+  function intro3d(to) {
+    const v = view3d;
+    v.entering = true;
+    const c = maplibregl.LngLat.convert(to.center);
+    const cam = { lng: c.lng, lat: c.lat, bearing: to.bearing, zoom: to.zoom };
+    const t0 = performance.now();
+    let preloaded = false, on = false, pitch = to.pitch;
+    preload3d(to, v, () => { preloaded = true; });
+    const gone = () => view3d !== v || v.leaving || !v.entering; // closed, or rebuilt meanwhile
+    const touched = () => {
+      if (!pointers.size) return false;
+      v.entering = false; // a touch: the view is theirs, the relief as it is
+      if (v.holdTerrain) reliefOn(v, groundFor(c.lng, c.lat, to.zoom), () => {});
+      return true;
+    };
+    // 1. Held, the relief off: until where the camera will be is known and the view to come is loaded.
+    const hold = () => {
+      if (gone() || touched()) return;
+      const late = performance.now() - t0 > INTRO_WAIT_MS; // no network: go with what there is
+      const middle = groundAt(c.lng, c.lat, to.zoom);
+      const p = isNaN(middle) ? NaN : clearPitchAt(cam, to.pitch, middle);
+      if ((isNaN(p) || !preloaded) && !late) { setTimeout(hold, 100); return; }
+      if (!isNaN(p)) pitch = p;
+      reliefOn(v, middle, () => { on = true; settle(); });
+    };
+    // 2. The relief on (from the browser's cache now): until it's in for the view.
+    const settle = () => {
+      if (gone() || touched()) return;
+      const late = performance.now() - t0 > INTRO_WAIT_MS + 1500;
+      if (!on || (!reliefIn() && !late)) { setTimeout(settle, 50); return; }
+      // 3. One eased move there; MapLibre's ease takes the height of the middle along to the
+      // ground there, read from the relief that's in.
+      v.entering = false;
+      map.easeTo(Object.assign({}, to, { pitch: pitch, duration: INTRO_MS, easing: SMOOTH }));
+    };
+    hold();
+  }
 
   /**
    * After a move, and as the elevation arrives: the middle onto the ground, and the view at the
@@ -991,13 +1150,14 @@
         container.style.background = SPACE;
       }
       Object.assign(view3d, { satellite: satellite, exaggeration: exaggeration, buildings: buildings, leaving: false });
+      if (fresh && intro) view3d.holdTerrain = true; // on once the ground under the view is known
       apply3d();
       const to = { center: [lon, lat], zoom: zoom, bearing: bearing, pitch: Math.min(pitch, MAX_PITCH_3D) };
       // The tilt to keep (settle3d). Rebuilt (satellite on or off) at the tilt it had: the one it was
       // given, not the one a hill lowered it to.
       if (fresh || view3d.pitch === undefined || Math.abs(to.pitch - map.getPitch()) > 0.5) view3d.pitch = to.pitch;
-      if (fresh && intro) map.easeTo(Object.assign(to, { duration: 1100, easing: SMOOTH }));
-      else map.jumpTo(to);
+      if (fresh && intro) intro3d(to); // once the relief is in, one smooth move
+      else if (!view3d.entering) map.jumpTo(to);
     },
     /** Closing: eases back to the 2D map's look at (lat, lon, MapLibre's zoom), then done(). */
     leave3d(lat, lon, zoom, done) {
@@ -1030,7 +1190,7 @@
     exaggeration3d(e) {
       if (!view3d) return;
       view3d.exaggeration = e;
-      if (map.getSource(DEM3D)) map.setTerrain({ source: DEM3D, exaggeration: e });
+      if (map.getSource(DEM3D) && !view3d.holdTerrain) map.setTerrain({ source: DEM3D, exaggeration: e });
       keepClear(); // higher hills: the camera stays above them
       // The buildings' foundations and roofs follow the exaggerated ground.
       if (map.getLayer(BUILDINGS3D)) {
@@ -1048,7 +1208,7 @@
       const c = map.getCenter();
       return [c.lat, c.lng, map.getZoom(), map.getBearing(), map.getPitch(), container ? container.clientHeight : 0].join(',');
     },
-    loading3d() { return !!view3d && !map.areTilesLoaded(); },
+    loading3d() { return !!view3d && (!!view3d.entering || !map.areTilesLoaded()); },
     hasBuildings3d() { return !!map.getSource(OSM_SOURCE); },
     /** The zoom slider: to MapLibre's zoom [z] at once (the camera's kept out of the ground after). */
     zoom3d(z) {
