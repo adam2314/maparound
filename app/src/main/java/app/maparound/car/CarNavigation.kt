@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
+import android.util.Log
 import androidx.car.app.CarContext
 import androidx.car.app.model.CarIcon
 import androidx.car.app.model.DateTimeWithZone
@@ -61,13 +62,15 @@ class CarNavigation(private val carContext: CarContext, lifecycle: Lifecycle) : 
         s.launch {
             NavigationSession.state.collect { state ->
                 if (state.active && !navigating) {
-                    navigating = true
-                    manager.navigationStarted()
-                } else if (!state.active && navigating) {
-                    navigating = false
-                    manager.navigationEnded()
+                    navigating = tellCar("navigationStarted") { manager.navigationStarted() }
+                } else if (!state.active) {
+                    lastStartTry = 0L // a new start tells the car at once
+                    if (navigating) {
+                        navigating = false
+                        tellCar("navigationEnded") { manager.navigationEnded() }
+                    }
                 }
-                if (state.active) sendTrip(state)
+                if (state.active && navigating) sendTrip(state)
             }
         }
     }
@@ -77,9 +80,28 @@ class CarNavigation(private val carContext: CarContext, lifecycle: Lifecycle) : 
         scope = null
         if (navigating) {
             navigating = false
-            manager.navigationEnded()
+            tellCar("navigationEnded") { manager.navigationEnded() }
         }
-        manager.clearNavigationManagerCallback()
+        runCatching { manager.clearNavigationManagerCallback() }
+    }
+
+    private var lastStartTry = 0L
+
+    /**
+     * A call to the car that may fail: Android Auto gone (the car unplugged, the session not yet
+     * closed) or not ready. Navigation goes on on the phone either way: tapping Start crashed the
+     * app here (HostException out of the state collector, inside the tap). Telling the car that
+     * navigation started is tried again, every [RETRY_MS] at most, until it takes.
+     */
+    private fun tellCar(what: String, call: () -> Unit): Boolean {
+        if (what == "navigationStarted") {
+            val now = System.currentTimeMillis()
+            if (now - lastStartTry < RETRY_MS) return false
+            lastStartTry = now
+        }
+        return runCatching(call)
+            .onFailure { Log.w(TAG, "Car: $what failed", it) }
+            .isSuccess
     }
 
     /** What the map template shows above the map while navigating. */
@@ -200,5 +222,10 @@ class CarNavigation(private val carContext: CarContext, lifecycle: Lifecycle) : 
             r < 10_000 -> Distance.create(r / 1000, Distance.UNIT_KILOMETERS_P1)
             else -> Distance.create((r / 1000).roundToInt().toDouble(), Distance.UNIT_KILOMETERS)
         }
+    }
+
+    private companion object {
+        const val TAG = "CarNavigation"
+        const val RETRY_MS = 10_000L
     }
 }

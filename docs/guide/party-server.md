@@ -50,6 +50,8 @@ down, and they may drop what they keep. **For a real group, use your own server.
 3. Share the invite: the link and the QR code carry the server, so everyone who joins with them
    uses the same one, the app and the web app alike.
 
+<p class="shots"><img src="{{ '/guide/img/party-server.webp' | relative_url }}" alt="The party's server: a wss:// address, or back to the public servers" width="720" height="1195" loading="lazy"></p>
+
 Changing the server in a running party moves you alone: share the invite again, and have everyone
 open it. New parties you start use the server you chose last. **Use the public servers** in the same
 dialog goes back to them.

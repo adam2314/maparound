@@ -58,6 +58,8 @@ sealed class BaseMap {
         val vectorOnTop: Boolean,
         /** The raster maps the background may name. */
         val rasterMaps: List<RasterMap>,
+        /** Maps read over the internet where the installed ones don't reach ([app.maparound.data.MapStreaming]). */
+        val streamed: List<RemoteMap> = emptyList(),
     ) : BaseMap() {
         /** The Topo style (MapAround's contours and trails are styled). */
         val topo: Boolean get() = theme == MapThemes.TOPO

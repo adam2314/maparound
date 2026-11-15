@@ -3,6 +3,7 @@ package app.maparound.ui
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
@@ -22,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -107,3 +109,17 @@ fun LazyListScope.rasterMapsSection(
 /** Message for a failed add. */
 fun rasterError(e: Throwable): String = T.offline.couldNotAddMap(e.message ?: e::class.simpleName ?: T.offline.error)
 
+/** A big GeoTIFF being made ready after it was added: its name and how far along. */
+@Composable
+fun RasterPreparingRow(rasters: RasterLibrary, modifier: Modifier = Modifier) {
+    val preparing by rasters.preparing.collectAsState()
+    val p = preparing ?: return
+    androidx.compose.foundation.layout.Column(modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Text(T.offline.preparingRaster(p.name, (p.fraction * 100).toInt()), style = MaterialTheme.typography.bodyMedium)
+        Spacer(Modifier.padding(top = 4.dp))
+        androidx.compose.material3.LinearProgressIndicator(
+            progress = { p.fraction.toFloat() },
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}

@@ -18,6 +18,8 @@ lang: he
 9–10 מזרח. זה פורמט `.hgt` של סקר SRTM של נאס״א: ברזולוציה של שנייה קשת אחת, גובה אחד בערך כל 30
 מטר.
 
+<p class="shots"><img src="{{ '/he/guide/img/elevation-map.webp' | relative_url }}" alt="קווי גובה והצללת תבליט מעל אגם הררי" width="720" height="1195" loading="lazy"></p>
+
 ## מאיפה הם מגיעים
 
 כברירת מחדל, מ־[Terrain Tiles ב־AWS Open Data](https://registry.opendata.aws/terrain-tiles/), מאגר
@@ -61,6 +63,8 @@ lang: he
 
 אולי מישהו בקבוצה שלך מפעיל שרת עם גבהים טובים יותר לאזור שלכם, או שהמרת בעצמך מודל חדש יותר.
 בחלק **נתוני גובה**, האפשרות **מקור ← שינוי** מקבלת את הכתובת של קובצי המעלה כתבנית:
+
+<p class="shots"><img src="{{ '/he/guide/img/elevation-source.webp' | relative_url }}" alt="מפות אופליין ← תבליט ← מקור: הכתובת של אריחי הגובה" width="720" height="1195" loading="lazy"></p>
 
 - `{folder}` מוחלף בחלק של קו הרוחב בשם, למשל `N47`;
 - `{name}` מוחלף בשם האריח, למשל `N47E009`;

@@ -7,7 +7,7 @@ open class OfflineTexts {
     open val importMapFile = "Import a .map file"
     open val addRasterMap = "Add a raster map"
     open val importAnyMapFile = "Import a map file"
-    open val importHelpAll = "Vector maps (.map) are copied into the app; raster maps (.rmap, .mbtiles, .sqlitedb) are read where they are."
+    open val importHelpAll = "Vector maps (.map) are copied into the app; raster maps (.tif, .rmap, .mbtiles, .sqlitedb) are read where they are."
     open val importHelpVector = "A vector map (.map), e.g. one downloaded from the MapAround web app or OpenAndroMaps, is copied into the app."
 
     // ---- each section's explanation, with its source's site and the guide ----
@@ -181,9 +181,9 @@ open class OfflineTexts {
             "several minutes and up to ~50 MB per area; on the phone it is about 10× smaller."
 
     // ---- raster maps ----
-    open val addRasterMapFormats = "Add a raster map (.rmap, .mbtiles, .sqlitedb)"
+    open val addRasterMapFormats = "Add a raster map (.tif, .rmap, .mbtiles, .sqlitedb)"
     open val rasterHelp =
-        "TwoNav / CompeGPS maps (e.g. scanned 1:50,000 topo sheets) and tile databases from QGIS, GDAL, MOBAC, Locus or OsmAnd. " +
+        "GeoTIFF scans and orthophotos, TwoNav / CompeGPS maps (e.g. scanned 1:50,000 topo sheets) and tile databases from QGIS, GDAL, MOBAC, Locus or OsmAnd. " +
             "Shown under or instead of the vector map; large files are read in place, not copied."
 
     /** An RMAP's line: size, pixels, its levels and its projection ([projection]). */
@@ -209,6 +209,13 @@ open class OfflineTexts {
     open val calibrationInvalid = "The map's calibration doesn't give a valid position"
     open val cantReadDatabase = "Can't read the database"
     open val notRmapFile = "Not an RMAP file"
+    open val notTiffFile = "Not a TIFF image"
+    open val tiffNotAnImage = "This GeoTIFF holds measurements (elevation or other numbers), not a map image"
+    open fun tiffUnsupported(what: String) = "This TIFF uses $what, which MapAround can't read. Save it again with LZW, Deflate or JPEG compression (e.g. in QGIS)."
+    open val tiffNoPlace = "This TIFF doesn't say where it lies (it isn't a GeoTIFF)"
+    open fun tiffHugeBlocks(megapixels: Int) = "blocks of $megapixels megapixels (save it tiled)"
+    open val ecwNotSupported = "ECW can't be opened: its decoder isn't open source. Turn it into a GeoTIFF with QGIS (Export → Save As → GeoTIFF) or gdal_translate -of COG, and add that."
+    open fun preparingRaster(name: String, percent: Int) = "Preparing $name for the map… $percent%"
     open fun unsupportedProjection(text: String) = "Unsupported map projection: $text"
     open val notSqliteDatabase = "Not an SQLite database"
     open val noTilesNotTileDb = "No tiles in this database: it isn't an MBTiles or SQLiteDB map"
@@ -336,7 +343,7 @@ object OfflineTextsHe : OfflineTexts() {
     override val addRasterMap = "הוספת מפת רסטר"
     override val importAnyMapFile = "ייבוא קובץ מפה"
     override val importHelpAll =
-        "מפות וקטוריות (${iso(".map")}) מועתקות לאפליקציה; מפות רסטר (${iso(".rmap, .mbtiles, .sqlitedb")}) נקראות במקומן."
+        "מפות וקטוריות (${iso(".map")}) מועתקות לאפליקציה; מפות רסטר (${iso(".tif, .rmap, .mbtiles, .sqlitedb")}) נקראות במקומן."
     override val importHelpVector =
         "מפה וקטורית (${iso(".map")}), למשל כזו שהורדה מאפליקציית הרשת של MapAround או מ־OpenAndroMaps, מועתקת לאפליקציה."
 
@@ -496,9 +503,9 @@ object OfflineTextsHe : OfflineTexts() {
             "ועד כ־50 MB לאזור; בטלפון הנתונים קטנים בערך פי 10."
 
     // ---- raster maps ----
-    override val addRasterMapFormats = "הוספת מפת רסטר (${iso(".rmap, .mbtiles, .sqlitedb")})"
+    override val addRasterMapFormats = "הוספת מפת רסטר (${iso(".tif, .rmap, .mbtiles, .sqlitedb")})"
     override val rasterHelp =
-        "מפות TwoNav / CompeGPS (למשל גיליונות טופוגרפיים סרוקים בקנה מידה ${iso("1:50,000")}) ומאגרי אריחים " +
+        "סריקות ותצלומי אוויר ב־GeoTIFF, מפות TwoNav / CompeGPS (למשל גיליונות טופוגרפיים סרוקים בקנה מידה ${iso("1:50,000")}) ומאגרי אריחים " +
             "מ־QGIS, GDAL, MOBAC, Locus או OsmAnd. מוצגות מתחת למפה הווקטורית או במקומה; קבצים גדולים נקראים " +
             "במקומם, בלי להעתיק אותם."
     override fun rmapInfo(size: String, width: Int, height: Int, levels: Int, projection: String) =
@@ -520,6 +527,13 @@ object OfflineTextsHe : OfflineTexts() {
     override val calibrationInvalid = "הכיול של המפה לא נותן מיקום תקין"
     override val cantReadDatabase = "אי אפשר לקרוא את המאגר"
     override val notRmapFile = "זה לא קובץ RMAP"
+    override val notTiffFile = "זו לא תמונת TIFF"
+    override val tiffNotAnImage = "ה־GeoTIFF הזה מכיל מדידות (גבהים או מספרים אחרים), לא תמונה של מפה"
+    override fun tiffUnsupported(what: String) = "ה־TIFF הזה משתמש ב־$what, ש־MapAround לא יודעת לקרוא. אפשר לשמור אותו מחדש בדחיסת LZW,‏ Deflate או JPEG (למשל ב־QGIS)."
+    override val tiffNoPlace = "ה־TIFF הזה לא אומר איפה הוא נמצא (הוא לא GeoTIFF)"
+    override fun tiffHugeBlocks(megapixels: Int) = "בלוקים של $megapixels מגה־פיקסל (צריך לשמור אותו באריחים)"
+    override val ecwNotSupported = "אי אפשר לפתוח ECW: המפענח שלו לא בקוד פתוח. אפשר להמיר אותו ל־GeoTIFF ב־QGIS (ייצוא ← שמירה בשם ← GeoTIFF) או ב־gdal_translate -of COG, ולהוסיף את התוצאה."
+    override fun preparingRaster(name: String, percent: Int) = "מכינים את $name למפה… $percent%"
     override fun unsupportedProjection(text: String) = "היטל המפה לא נתמך: $text"
     override val notSqliteDatabase = "זה לא מסד נתונים של SQLite"
     override val noTilesNotTileDb = "אין אריחים במאגר הזה: זו לא מפת MBTiles או SQLiteDB"

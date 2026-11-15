@@ -155,6 +155,14 @@ class Prefs(private val sp: KeyValueStore) {
         sp.putBoolean(K_TRAILS, value)
     }
 
+    /** Where no installed map reaches, the vector map reads the region's map over the internet. */
+    private val _streamMaps = MutableStateFlow(sp.getBoolean(K_STREAM_MAPS, true))
+    val streamMaps: StateFlow<Boolean> = _streamMaps.asStateFlow()
+    fun setStreamMaps(value: Boolean) {
+        _streamMaps.value = value
+        sp.putBoolean(K_STREAM_MAPS, value)
+    }
+
     var terrainHighDetail: Boolean
         get() = sp.getBoolean(K_TERRAIN_HIGH, true)
         set(value) = sp.putBoolean(K_TERRAIN_HIGH, value)
@@ -229,6 +237,7 @@ class Prefs(private val sp: KeyValueStore) {
         private const val K_HILLSHADE = "hillshade"
         private const val K_TERRAIN_HIGH = "terrain_high_detail"
         private const val K_TRAILS = "trails"
+        private const val K_STREAM_MAPS = "stream_maps"
         private const val K_COORD_FORMAT = "coord_format"
         private const val K_ELEVATION_SOURCE = "elevation_source"
         private const val K_TERRAIN_3D = "terrain_3d_source"

@@ -279,7 +279,7 @@ private fun TrackRow(
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(text = { Text(T.common.showOnMap) }, leadingIcon = { Icon(Icons.Filled.Map, null) }, onClick = { menu = false; onShowOnMap() })
                         DropdownMenuItem(text = { Text(T.library.shareGpxAndLinks) }, leadingIcon = { Icon(Icons.Filled.Share, null) }, onClick = { menu = false; onShare() })
-                        if (RouteText.hasRouteLink(t.track)) {
+                        if (RouteText.hasLink(t.track)) {
                             DropdownMenuItem(text = { Text(T.library.shareLinkOnly) }, leadingIcon = { Icon(Icons.Filled.Link, null) }, onClick = { menu = false; platform.shareRouteLink(t.track) })
                         }
                         DropdownMenuItem(text = { Text(T.common.rename) }, leadingIcon = { Icon(Icons.Filled.Edit, null) }, onClick = { menu = false; onRename() })

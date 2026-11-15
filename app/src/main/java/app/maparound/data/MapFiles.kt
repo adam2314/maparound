@@ -79,7 +79,7 @@ class MapFilesRepository(private val context: Context) : InstalledMaps {
 
     override val importsRasters: Boolean get() = true
 
-    /** One picker for both: a raster map (.rmap, .mbtiles, .sqlitedb) is read where it is, anything else imported as a .map. */
+    /** One picker for both: a raster map (.tif, .rmap, .mbtiles, .sqlitedb) is read where it is, anything else imported as a .map. */
     @Composable
     override fun rememberAnyImporter(onStart: () -> Unit, onResult: (Result<ImportedMap>) -> Unit): () -> Unit {
         val scope = rememberCoroutineScope()
@@ -137,6 +137,6 @@ class MapFilesRepository(private val context: Context) : InstalledMaps {
 
     private companion object {
         /** Raster maps the picker hands to the raster library instead. */
-        val RASTER_ENDINGS = listOf(".rmap", ".mbtiles", ".sqlitedb")
+        val RASTER_ENDINGS = listOf(".rmap", ".mbtiles", ".sqlitedb", ".tif", ".tiff", ".gtif", ".ecw", ".jp2")
     }
 }

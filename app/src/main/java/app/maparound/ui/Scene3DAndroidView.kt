@@ -108,11 +108,12 @@ fun Scene3DAndroidView(args: Scene3DViewArgs) {
                     background = prefs.mapBackground.value,
                     vectorOnTop = prefs.vectorOnBackground.value,
                     rasterMaps = AppGraph.rasters.maps.value,
+                    streamed = AppGraph.streaming.maps.value,
                 )
                 val service = GlTiles.service
                 if (base is BaseMap.Offline) {
                     // Usually already so from the 2D map; quick when it is.
-                    service.setMaps(maps.map { it.path })
+                    service.setMaps(maps.map { it.path }, base.streamed)
                     if (base.contours) service.refreshTerrain()
                 }
                 val style = GlStyles.styleFor((base as? BaseMap.Offline)?.theme).build(base, service, forTextures = true)

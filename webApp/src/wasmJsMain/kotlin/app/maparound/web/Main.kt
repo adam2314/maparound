@@ -30,6 +30,8 @@ import app.maparound.sensors.LocalDeviceSensors
 import app.maparound.share.Incoming
 import app.maparound.share.Shared
 import app.maparound.share.SharedLinks
+import app.maparound.share.TrackLink
+import app.maparound.i18n.T
 import app.maparound.shared.WebFiles
 import app.maparound.shared.toByteArray
 import app.maparound.tracks.LocalTracks
@@ -94,6 +96,42 @@ private fun takeInviteFromAddress(): String = js(
 })()""",
 )
 
+/** Takes the address's parameters [names] out of it (after # and after ?), keeping the rest. */
+private fun removeFromAddress(names: JsArray<JsString>): Unit = js(
+    """{
+    const drop = (s) => s.split('&').filter((p) => p && !names.includes(p.split('=')[0])).join('&');
+    const hash = drop(location.hash.replace(/^#/, ''));
+    const search = drop(location.search.replace(/^\?/, ''));
+    try { history.replaceState(history.state, '', location.pathname + (search ? '?' + search : '') + (hash ? '#' + hash : '')); } catch (e) {}
+}""",
+)
+
+private fun removeFromAddress(vararg names: String) = removeFromAddress(names.map { it.toJsString() }.toJsArray())
+
+/**
+ * A route or track in the page's address (a MapAround track link, `#track=…&n=…`) or a GPX file
+ * (`?gpx=<link>`): into Library and onto the map, like an imported file, then out of the address.
+ * The GPX file is fetched by the browser, so only from websites that allow that (CORS).
+ */
+private suspend fun linkFromAddress(app: WebApp) {
+    val address = pageAddress()
+    TrackLink.parse(address)?.let { track ->
+        removeFromAddress("track", "n")
+        Incoming.pending.value = Incoming.Item.LinkedTrack(track)
+        return
+    }
+    val url = SharedLinks.gpxLink(address)?.takeIf { "gpx=" in address } ?: return
+    removeFromAddress("gpx")
+    Incoming.pending.value = Incoming.Item.Message(T.map.gpxLinkOpening)
+    val bytes = fetchBytes(url)
+    Incoming.pending.value = if (bytes == null) {
+        Incoming.Item.Message(T.map.gpxLinkFailed(T.map.gpxLinkBlocked))
+    } else {
+        runCatching { Incoming.importGpx(bytes, SharedLinks.gpxName(url), app.tracks, app.places) }
+            .getOrElse { Incoming.Item.Message(T.map.couldntReadGpx(it.message)) }
+    }
+}
+
 /** [f] when another address is typed or opened in this page (the part after #). */
 private fun onAddressChange(f: () -> Unit): Unit = js("{ window.addEventListener('hashchange', () => f()); }")
 
@@ -130,7 +168,11 @@ fun main() {
         MapRegions.source = { regions }
         pinFromAddress()
         inviteFromAddress(app)
-        onAddressChange { inviteFromAddress(app) }
+        linkFromAddress(app)
+        onAddressChange {
+            inviteFromAddress(app)
+            launch { linkFromAddress(app) }
+        }
         notifyPartyEvents(app.party)
         // The 3D view's terrain tiles: the default, or the ones chosen in Offline maps.
         launch {

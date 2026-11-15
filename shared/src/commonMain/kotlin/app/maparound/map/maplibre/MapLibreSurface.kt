@@ -162,7 +162,7 @@ class MapLibreSurface(
         if (base is BaseMap.Offline) {
             val paths = base.maps.map { it.path }
             withContext(Dispatchers.Default) {
-                tiles.setMaps(paths)
+                tiles.setMaps(paths, base.streamed)
                 if (base.contours || base.hillshade) tiles.refreshTerrain()
             }
         }

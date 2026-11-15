@@ -5,6 +5,8 @@ import app.maparound.places.PlaceRepository
 import app.maparound.raster.RasterMapRepository
 import android.app.Application
 import app.maparound.data.MapAroundCatalog
+import app.maparound.data.MapStreaming
+import app.maparound.shared.stream.MapStream
 import app.maparound.shared.net.userAgent
 import app.maparound.data.MapDownloader
 import app.maparound.data.MapFilesRepository
@@ -66,6 +68,8 @@ object AppGraph {
     lateinit var rasters: RasterMapRepository
         private set
     val catalog = MapAroundCatalog()
+    lateinit var streaming: MapStreaming
+        private set
     private lateinit var app: Application
 
     /** The world's country borders for the offline maps (assets/borders.bin), read on first use. */
@@ -120,6 +124,19 @@ object AppGraph {
             }
         }
         rasters = RasterMapRepository(app)
+        // Where no map is installed, the region's map is read over the internet, kept in the cache.
+        MapStream.cacheDir = java.io.File(app.cacheDir, "stream").path
+        val fetch = MapStream.fetch
+        MapStream.fetch = { url, from, length ->
+            try {
+                fetch(url, from, length)
+            } catch (e: Exception) {
+                android.util.Log.w("MapStream", "Can't read $length bytes at $from of $url", e)
+                throw e
+            }
+        }
+        val lists = java.io.File(app.filesDir, "stream").apply { mkdirs() }.path
+        streaming = MapStreaming(catalog, prefs.streamMaps, mapFiles.files, MainScope(), lists)
         // The map draws with MapLibre, from tiles the app makes (needs the terrain folder and the world).
         GlTiles.init(app)
         PartySession.init(app)

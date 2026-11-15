@@ -217,6 +217,8 @@ class OfflineData(
      * the 1° tiles'; and those are read by the browser, so their server has to allow it (CORS).
      */
     val webTerrain: Boolean = false,
+    /** The maps the vector map streams where no installed map reaches; null: no streaming here. */
+    val streamed: StateFlow<List<app.maparound.map.RemoteMap>>? = null,
 )
 
 val LocalOfflineData = staticCompositionLocalOf<OfflineData> { error("No OfflineData provided") }

@@ -40,6 +40,7 @@
         android:label="@string/app_name"
         android:localeConfig="@xml/locales_config"
         android:supportsRtl="true"
+        android:enableOnBackInvokedCallback="true"
         android:theme="@style/Theme.MapAround">
 
         <activity
@@ -127,10 +128,11 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="maparound" android:host="party" />
             </intent-filter>
-            <!-- and the invite web link https://adam2314.github.io/maparound/party#<code>?n=<name>.
-                 It opens MapAround directly once Android verifies it, which needs
+            <!-- and the invite web link https://adam2314.github.io/maparound/party#<code>?n=<name>,
+                 and the web app's links (…/maparound/app/?mlat=…, #track=…, ?gpx=…). They open
+                 MapAround directly once Android verifies them, which needs
                  https://adam2314.github.io/.well-known/assetlinks.json; until then the browser
-                 shows the invite page. -->
+                 shows the page (shared to MapAround they always open in it). -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -138,6 +140,7 @@
                 <data android:scheme="https" />
                 <data android:host="adam2314.github.io" />
                 <data android:path="/maparound/party" />
+                <data android:pathPrefix="/maparound/app" />
             </intent-filter>
         </activity>
 

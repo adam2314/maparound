@@ -18,6 +18,8 @@ The heights come in tiles of 1° latitude by 1° longitude (about 110 × 80 km i
 their south-west corner: `N47E009.hgt` covers 47–48° N, 9–10° E. It's the `.hgt` format of NASA's
 SRTM survey: at 1 arc-second, one height about every 30 m.
 
+<p class="shots"><img src="{{ '/guide/img/elevation-map.webp' | relative_url }}" alt="Contour lines and hill shading over a mountain lake" width="720" height="1195" loading="lazy"></p>
+
 ## Where it comes from
 
 By default, from [Terrain Tiles on AWS Open Data](https://registry.opendata.aws/terrain-tiles/), a
@@ -64,6 +66,8 @@ online image tiles of the relief.
 Someone in your group may run a server with better heights for your area, or you may have
 converted a newer model yourself. In the **Terrain** section, **Source → Change** takes the
 address of the 1° files as a template:
+
+<p class="shots"><img src="{{ '/guide/img/elevation-source.webp' | relative_url }}" alt="Offline maps → Terrain → Source: the address of the elevation tiles" width="720" height="1195" loading="lazy"></p>
 
 - `{folder}` becomes the latitude part of the name, such as `N47`;
 - `{name}` becomes the tile's name, such as `N47E009`;

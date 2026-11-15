@@ -13,6 +13,9 @@ import app.maparound.shared.util.urlEncode
 sealed class Shared {
     data class Point(val lat: Double, val lon: Double, val label: String? = null, val zoom: Int? = null) : Shared()
     data class Route(val points: List<GeoPoint>, val profile: RouteProfile?) : Shared()
+
+    /** A route or track itself, from a MapAround track link ([TrackLink]); [name] null when it had none. */
+    data class Track(val name: String?, val points: List<GeoPoint>) : Shared()
 }
 
 object SharedLinks {
@@ -24,10 +27,28 @@ object SharedLinks {
         Regex("""https?://(maps\.app\.goo\.gl|goo\.gl/maps|g\.co/kgs|maps\.google\.[a-z.]+/\?cid=)[^\s]*""", RegexOption.IGNORE_CASE)
             .find(text)?.value
 
+    /**
+     * A GPX file's address in a text: a link to a `.gpx` file, or the web app's `?gpx=<link>`.
+     * Null if there's none.
+     */
+    fun gpxLink(text: String): String? {
+        Regex("""[?&]gpx=([^&#\s]+)""").find(text)?.let { m ->
+            return urlDecode(m.groupValues[1]).takeIf { it.startsWith("https://") || it.startsWith("http://") }
+        }
+        return Regex("""https?://[^\s"'<>]+?\.gpx(?:[?#][^\s"'<>]*)?(?=$|[\s"'<>])""", RegexOption.IGNORE_CASE).find(text)?.value
+    }
+
+    /** A name for the track from its GPX link: the file's name ("Wadi Qelt" from …/Wadi%20Qelt.gpx). */
+    fun gpxName(url: String): String =
+        urlDecode(url.substringBefore('#').substringBefore('?').trimEnd('/').substringAfterLast('/'))
+            .replace(Regex("""\.gpx$""", RegexOption.IGNORE_CASE), "").replace('_', ' ').trim().ifEmpty { "GPX" }
+
     /** Finds a location or route in a link, a geo: URI or free text. Null if there is none. */
     fun parse(input: String): Shared? {
         val raw = input.trim()
         if (raw.isEmpty()) return null
+        // A MapAround track link: the line itself, before anything decodes the address.
+        TrackLink.parse(raw)?.let { return it }
         val label = labelFrom(raw)
         val text = decode(raw)
 

@@ -57,7 +57,12 @@ class MfHeader(
             ?: if (zoom < minZoom) intervals.minBy { it.minZoom } else intervals.maxBy { it.maxZoom }
 }
 
-class MapsforgeFile(private val file: FileHandle) {
+/**
+ * A mapsforge map file. [wholeIndex]: a zoom interval's block index is read whole at its first use
+ * (a file on the device); otherwise just the entries needed, each time (a file read over the
+ * internet, which keeps what it read).
+ */
+class MapsforgeFile(private val file: FileHandle, private val wholeIndex: Boolean = true) {
     val header: MfHeader = readHeader()
     private val indexCache = HashMap<MfHeader.SubFile, ByteArray>()
 
@@ -209,13 +214,19 @@ class MapsforgeFile(private val file: FileHandle) {
 
     /** (offset of the block in the sub-file, all-water flag, offset of the next block). */
     private fun blockEntry(sub: MfHeader.SubFile, col: Int, row: Int): Triple<Long, Boolean, Long> {
-        val index = indexCache.getOrPut(sub) {
-            if (sub.blocks > 20_000_000) throw MapsforgeException("Index too large")
-            readAt(sub.indexStart, (sub.blocks * 5).toInt())
-        }
         val i = row.toLong() * sub.width + col
+        // The whole index, or this entry and the next.
+        val first = if (wholeIndex) 0L else i
+        val index = if (wholeIndex) {
+            indexCache.getOrPut(sub) {
+                if (sub.blocks > 20_000_000) throw MapsforgeException("Index too large")
+                readAt(sub.indexStart, (sub.blocks * 5).toInt())
+            }
+        } else {
+            readAt(sub.indexStart + i * 5, if (i + 1 < sub.blocks) 10 else 5)
+        }
         fun entry(k: Long): Long {
-            val p = (k * 5).toInt()
+            val p = ((k - first) * 5).toInt()
             var v = 0L
             for (j in 0 until 5) v = (v shl 8) or (index[p + j].toLong() and 0xFF)
             return v

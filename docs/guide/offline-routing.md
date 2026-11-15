@@ -20,6 +20,8 @@ with their surfaces, grades and access rules, prepared in blocks of 5° × 5° (
 `E5_N45.rd5`, for 5–10° E and 45–50° N). One block can cover several small countries, or part of
 a big one.
 
+<p class="shots"><img src="{{ '/guide/img/routing-offline.webp' | relative_url }}" alt="A hike planned without internet: routed on the phone by BRouter" width="720" height="1195" loading="lazy"></p>
+
 The planner's profiles:
 
 - **Hike** follows footpaths and mountain trails;
@@ -35,6 +37,8 @@ Under the route, the planner says how it was made: **Routed on this phone (BRout
 1. On the **Offline maps** screen, tap **⋮** beside a map → **Offline routing**.
 2. The dialog lists the blocks that map needs, with their sizes and the total.
 3. Tap **Download**.
+
+<p class="shots"><img src="{{ '/guide/img/routing-data.webp' | relative_url }}" alt="Offline maps → Offline routing: the routing block on the phone" width="720" height="1195" loading="lazy"></p>
 
 The map then shows **routing ✓**, and the blocks appear in the **Offline routing** section, each
 with its size and a bin to delete it. With **Download over Wi‑Fi only** on, they wait for Wi‑Fi.

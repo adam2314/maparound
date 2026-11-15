@@ -36,6 +36,7 @@ class MainActivity : ComponentActivity() {
         val sensors = AndroidSensors(this)
         val platform = AndroidPlatform(this)
         val recording = AndroidRecordingControl(this)
+        val secondScreen = app.maparound.map.AndroidSecondScreen(this)
         setContent {
             // What the shared screens get from the platform.
             CompositionLocalProvider(
@@ -46,6 +47,7 @@ class MainActivity : ComponentActivity() {
                 LocalSearcher provides SearchService,
                 LocalTracks provides AppGraph.tracks,
                 LocalRecordingControl provides recording,
+                app.maparound.ui.LocalSecondScreen provides secondScreen,
                 LocalRasters provides AppGraph.rasters,
                 app.maparound.map.LocalMapThemes provides AppGraph.themes,
                 LocalParty provides PartySession,
@@ -58,6 +60,7 @@ class MainActivity : ComponentActivity() {
                     trails = AppGraph.trails,
                     routing = AppGraph.routing,
                     builtInWorld = true,
+                    streamed = AppGraph.streaming.maps,
                 ),
             ) {
                 MapAroundTheme {
@@ -80,8 +83,10 @@ class MainActivity : ComponentActivity() {
      */
     private fun handleIntent(intent: Intent?) {
         val data = intent?.data
+        // The invite page's link; the site's other links (the web app's: a point, a track) are links to show.
         val invite = data != null &&
-            (data.scheme == "maparound" && data.host == "party" || data.host == PartyKey.INVITE_HOST)
+            (data.scheme == "maparound" && data.host == "party" ||
+                data.host == PartyKey.INVITE_HOST && data.path?.startsWith(PartyKey.INVITE_PATH) == true)
         if (intent?.action == Intent.ACTION_VIEW && invite) {
             PartyKey.parse(data.toString())?.let { PartySession.pendingInvite.value = it }
             return

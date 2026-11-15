@@ -49,10 +49,24 @@ map to get; **Get map** opens the list right there.
 
 When MapAround builds a newer version of a map you have, the list shows **Update** beside it.
 
+## Online where no map is downloaded (Android)
+
+Where none of your maps reaches, the map reads the region's map over the internet as you look
+around, in the same style: MapAround's map where there is one (marked trails and all), else the
+basic map from mapsforge.org. Only the parts you look at are read, a few megabytes for a town and
+the country around it, and they're kept for a while (up to 512 MB; the oldest go first). The
+banner then says **shown online**, and **Get map** downloads the map for when there's no signal.
+
+With no signal, places you looked at before still show; the others fill in by themselves once
+there's a connection again. To use no data for it, turn off **Map layers → Online where none is
+downloaded**.
+
 ## On this device
 
 **On this device** lists your maps and the space they take. Tap a map to see it on the map. The
 **⋮** button beside a map adds extras for its area:
+
+<p class="shots"><img src="{{ '/guide/img/offline-list.webp' | relative_url }}" alt="Offline maps: the map on the phone with its terrain, routing and trails, and the raster maps" width="720" height="1195" loading="lazy"><img src="{{ '/guide/img/offline-menu.webp' | relative_url }}" alt="A map's ⋮ menu: contours and hill shading, offline routing, marked trails, delete" width="720" height="1195" loading="lazy"></p>
 
 - **Contours & hill shading**: elevation data for the whole map. See [Elevation data]({{ '/guide/elevation' | relative_url }}).
 - **Offline routing**: route planning without a connection (Android). See
@@ -93,7 +107,9 @@ listed in their own sections on the same screen, each with a bin to delete them.
 
 Using an offline map sends nothing anywhere. The list of maps comes from GitHub, and the maps
 themselves from GitHub's download servers (or mapsforge.org for the basic maps), which see your
-IP address and which maps you download. See the [privacy policy]({{ '/privacy' | relative_url }}).
+IP address and which maps you download. Reading a map online (above) asks the same servers for the
+parts you look at, so they can tell roughly where on the map you are looking. See the
+[privacy policy]({{ '/privacy' | relative_url }}).
 
 ## Licence
 

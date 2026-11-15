@@ -114,6 +114,10 @@ fun MapAroundRoot(
         }
     }
 
+    // Back on another tab goes to the map (as Android's own apps do); on the map it leaves the app.
+    // The screens' own Back (a folder, a settings page, search) comes first: they're composed later.
+    PlatformBackHandler(enabled = tab != Tab.Map && Tab.Map in tabs) { tab = Tab.Map }
+
     // Right to left in a right-to-left language (Hebrew), on every platform: the screens mirror.
     CompositionLocalProvider(LocalLayoutDirection provides if (I18n.rtl) LayoutDirection.Rtl else LayoutDirection.Ltr) {
     Scaffold(

@@ -94,6 +94,8 @@ object GlTiles {
                 object : ConnectivityManager.NetworkCallback() {
                     override fun onAvailable(network: Network) {
                         main.post { MapLibre.setConnected(true) }
+                        // Streamed maps: read at once again, and the tiles made without them redone.
+                        app.maparound.shared.stream.MapStream.networkBack()
                     }
                 },
             )
@@ -104,7 +106,7 @@ object GlTiles {
     private fun onWorker(path: String): TileService.Response? {
         val w = workers.take()
         try {
-            if (w.version != service.version) w.setMaps(service.mapPaths)
+            if (w.version != service.version) w.setMaps(service.mapPaths, service.remoteMaps)
             val terrain = service.terrainVersion
             if (terrain != null && w.terrainVersion != terrain) w.refreshTerrain()
             return w.respond(path)
@@ -158,7 +160,8 @@ object GlTiles {
     // ---- requests ------------------------------------------------------------------------------------
 
     private fun extra(parts: List<String>): TileService.Response? = when (parts.firstOrNull()) {
-        "raster" -> if (parts.size == 5) raster(parts[1], parts[2], parts[3], parts[4]) else null
+        // raster/<id>.<revision>/z/x/y.png
+        "raster" -> if (parts.size == 5) raster(parts[1].substringBefore('.'), parts[2], parts[3], parts[4]) else null
         "trails" -> if (parts.size == 5) zxy(parts, 2)?.let { (z, x, y) -> TileService.Response(trailTile(z, x, y), PBF) } else null
         "viewshed" -> service.viewshed?.takeIf { parts.size == 2 && parts[1] == "${MapStyle.viewshedKey(it)}.png" }
             ?.let { TileService.Response(png(viewshedBitmap(it)), "image/png") }
@@ -207,6 +210,9 @@ object GlTiles {
 
     private const val PBF = "application/x-protobuf"
 
+    /** How soon a tile made without a streamed map's data is asked for again, in seconds. */
+    private const val RETRY_S = 20
+
     /** Answers MapLibre's requests for the app's own tiles; passes the rest on with the app's User-Agent. */
     private object Answer : Interceptor {
         override fun intercept(chain: Interceptor.Chain): Response {
@@ -231,8 +237,9 @@ object GlTiles {
                 builder.code(404).message("Not Found").body(ByteArray(0).toResponseBody(null)).build()
             } else {
                 // Tile URLs carry a key of their data, so a tile never changes: MapLibre may keep it.
+                // One made without a streamed map it couldn't read (no signal) is asked for again soon.
                 builder.code(200).message("OK")
-                    .header("Cache-Control", "max-age=31536000")
+                    .header("Cache-Control", if (answer.temporary) "max-age=$RETRY_S" else "max-age=31536000")
                     .body(answer.bytes.toResponseBody(answer.contentType.toMediaType()))
                     .build()
             }

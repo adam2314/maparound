@@ -74,6 +74,9 @@ object IncomingShare {
         if (PartyKey.hasLink(text)) {
             PartyKey.parse(text)?.let { PartySession.pendingInvite.value = it; return }
         }
+        // A link to a GPX file (or the web app's ?gpx=<link>): fetched and imported like the file.
+        // A MapAround track link carries the line itself (Incoming.fromText below).
+        if (TrackLink.parse(text) == null) SharedLinks.gpxLink(text)?.let { openGpxLink(it); return }
         // Map links, and grid references or codes (UTM, MGRS, ITM, Plus Code, deg-min-sec…) sent on their own.
         val near = AppGraph.prefs.lastPosition()?.let { app.maparound.routing.GeoPoint(it.lat, it.lon) }
         Incoming.fromText(text, near)?.let { Incoming.pending.value = it; return }
@@ -121,6 +124,45 @@ object IncomingShare {
             }
         }
     }
+
+    /** A GPX file from the web: downloaded, then into the library like an opened file. */
+    private fun openGpxLink(url: String) {
+        Incoming.pending.value = Item.Message(T.map.gpxLinkOpening)
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching { Incoming.importGpx(download(url), SharedLinks.gpxName(url), AppGraph.tracks, AppGraph.places) }
+            }
+            Incoming.pending.value = result.getOrElse { Item.Message(T.map.gpxLinkFailed(it.message ?: it::class.simpleName.orEmpty())) }
+        }
+    }
+
+    /** A file from the web, up to [MAX_DOWNLOAD] bytes. */
+    private fun download(url: String): ByteArray {
+        val conn = URL(url).openConnection() as HttpURLConnection
+        try {
+            conn.connectTimeout = 15_000
+            conn.readTimeout = 30_000
+            conn.setRequestProperty("User-Agent", USER_AGENT)
+            val code = conn.responseCode
+            if (code !in 200..299) error("HTTP $code")
+            conn.inputStream.use { input ->
+                val out = java.io.ByteArrayOutputStream()
+                val buf = ByteArray(64 * 1024)
+                while (true) {
+                    val n = input.read(buf)
+                    if (n < 0) break
+                    out.write(buf, 0, n)
+                    if (out.size() > MAX_DOWNLOAD) error("> ${MAX_DOWNLOAD / 1_000_000} MB")
+                }
+                return out.toByteArray()
+            }
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    /** The biggest GPX file a link brings: a week's recording is a few MB. */
+    private const val MAX_DOWNLOAD = 30_000_000
 
     /** Follows redirects by hand (Google short links), unwrapping consent pages. */
     private fun resolve(start: String): String? {

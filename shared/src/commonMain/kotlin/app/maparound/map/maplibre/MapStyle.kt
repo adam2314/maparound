@@ -114,7 +114,7 @@ class MapStyle(
                 } else if (raster != null) {
                     sources["raster"] = buildJsonObject {
                         put("type", "raster")
-                        putJsonArray("tiles") { add(JsonPrimitive("$tilesBaseUrl/raster/${raster.id}/{z}/{x}/{y}.png")) }
+                        putJsonArray("tiles") { add(JsonPrimitive("$tilesBaseUrl/raster/${raster.id}.${raster.revision}/{z}/{x}/{y}.png")) }
                         put("tileSize", 256)
                         putJsonArray("bounds") {
                             add(JsonPrimitive(raster.west)); add(JsonPrimitive(raster.south))

@@ -269,6 +269,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
             windowInsets = WindowInsets(0, 0, 0, 0),
         )
         if (importing) LinearProgressIndicator(Modifier.fillMaxWidth())
+        RasterPreparingRow(rasters)
 
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
             val hasWorld = installed.any { it.isWorld } || downloads.any { MapNames.isWorld(it.fileName) }

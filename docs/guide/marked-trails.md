@@ -18,6 +18,8 @@ one on each, a third and a fourth on a second line outside the edges. The edges 
 so you still see how passable the road is: solid for any car, dashed for high vehicles, dash-dot
 for 4×4 only.
 
+<p class="shots"><img src="{{ '/guide/img/trails-dirt-road.webp' | relative_url }}" alt="A 4×4 road marked red: its edges in the trail's colour, dash-dot; paths beside it" width="720" height="1195" loading="lazy"><img src="{{ '/guide/img/trails-legend.webp' | relative_url }}" alt="The legend's marked trails, down to the marked dirt road" width="720" height="1195" loading="lazy"></p>
+
 ## Where they come from
 
 From [OpenStreetMap](https://www.openstreetmap.org), where volunteers map each marked route with

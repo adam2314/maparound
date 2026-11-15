@@ -2,6 +2,57 @@
 
 ## 0.5.3 (not released yet)
 
+### Navigation and screens
+- **Starting navigation no longer crashes the app** after Android Auto has been connected. The
+  app told the car screen that navigation started; when the car was gone (or not ready) that
+  failed and took the app down, on the phone and on the car. Navigation now goes on on the phone,
+  and the car is told again a little later.
+- **The map on another screen.** With a monitor or TV connected (USB-C or HDMI) or a wireless
+  display, **Map layers** offers **Map on another screen**: the full map there, following you and
+  closer while navigating, with the same route, tracks and party; the phone keeps its own screen.
+  The switch only shows while such a screen is connected.
+- **Back does what you'd expect.** On Library, Party, Offline or Sensors it goes to the map; on
+  the map it first closes what's open (a place's card, the route planner, the tools, the data
+  view), and only then leaves the app. The app uses Android's own back (as Android 16 requires),
+  so the back gesture's preview works too.
+
+### The map online, as nice as offline
+- **Where no map is downloaded, the map reads it over the internet** (Android), in the same style:
+  MapAround's own map where there is one, with the marked trails, path grades and 4×4 tracks, else
+  the basic one from mapsforge.org. Only the parts on screen are read (a town and the country around
+  it: a few megabytes), and kept for a while, up to 512 MB. The banner says **shown online**, and
+  **Get map** still downloads it for when there's no signal. Without a signal what was seen still
+  shows, and the rest fills in by itself when the signal is back. A switch in **Map layers**
+  (**Online where none is downloaded**) turns it off. Also on the car screen, the second screen and
+  in 3D.
+
+### GeoTIFF maps
+- **GeoTIFF scans and orthophotos as raster maps** (Android), added like the other raster maps and
+  read where they are. Placed by the coordinate system in the file: latitude/longitude, UTM on
+  WGS 84 and the other usual datums, Web Mercator, the Israeli grid, Gauss-Krüger, the Greek,
+  British, Irish, Nordic, Polish, Croatian, Slovenian and New Zealand grids, Lambert-93, Belgian
+  Lambert, or a Transverse Mercator / Lambert / Mercator projection the file describes. LZW,
+  Deflate, PackBits, JPEG or WebP, tiled or in strips, BigTIFF too; transparent where the file has
+  no data. A big one without reduced copies of its own gets them made once (with its progress), so
+  it's quick zoomed out.
+- **ECW** can't be opened (its decoder isn't open source); picking one says how to turn it into a
+  GeoTIFF with QGIS or GDAL.
+- **All raster maps draw better**: thin lines (contours, grids) no longer break up zoomed out,
+  slanted lines no longer step, and edges fade out instead of a dark fringe. After an update their
+  tiles are made again rather than kept from before.
+
+### Tracks as links
+- **Share a track or route as a link.** Sharing from Library now adds a link with the line in it
+  (…/maparound/app/#track=…): whoever gets it sees the track in the web app with nothing to
+  install, or in MapAround when they share the link to it. Long tracks are thinned to 500 points
+  with their shape kept; heights go along, so the climb and the elevation profile come too. The
+  line is after the `#`, so it never reaches the website. Opened again, the same link doesn't save
+  the track twice.
+- **Open GPX files from the web.** A link to a .gpx file shared to MapAround is downloaded and
+  imported, waypoints and all. The web app opens them too, as …/maparound/app/?gpx=<link>, when
+  the website holding the file allows it (GitHub's raw files do).
+- The message after importing a shared track or places now shows; it was cut off before.
+
 ### The Topo style
 - **Bike paths you can see.** Bike paths, and the many paths shared by walkers and bikes (in
   parks like HaYarkon), are blue with a white dashed line down the middle, like a painted lane,

@@ -74,6 +74,15 @@ class MapAroundCatalog(
 
     override fun urlFor(entry: CatalogEntry): String = entry.url ?: fallback.urlFor(entry)
 
+    /** catalog.json's text, read now; null when it can't be (offline). */
+    suspend fun fetchText(): String? = try {
+        fetch()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
+    }
+
     /** catalog.json from the first address that answers. */
     private suspend fun fetch(): String {
         var last: Exception? = null

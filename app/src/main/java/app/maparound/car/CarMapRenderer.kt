@@ -18,12 +18,9 @@ import app.maparound.AppGraph
 import app.maparound.data.MapPos
 import app.maparound.i18n.T
 import app.maparound.map.AndroidMapSurface
-import app.maparound.map.BaseMap
-import app.maparound.map.MapThemes
+import app.maparound.map.LiveMapFeed
 import app.maparound.map.TileSources
-import app.maparound.map.categories
 import app.maparound.map.maplibre.MapLibreSurface
-import app.maparound.map.satelliteSource
 import app.maparound.party.PartySession
 import app.maparound.routing.GeoPoint
 import app.maparound.routing.NavigationSession
@@ -35,18 +32,15 @@ import app.maparound.sensors.hasLocationPermission
 import app.maparound.sensors.toGeoFix
 import app.maparound.tracks.TrackRecorder
 import app.maparound.ui.Fmt
-import app.maparound.ui.partyMapMarkers
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -173,7 +167,7 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
     fun toggleSatellite() {
         satellite = !satellite
         pushStatus()
-        map?.let { m -> scope?.launch { applyBaseLayer(m) } }
+        feed?.satellite = satellite
     }
 
     /** "Navigate to" from the car: a car route from here, and guidance as soon as it is calculated. */
@@ -209,40 +203,23 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
 
     // ---- data -------------------------------------------------------------------------------------------
 
-    private var baseInputs: List<Any?> = emptyList()
+    /** The phone's map, route, tracks, recording and party on the car's map. */
+    private var feed: LiveMapFeed? = null
 
     private fun startFeeding(c: AndroidMapSurface) {
         val s = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         scope = s
-        val prefs = AppGraph.prefs
-        // Same base map as the phone: offline vector (topo, contours, hill shading, trails) or an online source.
-        s.launch {
-            combine(
-                listOf(
-                    prefs.baseLayer, prefs.customSources, AppGraph.mapFiles.files, prefs.mapTheme, prefs.styleChoices, prefs.contours,
-                    prefs.hillshade, AppGraph.terrain.state, prefs.trails, AppGraph.trails.state,
-                    prefs.mapBackground, prefs.vectorOnBackground, AppGraph.rasters.maps,
-                ),
-            ) { it.toList() }.collect {
-                baseInputs = it
-                applyBaseLayer(c)
-            }
+        feed = LiveMapFeed(c, s, onChange = ::pushStatus).also {
+            it.satellite = satellite
+            it.start()
         }
         s.launch {
+            // "Navigate to" from the car: guidance once the route is there.
             combine(PlannerSession.state, NavigationSession.state) { planner, nav -> planner to nav }.collect { (planner, nav) ->
-                val line = when {
-                    nav.route != null -> nav.route!!.points
-                    !planner.active -> emptyList()
-                    planner.route != null -> planner.route!!.points
-                    planner.profile == RouteProfile.LINE -> planner.waypoints
-                    else -> emptyList()
-                }
-                c.setPlannedRoute(line, if (planner.active) planner.waypoints else emptyList())
                 if (startWhenRouted && !planner.busy) {
                     startWhenRouted = false
                     if (planner.route != null && !nav.active) startNavigation()
                 }
-                pushStatus()
             }
         }
         s.launch {
@@ -258,24 +235,6 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
                 }
             }
         }
-        s.launch {
-            combine(AppGraph.tracks.tracks, AppGraph.tracks.visible) { tracks, visible ->
-                tracks.filter { it.id in visible }.associate { it.id to it.track.points }
-            }.collect { c.setShownTracks(it) }
-        }
-        s.launch { TrackRecorder.state.collect { c.setRecording(it.points) } }
-        s.launch {
-            val clock = flow {
-                while (true) {
-                    emit(System.currentTimeMillis())
-                    delay(30_000)
-                }
-            }
-            combine(PartySession.state, clock) { party, now -> partyMapMarkers(party, now) }.collect {
-                c.setPartyMarkers(it)
-                pushStatus()
-            }
-        }
         if (carContext.hasLocationPermission()) {
             s.launch {
                 LocationSource.updates(carContext).collect { loc ->
@@ -289,29 +248,6 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
             }
         }
         pushStatus()
-    }
-
-    private suspend fun applyBaseLayer(c: AndroidMapSurface) {
-        val prefs = AppGraph.prefs
-        val online = if (satellite) satelliteSource else TileSources.find(prefs.baseLayer.value, prefs.customSources.value)
-        val theme = prefs.mapTheme.value
-        val base = online?.let { BaseMap.Online(it) } ?: BaseMap.Offline(
-            maps = AppGraph.mapFiles.files.value,
-            theme = theme,
-            categories = AppGraph.themes.categories(theme, prefs.styleChoices.value),
-            contours = prefs.contours.value,
-            hillshade = prefs.hillshade.value,
-            terrainVersion = AppGraph.terrain.state.value.version,
-            trails = prefs.trails.value,
-            trailsVersion = AppGraph.trails.state.value.version,
-            // Same background as the phone (satellite / raster map under the vector map).
-            background = prefs.mapBackground.value,
-            vectorOnTop = prefs.vectorOnBackground.value,
-            rasterMaps = AppGraph.rasters.maps.value,
-        )
-        c.setBaseMap(base)
-        val localTrails = online == null && prefs.trails.value && MapThemes.drawsTerrain(theme) && AppGraph.trails.state.value.cells > 0
-        c.setTrailOverlay(prefs.trails.value && !localTrails)
     }
 
     private fun pushStatus() {
@@ -343,6 +279,7 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
     private fun release() {
         scope?.cancel()
         scope = null
+        feed = null
         map?.let {
             it.onPause()
             runCatching { it.destroy() }

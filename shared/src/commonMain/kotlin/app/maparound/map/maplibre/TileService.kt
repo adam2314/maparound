@@ -21,7 +21,8 @@ class TileService(private val demDir: String? = null, private val fontsDir: Stri
     /** Where the server listens, e.g. `http://127.0.0.1:52100`; set once it runs. */
     var baseUrl: String = "http://127.0.0.1"
 
-    class Response(val bytes: ByteArray, val contentType: String)
+    /** [temporary]: made without data that couldn't be read now (streamed maps); ask again soon. */
+    class Response(val bytes: ByteArray, val contentType: String, val temporary: Boolean = false)
 
     /** The built-in world where the maps have nothing (Android). Set before [setMaps]. */
     var world: app.maparound.map.WorldTile? = null
@@ -57,7 +58,9 @@ class TileService(private val demDir: String? = null, private val fontsDir: Stri
     /** The offline map tiles' version in their URLs: the maps', the extras', and the terrain's when it's in them. */
     val osmVersion: String
         get() = (osmExtraVersion?.let { "$version-$it" } ?: version) +
-            (if (buildingRelief) terrainVersion?.let { "-t$it" }.orEmpty() else "")
+            (if (buildingRelief) terrainVersion?.let { "-t$it" }.orEmpty() else "") +
+            // Streamed maps readable again after tiles were made without them: asked for anew.
+            (if (remoteMaps.isNotEmpty()) "-s${app.maparound.shared.stream.MapStream.generation.value}" else "")
 
     /** The viewshed image the platform serves under `viewshed/<key>.png`, and where it lies. */
     @Volatile
@@ -79,17 +82,25 @@ class TileService(private val demDir: String? = null, private val fontsDir: Stri
     var mapPaths: List<String> = emptyList()
         private set
 
-    /** Serves these maps from now on. Opens the files: call off the main thread. Returns [version]. */
-    fun setMaps(paths: List<String>): String {
+    /** The maps streamed where the installed ones don't reach (see [setMaps]). */
+    var remoteMaps: List<app.maparound.map.RemoteMap> = emptyList()
+        private set
+
+    /**
+     * Serves these maps from now on, and the [remote] ones where they don't reach. Opens the files:
+     * call off the main thread. Returns [version].
+     */
+    fun setMaps(paths: List<String>, remote: List<app.maparound.map.RemoteMap> = emptyList()): String {
         mapPaths = paths
+        remoteMaps = remote
         val key = (if (world != null) "world2|" else "") + paths.joinToString("|") { p ->
             val m = fileSystem.metadataOrNull(p.toPath())
             "$p:${m?.size}:${m?.lastModifiedAtMillis}"
-        }
+        } + (if (remote.isEmpty()) "" else "|stream:" + remote.joinToString(",") { it.url })
         if (key != this.key) {
             this.key = key
-            tiles = MapTiles(paths, world)
-            version = if (paths.isEmpty() && world == null) "0" else (key.hashCode().toLong() and 0xFFFFFFFFL).toString(16)
+            tiles = MapTiles(paths, world, remote)
+            version = if (paths.isEmpty() && remote.isEmpty() && world == null) "0" else (key.hashCode().toLong() and 0xFFFFFFFFL).toString(16)
         }
         return version
     }
@@ -132,7 +143,10 @@ class TileService(private val demDir: String? = null, private val fontsDir: Stri
         val y = parts[4].substringBefore('.').toIntOrNull() ?: return null
         if (z !in 0..22 || x !in 0 until (1 shl z) || y !in 0 until (1 shl z)) return null
         return when (parts[0]) {
-            "osm" -> Response(tiles.tile(z, x, y, osmExtra, ground = terrain?.takeIf { buildingRelief }?.let { t -> t::elevation }), PBF)
+            "osm" -> tiles.let { m ->
+                val bytes = m.tile(z, x, y, osmExtra, ground = terrain?.takeIf { buildingRelief }?.let { t -> t::elevation })
+                Response(bytes, PBF, temporary = !m.complete)
+            }
             "contours" -> terrain?.let { Response(it.contours(z, x, y), PBF) }
             "dem" -> terrain?.terrarium(z, x, y)?.let { Response(it, "image/png") }
             else -> null

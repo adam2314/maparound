@@ -16,6 +16,8 @@ lang: he
 נוסף מחוץ לשוליים. השוליים שומרים על הקווקוו שלהם, כך שעדיין רואים כמה הדרך עבירה: קו רציף לכל רכב,
 מקווקו לרכב גבוה, קו־נקודה ל־4×4 בלבד.
 
+<p class="shots"><img src="{{ '/he/guide/img/trails-dirt-road.webp' | relative_url }}" alt="דרך 4×4 מסומנת באדום: שולי הדרך בצבע השביל, בקו־נקודה; שבילים לידה" width="720" height="1195" loading="lazy"><img src="{{ '/he/guide/img/trails-legend.webp' | relative_url }}" alt="השבילים המסומנים במקרא, עד דרך העפר המסומנת" width="720" height="1195" loading="lazy"></p>
+
 ## מאיפה הם מגיעים
 
 מ־[OpenStreetMap](https://www.openstreetmap.org), שבו מתנדבים ממפים כל מסלול מסומן עם הצבע והסמל

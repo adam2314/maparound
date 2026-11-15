@@ -157,13 +157,13 @@ class Calibration(val projection: MapProjection, private val a: DoubleArray, val
             val projection = Projections.of(projectionText, datum, allLonLat, itmLike)
             // Calibration points given as longitude/latitude are projected first.
             val mapPts = points.map { p -> if (p.lonLat) projection.forward(p.v2, p.v1) else doubleArrayOf(p.v1, p.v2) }
-            return Calibration(projection, fit(points.map { it.px }, points.map { it.py }, mapPts), datum)
+            return Calibration(projection, fitAffine(points.map { it.px }, points.map { it.py }, mapPts), datum)
         }
 
         private class CalPoint(val px: Double, val py: Double, val lonLat: Boolean, val v1: Double, val v2: Double)
 
         /** Least-squares affine fit; with two points, a north-up scale and offset. */
-        private fun fit(px: List<Double>, py: List<Double>, map: List<DoubleArray>): DoubleArray {
+        internal fun fitAffine(px: List<Double>, py: List<Double>, map: List<DoubleArray>): DoubleArray {
             val n = px.size
             if (n == 2) {
                 val sx = (map[1][0] - map[0][0]) / (px[1] - px[0])

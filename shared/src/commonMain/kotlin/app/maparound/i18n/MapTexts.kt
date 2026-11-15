@@ -42,6 +42,13 @@ open class MapTexts {
     open fun importedTrack(name: String, waypoints: Int) =
         "Imported “$name” into Library" + (if (waypoints > 0) " and $waypoints waypoint${if (waypoints == 1) "" else "s"} into Places" else "")
     open val placesAlreadySaved = "Those places are already saved"
+
+    /** A route or track opened from a link: its name when the link had none, and when it's already in Library. */
+    open val sharedTrackName = "Shared track"
+    open fun sharedTrackShown(name: String) = "“$name” is already in Library"
+    open val gpxLinkOpening = "Getting the GPX file…"
+    open fun gpxLinkFailed(reason: String) = "Couldn't get the GPX file: $reason"
+    open val gpxLinkBlocked = "its website doesn't let browsers fetch it. Download it, then import it in Library"
     open fun placesAdded(n: Int) = "Added $n place${if (n == 1) "" else "s"} to Library → Places"
 
     // ---- the pin card ----
@@ -92,11 +99,18 @@ open class MapTexts {
         "Terrain for contours & shading comes by itself as you look closer at your maps. All of a map's: Offline maps →"
     open val backgroundHeader = "Background of the offline map"
     open val mapColours = "Map colours"
+
+    /** The map on a monitor, TV or wireless display (Android, when one is connected). */
+    open val secondScreen = "Map on another screen"
+    open fun secondScreenSubtitle(name: String) = "On $name, following you; the phone keeps its own screen"
+    open val streamMaps = "Online where none is downloaded"
+    open val streamMapsHint = "The same map, read over the internet as you look around (only the parts you see), and kept for a while. Download a map to have it with no signal."
+    open fun shownOnline(region: String) = "$region · shown online"
     open val vectorAsItIs = "The vector map as it is"
     open val satelliteImagery = "Satellite imagery"
     open val satelliteUnder = "Esri World Imagery under roads, trails & labels (online, cached)"
     open fun rasterMap(projection: String) = "Raster map · $projection"
-    open val addRasterMap = "Add a raster map (.rmap, .mbtiles, .sqlitedb)"
+    open val addRasterMap = "Add a raster map (.tif, .rmap, .mbtiles, .sqlitedb)"
     open val vectorOnTop = "Roads, trails & labels on top"
     open val vectorOnTopHint = "From the offline vector map, drawn over the background"
     open val overlays = "Overlays"
@@ -237,6 +251,7 @@ open class MapTexts {
 
     /** In the text sent with a route: its link on brouter.de. */
     open fun openTheRoute(link: String) = "Open the route: $link"
+    open fun openInMapAround(link: String) = "In MapAround (the app or a browser): $link"
 
     /** In the text sent with a track: where it starts (a map link). */
     open fun routeStartsAt(link: String) = "Start: $link"
@@ -320,6 +335,11 @@ object MapTextsHe : MapTexts() {
         else -> "\"$name\" יובא לספרייה, ו־$waypoints נקודות דרך למקומות"
     }
     override val placesAlreadySaved = "המקומות האלה כבר שמורים"
+    override val sharedTrackName = "מסלול ששותף"
+    override fun sharedTrackShown(name: String) = "\"$name\" כבר בספרייה"
+    override val gpxLinkOpening = "הורדת קובץ ה־GPX…"
+    override fun gpxLinkFailed(reason: String) = "אי אפשר היה להוריד את קובץ ה־GPX: $reason"
+    override val gpxLinkBlocked = "האתר שלו לא מאפשר לדפדפנים להוריד אותו. אפשר להוריד אותו ולייבא אותו בספרייה"
     override fun placesAdded(n: Int) = when (n) {
         1 -> "מקום אחד נוסף לספרייה ← מקומות"
         2 -> "שני מקומות נוספו לספרייה ← מקומות"
@@ -369,11 +389,16 @@ object MapTextsHe : MapTexts() {
         "נתוני הגובה לקווי הגובה ולהצללה יורדים מעצמם כשמתקרבים במפה. לכל שטח המפה: מפות אופליין ←"
     override val backgroundHeader = "רקע מפת האופליין"
     override val mapColours = "צבעי המפה"
+    override val secondScreen = "מפה במסך נוסף"
+    override fun secondScreenSubtitle(name: String) = "על $name, עוקבת אחריך; לטלפון נשאר המסך שלו"
+    override val streamMaps = "אונליין איפה שלא הורדה מפה"
+    override val streamMapsHint = "אותה מפה, נקראת מהאינטרנט תוך כדי שיטוט (רק החלקים שעל המסך) ונשמרת לזמן מה. כדי שתהיה גם בלי קליטה צריך להוריד אותה."
+    override fun shownOnline(region: String) = "$region · מוצגת אונליין"
     override val vectorAsItIs = "המפה הווקטורית כמו שהיא"
     override val satelliteImagery = "צילומי לוויין"
     override val satelliteUnder = "Esri World Imagery מתחת לכבישים, לשבילים ולשמות (אונליין, נשמר במטמון)"
     override fun rasterMap(projection: String) = "מפה רסטרית · $projection"
-    override val addRasterMap = "הוספת מפה רסטרית (⁦.rmap, .mbtiles, .sqlitedb⁩)"
+    override val addRasterMap = "הוספת מפה רסטרית (⁦.tif, .rmap, .mbtiles, .sqlitedb⁩)"
     override val vectorOnTop = "כבישים, שבילים ושמות מעל"
     override val vectorOnTopHint = "ממפת האופליין הווקטורית, מעל הרקע"
     override val overlays = "שכבות־על"
@@ -506,6 +531,7 @@ object MapTextsHe : MapTexts() {
         else -> "$title: $n מקומות (מצורף GPX)"
     }
     override fun openTheRoute(link: String) = "פתיחת המסלול: $link"
+    override fun openInMapAround(link: String) = "ב־MapAround (באפליקציה או בדפדפן): $link"
     override fun routeStartsAt(link: String) = "התחלה: $link"
     override val gpxAttached = "(מצורף קובץ GPX, אם האפליקציה קיבלה אותו)"
 

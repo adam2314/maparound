@@ -39,26 +39,41 @@ class RasterMapRepository(private val context: Context) : RasterLibrary {
     private val _maps = MutableStateFlow(load())
     override val maps: StateFlow<List<RasterMap>> = _maps.asStateFlow()
 
+    private val _preparing = MutableStateFlow<RasterPreparing?>(null)
+    override val preparing: StateFlow<RasterPreparing?> = _preparing.asStateFlow()
+
+    /** Where a GeoTIFF's reduced copies are kept (see [TiffOverviews]). */
+    private fun overviewFile(id: String) = File(File(context.filesDir, "raster"), "$id.ovr")
+
     private class Opened(val closeable: AutoCloseable, val renderer: RasterTiles)
     private val opened = ConcurrentHashMap<String, Opened>()
 
     override fun get(id: String): RasterMap? = _maps.value.firstOrNull { it.id == id }
 
-    /** Adds an RMAP or a tile database picked with the file picker (keeps read access to it). Blocking. */
+    /**
+     * Adds a GeoTIFF, an RMAP or a tile database picked with the file picker (keeps read access to
+     * it). A big GeoTIFF with no reduced copies of its own gets them made first ([preparing]).
+     * Blocking.
+     */
     fun add(uri: Uri): RasterMap {
-        runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
         val name = displayName(uri) ?: T.offline.rasterMapDefaultName
-        val map = if (TileDatabase.isSqlite(head(uri))) {
-            describeDatabase(uri, name)
-        } else {
-            val (file, close) = openFile(uri.toString())
-            try {
-                describe(file, uri.toString(), name)
-            } finally {
-                close.close()
+        val lower = name.lowercase()
+        if (lower.endsWith(".ecw") || lower.endsWith(".jp2")) throw RmapException(T.offline.ecwNotSupported)
+        runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+        val head = head(uri)
+        val existing = _maps.value.firstOrNull { it.source == uri.toString() }
+        val map = when {
+            TileDatabase.isSqlite(head) -> describeDatabase(uri, name)
+            isTiff(head) -> describeGeoTiff(uri, name, existing?.id ?: UUID.randomUUID().toString())
+            else -> {
+                val (file, close) = openFile(uri.toString())
+                try {
+                    describe(file, uri.toString(), name)
+                } finally {
+                    close.close()
+                }
             }
         }
-        val existing = _maps.value.firstOrNull { it.source == map.source }
         val saved = if (existing != null) map.copy(id = existing.id) else map
         _maps.value = _maps.value.filterNot { it.source == saved.source } + saved
         save()
@@ -68,6 +83,7 @@ class RasterMapRepository(private val context: Context) : RasterLibrary {
     override fun remove(id: String) {
         val map = get(id) ?: return
         opened.remove(id)?.closeable?.let { runCatching { it.close() } }
+        overviewFile(id).delete()
         if (map.source.startsWith("content:")) {
             runCatching { context.contentResolver.releasePersistableUriPermission(Uri.parse(map.source), Intent.FLAG_GRANT_READ_URI_PERMISSION) }
         }
@@ -79,6 +95,59 @@ class RasterMapRepository(private val context: Context) : RasterLibrary {
     private fun head(uri: Uri): ByteArray =
         context.contentResolver.openInputStream(uri)?.use { s -> ByteArray(16).also { b -> var n = 0; while (n < 16) { val r = s.read(b, n, 16 - n); if (r < 0) break; n += r } } }
             ?: throw RmapException(T.offline.cantOpenFile)
+
+    private fun isTiff(b: ByteArray) = b.size >= 4 &&
+        ((b[0] == 'I'.code.toByte() && b[1] == 'I'.code.toByte() && (b[2].toInt() == 42 || b[2].toInt() == 43) && b[3].toInt() == 0) ||
+            (b[0] == 'M'.code.toByte() && b[1] == 'M'.code.toByte() && b[2].toInt() == 0 && (b[3].toInt() == 42 || b[3].toInt() == 43)))
+
+    /** A GeoTIFF: where it lies; its reduced copies made when it's big and has none. */
+    private fun describeGeoTiff(uri: Uri, fileName: String, id: String): RasterMap {
+        val (read, size, closer) = openRead(uri.toString())
+        closer.use {
+            val tiff = GeoTiff(TiffFile(read, size))
+            val img = tiff.image
+            val c = tiff.calibration
+            val corners = corners(img.width, img.height).map { (x, y) -> c.pixelToLatLon(x, y) }
+            if (corners.any { it.lat.isNaN() || it.lon.isNaN() || it.lat !in -90.0..90.0 || it.lon !in -180.0..180.0 }) {
+                throw RmapException(T.offline.calibrationInvalid)
+            }
+            // Something to show: the first block decodes.
+            img.block(0, 0, AndroidTiffCodecs)
+            val title = fileName.substringBeforeLast('.')
+            val ovr = overviewFile(id)
+            if (TiffOverviews.needed(img, tiff.overviews)) {
+                ovr.parentFile?.mkdirs()
+                _preparing.value = RasterPreparing(title, 0.0)
+                try {
+                    TiffOverviews.build(img, AndroidTiffCodecs, AndroidTiffCodecs::encode, ovr.path, progress = { f ->
+                        _preparing.value = RasterPreparing(title, f)
+                    })
+                } finally {
+                    _preparing.value = null
+                }
+            } else {
+                ovr.delete()
+            }
+            return RasterMap(
+                id = id,
+                name = title,
+                source = uri.toString(),
+                sizeBytes = size,
+                north = corners.maxOf { it.lat }, south = corners.minOf { it.lat },
+                west = corners.minOf { it.lon }, east = corners.maxOf { it.lon },
+                projection = c.projection.name,
+                width = img.width, height = img.height,
+                levels = 1 + tiff.overviews.size,
+                format = RasterMap.FORMAT_GEOTIFF,
+            )
+        }
+    }
+
+    /** The corners and the middles of the sides of a [w]×[h] image, in pixels. */
+    private fun corners(w: Int, h: Int) = listOf(
+        0.0 to 0.0, w / 2.0 to 0.0, w.toDouble() to 0.0, 0.0 to h / 2.0, w.toDouble() to h / 2.0,
+        0.0 to h.toDouble(), w / 2.0 to h.toDouble(), w.toDouble() to h.toDouble(),
+    )
 
     /** An MBTiles or SQLiteDB file: its coverage and zooms. */
     private fun describeDatabase(uri: Uri, fileName: String): RasterMap {
@@ -121,6 +190,22 @@ class RasterMapRepository(private val context: Context) : RasterLibrary {
             val o = if (map.format == RasterMap.FORMAT_RMAP) {
                 val (file, close) = openFile(map.source)
                 Opened(close, RasterRenderer(file))
+            } else if (map.format == RasterMap.FORMAT_GEOTIFF) {
+                val (read, size, close) = openRead(map.source)
+                try {
+                    val tiff = GeoTiff(TiffFile(read, size))
+                    val ovr = overviewFile(id)
+                    val reduced = if (ovr.exists()) {
+                        val (oRead, _, oClose) = openRead(ovr.path)
+                        TiffOverviews.read(oRead, tiff.image)?.let { it to oClose } ?: run { oClose.close(); null }
+                    } else {
+                        null
+                    }
+                    Opened(AutoCloseable { close.close(); reduced?.second?.close() }, GeoTiffRenderer(tiff, reduced?.first))
+                } catch (e: Exception) {
+                    close.close()
+                    throw e
+                }
             } else {
                 val db = openDatabase(map.source).first
                 Opened(db, TileDatabaseRenderer(db))
@@ -186,9 +271,7 @@ class RasterMapRepository(private val context: Context) : RasterLibrary {
 
     private fun describe(f: RmapFile, source: String, name: String): RasterMap {
         val c = f.calibration
-        val pts = listOf(0.0 to 0.0, f.width / 2.0 to 0.0, f.width.toDouble() to 0.0, 0.0 to f.height / 2.0, f.width.toDouble() to f.height / 2.0,
-            0.0 to f.height.toDouble(), f.width / 2.0 to f.height.toDouble(), f.width.toDouble() to f.height.toDouble())
-            .map { (x, y) -> c.pixelToLatLon(x, y) }
+        val pts = corners(f.width, f.height).map { (x, y) -> c.pixelToLatLon(x, y) }
         if (pts.any { it.lat.isNaN() || it.lon.isNaN() || it.lat !in -90.0..90.0 || it.lon !in -180.0..180.0 }) {
             throw RmapException(T.offline.calibrationInvalid)
         }
@@ -242,17 +325,41 @@ class RasterMapRepository(private val context: Context) : RasterLibrary {
 }
 
 /**
- * Draws Web Mercator tiles from an RMAP: each output pixel is mapped to the map's projection and
- * pixels (exactly on a 16×16 grid, interpolated in between), the best zoom level of the file is
- * picked, and its JPEG tiles are decoded on demand (a small cache keeps recent ones).
+ * Draws Web Mercator tiles from an image in its own projection, kept as levels of tiles (an RMAP, a
+ * GeoTIFF): each output pixel is mapped to the map's projection and pixels (exactly on a 16×16
+ * grid, interpolated in between), the best level is picked, and its tiles are decoded on demand (a
+ * small cache keeps recent ones).
  */
-class RasterRenderer(private val file: RmapFile) : RasterTiles {
-    private class Src(val w: Int, val h: Int, val px: IntArray?)
+abstract class PyramidRenderer(private val calibration: Calibration, private val width: Int, private val height: Int) : RasterTiles {
+    /** One level: its size, its tiles' size, and how many level-0 pixels one of its pixels covers. */
+    protected class Level(val width: Int, val height: Int, val tileWidth: Int, val tileHeight: Int, val factor: Double)
+
+    protected class Src(val w: Int, val h: Int, val px: IntArray?)
+
+    /** Most detailed first. */
+    protected abstract val levels: List<Level>
+
+    /** Tile [tx], [ty] of [level], decoded. */
+    protected abstract fun load(level: Int, tx: Int, ty: Int): Src
+
     private val cache = object : LinkedHashMap<Long, Src>(64, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, Src>?) = size > 48
     }
 
+    /**
+     * The coarsest level still at least as sharp as the output ([per] level-0 pixels per output
+     * pixel): at most two of its pixels to one output pixel, which blending neighbours still sees
+     * every line of (sharper levels skip thin lines: contour lines broke up).
+     */
+    private fun bestLevel(per: Double): Int {
+        var best = 0
+        for (i in levels.indices) if (levels[i].factor <= per * 1.01) best = i
+        return best
+    }
+
     /** Renders tile z/x/y at [size]² into [out] (ARGB). False if the map doesn't cover it at all. */
+    /** One tile at a time (the last tile looked up is remembered between pixels). */
+    @Synchronized
     override fun render(z: Int, x: Int, y: Int, size: Int, out: IntArray): Boolean {
         val g = 16
         val nodes = g + 1
@@ -265,18 +372,21 @@ class RasterRenderer(private val file: RmapFile) : RasterTiles {
             val wy = (y * size.toDouble() + j * size.toDouble() / g) / mapSize
             val lon = wx * 360 - 180
             val lat = Math.toDegrees(atan(sinh(PI * (1 - 2 * wy))))
-            val p = file.calibration.latLonToPixel(lat, lon)
+            val p = calibration.latLonToPixel(lat, lon)
             gx[j * nodes + i] = p[0]
             gy[j * nodes + i] = p[1]
-            if (p[0] in -file.width * 0.5..file.width * 1.5 && p[1] in -file.height * 0.5..file.height * 1.5) inside = true
+            if (p[0] in -width * 0.5..width * 1.5 && p[1] in -height * 0.5..height * 1.5) inside = true
         }
         if (!inside || gx.any { it.isNaN() }) return false
         // Level-0 pixels per output pixel picks the file's zoom level.
         val per = hypot(gx[1] - gx[0], gy[1] - gy[0]) / (size.toDouble() / g)
-        val level = file.bestLevel(per)
-        val lv = file.levels[level]
+        val level = bestLevel(per)
+        val lv = levels[level]
         val f = lv.factor
-        val smooth = per / f < 0.8 // magnified: blend neighbouring pixels
+        // Level pixels per output pixel: above 1, four samples over the output pixel's footprint
+        // (one alone can fall between thin lines).
+        val ratio = per / f
+        val d = ratio / 4
         var any = false
         val cell = size.toDouble() / g
         for (py in 0 until size) {
@@ -290,7 +400,12 @@ class RasterRenderer(private val file: RmapFile) : RasterTiles {
                 val k = j * nodes + i
                 val sx = ((gx[k] * (1 - tx) + gx[k + 1] * tx) * (1 - ty) + (gx[k + nodes] * (1 - tx) + gx[k + nodes + 1] * tx) * ty) / f
                 val sy = ((gy[k] * (1 - tx) + gy[k + 1] * tx) * (1 - ty) + (gy[k + nodes] * (1 - tx) + gy[k + nodes + 1] * tx) * ty) / f
-                val c = if (smooth) bilinear(level, sx - 0.5, sy - 0.5, lv.width, lv.height) else pixel(level, sx.toInt(), sy.toInt(), lv.width, lv.height)
+                // Neighbouring pixels blended: no steps along slanted lines, no lines lost.
+                val c = if (ratio <= 1.05) bilinear(level, sx - 0.5, sy - 0.5, lv.width, lv.height)
+                else average(
+                    bilinear(level, sx - 0.5 - d, sy - 0.5 - d, lv.width, lv.height), bilinear(level, sx - 0.5 + d, sy - 0.5 - d, lv.width, lv.height),
+                    bilinear(level, sx - 0.5 - d, sy - 0.5 + d, lv.width, lv.height), bilinear(level, sx - 0.5 + d, sy - 0.5 + d, lv.width, lv.height),
+                )
                 out[py * size + px] = c
                 if (c != 0) any = true
             }
@@ -298,48 +413,156 @@ class RasterRenderer(private val file: RmapFile) : RasterTiles {
         return any
     }
 
+    /** Four colours averaged, by their alpha. */
+    private fun average(a: Int, b: Int, c: Int, d: Int): Int {
+        var sa = 0
+        var sr = 0
+        var sg = 0
+        var sb = 0
+        for (p in intArrayOf(a, b, c, d)) {
+            val al = p ushr 24
+            sa += al
+            sr += ((p shr 16) and 0xFF) * al
+            sg += ((p shr 8) and 0xFF) * al
+            sb += (p and 0xFF) * al
+        }
+        if (sa == 0) return 0
+        return ((sa / 4).coerceIn(1, 255) shl 24) or ((sr / sa) shl 16) or ((sg / sa) shl 8) or (sb / sa)
+    }
+
+    // The tile the last pixel came from (most pixels come from the same one as the one before).
+    private var lastKey = -1L
+    private var lastSrc: Src? = null
+
     private fun pixel(level: Int, x: Int, y: Int, w: Int, h: Int): Int {
         if (x < 0 || y < 0 || x >= w || y >= h) return 0
-        val tw = file.tileWidth
-        val th = file.tileHeight
-        val src = source(level, x / tw, y / th)
+        val tw = levels[level].tileWidth
+        val th = levels[level].tileHeight
+        val key = (level.toLong() shl 48) or ((x / tw).toLong() shl 24) or (y / th).toLong()
+        val src = lastSrc?.takeIf { key == lastKey } ?: source(level, x / tw, y / th).also {
+            lastKey = key
+            lastSrc = it
+        }
         val lx = x % tw
         val ly = y % th
         if (src.px == null || lx >= src.w || ly >= src.h) return 0
         return src.px[ly * src.w + lx]
     }
 
+    /** The four pixels around (x, y) blended, by their alpha too: map edges fade out instead of a dark fringe. */
     private fun bilinear(level: Int, x: Double, y: Double, w: Int, h: Int): Int {
         val x0 = floor(x).toInt()
         val y0 = floor(y).toInt()
         val fx = x - x0
         val fy = y - y0
-        val c00 = pixel(level, x0, y0, w, h)
-        val c10 = pixel(level, x0 + 1, y0, w, h)
-        val c01 = pixel(level, x0, y0 + 1, w, h)
-        val c11 = pixel(level, x0 + 1, y0 + 1, w, h)
-        if (c00 == 0 && c10 == 0 && c01 == 0 && c11 == 0) return 0
-        fun ch(c: Int, s: Int) = (c shr s) and 0xFF
-        fun mix(s: Int): Int {
-            val top = ch(c00, s) * (1 - fx) + ch(c10, s) * fx
-            val bottom = ch(c01, s) * (1 - fx) + ch(c11, s) * fx
-            return (top * (1 - fy) + bottom * fy).toInt().coerceIn(0, 255)
+        var sa = 0.0
+        var sr = 0.0
+        var sg = 0.0
+        var sb = 0.0
+        fun add(c: Int, weight: Double) {
+            if (c == 0 || weight <= 0) return
+            val a = (c ushr 24) * weight
+            sa += a
+            sr += ((c shr 16) and 0xFF) * a
+            sg += ((c shr 8) and 0xFF) * a
+            sb += (c and 0xFF) * a
         }
-        val a = if (c00 == 0 || c10 == 0 || c01 == 0 || c11 == 0) 0xFF else mix(24)
-        return (a shl 24) or (mix(16) shl 16) or (mix(8) shl 8) or mix(0)
+        add(pixel(level, x0, y0, w, h), (1 - fx) * (1 - fy))
+        add(pixel(level, x0 + 1, y0, w, h), fx * (1 - fy))
+        add(pixel(level, x0, y0 + 1, w, h), (1 - fx) * fy)
+        add(pixel(level, x0 + 1, y0 + 1, w, h), fx * fy)
+        if (sa < 1) return 0
+        val a = (sa + 0.5).toInt().coerceIn(1, 255)
+        return (a shl 24) or ((sr / sa).toInt().coerceIn(0, 255) shl 16) or ((sg / sa).toInt().coerceIn(0, 255) shl 8) or (sb / sa).toInt().coerceIn(0, 255)
     }
 
     private fun source(level: Int, tx: Int, ty: Int): Src {
         val key = (level.toLong() shl 48) or (tx.toLong() shl 24) or ty.toLong()
         synchronized(cache) { cache[key]?.let { return it } }
-        val bytes = runCatching { file.tileBytes(level, tx, ty) }.getOrNull()
-        val src = bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }?.let { bmp ->
-            val px = IntArray(bmp.width * bmp.height)
-            bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
-            Src(bmp.width, bmp.height, px).also { bmp.recycle() }
-        } ?: Src(0, 0, null)
+        val src = try {
+            load(level, tx, ty)
+        } catch (e: Exception) {
+            Log.w("RasterMaps", "Tile $level/$tx/$ty", e)
+            Src(0, 0, null)
+        }
         synchronized(cache) { cache[key] = src }
         return src
     }
 
+    protected companion object {
+        fun decoded(bytes: ByteArray?): Src = AndroidTiffCodecs.decode(bytes ?: ByteArray(0))?.let { Src(it.width, it.height, it.argb) } ?: Src(0, 0, null)
+    }
+}
+
+/** An RMAP: its levels of JPEG tiles. */
+class RasterRenderer(private val file: RmapFile) : PyramidRenderer(file.calibration, file.width, file.height) {
+    override val levels = file.levels.map { Level(it.width, it.height, file.tileWidth, file.tileHeight, it.factor) }
+
+    override fun load(level: Int, tx: Int, ty: Int): Src = decoded(runCatching { file.tileBytes(level, tx, ty) }.getOrNull())
+}
+
+/**
+ * A GeoTIFF: its image, its reduced copies in the file, and those MapAround made for it
+ * ([overviews]) when it had none.
+ */
+class GeoTiffRenderer(private val tiff: GeoTiff, private val overviews: TiffOverviews?) :
+    PyramidRenderer(tiff.calibration, tiff.image.width, tiff.image.height) {
+    private sealed class Source {
+        class Image(val image: TiffImage) : Source()
+        class Made(val level: Int) : Source()
+    }
+
+    private val sources: List<Pair<Level, Source>> = buildList {
+        val img = tiff.image
+        add(Level(img.width, img.height, img.blockWidth, img.blockHeight, 1.0) to Source.Image(img))
+        for (o in tiff.overviews) add(Level(o.width, o.height, o.blockWidth, o.blockHeight, img.width.toDouble() / o.width) to Source.Image(o))
+        overviews?.levels?.forEachIndexed { i, l ->
+            add(Level(l.width, l.height, TiffOverviews.TILE, TiffOverviews.TILE, l.factor.toDouble()) to Source.Made(i))
+        }
+    }.sortedBy { it.first.factor }
+
+    override val levels = sources.map { it.first }
+
+    override fun load(level: Int, tx: Int, ty: Int): Src = when (val s = sources[level].second) {
+        is Source.Image -> s.image.block(tx, ty, AndroidTiffCodecs)?.let { Src(it.width, it.height, it.argb) } ?: Src(0, 0, null)
+        is Source.Made -> decoded(overviews?.tile(s.level, tx, ty))
+    }
+}
+
+/** Android's decoders for TIFF data: zlib, and JPEG / WebP / PNG by BitmapFactory; tiles encoded for the overviews. */
+object AndroidTiffCodecs : TiffCodecs {
+    override fun inflate(data: ByteArray, size: Int): ByteArray {
+        val inflater = java.util.zip.Inflater()
+        try {
+            inflater.setInput(data)
+            val out = ByteArray(size)
+            var n = 0
+            while (n < size && !inflater.finished()) {
+                val k = inflater.inflate(out, n, size - n)
+                if (k == 0 && (inflater.needsInput() || inflater.needsDictionary())) break
+                n += k
+            }
+            return out
+        } finally {
+            inflater.end()
+        }
+    }
+
+    override fun decode(data: ByteArray): Pixels? {
+        if (data.isEmpty()) return null
+        val bmp = BitmapFactory.decodeByteArray(data, 0, data.size) ?: return null
+        val px = IntArray(bmp.width * bmp.height)
+        bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
+        return Pixels(bmp.width, bmp.height, px).also { bmp.recycle() }
+    }
+
+    /** A tile for the overviews: JPEG, or PNG where some of it is transparent. */
+    fun encode(p: Pixels): ByteArray {
+        val bmp = android.graphics.Bitmap.createBitmap(p.argb, p.width, p.height, android.graphics.Bitmap.Config.ARGB_8888)
+        val opaque = p.argb.all { (it ushr 24) == 255 }
+        val out = java.io.ByteArrayOutputStream()
+        bmp.compress(if (opaque) android.graphics.Bitmap.CompressFormat.JPEG else android.graphics.Bitmap.CompressFormat.PNG, 85, out)
+        bmp.recycle()
+        return out.toByteArray()
+    }
 }

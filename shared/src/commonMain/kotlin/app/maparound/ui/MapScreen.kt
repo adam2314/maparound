@@ -242,6 +242,9 @@ fun MapScreen(
     val background by prefs.mapBackground.collectAsState()
     val vectorOnBackground by prefs.vectorOnBackground.collectAsState()
     val rasterMaps by rastersLib.maps.collectAsState()
+    // Where no installed map reaches, maps read over the internet (Android).
+    val noStreaming = remember { kotlinx.coroutines.flow.MutableStateFlow(emptyList<app.maparound.map.RemoteMap>()) }
+    val streamed by (offline.streamed ?: noStreaming).collectAsState()
     val baseMap: BaseMap = onlineSource?.let { BaseMap.Online(it) } ?: BaseMap.Offline(
         maps = localMaps,
         theme = theme,
@@ -254,8 +257,11 @@ fun MapScreen(
         background = background,
         vectorOnTop = vectorOnBackground,
         rasterMaps = rasterMaps,
+        streamed = streamed,
     )
-    LaunchedEffect(baseMap) { controller.setBaseMap(baseMap) }
+    // Streamed maps readable again after tiles were made without them: the map asks for those again.
+    val streamGeneration by app.maparound.shared.stream.MapStream.generation.collectAsState()
+    LaunchedEffect(baseMap, streamGeneration) { controller.setBaseMap(baseMap) }
     val terrainShown = showingOffline && terrain.tiles > 0 && (contours || hillshade)
 
     // Terrain for the contour lines and hill shading: fetched by itself where the offline maps
@@ -313,7 +319,21 @@ fun MapScreen(
     val mapsWithTrails by produceState(false, localMaps) {
         value = withContext(Dispatchers.Default) { localMaps.any { MapAroundMaps.hasTrails(it.path) } }
     }
-    val localTrails = trailsOn && showingOffline && MapThemes.drawsTerrain(theme) && (trailData.cells > 0 || mapsWithTrails)
+    // Looking at a MapAround map streamed: its trails are in it too.
+    var streamedTrailsHere by remember { mutableStateOf(false) }
+    LaunchedEffect(showingOffline, streamed) {
+        streamedTrailsHere = false
+        val withTrails = streamed.filter { it.trails }
+        if (!showingOffline || withTrails.isEmpty()) return@LaunchedEffect
+        val regions = withContext(Dispatchers.Default) { MapRegions.bundled } ?: return@LaunchedEffect
+        while (true) {
+            val pos = controller.position()
+            val here = regions.at(pos.lat, pos.lon).map { it.path }
+            streamedTrailsHere = pos.zoom >= OFFER_ZOOM && withTrails.any { it.path in here }
+            delay(OFFER_CHECK_MS)
+        }
+    }
+    val localTrails = trailsOn && showingOffline && MapThemes.drawsTerrain(theme) && (trailData.cells > 0 || mapsWithTrails || streamedTrailsHere)
     val trailOverlay = trailsOn && !localTrails
     LaunchedEffect(trailOverlay) { controller.setTrailOverlay(trailOverlay) }
 
@@ -486,6 +506,23 @@ fun MapScreen(
         pinArticle = place to app.maparound.search.Wikipedia.withPicture(a)
     }
     var showMe by remember { mutableStateOf(false) }
+
+    // Back closes what's open over the map, the top one first (search, the 3D view, sheets and
+    // dialogs close themselves); with nothing open it leaves the app. Not while navigating.
+    val somethingOpen = pin != null || selectedPlace != null || selectedParty != null || showMe ||
+        dataSelected != null || dataView || tools.active || (planner.active && !nav.active)
+    PlatformBackHandler(enabled = somethingOpen) {
+        when {
+            pin != null -> pin = null
+            selectedPlace != null -> selectedPlace = null
+            selectedParty != null -> selectedParty = null
+            showMe -> showMe = false
+            dataSelected != null -> dataSelected = null
+            dataView -> dataView = false
+            tools.active -> ToolsSession.close()
+            planner.active -> PlannerSession.close()
+        }
+    }
     val haptic = LocalHapticFeedback.current
     // (lat, lon, label) for the share sheet
     var shareTarget by remember { mutableStateOf<Triple<Double, Double, String?>?>(null) }
@@ -594,6 +631,8 @@ fun MapScreen(
 
     // ---- things other apps shared with us ---------------------------------------------------------
     val incoming by Incoming.pending.collectAsState()
+    // consume() changes `incoming`, which restarts this effect and cancels it: anything that waits
+    // (a snackbar) goes in the screen's scope.
     LaunchedEffect(incoming) {
         when (val i = incoming) {
             is Incoming.Item.Point -> {
@@ -614,14 +653,29 @@ fun MapScreen(
                 Incoming.consume()
                 follow = false
                 controller.showPoints(i.saved.track.points)
-                snackbar.showSnackbar(T.map.importedTrack(i.saved.track.name, i.placesAdded))
+                scope.launch { snackbar.showSnackbar(T.map.importedTrack(i.saved.track.name, i.placesAdded)) }
+            }
+            is Incoming.Item.LinkedTrack -> {
+                Incoming.consume()
+                follow = false
+                val link = i.track
+                val name = link.name ?: T.map.sharedTrackName
+                // Opened before (the same link again): shown, not saved twice.
+                val known = tracksRepo.tracks.value.firstOrNull { it.track.name == name && it.track.points == link.points }
+                if (known != null) {
+                    tracksRepo.setVisible(known.id, true)
+                } else {
+                    tracksRepo.save(app.maparound.tracks.Track(name, app.maparound.tracks.TrackKind.IMPORTED, link.points, nowMillis()))
+                }
+                controller.showPoints(link.points)
+                scope.launch { snackbar.showSnackbar(if (known != null) T.map.sharedTrackShown(name) else T.map.importedTrack(name, 0)) }
             }
             is Incoming.Item.Places -> {
                 Incoming.consume()
                 follow = false
                 prefs.setPlacesOnMap(true)
                 controller.showPoints(i.points)
-                snackbar.showSnackbar(if (i.added == 0) T.map.placesAlreadySaved else T.map.placesAdded(i.added))
+                scope.launch { snackbar.showSnackbar(if (i.added == 0) T.map.placesAlreadySaved else T.map.placesAdded(i.added)) }
             }
             else -> Unit
         }
@@ -711,7 +765,7 @@ fun MapScreen(
     Box(Modifier.fillMaxSize()) {
         mapView(controller, Modifier.fillMaxSize())
 
-        if (onOpenOffline != null && showingOffline && localMaps.isEmpty() && !planner.active && !tools.active && !nav.active) {
+        if (onOpenOffline != null && showingOffline && localMaps.isEmpty() && streamed.isEmpty() && !planner.active && !tools.active && !nav.active) {
             ElevatedCard(
                 Modifier.align(Alignment.TopCenter).padding(top = 56.dp, start = 16.dp, end = 72.dp),
             ) {
@@ -743,7 +797,8 @@ fun MapScreen(
                     Column(Modifier.weight(1f)) {
                         Text(T.map.noOfflineMapHere, style = MaterialTheme.typography.titleSmall)
                         Text(
-                            offer.label,
+                            // Streamed meanwhile: the map is there, online.
+                            if (showingOffline && streamed.isNotEmpty()) T.map.shownOnline(offer.label) else offer.label,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -1465,6 +1520,23 @@ private fun LayersSheet(
                     Switch(checked = dataView, onCheckedChange = onDataView)
                 }
             }
+            // The map on a monitor, TV or wireless display: only while one is connected.
+            LocalSecondScreen.current?.let { second ->
+                val screenName by second.display.collectAsState()
+                val onSecond by second.showing.collectAsState()
+                screenName?.let { name ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable { second.show(!onSecond) }.padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(T.map.secondScreen, style = MaterialTheme.typography.bodyLarge)
+                            Text(T.map.secondScreenSubtitle(name), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(checked = onSecond, onCheckedChange = { second.show(it) })
+                    }
+                }
+            }
             SheetHeader(T.map.sectionOffline)
             LayerRow(
                 selected = selectedId == TileSources.OFFLINE_ID,
@@ -1473,6 +1545,13 @@ private fun LayersSheet(
                 icon = Icons.Filled.DownloadForOffline,
                 onClick = { onSelect(TileSources.OFFLINE_ID) },
             )
+            // Where none is downloaded, the region's map read over the internet (where the app can).
+            if (LocalOfflineData.current.streamed != null) {
+                val streaming by prefs.streamMaps.collectAsState()
+                Column(Modifier.padding(start = 72.dp, end = 16.dp)) {
+                    SwitchRow(T.map.streamMaps, T.map.streamMapsHint, checked = streaming) { prefs.setStreamMaps(it) }
+                }
+            }
             Column(Modifier.padding(start = 56.dp, end = 16.dp)) {
                 Text(T.map.style, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(start = 16.dp, top = 4.dp))
                 themes.forEach { t ->
@@ -1550,6 +1629,7 @@ private fun LayersSheet(
                 Spacer(Modifier.width(8.dp))
                 Text(T.map.addRasterMap)
             }
+            RasterPreparingRow(rasters)
             Column(Modifier.padding(start = 24.dp, end = 16.dp)) {
                 SwitchRow(
                     T.map.vectorOnTop,

@@ -22,6 +22,9 @@ object Incoming {
         data class Route(val route: Shared.Route) : Item()
         data class Track(val saved: SavedTrack, val placesAdded: Int = 0) : Item()
 
+        /** A route or track from a track link: the map saves it (once) and shows it. */
+        data class LinkedTrack(val track: Shared.Track) : Item()
+
         /** Waypoints from a GPX file, added to the saved places. */
         data class Places(val added: Int, val points: List<GeoPoint>) : Item()
         data class Message(val text: String) : Item()
@@ -49,6 +52,7 @@ object Incoming {
     fun of(shared: Shared): Item = when (shared) {
         is Shared.Point -> Item.Point(shared)
         is Shared.Route -> Item.Route(shared)
+        is Shared.Track -> Item.LinkedTrack(shared)
     }
 
     /**

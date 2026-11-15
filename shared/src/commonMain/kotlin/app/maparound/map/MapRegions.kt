@@ -26,6 +26,24 @@ class MapRegions private constructor(private val regions: List<Region>) {
         /** Its box, in microdegrees. */
         val box: GeoBox get() = GeoBox(minLat, minLon, maxLat, maxLon)
 
+        /**
+         * The boxes of its outline's pieces (islands; both sides of the date line, where its [box]
+         * goes round the world).
+         */
+        val parts: List<GeoBox> by lazy {
+            rings.map { r ->
+                var a = Int.MAX_VALUE
+                var b = Int.MIN_VALUE
+                var c = Int.MAX_VALUE
+                var d = Int.MIN_VALUE
+                for (i in r.indices step 2) {
+                    a = minOf(a, r[i]); b = maxOf(b, r[i])
+                    c = minOf(c, r[i + 1]); d = maxOf(d, r[i + 1])
+                }
+                GeoBox(a, c, b, d)
+            }
+        }
+
         init {
             var a = Int.MAX_VALUE
             var b = Int.MIN_VALUE
@@ -58,6 +76,18 @@ class MapRegions private constructor(private val regions: List<Region>) {
 
         /** Whether the place is in it (inside an odd number of its rings: holes are holes). */
         fun contains(lat: Double, lon: Double): Boolean = containsMicro(lat * 1e6, lon * 1e6)
+
+        /**
+         * A place inside it (lat, lon in degrees): the middle of its box when that is, else the first
+         * of a grid over the box that is (a crescent of a country has its middle elsewhere).
+         */
+        val inner: Pair<Double, Double> by lazy {
+            val n = 12
+            val tries = sequenceOf(0.5 to 0.5) + (1 until n).asSequence().flatMap { i -> (1 until n).asSequence().map { j -> i.toDouble() / n to j.toDouble() / n } }
+            tries.map { (a, b) -> (minLat + (maxLat - minLat) * a) / 1e6 to (minLon + (maxLon - minLon) * b) / 1e6 }
+                .firstOrNull { (lat, lon) -> contains(lat, lon) }
+                ?: (((minLat.toLong() + maxLat) / 2) / 1e6 to ((minLon.toLong() + maxLon) / 2) / 1e6)
+        }
 
         /** [contains] for microdegrees. */
         fun containsMicro(y: Double, x: Double): Boolean {
@@ -154,6 +184,9 @@ class MapRegions private constructor(private val regions: List<Region>) {
     }
 
     val size: Int get() = regions.size
+
+    /** Every region, countries and their states. */
+    val all: List<Region> get() = regions
 
 
     /** The regions at a place, the most specific (smallest) first: a state, then its country. */
