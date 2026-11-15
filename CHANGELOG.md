@@ -62,6 +62,9 @@
   the map read them from the wrong data. They're on the map now.
 - **4×4 dirt roads as a double line** too, its edges dash-dot, after any vehicle (solid edges)
   and high vehicles (dashed).
+- **Dirt roads are just their two edges**, with the ground showing between them: no white band
+  down the middle any more (any vehicle, high vehicles, 4×4). **Paths** lose their white casing
+  too: just the line in its difficulty colour.
 - **Marked trails on dirt roads colour the road's edges.** No more waymark dots down the middle
   of a marked jeep road: its two edges take the trail's colour, still solid, dashed or dash-dot
   for how passable it is. Two colours: one on each edge; a third and a fourth: a second line

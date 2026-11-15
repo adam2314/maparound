@@ -471,7 +471,7 @@
             </rule>
 
             <!-- ===== dirt roads by how passable they are (as Israeli hiking maps show them) =====
-                 a double line, its edges solid for any vehicle (smoothness good or better, else
+                 a double line (the ground between its edges), its edges solid for any vehicle (smoothness good or better, else
                  tracktype grade1-2), dashed for high vehicles, dash-dot for 4x4. Any vehicle:
                  smoothness good or better, else tracktype grade1-2; high vehicles:
                  smoothness bad, else grade3; 4x4: 4wd_only, smoothness very bad or horrible,
@@ -482,46 +482,38 @@
             <rule e="way" k="highway" v="track" zoom-min="13">
                 <rule e="way" k="4wd_only" v="yes">
                     <rule e="any" k="*" v="*" zoom-max="14">
-                        <line stroke="#FFFFFF" stroke-width="6.3" scale="none" />
                         <line stroke="#3B2E24" stroke-dasharray="7.5,3,1.8,3" stroke-linecap="butt" stroke-width="1.2" dy="2.55" scale="none" /><line stroke="#3B2E24" stroke-dasharray="7.5,3,1.8,3" stroke-linecap="butt" stroke-width="1.2" dy="-2.55" scale="none" />
                     </rule>
                     <rule e="any" k="*" v="*" zoom-min="15">
-                        <line stroke="#FFFFFF" stroke-width="9" scale="none" />
                         <line stroke="#3B2E24" stroke-dasharray="9,3.75,2.25,3.75" stroke-linecap="butt" stroke-width="1.5" dy="3.9" scale="none" /><line stroke="#3B2E24" stroke-dasharray="9,3.75,2.25,3.75" stroke-linecap="butt" stroke-width="1.5" dy="-3.9" scale="none" />
                     </rule>
                 </rule>
                 <rule e="way" k="4wd_only" v="~|no">
                     <rule e="way" k="smoothness" v="excellent|good|intermediate">
                         <rule e="any" k="*" v="*" zoom-max="14">
-                            <line stroke="#FFFFFF" stroke-width="6.3" scale="none" />
                             <line stroke="#3B2E24" stroke-width="1.2" dy="2.55" scale="none" />
                             <line stroke="#3B2E24" stroke-width="1.2" dy="-2.55" scale="none" />
                         </rule>
                         <rule e="any" k="*" v="*" zoom-min="15">
-                            <line stroke="#FFFFFF" stroke-width="9" scale="none" />
                             <line stroke="#3B2E24" stroke-width="1.5" dy="3.9" scale="none" />
                             <line stroke="#3B2E24" stroke-width="1.5" dy="-3.9" scale="none" />
                         </rule>
                     </rule>
                     <rule e="way" k="smoothness" v="bad">
                         <rule e="any" k="*" v="*" zoom-max="14">
-                            <line stroke="#FFFFFF" stroke-width="6.3" scale="none" />
                             <line stroke="#3B2E24" stroke-dasharray="7.5,4.5" stroke-linecap="butt" stroke-width="1.2" dy="2.55" scale="none" />
                             <line stroke="#3B2E24" stroke-dasharray="7.5,4.5" stroke-linecap="butt" stroke-width="1.2" dy="-2.55" scale="none" />
                         </rule>
                         <rule e="any" k="*" v="*" zoom-min="15">
-                            <line stroke="#FFFFFF" stroke-width="9" scale="none" />
                             <line stroke="#3B2E24" stroke-dasharray="9,6" stroke-linecap="butt" stroke-width="1.5" dy="3.9" scale="none" />
                             <line stroke="#3B2E24" stroke-dasharray="9,6" stroke-linecap="butt" stroke-width="1.5" dy="-3.9" scale="none" />
                         </rule>
                     </rule>
                     <rule e="way" k="smoothness" v="very_bad|horrible">
                         <rule e="any" k="*" v="*" zoom-max="14">
-                            <line stroke="#FFFFFF" stroke-width="6.3" scale="none" />
                             <line stroke="#3B2E24" stroke-dasharray="7.5,3,1.8,3" stroke-linecap="butt" stroke-width="1.2" dy="2.55" scale="none" /><line stroke="#3B2E24" stroke-dasharray="7.5,3,1.8,3" stroke-linecap="butt" stroke-width="1.2" dy="-2.55" scale="none" />
                         </rule>
                         <rule e="any" k="*" v="*" zoom-min="15">
-                            <line stroke="#FFFFFF" stroke-width="9" scale="none" />
                             <line stroke="#3B2E24" stroke-dasharray="9,3.75,2.25,3.75" stroke-linecap="butt" stroke-width="1.5" dy="3.9" scale="none" /><line stroke="#3B2E24" stroke-dasharray="9,3.75,2.25,3.75" stroke-linecap="butt" stroke-width="1.5" dy="-3.9" scale="none" />
                         </rule>
                     </rule>
@@ -536,35 +528,29 @@
                     <rule e="way" k="smoothness" v="~">
                         <rule e="way" k="tracktype" v="grade1|grade2">
                             <rule e="any" k="*" v="*" zoom-max="14">
-                                <line stroke="#FFFFFF" stroke-width="6.3" scale="none" />
                                 <line stroke="#3B2E24" stroke-width="1.2" dy="2.55" scale="none" />
                                 <line stroke="#3B2E24" stroke-width="1.2" dy="-2.55" scale="none" />
                             </rule>
                             <rule e="any" k="*" v="*" zoom-min="15">
-                                <line stroke="#FFFFFF" stroke-width="9" scale="none" />
                                 <line stroke="#3B2E24" stroke-width="1.5" dy="3.9" scale="none" />
                                 <line stroke="#3B2E24" stroke-width="1.5" dy="-3.9" scale="none" />
                             </rule>
                         </rule>
                         <rule e="way" k="tracktype" v="grade3">
                             <rule e="any" k="*" v="*" zoom-max="14">
-                                <line stroke="#FFFFFF" stroke-width="6.3" scale="none" />
                                 <line stroke="#3B2E24" stroke-dasharray="7.5,4.5" stroke-linecap="butt" stroke-width="1.2" dy="2.55" scale="none" />
                                 <line stroke="#3B2E24" stroke-dasharray="7.5,4.5" stroke-linecap="butt" stroke-width="1.2" dy="-2.55" scale="none" />
                             </rule>
                             <rule e="any" k="*" v="*" zoom-min="15">
-                                <line stroke="#FFFFFF" stroke-width="9" scale="none" />
                                 <line stroke="#3B2E24" stroke-dasharray="9,6" stroke-linecap="butt" stroke-width="1.5" dy="3.9" scale="none" />
                                 <line stroke="#3B2E24" stroke-dasharray="9,6" stroke-linecap="butt" stroke-width="1.5" dy="-3.9" scale="none" />
                             </rule>
                         </rule>
                         <rule e="way" k="tracktype" v="grade4|grade5">
                             <rule e="any" k="*" v="*" zoom-max="14">
-                                <line stroke="#FFFFFF" stroke-width="6.3" scale="none" />
                                 <line stroke="#3B2E24" stroke-dasharray="7.5,3,1.8,3" stroke-linecap="butt" stroke-width="1.2" dy="2.55" scale="none" /><line stroke="#3B2E24" stroke-dasharray="7.5,3,1.8,3" stroke-linecap="butt" stroke-width="1.2" dy="-2.55" scale="none" />
                             </rule>
                             <rule e="any" k="*" v="*" zoom-min="15">
-                                <line stroke="#FFFFFF" stroke-width="9" scale="none" />
                                 <line stroke="#3B2E24" stroke-dasharray="9,3.75,2.25,3.75" stroke-linecap="butt" stroke-width="1.5" dy="3.9" scale="none" /><line stroke="#3B2E24" stroke-dasharray="9,3.75,2.25,3.75" stroke-linecap="butt" stroke-width="1.5" dy="-3.9" scale="none" />
                             </rule>
                         </rule>
@@ -582,7 +568,7 @@
                 </rule>
             </rule>
 
-            <!-- ===== paths & trails: white casing, the line by difficulty (as Israeli hiking maps show them) =====
+            <!-- ===== paths & trails: the line by difficulty, on the ground (no casing; as Israeli hiking maps show them) =====
                  paved or compacted: green; cycle path: blue; easy (SAC T1, mtb 0-1): green dashes;
                  medium (T2, mtb 2, or nothing known): blue dashes; hard (T3, mtb 3): black dashes;
                  very hard (T4+, mtb 4+): red with ticks; hard to see (visibility bad or worse): black
@@ -591,12 +577,6 @@
             <rule e="way" k="highway" v="path|footway|cycleway|bridleway|steps">
                 <rule e="any" k="*" v="*" zoom-max="12">
                     <line stroke="#AA8166" stroke-width="1.2" scale="none" />
-                </rule>
-                <rule e="any" k="*" v="*" zoom-min="13" zoom-max="14">
-                    <line stroke="#E6FFFFFF" stroke-width="4.8" scale="none" />
-                </rule>
-                <rule e="any" k="*" v="*" zoom-min="15">
-                    <line stroke="#E6FFFFFF" stroke-width="6.6" scale="none" />
                 </rule>
                 <rule e="way" k="highway" v="steps" zoom-min="13" zoom-max="14">
                     <line stroke="#3B2E24" stroke-width="2.25" scale="none" />

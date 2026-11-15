@@ -6,7 +6,7 @@ lang: he
 <p class="doc-nav"><a href="{{ '/map/schema' | relative_url }}">English</a> · <a href="{{ '/he/map/legend' | relative_url }}">מקרא המפה</a> · <a href="{{ '/he/guide/' | relative_url }}">כל המדריכים</a></p>
 <h1>מה יש במפות</h1>
 <p>המפות האופליין של MapAround הן OpenStreetMap, שנבנות כל חודש ב־<a href="https://github.com/adam2314/my-pipeline">my-pipeline</a> בפורמט mapsforge. זה מה שנשמר בהן: כל תג, והזום שממנו הוא נמצא במפה (רמות הזום כמו שהאפליקציה סופרת אותן; סגנון יכול לצייר אותו מזום מאוחר יותר). תגים שמסומנים <span class="badge">MapAround</span> הם התוספות שלה לשטח; האחרים הם הסט הרגיל של mapsforge. מה המשמעות של כל אחד כתוב ב<a href="https://wiki.openstreetmap.org/">ויקי של OpenStreetMap</a> (הקישורים).</p>
-<p class="note">נבנה מ־ <a href="https://github.com/adam2314/my-pipeline/blob/406eefe/tag-mapping.xml">my-pipeline's <code>tag-mapping.xml</code> (406eefe)</a></p>
+<p class="note">נבנה מ־ <a href="https://github.com/adam2314/my-pipeline/blob/540d7de/tag-mapping.xml">my-pipeline's <code>tag-mapping.xml</code> (540d7de)</a></p>
 <h2>נבנה ב־MapAround</h2>
 <ul>
 <li><strong>שבילים מסומנים.</strong> יחסי המסלולים של הליכה ורגל ב־OpenStreetMap הופכים לקווים על הדרכים שלהם: <code>trail=hiking</code> (מזום 11) עם <code>trail_colour</code> (צבע הסימון מ־<code>osmc:symbol</code> או <code>colour</code>: אדום, כחול, ירוק, צהוב, שחור, לבן, כתום, סגול, חום, אחר), <code>trail_offset</code> (המקום שלהם זה לצד זה כשעד ארבעה צבעים חולקים דרך), על דרך עפר <code>trail_track</code> (<code>any</code>, <code>high</code>, <code>4x4</code> או <code>minor</code>, איך הסגנון מצייר את הדרך: צבעי השביל עוברים לשוליים שלה) ובראשון גם <code>trail_n</code>, <code>name</code> ו־<code>ref</code>.</li>
