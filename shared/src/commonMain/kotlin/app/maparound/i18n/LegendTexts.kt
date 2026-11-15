@@ -78,6 +78,7 @@ open class LegendTexts {
 
     // ---- marked trails ----
     open fun markedTrail(colour: String) = "Trail marked ${colourName(colour)}"
+    open fun markedDirtRoad(colour: String) = "Dirt road marked ${colourName(colour)}: the colour on its edges"
 
     open fun colourName(colour: String) = when (colour) {
         "red" -> "red"
@@ -219,6 +220,7 @@ object LegendTextsHe : LegendTexts() {
     override val viaFerrata = "ויה פרטה"
 
     override fun markedTrail(colour: String) = "שביל מסומן ב${colourName(colour)}"
+    override fun markedDirtRoad(colour: String) = "דרך עפר מסומנת ב${colourName(colour)}: הצבע בשולי הדרך"
     override fun colourName(colour: String) = when (colour) {
         "red" -> "אדום"
         "blue" -> "כחול"

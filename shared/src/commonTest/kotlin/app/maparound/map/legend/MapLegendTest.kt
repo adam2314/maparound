@@ -93,6 +93,13 @@ class MapLegendTest {
         )) assertTrue(l in labels, "$l in $labels")
         val red = all.first { it.label == "Trail marked red" }.sample.lines
         assertTrue(red.any { it.color == 0xFFD32F2F })
+        // A marked dirt road: the road's white, its edges in the trail's colour.
+        val road = all.first { it.label.startsWith("Dirt road marked red") }.sample.lines
+        assertTrue(road.any { it.color == 0xFFFFFFFF && it.offset == 0f })
+        assertEquals(setOf(-3.9f, 3.9f), road.filter { it.color == 0xFFD32F2F }.map { it.offset }.toSet())
+        // Bike paths with their bike sign; cable cars with theirs.
+        assertEquals("symbols/maparound/bicycle.svg", all.first { it.label == "Bike path, or a path shared with bikes" }.sample.symbol)
+        assertEquals("symbols/cable_car.svg", all.first { it.label == "Cable car" }.sample.symbol)
         assertNotNull(all.firstOrNull { it.label == "Contour line" })
         assertTrue(all.any { it.sample.symbol != null })
     }

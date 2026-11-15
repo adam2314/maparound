@@ -36,7 +36,9 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.maparound.i18n.T
 import app.maparound.map.legend.MapLegend
 import app.maparound.map.legend.OnlineLegends
@@ -100,7 +102,7 @@ fun LegendSheet(
                     item(key = "h-${section.title}") {
                         Text(
                             section.title,
-                            style = MaterialTheme.typography.titleSmall,
+                            style = MaterialTheme.typography.titleSmall.bigger(),
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
                         )
@@ -112,7 +114,7 @@ fun LegendSheet(
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                         ) {
                             LegendSample(entry.sample, symbol)
-                            Text(entry.label, style = MaterialTheme.typography.bodyMedium)
+                            Text(entry.label, style = MaterialTheme.typography.bodyMedium.bigger())
                         }
                     }
                 }
@@ -182,9 +184,16 @@ private fun LegendSample(sample: MapLegend.Sample, symbol: suspend (String) -> I
     }
 }
 
-private const val SAMPLE_W = 52
-private const val SAMPLE_H = 26
-private const val ICON = 20
+/** The legend's entries and titles: 2 points bigger than the app's text, to read beside the samples. */
+private fun TextStyle.bigger() = copy(
+    fontSize = (fontSize.value + LEGEND_TEXT_PLUS).sp,
+    lineHeight = if (lineHeight.isSp) (lineHeight.value + LEGEND_TEXT_PLUS).sp else lineHeight,
+)
+
+private const val LEGEND_TEXT_PLUS = 2f
+private const val SAMPLE_W = 64
+private const val SAMPLE_H = 34
+private const val ICON = 22
 
 /** The theme's pixels in dp, for the samples (mapsforge widths are small: 1–4). */
 private const val WIDTH_SCALE = 1.6f

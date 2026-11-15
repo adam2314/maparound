@@ -111,6 +111,71 @@ class TrailCellTest {
     }
 
     @Test
+    fun dirtRoadsAsTheStyleDrawsThem() {
+        fun of(vararg t: Pair<String, String>) = TrailTrack.of(mapOf("highway" to "track", *t))
+        assertEquals(TrailTrack.MINOR, of())
+        assertEquals(TrailTrack.ANY, of("tracktype" to "grade2"))
+        assertEquals(TrailTrack.HIGH, of("tracktype" to "grade3"))
+        assertEquals(TrailTrack.FOUR_BY_FOUR, of("tracktype" to "grade5"))
+        // smoothness before tracktype, 4wd_only before both.
+        assertEquals(TrailTrack.HIGH, of("smoothness" to "bad", "tracktype" to "grade1"))
+        assertEquals(TrailTrack.FOUR_BY_FOUR, of("4wd_only" to "yes", "smoothness" to "good"))
+        assertEquals(TrailTrack.ANY, of("4wd_only" to "no", "smoothness" to "intermediate"))
+        // Drawn otherwise, or not at all: no edges to colour.
+        assertEquals(null, of("smoothness" to "impassable"))
+        assertEquals(null, of("tunnel" to "yes"))
+        assertEquals(null, of("tracktype" to "grade9"))
+        assertEquals(null, TrailTrack.of(mapOf("highway" to "path", "tracktype" to "grade1")))
+    }
+
+    @Test
+    fun trailWaysKnowTheDirtRoadTheyAre() {
+        // Way 2 becomes a 4x4 track; way 1 stays a path.
+        val xml = overpass.replace(
+            """<nd ref="14" lat="47.020" lon="9.010"/></way>""",
+            """<nd ref="14" lat="47.020" lon="9.010"/><tag k="highway" v="track"/><tag k="4wd_only" v="yes"/><tag k="name" v="Wadi road"/></way>""",
+        )
+        val cell = TrailCellIO.parseOverpass(xml)
+        assertEquals(listOf(null, TrailTrack.FOUR_BY_FOUR), cell.ways.map { it.track })
+        val file = (tempDir.toPath() / "N47E009-${Random.nextLong().toULong()}.trails").toString()
+        try {
+            TrailCellIO.write(cell, file)
+            assertEquals(true, TrailCellIO.isCurrent(file))
+            val back = TrailCellIO.read(file)
+            assertEquals(listOf(null, TrailTrack.FOUR_BY_FOUR), back.ways.map { it.track })
+            assertEquals(cell.ways[1].coords.toList(), back.ways[1].coords.toList())
+            assertEquals(cell.features.size, back.features.size)
+        } finally {
+            fileSystem.delete(file.toPath())
+        }
+    }
+
+    @Test
+    fun cellsFromBeforeDirtRoadsStillRead() {
+        // Format 2, as written before: one route, one way (no road), one cliff.
+        val v2 = Buffer().writeInt(0x4D415452).writeInt(2).writeInt(1)
+        TrailCellIO.writeUtf(v2, "Valley trail")
+        TrailCellIO.writeUtf(v2, "")
+        v2.writeByte(3).writeByte(TrailColour.RED.ordinal)
+        v2.writeInt(1).writeLong(1).writeShort(1).writeShort(0).writeInt(4)
+        listOf(47_000_000, 9_000_000, 47_010_000, 9_010_000).forEach { v2.writeInt(it) }
+        v2.writeInt(1).writeLong(5).writeByte(TrailFeature.Kind.CLIFF.ordinal).writeInt(4)
+        listOf(47_100_000, 9_100_000, 47_101_000, 9_102_000).forEach { v2.writeInt(it) }
+        val file = (tempDir.toPath() / "N47E009-${Random.nextLong().toULong()}.trails").toString()
+        try {
+            fileSystem.write(file.toPath()) { writeAll(v2) }
+            val cell = TrailCellIO.read(file)
+            assertEquals(null, cell.ways.single().track)
+            assertEquals(TrailFeature.Kind.CLIFF, cell.features.single().kind)
+            // Installed (cliffs and all), but fetched again when there's a chance.
+            assertEquals(true, TrailCellIO.hasFeatures(file))
+            assertEquals(false, TrailCellIO.isCurrent(file))
+        } finally {
+            fileSystem.delete(file.toPath())
+        }
+    }
+
+    @Test
     fun stringsInJavasModifiedUtf8() {
         // DataOutputStream.writeUTF("Ein\u0000 Gedi ✓ 😀"): U+0000 as C0 80, the emoji as two 3-byte surrogates.
         val s = "Ein\u0000 Gedi ✓ 😀"

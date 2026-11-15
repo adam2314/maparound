@@ -150,7 +150,7 @@ object GlTiles {
         val layer = t.layer("trails")
         index.query(tileBox(z, x, y)) { way, routes ->
             val coords = deg(way.coords)
-            for (tags in TrailTags.lines(routes)) layer.line(coords, tags)
+            for (tags in TrailTags.lines(routes, way.track)) layer.line(coords, tags)
         }
         return t.encode()
     }

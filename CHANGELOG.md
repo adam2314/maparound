@@ -11,6 +11,24 @@
   the map read them from the wrong data. They're on the map now.
 - **4×4 dirt roads as a double line** too, its edges dash-dot, after any vehicle (solid edges)
   and high vehicles (dashed).
+- **Marked trails on dirt roads colour the road's edges.** No more waymark dots down the middle
+  of a marked jeep road: its two edges take the trail's colour, still solid, dashed or dash-dot
+  for how passable it is. Two colours: one on each edge; a third and a fourth: a second line
+  outside the edges. On paths and roads the dots stay. Trail data downloaded before is fetched
+  again by itself a little after the app starts (over Wi‑Fi if that's set), since it didn't know
+  which roads the trails run on; until then the trails draw as before. MapAround's own maps get
+  it when they're next built.
+- **A bike sign along bike paths and bike trails**, every so often, from zoom 15. With it, the
+  icons the style always had along lines show too: one-way arrows on streets from zoom 16, and
+  cable cars, gondolas and chair lifts.
+- **Cliffs you notice**: a thicker line and bigger teeth (on the side it drops to), bigger still
+  from zoom 15.
+- The map draws a trail's colours as one layer each, not one per colour: the many trail lines
+  cost the map less.
+- **Everything bigger.** Names and icons are 2 points bigger, and lines half as wide again (a
+  path's white edge 4.4 → 6.6, a dirt road 6 → 9, a trail's dots 3.8 → 5.7), their spacing
+  and dashes with them, so double lines and trails side by side keep their shape. The legend's
+  names are 2 points bigger too, with bigger samples.
 
 ## 0.5.2
 

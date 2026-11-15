@@ -70,6 +70,8 @@ class AndroidMapThemes(context: Context) : MapThemeLibrary {
         if (".." in path) return null
         val id = themeId.takeIf { exists(it) } ?: MapThemes.TOPO
         val prefix = prefix(id)
+        // Topo's own symbols (symbols/maparound/…) are next to it in the app's assets.
+        if (id == MapThemes.TOPO) runCatching { assets.open("themes/$path") }.getOrNull()?.let { return it }
         return if (prefix.startsWith("/")) {
             // The built-in styles' symbols are in mapsforge's jar.
             AndroidMapThemes::class.java.getResourceAsStream(prefix + path)

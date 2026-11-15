@@ -108,11 +108,15 @@ val webAssets by tasks.registering(Sync::class) {
     from("../app/src/main/assets") {
         include("themes/topo.xml", "fonts/**", "world.bin", "borders.bin", "regions.bin")
     }
-    // The symbols topo.xml uses (jar:symbols/…), at mapsforge/symbols/….
+    // The symbols topo.xml uses (jar:symbols/…), at mapsforge/symbols/…, with its own (file:symbols/maparound/…).
     from({ zipTree(mapsforgeThemes.singleFile) }) {
         include("assets/symbols/**", "assets/patterns/**")
         eachFile { path = "mapsforge/" + path.removePrefix("assets/") }
         includeEmptyDirs = false
+    }
+    from("../app/src/main/assets/themes") {
+        include("symbols/**")
+        into("mapsforge")
     }
     from("../docs/assets") { include("icon-192.png") }
     from("../docs/store") { include("icon-512.png") }

@@ -22,14 +22,16 @@ import kotlin.math.roundToLong
  * for rules on `contour…` and `trail…` keys the contour and marked-trail tiles ([CONTOURS],
  * [TRAILS]); trail rules also draw the trail lines built into MapAround's maps (the map tiles'
  * "trails" layer). Symbols are images named [SYMBOL_PREFIX] + their theme path (the platform draws
- * them: iOS from PNGs made of the theme's SVGs). Not drawn yet: area patterns, line symbols.
+ * them: iOS from PNGs made of the theme's SVGs); line symbols are icons repeated along the line.
+ * Lines that differ only in their colour, one rule per value of a key (a trail's colours), are
+ * one layer coloured by that key. Not drawn yet: area patterns.
  */
 object ThemeStyle {
     const val CONTOURS = "contours"
     const val TRAILS = "trails"
 
     /** The keys of the marked-trail lines (MapAround's maps and the trail tiles); their rules read those. */
-    private val TRAIL_KEYS = setOf("trail", "trail_colour", "trail_offset", "trail_n")
+    private val TRAIL_KEYS = setOf("trail", "trail_colour", "trail_offset", "trail_n", "trail_track")
 
     /** Image names of theme symbols: "sym:" + the path in the theme, e.g. `sym:symbols/peak.svg`. */
     const val SYMBOL_PREFIX = "sym:"
@@ -186,16 +188,20 @@ object ThemeStyle {
         private fun instruction(i: Instruction, ctx: Ctx) {
             val a = i.attrs
             when (i.name) {
-                "hillshading" -> hillshade = Hillshade(
-                    layers.size, a["zoom-min"]?.toIntOrNull() ?: 0, a["zoom-max"]?.toIntOrNull() ?: 99, a["magnitude"]?.toIntOrNull() ?: 64,
-                )
+                "hillshading" -> {
+                    hillshade = Hillshade(
+                        layers.size, a["zoom-min"]?.toIntOrNull() ?: 0, a["zoom-max"]?.toIntOrNull() ?: 99, a["magnitude"]?.toIntOrNull() ?: 64,
+                    )
+                    last = null // nothing merges across it
+                }
                 "area" -> if (ctx.element != "node") area(a, ctx)
                 "line" -> if (ctx.element != "node") line(a, ctx)
                 "caption" -> caption(a, ctx)
                 "pathText" -> if (ctx.element != "node") pathText(a, ctx)
                 "circle" -> if (ctx.element != "way") circle(a, ctx)
                 "symbol" -> symbol(a, ctx)
-                // lineSymbol (one-way arrows) and area patterns: later.
+                "lineSymbol" -> if (ctx.element != "node") lineSymbol(a, ctx)
+                // Area patterns: later.
             }
         }
 
@@ -307,6 +313,27 @@ object ThemeStyle {
             }
         }
 
+        /**
+         * An icon along the line, every `repeat-gap` points (once a line without `repeat`), turned
+         * with the line unless `rotate="false"` (then upright).
+         */
+        private fun lineSymbol(a: Map<String, String>, ctx: Ctx) {
+            if (a["display"] == "never") return
+            val src = a["src"]?.substringAfter(':')?.takeIf { it.endsWith(".svg") } ?: return
+            val layout = LinkedHashMap<String, Any>()
+            layout["symbol-placement"] = "line"
+            layout["symbol-spacing"] = if (a["repeat"] == "true") a["repeat-gap"]?.toDoubleOrNull() ?: LINE_SYMBOL_GAP else ONCE
+            layout["icon-image"] = SYMBOL_PREFIX + src
+            (a["symbol-width"] ?: a["symbol-height"])?.toDoubleOrNull()?.let { layout["icon-size"] = round(it / SYMBOL_SIZE) }
+            layout["icon-rotation-alignment"] = if (a["rotate"] == "false") "viewport" else "map"
+            a["priority"]?.toDoubleOrNull()?.let { layout["symbol-sort-key"] = -it }
+            if (a["display"] == "always") layout["icon-allow-overlap"] = true
+            val (source, sourceLayer) = sourceFor(ctx, "line")
+            add(ctx, "symbol", source, sourceLayer) {
+                put("layout", JsonObject(layout.mapValues { (_, v) -> json(v) }))
+            }
+        }
+
         private fun circle(a: Map<String, String>, ctx: Ctx) {
             val radius = a["radius"]?.toDoubleOrNull() ?: return
             val paint = LinkedHashMap<String, Any>()
@@ -363,8 +390,8 @@ object ThemeStyle {
             } else {
                 listOf(source to sourceLayer)
             }
-            for ((src, srcLayer) in targets) {
-                layers += layer("t${layers.size}-$type", type, if (area) AREA_FLAG else null) {
+            val fresh = targets.mapIndexed { k, (src, srcLayer) ->
+                layer("t${layers.size + k}-$type", type, if (area) AREA_FLAG else null) {
                     put("source", src)
                     put("source-layer", srcLayer)
                     if (min > 0) put("minzoom", min)
@@ -377,8 +404,78 @@ object ThemeStyle {
                     body()
                 }
             }
+            if (!mergeIntoLast(fresh)) {
+                last = layers.size until layers.size + fresh.size
+                layers += fresh
+            }
+        }
+
+        /** The layers the last instruction made, at the end of [layers]: the next one may join them. */
+        var last: IntRange? = null
+
+        /**
+         * [fresh] (one layer per target) drawn by the last instruction's layers instead, when they
+         * differ from them only in colour, each for its own values of one key: a trail's colours,
+         * one rule each, are one layer. In their place in the theme, so nothing drawn between moves.
+         */
+        private fun mergeIntoLast(fresh: List<JsonObject>): Boolean {
+            val prev = last ?: return false
+            if (prev.last != layers.lastIndex || prev.count() != fresh.size) return false
+            val merged = fresh.indices.map { k -> mergedLines(layers[prev.first + k], fresh[k]) ?: return false }
+            merged.forEachIndexed { k, l -> layers[prev.first + k] = l }
+            return true
         }
     }
+
+    /** [a]'s layer drawing [b] too, or null when they differ in more than one key's values and the colour. */
+    private fun mergedLines(a: JsonObject, b: JsonObject): JsonObject? {
+        if (a.str("type") != "line" || b.str("type") != "line") return null
+        if (listOf("source", "source-layer", "minzoom", "maxzoom", "layout", "metadata").any { a[it] != b[it] }) return null
+        val pa = a["paint"] as? JsonObject ?: return null
+        val pb = b["paint"] as? JsonObject ?: return null
+        if (pa.keys != pb.keys || pa.any { (k, v) -> k != "line-color" && pb[k] != v }) return null
+        val fa = conditions(a["filter"])
+        val fb = conditions(b["filter"])
+        if (fa.size != fb.size) return null
+        val i = fa.indices.singleOrNull { fa[it] != fb[it] } ?: return null
+        val (key, valuesA) = valueTest(fa[i]) ?: return null
+        val (keyB, valuesB) = valueTest(fb[i]) ?: return null
+        if (key != keyB || valuesA.any { it in valuesB }) return null
+        val colourA = pa["line-color"] ?: return null
+        val colourB = pb["line-color"] ?: return null
+        val colour = if (colourA == colourB) colourA else {
+            // ["match", ["get", key], [values], colour, …, fallback]: a's cases, then b's.
+            val cases = when {
+                colourA is JsonPrimitive -> listOf(JsonArray(valuesA.map(::JsonPrimitive)), colourA)
+                colourA is JsonArray && colourA[0] == JsonPrimitive("match") && colourA[1] == arr("get", key) -> colourA.subList(2, colourA.size - 1)
+                else -> return null
+            }
+            JsonArray(listOf(JsonPrimitive("match"), arr("get", key)) + cases + listOf(JsonArray(valuesB.map(::JsonPrimitive)), colourB, colourB))
+        }
+        val joined = fa.toMutableList().also { it[i] = arr("match", arr("get", key), JsonArray((valuesA + valuesB).map(::JsonPrimitive)), true, false) }
+        val filter = if (joined.size == 1 && !isAll(a["filter"])) joined[0] else JsonArray(listOf(JsonPrimitive("all")) + joined)
+        return JsonObject(a.toMap() + mapOf("filter" to filter, "paint" to JsonObject(pa.toMap() + ("line-color" to colour))))
+    }
+
+    private fun isAll(filter: JsonElement?) = filter is JsonArray && filter.firstOrNull() == JsonPrimitive("all")
+
+    private fun conditions(filter: JsonElement?): List<JsonElement> = when {
+        filter == null -> emptyList()
+        isAll(filter) -> (filter as JsonArray).drop(1)
+        else -> listOf(filter)
+    }
+
+    /** A rule's plain test `k=v1|v2…` as [Matcher.expression] writes it: its key and values. */
+    private fun valueTest(e: JsonElement): Pair<String, List<String>>? {
+        if (e !is JsonArray || e.size != 5 || e[0] != JsonPrimitive("match")) return null
+        val get = e[1] as? JsonArray ?: return null
+        if (get.size != 2 || get[0] != JsonPrimitive("get")) return null
+        if (e[3] != JsonPrimitive(true) || e[4] != JsonPrimitive(false)) return null
+        val values = (e[2] as? JsonArray)?.map { (it as? JsonPrimitive)?.content ?: return null } ?: return null
+        return (get[1] as JsonPrimitive).content to values
+    }
+
+    private fun JsonObject.str(k: String) = (this[k] as? JsonPrimitive)?.content
 
     /** Which tiles a rule is about: contour lines and marked trails have their own. */
     private fun sourceFor(ctx: Ctx, osmLayer: String): Pair<String, String> {
@@ -399,6 +496,12 @@ object ThemeStyle {
 
     /** Height of symbol images, points (mapsforge's default size of SVG symbols). */
     const val SYMBOL_SIZE = 20.0
+
+    /** mapsforge's gap between repeated line symbols, points. */
+    private const val LINE_SYMBOL_GAP = 200.0
+
+    /** A line symbol without `repeat`: once per line, as far as MapLibre goes. */
+    private const val ONCE = 100_000.0
 
     /** Captions above or below a symbol sit this far (ems) from the point. */
     private const val SYMBOL_GAP_EM = 0.9

@@ -44,15 +44,90 @@ class ThemeStyleTest {
             "get" -> props[a[1].jsonPrimitive.content]
             "==" -> eval(a[1], props) == eval(a[2], props)
             "match" -> {
+                // ["match", input, labels, output, labels, output, …, fallback]
                 val v = eval(a[1], props)
-                val labels = a[2].jsonArray.map { it.jsonPrimitive.content }
-                if (v in labels) eval(a[3], props) else eval(a[4], props)
+                val case = (2 until a.size - 1 step 2).firstOrNull { i ->
+                    v in ((a[i] as? JsonArray)?.map { it.jsonPrimitive.content } ?: listOf(a[i].jsonPrimitive.content))
+                }
+                eval(if (case != null) a[case + 1] else a[a.size - 1], props)
             }
             else -> error("Unexpected operator $op")
         }
     }
 
     private fun matches(layer: JsonObject, props: Map<String, String>) = eval(layer["filter"], props) == true
+
+    /** The colour a line layer draws a feature in (a merged layer's depends on it). */
+    private fun lineColour(layer: JsonObject, props: Map<String, String>) = eval(layer["paint"]?.jsonObject?.get("line-color"), props)
+
+    /** Whether a layer draws at MapLibre zoom [z]. */
+    private fun at(layer: JsonObject, z: Double) =
+        (layer["minzoom"]?.jsonPrimitive?.doubleOrNull ?: 0.0) <= z && z < (layer["maxzoom"]?.jsonPrimitive?.doubleOrNull ?: 99.0)
+
+    @Test
+    fun coloursOfOneKeyAreOneLayer() {
+        val xml = """
+            <rendertheme xmlns="http://mapsforge.org/renderTheme" map-background="#FFFFFF" version="5">
+              <rule e="way" k="trail" v="hiking">
+                <rule e="way" k="trail_colour" v="red"><line stroke="#FF0000" stroke-width="2" scale="none" /></rule>
+                <rule e="way" k="trail_colour" v="blue"><line stroke="#0000FF" stroke-width="2" scale="none" /></rule>
+                <rule e="way" k="trail_colour" v="green|lime"><line stroke="#00FF00" stroke-width="2" scale="none" /></rule>
+                <rule e="way" k="trail_colour" v="white"><line stroke="#FFFFFF" stroke-width="3" scale="none" /></rule>
+              </rule>
+              <rule e="way" k="highway" v="primary"><line stroke="#FF0000" stroke-width="2" /></rule>
+              <rule e="way" k="highway" v="secondary"><line stroke="#FF0000" stroke-width="2" /></rule>
+              <rule e="way" k="highway" v="tertiary"><line stroke="#FF0000" stroke-width="2" dy="1" /></rule>
+            </rendertheme>
+        """.trimIndent()
+        val layers = ThemeStyle.convert(xml).layers.drop(1)
+        // Red, blue and green: one layer (on each of the trail sources); white, wider, its own.
+        val trails = layers.filter { it.str("source") == ThemeStyle.TRAILS }
+        assertEquals(2, trails.size, trails.toString())
+        val trail = mapOf("trail" to "hiking")
+        assertEquals("rgb(0,0,255)", lineColour(trails[0], trail + ("trail_colour" to "blue")))
+        assertEquals("rgb(0,255,0)", lineColour(trails[0], trail + ("trail_colour" to "lime")))
+        assertEquals("rgb(255,0,0)", lineColour(trails[0], trail + ("trail_colour" to "red")))
+        assertTrue(matches(trails[0], trail + ("trail_colour" to "green")))
+        assertFalse(matches(trails[0], trail + ("trail_colour" to "white")))
+        assertFalse(matches(trails[0], mapOf("trail_colour" to "red")))
+        assertTrue(matches(trails[1], trail + ("trail_colour" to "white")))
+        // The built-in trail lines the same way.
+        assertEquals(2, layers.count { it.str("source") == MapStyle.OSM_SOURCE && it.str("source-layer") == MapsforgeToMvt.TRAILS })
+        // Roads drawn alike for two values: one layer; one drawn otherwise (offset) stays apart.
+        val roads = layers.filter { it.str("source-layer") == "line" }
+        assertEquals(2, roads.size)
+        assertTrue(matches(roads[0], mapOf("highway" to "primary")) && matches(roads[0], mapOf("highway" to "secondary")))
+        assertEquals("rgb(255,0,0)", roads[0]["paint"]!!.jsonObject.str("line-color"))
+        assertFalse(matches(roads[0], mapOf("highway" to "tertiary")))
+    }
+
+    @Test
+    fun lineSymbolsAreIconsAlongTheLine() {
+        val xml = """
+            <rendertheme xmlns="http://mapsforge.org/renderTheme" map-background="#FFFFFF" version="5">
+              <rule e="way" k="highway" v="cycleway" zoom-min="15">
+                <lineSymbol src="file:symbols/maparound/bicycle.svg" repeat="true" repeat-gap="250" rotate="false" symbol-height="16" />
+              </rule>
+              <rule e="way" k="oneway" v="yes" zoom-min="16">
+                <lineSymbol src="jar:symbols/oneway.svg" repeat="true" display="always" priority="-50" />
+              </rule>
+            </rendertheme>
+        """.trimIndent()
+        val (bike, oneway) = ThemeStyle.convert(xml).layers.drop(1)
+        assertEquals("symbol", bike.type)
+        assertEquals("line", bike.str("source-layer"))
+        assertEquals(14.0, bike["minzoom"]!!.jsonPrimitive.doubleOrNull)
+        val b = bike["layout"]!!.jsonObject
+        assertEquals("line", b.str("symbol-placement"))
+        assertEquals(250.0, b["symbol-spacing"]!!.jsonPrimitive.doubleOrNull)
+        assertEquals("sym:symbols/maparound/bicycle.svg", b.str("icon-image"))
+        assertEquals(0.8, b["icon-size"]!!.jsonPrimitive.doubleOrNull)
+        assertEquals("viewport", b.str("icon-rotation-alignment")) // upright
+        val o = oneway["layout"]!!.jsonObject
+        assertEquals("map", o.str("icon-rotation-alignment")) // along the line
+        assertEquals(200.0, o["symbol-spacing"]!!.jsonPrimitive.doubleOrNull)
+        assertEquals(true, o["icon-allow-overlap"]!!.jsonPrimitive.booleanOrNull)
+    }
 
     @Test
     fun colours() {
@@ -155,13 +230,39 @@ class ThemeStyleTest {
         // ...and the same trail lines when they're built into the map (MapAround's maps).
         assertTrue(drawn(trail, "line", MapsforgeToMvt.TRAILS).any { it.str("source") == MapStyle.OSM_SOURCE })
 
+        // On a dirt road (the trail line knows: trail_track), from zoom 13 (MapLibre 12): the road's
+        // edges in the trail's colour, dashed as the road's, the road's own edges rubbed out under
+        // the dashes; no waymark dots.
+        val onRoad = trail + ("trail_track" to "4x4")
+        val roadTrail = layers.filter { it.type == "line" && it.str("source") == ThemeStyle.TRAILS && matches(it, onRoad) && at(it, 14.5) }
+        val red = roadTrail.filter { lineColour(it, onRoad) == "rgb(211,47,47)" }
+        assertEquals(setOf(-3.9, 3.9), red.map { it["paint"]!!.jsonObject["line-offset"]!!.jsonPrimitive.doubleOrNull }.toSet())
+        assertTrue(red.all { it["paint"]!!.jsonObject.containsKey("line-dasharray") })
+        assertEquals(2, roadTrail.count { lineColour(it, onRoad) == "rgb(255,255,255)" })
+        assertTrue(roadTrail.none { it["paint"]!!.jsonObject["line-offset"] == null })
+        // Two colours on a dirt road: one on each edge.
+        val second = mapOf("trail" to "hiking", "trail_track" to "any", "trail_offset" to "r05", "trail_colour" to "blue")
+        val blue = layers.filter { it.str("source") == ThemeStyle.TRAILS && matches(it, second) && at(it, 14.5) && lineColour(it, second) == "rgb(30,99,214)" }
+        assertEquals(listOf(3.9), blue.map { it["paint"]!!.jsonObject["line-offset"]!!.jsonPrimitive.doubleOrNull })
+        // Zoomed out (12), still the dots.
+        assertTrue(layers.any { it.str("source") == ThemeStyle.TRAILS && matches(it, onRoad) && at(it, 11.5) && it["paint"]!!.jsonObject["line-offset"] == null })
+        // A trail's colours draw as one layer: the trail tiles' lines stay few.
+        val trailLayers = layers.count { it.str("source") == ThemeStyle.TRAILS }
+        assertTrue(trailLayers < 300, "$trailLayers trail layers")
+
+        // A bike every so often along bike paths, from zoom 15 (MapLibre 14).
+        val bikes = drawn(mapOf("highway" to "cycleway"), "symbol", "line").filter { it["layout"]!!.jsonObject.str("icon-image") == "sym:symbols/maparound/bicycle.svg" }
+        assertEquals(listOf(14.0), bikes.map { it["minzoom"]!!.jsonPrimitive.doubleOrNull })
+        assertTrue(drawn(mapOf("highway" to "path", "bicycle" to "designated", "surface" to "dirt"), "symbol", "line").isNotEmpty())
+        assertTrue(drawn(mapOf("highway" to "path", "surface" to "asphalt"), "symbol", "line").none { it["layout"]!!.jsonObject.containsKey("icon-image") })
+
         // Paths by difficulty come from the map's own paths: a path's trail_visibility (an
         // OpenStreetMap tag) isn't a marked trail's key, whatever the rule's other conditions.
-        fun colours(l: List<JsonObject>) = l.mapNotNull { it["paint"]?.jsonObject?.get("line-color")?.jsonPrimitive?.content }
+        fun colours(props: Map<String, String>) = drawn(props, "line", "line").map { lineColour(it, props) }
         val green = "rgb(46,158,62)"
-        assertTrue(green in colours(drawn(mapOf("highway" to "path", "sac_scale" to "hiking"), "line", "line")))
-        assertTrue(green in colours(drawn(mapOf("highway" to "path", "bicycle" to "designated", "mtb:scale" to "0"), "line", "line")))
-        assertTrue("rgb(34,34,34)" in colours(drawn(mapOf("highway" to "path", "trail_visibility" to "bad"), "line", "line")))
+        assertTrue(green in colours(mapOf("highway" to "path", "sac_scale" to "hiking")))
+        assertTrue(green in colours(mapOf("highway" to "path", "bicycle" to "designated", "mtb:scale" to "0")))
+        assertTrue("rgb(34,34,34)" in colours(mapOf("highway" to "path", "trail_visibility" to "bad")))
 
         // Town names on points; peaks' names above the (later) symbol.
         assertTrue(drawn(mapOf("place" to "town", "name" to "Vaduz"), "symbol", "poi").isNotEmpty())
@@ -170,7 +271,7 @@ class ThemeStyleTest {
         // The peak's triangle, smaller than the default symbol size.
         val icon = peak.first { it["layout"]!!.jsonObject.containsKey("icon-image") }["layout"]!!.jsonObject
         assertEquals("sym:symbols/peak.svg", icon.str("icon-image"))
-        assertEquals(0.55, icon["icon-size"]!!.jsonPrimitive.doubleOrNull)
+        assertEquals(0.65, icon["icon-size"]!!.jsonPrimitive.doubleOrNull)
         // Every symbol image the theme uses has an SVG path.
         val images = layers.mapNotNull { it["layout"]?.jsonObject?.str("icon-image") }.toSet()
         assertTrue(images.size > 50 && images.all { it.startsWith(ThemeStyle.SYMBOL_PREFIX) && it.endsWith(".svg") }, images.toString())

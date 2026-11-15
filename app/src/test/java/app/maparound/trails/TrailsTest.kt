@@ -52,6 +52,10 @@ class TrailsTest {
         assertEquals("red", first["trail_colour"])
         assertEquals("Via Alpina", first["name"])
         assertEquals(setOf("l05", "r05"), copies.map { it["trail_offset"] }.toSet())
+        // On a path: no road class. On a dirt road, every copy has it, for the style's edges.
+        assertEquals(true, copies.none { "trail_track" in it })
+        val onRoad = TrailTags.lines(way1.second, TrailTrack.HIGH)
+        assertEquals(listOf("high", "high"), onRoad.map { it["trail_track"] })
         assertEquals(true, index.hasDataIn(BoundingBox(47.0, 9.0, 47.02, 9.02)))
         assertEquals(false, index.hasDataIn(BoundingBox(46.0, 8.0, 46.1, 8.1)))
     }

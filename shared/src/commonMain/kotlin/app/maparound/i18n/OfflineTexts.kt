@@ -285,6 +285,10 @@ open class OfflineTexts {
         "Trails for $label: $failed of $total areas failed. Tap again to retry."
     open val trailsStopped = "Trail download stopped"
 
+    /** What's fetched again by itself when the trail data changes (the notification: "Trails for …"). */
+    open val trailsYourAreas = "your downloaded areas"
+    open val trailsUpdated = "Marked trails updated: on dirt roads their colours are now on the road's edges"
+
     // ---- routing data downloads ----
     open val routingDownloadDescription = "MapAround offline routing"
     open fun routingReady(name: String) = "Offline routing ready for $name"
@@ -583,6 +587,8 @@ object OfflineTextsHe : OfflineTexts() {
     override fun trailsFailed(label: String, failed: Int, total: Int) =
         "שבילים עבור $label: $failed מתוך $total אזורים נכשלו. אפשר להקיש שוב כדי לנסות מחדש."
     override val trailsStopped = "ההורדה של השבילים נעצרה"
+    override val trailsYourAreas = "האזורים שהורדו"
+    override val trailsUpdated = "השבילים המסומנים עודכנו: על דרכי עפר הצבעים שלהם נמצאים עכשיו בשולי הדרך"
 
     // ---- routing data downloads ----
     override val routingDownloadDescription = "ניתוב אופליין של MapAround"

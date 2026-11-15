@@ -154,13 +154,13 @@ fun anchor(key: String) = "k-" + key.replace(Regex("[^A-Za-z0-9_-]"), "-")
 /** A site URL through Jekyll, so it works under the site's base path. */
 fun url(path: String) = "{{ '$path' | relative_url }}"
 
-private const val SAMPLE_W = 72
-private const val SAMPLE_H = 28
+private const val SAMPLE_W = 84
+private const val SAMPLE_H = 36
 private const val PX = 1.6 // the theme's pixels, as the app's legend draws them (LegendUi)
 
 /** The sample as the app draws it (LegendUi.LegendSample), as SVG. */
 fun sampleSvg(s: MapLegend.Sample, W: Int = SAMPLE_W, H: Int = SAMPLE_H): String {
-    val icon = minOf(20, H - 4)
+    val icon = minOf(22, H - 4)
     val b = StringBuilder("<svg class=\"sample\" width=\"$W\" height=\"$H\" viewBox=\"0 0 $W $H\" aria-hidden=\"true\">")
     if (s.hillshade) {
         b.append("<defs><linearGradient id=\"hs$W\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#F7F3EA\"/><stop offset=\"1\" stop-color=\"#8A7E6C\"/></linearGradient></defs>")
@@ -319,10 +319,14 @@ fun schemaPage(mapping: List<MappedTag>, w: Words, source: String): String = bui
     append("<li>").append(w.t(
         "<strong>Marked trails.</strong> OpenStreetMap's hiking and foot route relations become lines on their ways: <code>trail=hiking</code> (from zoom 11) with " +
             "<code>trail_colour</code> (the waymark colour from <code>osmc:symbol</code> or <code>colour</code>: red, blue, green, yellow, black, white, orange, purple, brown, other), " +
-            "<code>trail_offset</code> (their place side by side when up to four colours share a way) and, on the first, <code>trail_n</code>, <code>name</code> and <code>ref</code>.",
+            "<code>trail_offset</code> (their place side by side when up to four colours share a way), on a dirt road <code>trail_track</code> " +
+            "(<code>any</code>, <code>high</code>, <code>4x4</code> or <code>minor</code>, how the style draws the road: the trail's colours go on its edges) and, on the first, " +
+            "<code>trail_n</code>, <code>name</code> and <code>ref</code>.",
         "<strong>שבילים מסומנים.</strong> יחסי המסלולים של הליכה ורגל ב־OpenStreetMap הופכים לקווים על הדרכים שלהם: <code>trail=hiking</code> (מזום 11) עם " +
             "<code>trail_colour</code> (צבע הסימון מ־<code>osmc:symbol</code> או <code>colour</code>: אדום, כחול, ירוק, צהוב, שחור, לבן, כתום, סגול, חום, אחר), " +
-            "<code>trail_offset</code> (המקום שלהם זה לצד זה כשעד ארבעה צבעים חולקים דרך) ובראשון גם <code>trail_n</code>, <code>name</code> ו־<code>ref</code>.",
+            "<code>trail_offset</code> (המקום שלהם זה לצד זה כשעד ארבעה צבעים חולקים דרך), על דרך עפר <code>trail_track</code> " +
+            "(<code>any</code>, <code>high</code>, <code>4x4</code> או <code>minor</code>, איך הסגנון מצייר את הדרך: צבעי השביל עוברים לשוליים שלה) ובראשון גם " +
+            "<code>trail_n</code>, <code>name</code> ו־<code>ref</code>.",
     )).append("</li>\n<li>").append(w.t(
         "<strong>Country borders.</strong> The lines of the country border relations get <code>boundary=administrative</code> and <code>admin_level=2</code> themselves " +
             "(and <code>disputed=yes</code> on disputed borders), so every map draws them.",
@@ -386,10 +390,11 @@ fun main(args: Array<String>) {
         println("${w.lang}: ${sections.sumOf { it.entries.size }} legend entries in ${sections.size} sections, ${mapping.size} tags")
     }
 
-    // The style's icons, from the mapsforge-themes jar as the map reads them.
+    // The style's icons, from the mapsforge-themes jar as the map reads them (its own next to it).
     val symbolDir = File(out, "map")
     for (s in symbols.sorted()) {
-        val bytes = object {}.javaClass.getResourceAsStream("/assets/$s")?.use { it.readBytes() }
+        val bytes = File(theme.parentFile, s).takeIf { it.isFile }?.readBytes()
+            ?: object {}.javaClass.getResourceAsStream("/assets/$s")?.use { it.readBytes() }
         if (bytes == null) {
             println("no symbol $s")
             continue

@@ -94,8 +94,10 @@ class TrailIndex(dir: File) {
  * How marked trails are tagged for the map's styles: each way once per distinct waymark colour,
  * so the style can draw the colours side by side: `trail=hiking`, `trail_colour=red|blue|…`,
  * `trail_offset=0|l05|r05|l1|r1|l15|r15`, and on the first copy `trail_n=<count>` plus the most
- * important route's `name` / `ref`. The cliffs, arêtes, ridges and earth banks downloaded with
- * them are `natural=cliff|arete|ridge|earth_bank` ways like in OSM, from [FEATURE_MIN_ZOOM].
+ * important route's `name` / `ref`; on a dirt road, every copy also has `trail_track=any|high|4x4|minor`
+ * ([TrailTrack]), and the style puts the colours on the road's edges. The cliffs, arêtes, ridges
+ * and earth banks downloaded with them are `natural=cliff|arete|ridge|earth_bank` ways like in
+ * OSM, from [FEATURE_MIN_ZOOM].
  */
 object TrailTags {
     /** Trail lines from this zoom (256-pixel tiles). */
@@ -111,8 +113,8 @@ object TrailTags {
         arrayOf("l15", "l05", "r05", "r15"),
     )
 
-    /** The copies of a way on [routes]: one tag set per waymark colour (at most 4), most important first. */
-    fun lines(routes: List<TrailRoute>): List<Map<String, String>> {
+    /** The copies of a way on [routes] (a dirt road when [track]): one tag set per waymark colour (at most 4), most important first. */
+    fun lines(routes: List<TrailRoute>, track: TrailTrack? = null): List<Map<String, String>> {
         val ordered = routes.sortedBy { it.network }
         val colours = ordered.map { it.colour }.distinct().take(4)
         if (colours.isEmpty()) return emptyList()
@@ -122,6 +124,7 @@ object TrailTags {
             tags["trail"] = "hiking"
             tags["trail_colour"] = colour.key
             tags["trail_offset"] = offsets[k]
+            if (track != null) tags["trail_track"] = track.tag
             if (k == 0) {
                 tags["trail_n"] = colours.size.toString()
                 val main = ordered.first()

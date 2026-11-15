@@ -12,6 +12,12 @@ red-white-red of the Alps, the colour-marked trails of Israel, long-distance pat
 loops. MapAround's **Topo** style draws them in their own colours, with their names, side by side
 where several routes share a path.
 
+On a path or a road, a marked trail is a line of waymark dots in its colour. On a dirt road (drawn
+as a double line), the road's edges take the colour instead: one colour on both edges, two colours
+one on each, a third and a fourth on a second line outside the edges. The edges keep their dashes,
+so you still see how passable the road is: solid for any car, dashed for high vehicles, dash-dot
+for 4×4 only.
+
 ## Where they come from
 
 From [OpenStreetMap](https://www.openstreetmap.org), where volunteers map each marked route with
@@ -47,6 +53,8 @@ trails** section, and the map shows **trails ✓** when it's done. With **Downlo
 on, it waits for Wi‑Fi.
 
 The data doesn't update by itself. To get routes added since, delete it and download it again.
+(When a new version of the app needs more from it, as for trails on dirt roads, it fetches the
+areas you have again by itself, a little after it starts, over Wi‑Fi if you asked for that.)
 
 ## Space
 

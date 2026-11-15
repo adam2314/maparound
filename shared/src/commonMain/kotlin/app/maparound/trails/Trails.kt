@@ -57,8 +57,59 @@ enum class TrailColour(val rgb: Int) {
 /** A route relation. [network] 0 = international … 3 = local, 4 = unknown (for label priority). */
 data class TrailRoute(val name: String, val ref: String, val network: Int, val colour: TrailColour)
 
-/** A way that belongs to one or more routes; coordinates in micro-degrees (lat, lon pairs). */
-class TrailWay(val id: Long, val routes: IntArray, val coords: IntArray)
+/**
+ * A way that belongs to one or more routes; coordinates in micro-degrees (lat, lon pairs).
+ * [track]: the dirt road it is, if the Topo style draws it as one (the trail then colours its edges).
+ */
+class TrailWay(val id: Long, val routes: IntArray, val coords: IntArray, val track: TrailTrack? = null)
+
+/**
+ * A dirt road as the Topo style draws it from zoom 13: a double line whose edges say how passable
+ * it is ([tag], the trail lines' `trail_track`). A marked trail along one puts its waymark colours
+ * on those edges. Tracks the style draws otherwise (a dotted broken road, a tunnel) aren't one.
+ */
+enum class TrailTrack(val tag: String) {
+    /** Any vehicle: solid edges. */
+    ANY("any"),
+    /** High vehicles: dashed edges. */
+    HIGH("high"),
+    /** 4×4 only: dash-dot edges. */
+    FOUR_BY_FOUR("4x4"),
+    /** Nothing known: thin dashed edges. */
+    MINOR("minor");
+
+    companion object {
+        /** The OSM keys [of] reads. */
+        val KEYS = setOf("highway", "4wd_only", "smoothness", "tracktype", "tunnel", "area")
+
+        /** From a way's OSM tags, as topo.xml reads them: 4wd_only, else smoothness, else tracktype. */
+        fun of(tags: Map<String, String>): TrailTrack? {
+            if (tags["highway"] != "track") return null
+            if (tags["tunnel"].let { it != null && it != "no" && it != "false" }) return null
+            if (tags["area"].let { it != null && it != "no" && it != "false" }) return null
+            when (tags["4wd_only"]) {
+                "yes" -> return FOUR_BY_FOUR
+                null, "no" -> Unit
+                else -> return null // the style draws no road for other values
+            }
+            tags["smoothness"]?.let { s ->
+                return when (s) {
+                    "excellent", "good", "intermediate" -> ANY
+                    "bad" -> HIGH
+                    "very_bad", "horrible" -> FOUR_BY_FOUR
+                    else -> null // very_horrible, impassable: a dotted line
+                }
+            }
+            return when (tags["tracktype"]) {
+                "grade1", "grade2" -> ANY
+                "grade3" -> HIGH
+                "grade4", "grade5" -> FOUR_BY_FOUR
+                null -> MINOR
+                else -> null
+            }
+        }
+    }
+}
 
 /**
  * A rock or terrain line that the mapsforge maps leave out (their tag mapping has no
@@ -89,16 +140,25 @@ class TrailCell(
  */
 object TrailCellIO {
     private const val MAGIC = 0x4D415452 // "MATR"
-    /** 1: routes and their ways; 2: also cliffs, arêtes, ridges and earth banks ([TrailFeature]). */
-    private const val VERSION = 2
+    /**
+     * 1: routes and their ways; 2: also cliffs, arêtes, ridges and earth banks ([TrailFeature]);
+     * 3: also the dirt road each way is ([TrailWay.track]).
+     */
+    const val VERSION = 3
 
     /** The `natural=*` lines to fetch with the trails, as an Overpass value regex. */
     val FEATURE_REGEX = "^(" + TrailFeature.Kind.entries.joinToString("|") { it.tag } + ")$"
 
-    /** Reads only a cell file's header: whether it has the cliffs (format 2). */
-    fun hasFeatures(path: String): Boolean = runCatching {
-        fileSystem.source(path.toPath()).buffer().use { it.readInt() == MAGIC && it.readInt() >= 2 }
-    }.getOrDefault(false)
+    /** Reads only a cell file's header: its format (0 when it isn't a trail file). */
+    fun version(path: String): Int = runCatching {
+        fileSystem.source(path.toPath()).buffer().use { if (it.readInt() == MAGIC) it.readInt() else 0 }
+    }.getOrDefault(0)
+
+    /** Whether a cell file has the cliffs (format 2 on): older ones need fetching again. */
+    fun hasFeatures(path: String): Boolean = version(path) >= 2
+
+    /** Whether a cell file is in the current format: older ones are fetched again when there's a chance. */
+    fun isCurrent(path: String): Boolean = version(path) >= VERSION
 
     /**
      * Parses Overpass XML (ways with `out geom`, relations with `out body`), streamed. Ways in a
@@ -124,7 +184,7 @@ object TrailCellIO {
         }
         val ways = h.ways.mapNotNull { (id, coords) ->
             val r = wayRoutes[id] ?: return@mapNotNull null
-            if (coords.size < 4) null else TrailWay(id, r.distinct().toIntArray(), coords)
+            if (coords.size < 4) null else TrailWay(id, r.distinct().toIntArray(), coords, h.roads[id]?.let(TrailTrack::of))
         }
         val features = h.natural.mapNotNull { (id, natural) ->
             val kind = TrailFeature.Kind.of(natural) ?: return@mapNotNull null
@@ -156,6 +216,7 @@ object TrailCellIO {
             w.routes.forEach { out.writeShort(it) }
             out.writeInt(w.coords.size)
             w.coords.forEach { out.writeInt(it) }
+            out.writeByte(w.track?.let { it.ordinal + 1 } ?: 0)
         }
         out.writeInt(cell.features.size)
         for (f in cell.features) {
@@ -179,7 +240,8 @@ object TrailCellIO {
             val id = inp.readLong()
             val r = IntArray(inp.readShort().toInt()) { inp.readShort().toInt() }
             val c = IntArray(inp.readInt()) { inp.readInt() }
-            TrailWay(id, r, c)
+            val track = if (version >= 3) inp.readByte().toInt().let { TrailTrack.entries.getOrNull(it - 1) } else null
+            TrailWay(id, r, c, track)
         }
         if (version < 2) return TrailCell(routes, ways, withFeatures = false)
         val features = List(inp.readInt()) {
@@ -239,6 +301,8 @@ object TrailCellIO {
         val ways = LinkedHashMap<Long, IntArray>()
         /** The `natural=*` value of ways that have one. */
         val natural = LinkedHashMap<Long, String>()
+        /** The road tags ([TrailTrack.KEYS]) of ways that have any. */
+        val roads = HashMap<Long, HashMap<String, String>>()
         val relations = ArrayList<Relation>()
         private var wayId = -1L
         private var coords = IntList()
@@ -270,7 +334,12 @@ object TrailCellIO {
                     val k = attrs["k"]
                     val v = attrs["v"]
                     if (k != null && v != null) {
-                        if (inRelation) tags[k] = v else if (wayId >= 0 && k == "natural") natural[wayId] = v
+                        when {
+                            inRelation -> tags[k] = v
+                            wayId < 0 -> Unit
+                            k == "natural" -> natural[wayId] = v
+                            k in TrailTrack.KEYS -> roads.getOrPut(wayId) { HashMap() }[k] = v
+                        }
                     }
                 }
             }

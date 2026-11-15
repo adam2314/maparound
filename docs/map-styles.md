@@ -140,7 +140,7 @@ built-in ones only the country borders. Style them to show them:
 | Ways | Tags | From |
 |---|---|---|
 | Contour lines | `contour=minor` or `contour=major`, `ele=<metres>` | the terrain download, traced on the phone; intervals depend on the zoom |
-| Marked hiking trails | `trail=hiking`, `trail_colour=red\|blue\|green\|yellow\|black\|white\|orange\|purple…`, `trail_offset=0\|l05\|r05…`, and on the first colour of a way `trail_n=<colours on it>`, `name`, `ref` | the marked-trails download; one way per waymark colour, offset side by side |
+| Marked hiking trails | `trail=hiking`, `trail_colour=red\|blue\|green\|yellow\|black\|white\|orange\|purple…`, `trail_offset=0\|l05\|r05…`, on a dirt road `trail_track=any\|high\|4x4\|minor` (how Topo draws the road), and on the first colour of a way `trail_n=<colours on it>`, `name`, `ref` | the marked-trails download; one way per waymark colour, offset side by side |
 | Cliffs, arêtes, ridges, earth banks | `natural=cliff\|arete\|ridge\|earth_bank`, as in OSM | the marked-trails download (the mapsforge maps leave these out); from zoom 13, also when the trail lines are switched off |
 | The world map: sea and land, lakes, rivers | `natural=sea` (the tile) and `natural=nosea` (land) like the mapsforge maps, `natural=water`, `waterway=river` with `name` | built into the app (Natural Earth): up to zoom 7 everywhere (the country maps start at 8), and above that outside the downloaded maps (their rectangles for sea, land and lakes; their regions' outlines for rivers, borders and names). Every style gets these, built-in ones too |
 | Country borders | `boundary=administrative`, `admin_level=2`, and `disputed=yes` on disputed borders, lines of control and undefined frontiers | the same |

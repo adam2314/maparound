@@ -12,10 +12,13 @@ command -v rsvg-convert >/dev/null || brew install librsvg
 rm -rf Symbols svg-tmp
 mkdir -p Symbols svg-tmp
 unzip -q -o "$JAR" 'assets/symbols/*' 'assets/patterns/*' -d svg-tmp
-grep -o 'src="jar:[^"]*\.svg"' ../app/src/main/assets/themes/topo.xml | sed 's/^src="jar://; s/"$//' | sort -u |
+# jar: symbols from mapsforge's jar; file: ones (symbols/maparound/…) next to topo.xml.
+grep -oE 'src="(jar|file):[^"]*\.svg"' ../app/src/main/assets/themes/topo.xml | sed -E 's/^src="(jar|file)://; s/"$//' | sort -u |
   while read -r f; do
     out="Symbols/$(echo "${f%.svg}" | tr '/' '_').png"
-    rsvg-convert -h 60 "svg-tmp/assets/$f" -o "$out" || echo "could not convert $f"
+    svg="svg-tmp/assets/$f"
+    [ -f "../app/src/main/assets/themes/$f" ] && svg="../app/src/main/assets/themes/$f"
+    rsvg-convert -h 60 "$svg" -o "$out" || echo "could not convert $f"
   done
 rm -rf svg-tmp
 echo "$(ls Symbols | wc -l) symbols"

@@ -115,7 +115,7 @@ object MapLegend {
                                 "circle" -> a["radius"]?.toFloatOrNull()?.let { r ->
                                     circles += Circle(r, color(a["fill"]), color(a["stroke"]), a["stroke-width"]?.toFloatOrNull() ?: 0f)
                                 }
-                                "symbol" -> if (symbol == null) {
+                                "symbol", "lineSymbol" -> if (symbol == null) {
                                     symbol = a["src"]?.substringAfter(':')?.takeIf { it.endsWith(".svg") }
                                 }
                             }
@@ -270,7 +270,13 @@ internal object LegendCatalog {
             )),
             SectionSpec({ l.markedTrails }, TRAIL_COLOURS.map { c ->
                 way({ l.markedTrail(c) }, "trail" to "hiking", "trail_n" to "1", "trail_offset" to "0", "trail_colour" to c, zoom = 15)
-            }),
+            } + listOf(
+                // The trail line and the road it runs on, as one sample: the road's edges in the colour.
+                way(
+                    { l.markedDirtRoad("red") }, "highway" to "track", "4wd_only" to "yes",
+                    "trail" to "hiking", "trail_n" to "1", "trail_offset" to "0", "trail_colour" to "red", "trail_track" to "4x4", zoom = 15,
+                ),
+            )),
             SectionSpec({ l.railAndLifts }, listOf(
                 way({ l.railway }, "railway" to "rail", zoom = 15),
                 way({ l.tram }, "railway" to "tram"),

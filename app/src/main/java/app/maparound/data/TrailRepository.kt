@@ -54,6 +54,7 @@ class TrailRepository(private val context: Context, private val prefs: Prefs) : 
     init {
         dir.listFiles { f -> f.name.endsWith(".tmp") }?.forEach { it.delete() }
         refresh()
+        updateOutdated()
     }
 
     fun refresh() {
@@ -104,6 +105,36 @@ class TrailRepository(private val context: Context, private val prefs: Prefs) : 
             }
         }
         return null
+    }
+
+    /**
+     * Cells fetched in an older format (before the dirt roads they run on) are fetched again by
+     * themselves a while after the app starts, as the Wi‑Fi setting allows; until then they draw as
+     * they did. What fails is tried again at the next start.
+     */
+    private fun updateOutdated() {
+        scope.launch {
+            delay(UPDATE_DELAY_MS)
+            val cells = dir.listFiles { f -> f.name.endsWith(".trails") }.orEmpty()
+                .filter { TrailCellIO.hasFeatures(it.path) && !TrailCellIO.isCurrent(it.path) }
+                .mapNotNull { DemIndex.parseName(it.name.removeSuffix(".trails") + ".hgt") }
+                .take(MAX_CELLS)
+            if (cells.isEmpty() || job?.isActive == true || (prefs.wifiOnly.value && isMetered())) return@launch
+            val label = T.offline.trailsYourAreas
+            job = coroutineContext[Job]
+            var failed = 0
+            _state.update { it.copy(progress = DownloadProgress(label, 0, cells.size, 0)) }
+            try {
+                cells.forEachIndexed { i, (lat, lon) ->
+                    if (!fetchCell(lat, lon)) failed++
+                    _state.update { it.copy(progress = DownloadProgress(label, i + 1, cells.size, failed)) }
+                }
+                if (failed < cells.size) _events.tryEmit(T.offline.trailsUpdated)
+            } finally {
+                _state.update { it.copy(progress = null) }
+                refresh()
+            }
+        }
     }
 
     override fun cancel() {
@@ -178,5 +209,8 @@ class TrailRepository(private val context: Context, private val prefs: Prefs) : 
             "https://overpass.private.coffee/api/interpreter",
         )
         private const val MAX_CELLS = 120
+
+        /** How long after the start outdated cells wait: the map comes first. */
+        private const val UPDATE_DELAY_MS = 30_000L
     }
 }
