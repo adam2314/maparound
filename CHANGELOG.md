@@ -22,6 +22,14 @@
   above the ground worked out first; then a single eased tilt into 3D, with nothing popping in or
   jumping after it. Without a network it goes ahead after a few seconds.
 
+### 3D on Android
+- **Opening the 3D view waits for what it shows, then tilts in one go**, as on the web. The 2D map
+  stays (with "Loading the relief…") while the relief's elevation data comes, if it's missing, and
+  the tiles, buildings and names of the view load; the view then appears straight down, as the map
+  was, everything already on it, and turns into 3D in one eased move. No more tiles fading in or the
+  view starting again when the relief arrives halfway. Without a connection it goes ahead after a
+  few seconds.
+
 ### The map online, as nice as offline
 - **Where no map is downloaded, the map reads it over the internet** (Android), in the same style:
   MapAround's own map where there is one, with the marked trails, path grades and 4×4 tracks, else
@@ -58,6 +66,47 @@
   imported, waypoints and all. The web app opens them too, as …/maparound/app/?gpx=<link>, when
   the website holding the file allows it (GitHub's raw files do).
 - The message after importing a shared track or places now shows; it was cut off before.
+
+### The map in other websites
+- **Put the map on any web page** with an iframe of the web app's address plus `?embed`: just the
+  map, with its layers and the 3D view, and **Open in MapAround** to go on in the full web app. It
+  shows a place (`#map=`), a pin (`mlat`/`mlon`), a track from a link or a GPX file on a website
+  that allows it (`gpx=`), with `layer=`, `trails=0` and `lang=` to choose the map, leave out the
+  marked trails and set the language. It reads and saves nothing of the visitor's and doesn't ask for their location.
+- **Embed in a website** in a track's menu in Library copies the code, the line inside it, ready to
+  paste into a page.
+- A guide: [The map in your website](https://adam2314.github.io/maparound/guide/embed).
+
+### The party
+- **More about each member**: their speed and the way they're heading, height, how exact the
+  position is and battery, and the time it was taken next to how long ago, in the members list and
+  on their card on the map. Speeds in the unit chosen in Settings.
+- **Messages in the order they were written**, each with its time. One that comes late (by radio,
+  or kept by the server) goes before the newer ones instead of at the bottom.
+- **A member's history, replayed.** **History** in the members list (and on their card on the map)
+  shows their way so far on the map in their colour and plays it: their marker goes along it with
+  the time, the distance so far, speed, height and battery then. Pause, drag to any moment, play
+  from the start, ×10 to ×1200 (long stops are skipped). It's what your device received since you
+  joined, positions that came late in their place; kept between runs, deleted when you leave the
+  party.
+
+### Map tools
+- **Pick a point by tapping it, move it by dragging it.** Tapping A or B on the map picks it (a
+  yellow ring shows which; further taps on the map move it), and pressing on a point and dragging
+  moves it at once, with the result following (Android and the web; a long press then drag
+  everywhere).
+- **The panels over the map fold away.** The tools, the route planner and a replayed history have a
+  handle: tap it or drag it down and only one line stays (the result, the route's length and time,
+  the moment replayed, with their main buttons), so the map shows; tap or drag up for the rest.
+- On the web, dragging a route stop after a long press works again (the moves weren't reaching it).
+
+### Supporting MapAround
+- **A page on what donations pay for** ([Support MapAround](https://adam2314.github.io/maparound/support),
+  in English and Hebrew). MapAround stays free; donations go to a better web experience (the maps
+  hosted where the browser may read them, a domain) and to building the offline maps (the biggest
+  countries), and the app stores, with their costs, through GitHub Sponsors; and other ways to help
+  (testing, OpenStreetMap, translating). Linked from Settings, from maps that need funding in Offline maps,
+  from the website, and as the repository's Sponsor button.
 
 ### The Topo style
 - **Bike paths you can see.** Bike paths, and the many paths shared by walkers and bikes (in

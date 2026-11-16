@@ -51,11 +51,18 @@ interface NativeMapCallbacks {
 
     fun onLongPress(lat: Double, lon: Double)
 
-    /** The finger moved after a long press, still down. */
+    /** The finger moved after a long press (or a press [onPress] took), still down. */
     fun onLongPressMove(lat: Double, lon: Double)
 
-    /** The finger was lifted after a long press (or the gesture was cancelled). */
+    /** The finger was lifted after a long press (or a press [onPress] took), or the gesture was cancelled. */
     fun onLongPressEnd(lat: Double, lon: Double)
+
+    /**
+     * A finger just went down here (one finger, not yet a tap or a drag). True: the screen takes
+     * the press to drag something there (a map tool's point), so the map doesn't move, and the
+     * moves and the lift come as [onLongPressMove] and [onLongPressEnd], with no tap or long press.
+     */
+    fun onPress(lat: Double, lon: Double): Boolean = false
 }
 
 /**

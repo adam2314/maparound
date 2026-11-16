@@ -38,6 +38,11 @@ object Guides {
     /** The guide [topic]'s page in the app's language. */
     fun url(topic: String): String = if (I18n.language == Language.HE) "$SITE/he/guide/$topic" else "$SITE/guide/$topic"
 
+    /** A page of the website in the app's language: "support" (docs/support.md, docs/he/support.md). */
+    fun page(name: String): String = if (I18n.language == Language.HE) "$SITE/he/$name" else "$SITE/$name"
+
+    const val SUPPORT = "support"
+
     /** The map legend ("legend") or the maps' data schema ("schema") in the app's language (docs/map, tools/map-docs). */
     fun map(page: String): String = if (I18n.language == Language.HE) "$SITE/he/map/$page" else "$SITE/map/$page"
 }

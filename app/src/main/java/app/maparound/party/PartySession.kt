@@ -57,6 +57,9 @@ object PartySession : PartyController {
     private val lastSent = HashMap<Via, SendPolicy.Last>()
     private val lastHello = HashMap<Via, Long>()
 
+    /** The members' positions so far, kept in the app's files between runs. */
+    private val historyFile by lazy { PartyHistoryFile(java.io.File(app.filesDir, "party/history.bin").path) }
+
     // ---- setup --------------------------------------------------------------------------------
 
     fun init(context: Context) {
@@ -64,7 +67,7 @@ object PartySession : PartyController {
         val key = prefs.getString("link", null)?.let(PartyKey::parse)
         if (key != null) {
             val me = PartyMe(prefs.getInt("my_id", 0), prefs.getString("my_name", "")!!, myColor(), prefs.getInt("my_icon", 0))
-            engine = PartyEngine(key, me.id)
+            engine = PartyEngine(key, me.id, history = historyFile.load(key))
             seq = prefs.getLong("seq", 0)
             reserveSeq()
             _state.value = PartyState(
@@ -115,6 +118,7 @@ object PartySession : PartyController {
         }
         seq = 1
         reserveSeq()
+        historyFile.delete()
         engine = PartyEngine(key, me.id)
         lastSent.clear()
         lastHello.clear()
@@ -135,6 +139,7 @@ object PartySession : PartyController {
     private fun leaveSilently() {
         setActive(false)
         engine = null
+        historyFile.delete()
         prefs.edit { remove("link"); putBoolean("active", false) }
         _state.value = PartyState(onlineEnabled = _state.value.onlineEnabled, radioName = _state.value.radioName, gateway = _state.value.gateway)
     }
@@ -215,6 +220,7 @@ object PartySession : PartyController {
     }
 
     internal fun detach() {
+        saveHistory(force = true)
         mqtt?.stop()
         mqtt = null
         radio?.stop()
@@ -257,7 +263,16 @@ object PartySession : PartyController {
         sendHello(force = false)
         lastLocation?.let { onLocation(it) }
         refresh()
+        saveHistory(force = false)
     }
+
+    /** The members' positions so far into their file: at most every minute, or now ([force]). */
+    internal fun saveHistory(force: Boolean) {
+        val e = engine ?: return
+        historyFile.save(e.history, e.key, System.currentTimeMillis(), force)
+    }
+
+    override fun history(member: Int): List<HistoryPoint> = engine?.history?.of(member).orEmpty()
 
     // ---- transports --------------------------------------------------------------------------------
 
@@ -411,6 +426,7 @@ object PartySession : PartyController {
                 meshNodes = e.meshNodes.values.filter { it.position != null }.sortedBy { it.name },
                 meeting = e.meeting,
                 chat = e.chat.toList(),
+                historyCounts = e.history.counts,
             )
         }
     }

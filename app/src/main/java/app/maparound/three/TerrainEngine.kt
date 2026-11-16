@@ -63,6 +63,9 @@ class TerrainEngine(val textures: TileTextures, private val onReady: () -> Unit)
 
     val pending: Int get() = tileQueue.pending + buildingQueue.pending
 
+    /** Whether the tile's picture and mesh have loaded (and not been dropped since). */
+    fun tileLoaded(id: TileId): Boolean = tileQueue.isDone(id)
+
     fun close() {
         tileQueue.close()
         buildingQueue.close()
@@ -182,6 +185,8 @@ class TerrainEngine(val textures: TileTextures, private val onReady: () -> Unit)
         }
 
         fun forget(key: K) = lock.withLock { done -= key }
+
+        fun isDone(key: K): Boolean = lock.withLock { key in done }
 
         val pending: Int get() = lock.withLock { busy.size + wanted.keys.count { it !in done && it !in busy } }
 

@@ -27,6 +27,10 @@ listed below.
   loads (see GitHub's privacy statement); after that, the app only asks GitHub for MapAround's list
   of maps (on the Offline maps screen), and your browser downloads from GitHub the maps you
   choose.
+- **The map embedded in other websites** (the web app with `?embed`, in a frame on someone's
+  page) keeps nothing: it doesn't read or save your settings, routes or places, and doesn't ask for
+  your location. It loads the app from GitHub, the map tiles of the map it shows, and a GPX file
+  the page names from that file's website.
 
 ## What the app sends, and to whom
 
@@ -66,6 +70,10 @@ policy.
 - Relay servers keep the latest encrypted position, name, SOS and meeting point of each member, so
   people who join later see the group straight away. Leaving the party removes yours from the
   relays.
+- **Members' history**: the positions of the others that your device receives are kept on it (in
+  the app's files, or the browser's storage for the web app), so you can replay where each one
+  went. They stay on your device, aren't sent anywhere, and are deleted when you leave the party
+  or join another.
 
 ## Permissions
 

@@ -52,7 +52,10 @@ class OnlineParty(
     private val scope: CoroutineScope = MainScope(),
     private val clock: () -> Long = ::nowMillis,
     private val radios: RadioLinks? = null,
+    /** Where the members' positions so far are kept between visits ([PartyHistoryFile]); null: not kept. */
+    historyPath: String? = null,
 ) : PartyController {
+    private val historyFile = historyPath?.let(::PartyHistoryFile)
     private val _state = MutableStateFlow(PartyState())
     override val state: StateFlow<PartyState> = _state.asStateFlow()
     private val _events = MutableSharedFlow<PartyEvent>(extraBufferCapacity = 16)
@@ -89,7 +92,7 @@ class OnlineParty(
         val id = store.getInt(K_ID, 0)
         if (key != null && id != 0) {
             val me = PartyMe(id, store.getString(K_NAME).orEmpty(), store.getInt(K_COLOR, PartyPalette.PRESETS[0]), store.getInt(K_ICON, 0))
-            engine = PartyEngine(key, me.id, clock)
+            engine = PartyEngine(key, me.id, historyFile?.load(key) ?: PartyHistory(), clock)
             seq = store.getString(K_SEQ)?.toLongOrNull() ?: 0
             reserveSeq()
             _state.value = transportSettings(PartyState(party = key, me = me, sharing = store.getBoolean(K_SHARING, true)))
@@ -144,7 +147,8 @@ class OnlineParty(
         store.putInt(K_COLOR, me.color)
         seq = 1
         reserveSeq()
-        engine = PartyEngine(key, me.id, clock)
+        historyFile?.delete()
+        engine = PartyEngine(key, me.id, clock = clock)
         lastSent.clear()
         lastHello.clear()
         _state.value = _state.value.copy(party = key, me = me, members = emptyList(), meshNodes = emptyList(), meeting = null, chat = emptyList(), mySos = false)
@@ -167,6 +171,7 @@ class OnlineParty(
     private fun leaveSilently() {
         stop()
         engine = null
+        historyFile?.delete()
         for (k in listOf(K_LINK, K_ID, K_SEQ, K_ACTIVE)) store.remove(k)
         _state.value = transportSettings(PartyState())
     }
@@ -297,11 +302,20 @@ class OnlineParty(
         due.forEach { lastSent[it] = SendPolicy.Last(now, fix.lat, fix.lon) }
     }
 
-    /** Every few seconds while on: hellos when due, and the position while standing still. */
+    /** Every few seconds while on: hellos when due, the position while standing still, the history kept. */
     private fun tick() {
         sendHello(force = false)
         lastFix?.let(::onLocation)
+        saveHistory(force = false)
     }
+
+    /** The members' positions so far into their file: when due, or now ([force]: stopping, the page hidden). */
+    fun saveHistory(force: Boolean = true) {
+        val e = engine ?: return
+        historyFile?.save(e.history, e.key, clock(), force)
+    }
+
+    override fun history(member: Int): List<HistoryPoint> = engine?.history?.of(member).orEmpty()
 
     /**
      * Hello carries name and look: on connecting (kept online), every 10 minutes online and 30 by
@@ -458,6 +472,7 @@ class OnlineParty(
     }
 
     private fun stop() {
+        saveHistory()
         following?.cancel()
         following = null
         ticking?.cancel()
@@ -561,6 +576,7 @@ class OnlineParty(
                 meshNodes = e.meshNodes.values.filter { it.position != null }.sortedBy { it.name },
                 meeting = e.meeting,
                 chat = e.chat.toList(),
+                historyCounts = e.history.counts,
             )
         }
     }

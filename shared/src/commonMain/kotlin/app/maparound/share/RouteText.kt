@@ -18,11 +18,15 @@ object RouteText {
     /** Anything with a line can go as a link: MapAround's track link at least. */
     fun hasLink(track: Track): Boolean = track.points.size >= 2 || hasRouteLink(track)
 
-    fun of(track: Track): String = buildString {
+    /** Name, distance and climb: "Wadi Qelt · 12.4 km · ↑ 450 m". */
+    fun summary(track: Track): String = buildString {
         val s = track.stats
         append(track.name).append(" · ").append(Fmt.distance(s.distanceM.toFloat()))
         s.ascentM?.let { append(" · ↑ ").append(it.roundToInt()).append(" ").append(T.common.unitM) }
-        appendLine()
+    }
+
+    fun of(track: Track): String = buildString {
+        appendLine(summary(track))
         TrackLink.of(track)?.let { appendLine(T.map.openInMapAround(it)) }
         if (hasRouteLink(track)) {
             SharedLinks.brouterWebLink(track.waypoints, track.profile)?.let { appendLine(T.map.openTheRoute(it)) }

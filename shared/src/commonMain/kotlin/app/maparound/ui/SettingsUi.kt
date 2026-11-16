@@ -6,7 +6,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,7 +39,7 @@ fun SettingsButton() {
     if (open) SettingsSheet(onDismiss = { open = false })
 }
 
-/** The app's settings: its language (the device's, or one the app speaks). */
+/** The app's settings: its language (the device's, or one the app speaks); and supporting MapAround. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsSheet(onDismiss: () -> Unit) {
@@ -54,6 +57,15 @@ fun SettingsSheet(onDismiss: () -> Unit) {
             val device = Language.of(deviceLanguage()) ?: Language.EN
             Choice(choice.isEmpty(), T.common.deviceLanguage, T.common.deviceLanguageNow(device.nativeName)) { prefs.setLanguage("") }
             for (l in Language.entries) Choice(choice == l.code, l.nativeName, null) { prefs.setLanguage(l.code) }
+            // What donations pay for, on the website.
+            val platform = LocalPlatform.current
+            HorizontalDivider(Modifier.padding(top = 12.dp, bottom = 4.dp))
+            ListItem(
+                modifier = Modifier.clickable { platform.openUrl(Guides.page(Guides.SUPPORT)) },
+                leadingContent = { Icon(Icons.Filled.Favorite, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                headlineContent = { Text(T.common.supportMapAround) },
+                supportingContent = { Text(T.common.supportSubtitle) },
+            )
         }
     }
 }

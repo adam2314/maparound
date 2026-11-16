@@ -7,7 +7,8 @@ import app.maparound.shared.util.nowMillis
 
 // Plain Kotlin: the party's state machine. Transports hand it raw packets; it decrypts,
 // de-duplicates (the same update may arrive over the internet and over LoRa), keeps the newest
-// state per member, and decides what to send and what a gateway should relay.
+// state per member and their positions so far ([PartyHistory]), keeps the messages in the order
+// they were written, and decides what to send and what a gateway should relay.
 
 /** How a packet travelled. */
 enum class Via {
@@ -48,6 +49,7 @@ data class MeshNode(val num: Long, val name: String, val shortName: String, val 
 
 data class Meeting(val lat: Double, val lon: Double, val label: String, val setBy: Int)
 
+/** A message: who wrote it, and when ([at]: their clock when sending, ms). */
 data class ChatLine(val from: Int, val text: String, val at: Long)
 
 sealed class PartyEvent {
@@ -59,13 +61,32 @@ sealed class PartyEvent {
     data class Left(val member: Member) : PartyEvent()
 }
 
-class PartyEngine(val key: PartyKey, val myId: Int, private val clock: () -> Long = ::nowMillis) {
+class PartyEngine(
+    val key: PartyKey,
+    val myId: Int,
+    /** The members' positions so far (kept in a file between runs by the platform). */
+    val history: PartyHistory = PartyHistory(),
+    private val clock: () -> Long = ::nowMillis,
+) {
     val members = LinkedHashMap<Int, Member>()
     val meshNodes = LinkedHashMap<Long, MeshNode>()
     var meeting: Meeting? = null
         private set
+
+    /** The messages in the order they were written (not as they arrived), the last [MAX_CHAT]. */
     val chat = ArrayDeque<ChatLine>()
     var myMeshNode: Long = 0
+
+    /**
+     * Puts [line] in its place by when it was written: a message that comes late (by radio, or
+     * kept by a broker) goes before the newer ones already here. The same moment: as they came.
+     */
+    private fun addChat(line: ChatLine) {
+        var i = chat.size
+        while (i > 0 && chat[i - 1].at > line.at) i--
+        chat.add(i, line)
+        while (chat.size > MAX_CHAT) chat.removeFirst()
+    }
 
     /** Packets already handled (sender | sequence), oldest first; the oldest go beyond 20 000. */
     private val seen = LinkedHashSet<Long>(1024)
@@ -93,9 +114,13 @@ class PartyEngine(val key: PartyKey, val myId: Int, private val clock: () -> Lon
         }
         val events = ArrayList<PartyEvent>()
         when (val msg = rec.message) {
-            is PartyMessage.Position -> if (rec.sentAt >= m.positionAt) {
-                if (msg.sos && !m.sos) events += PartyEvent.SosRaised(m, m.sosText)
-                m = m.copy(position = msg, positionAt = rec.sentAt, sos = msg.sos || (m.sos && msg.sos), left = false)
+            is PartyMessage.Position -> {
+                // Every one goes in the history, in its place; only a newer one moves the marker.
+                history.add(rec.sender, rec.sentAt, msg)
+                if (rec.sentAt >= m.positionAt) {
+                    if (msg.sos && !m.sos) events += PartyEvent.SosRaised(m, m.sosText)
+                    m = m.copy(position = msg, positionAt = rec.sentAt, sos = msg.sos || (m.sos && msg.sos), left = false)
+                }
             }
             is PartyMessage.Hello -> {
                 m = m.copy(name = msg.name, color = msg.color, icon = msg.icon, meshNode = msg.meshNode, left = false)
@@ -111,8 +136,7 @@ class PartyEngine(val key: PartyKey, val myId: Int, private val clock: () -> Lon
                 events += PartyEvent.MeetingSet(meeting)
             }
             is PartyMessage.Text -> {
-                chat.addLast(ChatLine(rec.sender, msg.text, rec.sentAt))
-                while (chat.size > 50) chat.removeFirst()
+                addChat(ChatLine(rec.sender, msg.text, rec.sentAt))
                 events += PartyEvent.TextReceived(m, msg.text)
             }
             PartyMessage.Leave -> {
@@ -125,16 +149,19 @@ class PartyEngine(val key: PartyKey, val myId: Int, private val clock: () -> Lon
         return Accepted(rec, events)
     }
 
+    companion object {
+        /** Messages kept. */
+        const val MAX_CHAT = 100
+    }
+
     /** Applies our own outgoing message locally (chat, meeting point). */
     fun applyOwn(message: PartyMessage, sentAt: Long) {
         when (message) {
             is PartyMessage.Meet -> meeting =
                 if (message.label.isEmpty() && message.lat == 0.0 && message.lon == 0.0) null
                 else Meeting(message.lat, message.lon, message.label, myId)
-            is PartyMessage.Text -> {
-                chat.addLast(ChatLine(myId, message.text, sentAt))
-                while (chat.size > 50) chat.removeFirst()
-            }
+            // As the others read it: its time in whole seconds.
+            is PartyMessage.Text -> addChat(ChatLine(myId, message.text, sentAt / 1000 * 1000))
             else -> Unit
         }
     }

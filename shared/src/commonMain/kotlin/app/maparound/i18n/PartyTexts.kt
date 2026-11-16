@@ -92,6 +92,26 @@ open class PartyTexts {
     open val noPositionYet = "no position yet"
     open fun routeTo(name: String) = "Route to $name"
 
+    /** A member's height above sea level, in metres. */
+    open fun altitude(m: Int) = "alt. $m m"
+
+    /** How exact a member's position is, in metres. */
+    open fun accuracy(m: Int) = "±$m m"
+
+    // ---- a member's history: their way so far, replayed on the map ----
+    open val history = "History"
+    open fun historyOf(name: String) = "History: $name"
+
+    /** Under the history's title: how many positions came, since when (a time). */
+    open fun historyPositions(n: Int, since: String) = if (n == 1) "1 position, at $since" else "$n positions received since $since"
+    open fun distanceSoFar(distance: String) = "$distance so far"
+    open val play = "Play"
+    open val pause = "Pause"
+    open val fromTheStart = "From the start"
+
+    /** How much faster than it happened. */
+    open fun replaySpeed(times: Int) = "×$times"
+
     /** How far someone is and which way: "1.2 km NE". */
     open fun distanceDirection(distance: String, direction: String) = "$distance $direction"
 
@@ -375,6 +395,15 @@ object PartyTextsHe : PartyTexts() {
     override fun memberFallbackName(code: String) = "משתתף $code"
     override val noPositionYet = "עדיין אין מיקום"
     override fun routeTo(name: String) = "מסלול אל $name"
+    override fun altitude(m: Int) = "גובה $m מ׳"
+    override fun accuracy(m: Int) = "±$m מ׳"
+    override val history = "היסטוריה"
+    override fun historyOf(name: String) = "היסטוריה: $name"
+    override fun historyPositions(n: Int, since: String) = if (n == 1) "מיקום אחד, ב־$since" else "$n מיקומים התקבלו מאז $since"
+    override fun distanceSoFar(distance: String) = "$distance עד כאן"
+    override val play = "הפעלה"
+    override val pause = "השהיה"
+    override val fromTheStart = "מההתחלה"
     override fun distanceDirection(distance: String, direction: String) = "$distance ל$direction"
     override val agoNow = "עכשיו"
     override fun joinedParty(name: String) = "הצטרפות לקבוצה: $name"

@@ -5,6 +5,8 @@ import app.maparound.terrain.DemIndex
 import app.maparound.data.MapAroundCatalog
 import app.maparound.data.OfflineData
 import app.maparound.data.Prefs
+import app.maparound.data.KeyValueStore
+import app.maparound.data.MemoryStore
 import app.maparound.data.WebStorageStore
 import app.maparound.i18n.T
 import app.maparound.map.BorderLines
@@ -43,10 +45,13 @@ import okio.Path.Companion.toPath
 /**
  * The web app's objects (Android's AppGraph, the iPhone's IosApp). Files live in [WebFiles]
  * (memory, saved to IndexedDB), settings in localStorage. [base] is the app's address, for its
- * own files (fonts, symbols).
+ * own files (fonts, symbols). [embedded]: the map in another website, settings in memory only.
  */
-class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: String) {
-    val prefs = Prefs(WebStorageStore("prefs"))
+class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: String, val embedded: Boolean = false) {
+    /** Where settings are kept: the browser's localStorage, or (embedded) nowhere. */
+    private fun store(name: String): KeyValueStore = if (embedded) MemoryStore() else WebStorageStore(name)
+
+    val prefs = Prefs(store("prefs"))
 
     private val demDir = "${WebFiles.ROOT}/dem"
 
@@ -74,13 +79,14 @@ class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: Str
     val themes = WebMapThemes(topoXml, symbols)
     val maps = WebInstalledMaps()
     val places = PlaceRepository(WebFiles.ROOT)
-    val tracks = TrackRepository(WebFiles.ROOT, WebStorageStore("tracks"))
+    val tracks = TrackRepository(WebFiles.ROOT, store("tracks"))
     val sensors = WebSensors()
 
     /** The party: online, and a LoRa radio where the browser has Bluetooth; our position from the browser's (WebParty.kt). */
     val party = OnlineParty(
-        WebStorageStore("party"), WebMqttSockets, locations = { sensors.locations() }, battery = { WebBattery.level },
+        store("party"), WebMqttSockets, locations = { sensors.locations() }, battery = { WebBattery.level },
         radios = WebRadios.takeIf { it.available },
+        historyPath = "${WebFiles.ROOT}/party/history.bin",
     )
     val searcher = WebSearcher(places, maps)
 
@@ -160,6 +166,7 @@ class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: Str
      */
     fun onHide() {
         map?.let { prefs.saveLastPosition(it.position()) }
+        party.saveHistory()
         WebFiles.flush()
     }
 

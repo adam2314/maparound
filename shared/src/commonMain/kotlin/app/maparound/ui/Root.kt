@@ -78,6 +78,11 @@ fun MapAroundRoot(
     /** The tabs this platform has so far. */
     tabs: List<Tab> = Tab.entries,
     initialTab: Tab = Tab.Map,
+    /**
+     * The map embedded in another website (the web app's `?embed`): only the map, and this opens it
+     * in MapAround itself. Null in the app.
+     */
+    openFull: (() -> Unit)? = null,
 ) {
     var tab by rememberSaveable { mutableStateOf(initialTab) }
 
@@ -123,8 +128,8 @@ fun MapAroundRoot(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
-            // Navigating on the map: the map has the whole screen.
-            if (!(navigating && tab == Tab.Map)) NavigationBar {
+            // Navigating on the map: the map has the whole screen. One tab (the embedded map): no bar.
+            if (!(navigating && tab == Tab.Map) && tabs.size > 1) NavigationBar {
                 tabs.forEach { t ->
                     NavigationBarItem(
                         selected = tab == t,
@@ -147,6 +152,7 @@ fun MapAroundRoot(
                     createMap = createMap,
                     mapView = mapView,
                     view3d = view3d,
+                    openFull = openFull,
                 )
                 Tab.Routes -> LibraryScreen(hasLocation, requestLocation, snackbar, onShowMap = { tab = Tab.Map })
                 Tab.Party -> PartyScreen(hasLocation, requestLocation, snackbar, onShowMap = { tab = Tab.Map })

@@ -175,6 +175,35 @@ object ToolsSession {
         _state.value = _state.value.copy(next = slot)
     }
 
+    /**
+     * The point (A, or B where the mode has one) within [radiusM] of [p], the nearest; null when
+     * there's none (a press there is for the map, or places the selected point).
+     */
+    fun pointNear(p: GeoPoint, radiusM: Double): Slot? {
+        val s = _state.value
+        if (!s.active) return null
+        return listOfNotNull(
+            s.a?.let { Slot.A to app.maparound.routing.Geo.distance(p, it) },
+            s.b?.takeIf { s.usesB }?.let { Slot.B to app.maparound.routing.Geo.distance(p, it) },
+        ).filter { it.second <= radiusM }.minByOrNull { it.second }?.first
+    }
+
+    /** Where [slot]'s point is now, or null. */
+    fun pointOf(slot: Slot): GeoPoint? = _state.value.let { if (slot == Slot.A) it.a else it.b }
+
+    /**
+     * Moves [slot]'s point to [p] as a finger drags it; it stays the selected one (the next tap
+     * moves it again), unlike placing it with a tap.
+     */
+    fun drag(slot: Slot, p: GeoPoint) {
+        val s = _state.value
+        _state.value = when (slot) {
+            Slot.A -> s.copy(a = p, next = Slot.A, los = null, viewshed = null, higherNearA = null, aGround = null)
+            Slot.B -> s.copy(b = p, next = Slot.B, los = null, bGround = null)
+        }
+        recompute()
+    }
+
     // Moving a point drops the old results at once, so nothing stale stays drawn while recomputing.
 
     fun setA(p: GeoPoint) {

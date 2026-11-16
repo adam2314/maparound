@@ -193,6 +193,16 @@ object SharedLinks {
     fun webAppLink(lat: Double, lon: Double, zoom: Int = 16): String =
         "$WEB_APP?mlat=${f(lat)}&mlon=${f(lon)}#map=$zoom/${f(lat)}/${f(lon)}"
 
+    /**
+     * HTML that puts the web app's map at [src] (an `?embed` address) in another web page, as wide
+     * as the page's column.
+     */
+    fun iframe(src: String, title: String): String =
+        "<iframe src=\"${html(src)}\" title=\"${html(title)}\" width=\"100%\" height=\"450\" " +
+            "style=\"border:0\" loading=\"lazy\"></iframe>"
+
+    private fun html(s: String) = s.replace("&", "&amp;").replace("\"", "&quot;").replace("<", "&lt;").replace(">", "&gt;")
+
     fun geoUri(lat: Double, lon: Double, label: String?): String =
         "geo:${f(lat)},${f(lon)}?q=${f(lat)},${f(lon)}" +
             (label?.takeIf { it.isNotBlank() }?.let { "(" + urlEncode(it).replace("+", "%20") + ")" } ?: "")

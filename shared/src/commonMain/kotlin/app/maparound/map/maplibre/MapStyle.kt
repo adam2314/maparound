@@ -212,6 +212,17 @@ class MapStyle(
         line("tracks-casing", TRACKS, "#FFFFFF", 7.0),
         line("tracks-line", TRACKS, "#E65100", 4.0),
         line("recording", RECORDING, "#D50000", 4.0),
+        // A party member's way replayed: what's ahead faint, what's been gone in their colour.
+        line("party-trail-casing", PARTY_TRAIL, "#FFFFFF", 7.0, role = "done"),
+        layer("party-trail", "line") {
+            put("source", PARTY_TRAIL)
+            put("layout", ROUND)
+            put("paint", obj(
+                "line-color" to arr("get", "color"),
+                "line-width" to 4.0,
+                "line-opacity" to arr("match", arr("get", "role"), "done", 1.0, 0.45),
+            ))
+        },
         line("route-casing", ROUTE, "#FFFFFF", 8.0, role = "line"),
         line("route-line", ROUTE, "#6A1B9A", 5.0, role = "line"),
         line("tools-ring", TOOLS, "rgba(33,33,33,0.78)", 2.0, role = "ring"),
@@ -232,6 +243,17 @@ class MapStyle(
         },
         symbols("${TAP_PREFIX}places", PLACES),
         symbols("${TAP_PREFIX}party", PARTY),
+        // The tool's point a tap moves next: ringed under its letter.
+        layer("tools-selected", "circle") {
+            put("source", TOOLS)
+            put("filter", eq("role", "selected"))
+            put("paint", obj(
+                "circle-radius" to 20.0,
+                "circle-color" to "rgba(255,214,0,0.28)",
+                "circle-stroke-color" to "#FFD600",
+                "circle-stroke-width" to 3.0,
+            ))
+        },
         symbols("tools-points", TOOLS, role = "letter"),
         symbols("${TAP_PREFIX}waypoints", ROUTE, role = "wp"),
         symbols("${TAP_PREFIX}me", ME, role = "dot"),
@@ -281,6 +303,7 @@ class MapStyle(
         // GeoJSON sources of the overlays.
         const val TRACKS = "mr-tracks"
         const val RECORDING = "mr-recording"
+        const val PARTY_TRAIL = "mr-party-trail"
         const val ROUTE = "mr-route"
         const val TOOLS = "mr-tools"
         const val PLACES = "mr-places"
@@ -289,7 +312,7 @@ class MapStyle(
         const val PIN = "mr-pin"
         const val DATA_COUNTRIES = "mr-data-countries"
         const val DATA_LOCALITIES = "mr-data-localities"
-        val OVERLAY_SOURCES = listOf(DATA_COUNTRIES, DATA_LOCALITIES, TRACKS, RECORDING, ROUTE, TOOLS, PLACES, PARTY, ME, PIN)
+        val OVERLAY_SOURCES = listOf(DATA_COUNTRIES, DATA_LOCALITIES, TRACKS, RECORDING, PARTY_TRAIL, ROUTE, TOOLS, PLACES, PARTY, ME, PIN)
 
         /** Colour around the maps (no data). */
         const val OUTSIDE = "#EDEADA"

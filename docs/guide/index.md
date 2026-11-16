@@ -22,6 +22,8 @@ the space it takes and what it shares. The **Offline maps** and **Party** screen
   downloaded or online.
 - [Party server]({{ '/guide/party-server' | relative_url }}): how the party's messages travel, what
   servers see, and running your own.
+- [The map in your website]({{ '/guide/embed' | relative_url }}): the web app's map on any web
+  page, with a track, a GPX file or a point.
 
 More: [map styles]({{ '/map-styles' | relative_url }}) and the
 [privacy policy]({{ '/privacy' | relative_url }}).

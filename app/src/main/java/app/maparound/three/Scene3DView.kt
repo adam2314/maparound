@@ -54,6 +54,62 @@ class FrameState(
  * the planet in space. One finger pans (and flings), pinch zooms, two fingers twist to turn and
  * slide up/down to tilt; double-tap zooms in.
  */
+/** What the 3D view's first frames show: the tiles of the view straight down and of the one it turns to. */
+class IntroPlan(val down: TileSelection, val ahead: TileSelection)
+
+/**
+ * Starts loading what the 3D view will show first, before there's a view: the tiles, buildings and
+ * names of [start] and of the view straight down over it (where the intro starts), for a view of
+ * [aspect] (width / height). [introReady] says when it can be shown.
+ */
+fun TerrainEngine.prepareIntro(start: Camera3D, aspect: Float, exaggeration: Float, buildingsOn: Boolean): IntroPlan {
+    val down = Renderer3D.introWishes(this, start.copy(yaw = 0f, pitch = Scene3DView.STRAIGHT_DOWN), exaggeration, aspect, buildingsOn)
+    val ahead = Renderer3D.introWishes(this, start, exaggeration, aspect, buildingsOn)
+    // What decides how the first frames look loads first (not coarse first, as frames ask): the
+    // tiles straight down, then the turned view's tiles one level coarser than its finest, then
+    // its finest, then the rest (each group nearest first).
+    val order = HashMap<TileId, Double>()
+    fun put(t: TileId, group: Int, wishes: Map<TileId, Double>) {
+        val near = (wishes[t] ?: return) - t.z * 1e9 // the distance part of a frame's priority
+        order[t] = minOf(order[t] ?: Double.MAX_VALUE, group * 1e12 + near)
+    }
+    for ((t, _) in down.tiles + ahead.tiles) put(t, 3, if (t in down.tiles) down.tiles else ahead.tiles)
+    for (t in down.sel.leaves) put(t, 0, down.tiles)
+    for (t in ahead.sel.leaves) t.parent?.takeIf { it in ahead.sel.nodes }?.let { put(it, 1, ahead.tiles) }
+    for (t in ahead.sel.leaves) put(t, 2, ahead.tiles)
+    want(order, down.buildings + ahead.buildings, down.labels + ahead.labels)
+    return IntroPlan(down.sel, ahead.sel)
+}
+
+/**
+ * Whether the first frames can be shown well: straight down (what replaces the 2D map) all in,
+ * and the view it turns to without holes, nowhere coarser than one zoom level less than its own
+ * (twice as soft at most, sharpening in place as the finer tile comes, without fading in).
+ */
+fun TerrainEngine.introCovered(plan: IntroPlan): Boolean = covered(plan.down, 0, 0.0) && covered(plan.ahead, 1, 0.0)
+
+/** [introCovered], and nearly all of the turned view's finest tiles in. */
+fun TerrainEngine.introReady(plan: IntroPlan): Boolean = introCovered(plan) && covered(plan.ahead, 1, INTRO_LEAVES_SHARE)
+
+/**
+ * Every spot of [sel] has its tile, or one of the view's at most [coarser] zoom levels coarser; and
+ * at least [share] of its finest tiles are in.
+ */
+private fun TerrainEngine.covered(sel: TileSelection, coarser: Int, share: Double): Boolean {
+    var loaded = 0
+    for (leaf in sel.leaves) {
+        if (tileLoaded(leaf)) {
+            loaded++
+        } else if (generateSequence(leaf.parent) { it.parent }.take(coarser).none { it in sel.nodes && tileLoaded(it) }) {
+            return false
+        }
+    }
+    return loaded >= sel.leaves.size * share
+}
+
+/** The share of a view's finest tiles that have to be in before the 3D view shows. */
+private const val INTRO_LEAVES_SHARE = 0.8
+
 @SuppressLint("ViewConstructor")
 class Scene3DView(
     context: Context,
@@ -71,17 +127,30 @@ class Scene3DView(
         gl.setEGLConfigChooser(MultisampleConfigChooser())
         gl.preserveEGLContextOnPause = true
         renderer.requestMore = { gl.requestRender() }
-        renderer.onFrame = labels::publish
+        renderer.onFrame = { frame ->
+            labels.publish(frame)
+            if (!drawnOnce) {
+                drawnOnce = true
+                post { onFirstFrame?.invoke() }
+            }
+        }
         gl.setRenderer(renderer)
         gl.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
         addView(gl, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         addView(labels, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         if (intro) {
+            // Straight down (as the 2D map looked) until what's loaded is on the screen, then one
+            // eased turn into the view.
             renderer.yaw = 0f
             renderer.pitch = STRAIGHT_DOWN
-            renderer.turnTo(start.yaw, start.pitch, INTRO_SECONDS)
+            renderer.introTo = start
         }
     }
+
+    /** Called (on the main thread) once the first frame is drawn. */
+    var onFirstFrame: (() -> Unit)? = null
+
+    @Volatile private var drawnOnce = false
 
     /** A line of the view's own (fetching elevation…), shown instead of the loading progress. */
     @Volatile var note: String = ""
@@ -95,6 +164,7 @@ class Scene3DView(
     override fun leave(done: () -> Unit) {
         if (leaving) return
         leaving = true
+        renderer.introTo = null
         renderer.stopMotion()
         renderer.turnTo(0f, STRAIGHT_DOWN, LEAVE_SECONDS, locked = true) { post { done() } }
         gl.requestRender()
@@ -288,7 +358,7 @@ class Scene3DView(
         }
     }
 
-    private companion object {
+    internal companion object {
         /** A two-finger twist turns the view once it passes this (degrees). */
         const val TWIST_START_DEG = 8f
 
@@ -328,6 +398,13 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
     @Volatile private var zoomTarget = 0f
     @Volatile private var zoomStart = 0L
     private var lastFrameNanos = 0L
+
+    /**
+     * The view the intro turns into, while it waits: frames stay straight down, every loaded tile
+     * goes to the GPU at once and shows without fading, then the turn starts (or after [INTRO_HOLD_NS]).
+     */
+    @Volatile var introTo: Camera3D? = null
+    private var introSince = 0L
 
     // An eased turn and tilt (into and out of the view, facing north); it starts with the next frame.
     @Volatile private var turnStart = 0L
@@ -577,44 +654,42 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
         applyGestures()
         var again = animate(now, frameDt)
         again = settleGround(frameDt) || again
-        upload(now)
+        val intro = introTo
+        if (intro != null) {
+            // Held for the intro: all that's loaded goes up now; the turn starts when nothing's left.
+            if (introSince == 0L) introSince = now
+            upload(now, all = true)
+            if (engine.readyTiles.isEmpty() || now - introSince > INTRO_HOLD_NS) {
+                introTo = null
+                turnTo(intro.yaw, intro.pitch, Scene3DView.INTRO_SECONDS)
+            }
+            again = true
+        } else {
+            upload(now)
+        }
         GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT or GLES30.GL_DEPTH_BUFFER_BIT)
 
         val e = exaggeration
         val cam = globeCamera(e)
         val eye = cam.eye
-        val eyeGeo = Wgs84.geodetic(eye)
-        val alt = eyeGeo[2]
+        val alt = Wgs84.geodetic(eye)[2]
         val d = distance.toDouble()
-        // Clip planes: near close to the ground ahead, far beyond the horizon.
-        val aboveGround = max(alt - engine.groundAt(eyeGeo[0], eyeGeo[1]) * e, 1.0)
-        val near = min(aboveGround * 0.3, d * 0.1).coerceIn(0.5, 500_000.0)
-        val horizon = sqrt(max(alt, 0.0) * (2 * Wgs84.R + max(alt, 0.0))) + sqrt(2 * Wgs84.R * MAX_TERRAIN_M * e)
-        val far = max((horizon + d) * 1.2, near * 100)
-        val proj = Mat4.perspective(FOV.toDouble(), aspect.toDouble(), near, far)
-        val viewProj = Mat4.multiply(proj, cam.viewMatrix())
+        val viewProj = projection(engine, cam, e, aspect)
         Matrix.invertM(invViewProj, 0, viewProj, 0)
 
         // Which tiles, and what to load next (coarse first so there are no holes, then nearest).
-        val sel = GlobeTileSelector.select(eye, viewProj, engine.textures.maxZoom, maxHeight = (MAX_TERRAIN_M * e).toDouble(), previous = lastSelection)
+        val w = wishes(engine, eye, viewProj, cam.target, d, e, buildingsOn, lastSelection)
+        val sel = w.sel
         lastSelection = sel
-        val wanted = HashMap<TileId, Double>()
-        for (t in sel.nodes) if (t !in tiles) wanted[t] = t.z * 1e9 + distTo(t, eye)
-        val wantBuildings = HashMap<TileId, Double>()
-        if (buildingsOn && engine.hasBuildings && d < 4_000) {
-            for (l in sel.leaves) {
-                if (l.z < 16) continue
-                val b = l.ancestorAt(16)
-                val dd = distTo(b, cam.target)
-                if (dd < 2_500.0) wantBuildings[b] = dd
-            }
-        }
-        val labelTiles = LinkedHashMap<TileId, Double>()
-        for (l in sel.leaves) {
-            val t = if (l.z >= Label3D.MAP_LABELS_FROM_ZOOM) l.ancestorAt(min(l.z, LABEL_ZOOM)) else l
-            labelTiles[t] = min(labelTiles[t] ?: Double.MAX_VALUE, distTo(t, eye))
-        }
-        engine.want(wanted, wantBuildings.filterKeys { it !in buildings }, labelTiles)
+        val wantBuildings = w.buildings
+        val labelTiles = w.labels
+        // Waiting to turn into the view: what it will show keeps loading too.
+        val ahead = intro?.let { introWishes(engine, it, e, aspect, buildingsOn) }
+        engine.want(
+            (w.tiles + ahead?.tiles.orEmpty()).filterKeys { it !in tiles },
+            (wantBuildings + ahead?.buildings.orEmpty()).filterKeys { it !in buildings },
+            labelTiles + ahead?.labels.orEmpty(),
+        )
 
         // The sky (and the Earth beyond the loaded tiles), then the ground over it.
         val space = GlobeCamera.smoothstep(20_000.0, 400_000.0, alt).toFloat()
@@ -671,7 +746,8 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
             (0..1).forEach { GLES30.glDisableVertexAttribArray(it) }
         }
 
-        evict(sel)
+        // Not while the intro waits: what it turns to isn't in this frame's tiles yet.
+        if (introTo == null) evict(sel)
         val loading = engine.pending
         status = if (loading > 0) T.map.loadingTiles(loading) else ""
         onFrame?.invoke(FrameState(eye, viewProj, e, viewWidth, viewHeight, alt, d, labelTiles.keys.toList()))
@@ -748,10 +824,11 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
      * Moves finished tiles to the GPU, a few milliseconds' worth a frame (textures are the slow
      * part): one long frame shows as a stutter, more frames each a little longer don't.
      */
-    private fun upload(now: Long) {
+    private fun upload(now: Long, all: Boolean = false) {
         val until = System.nanoTime() + UPLOAD_BUDGET_NS
         var uploaded = 0
-        while (uploaded < 6 && (uploaded == 0 || System.nanoTime() < until)) {
+        // [all]: every finished tile now, shown at once (before the intro's turn: a single longer frame).
+        while (all || (uploaded < 6 && (uploaded == 0 || System.nanoTime() < until))) {
             val t = engine.readyTiles.poll() ?: break
             uploaded++
             tiles.remove(t.id)?.let(::free)
@@ -773,7 +850,7 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
             }
             // Fade in only where nothing was shown before (a finer tile simply replaces its parent).
             val coveredBefore = generateSequence(t.id.parent) { it.parent }.any { it in tiles }
-            tiles[t.id] = GpuTile(vbo, tex, t.mesh.n, t.mesh.center, frameNo, if (coveredBefore) 0L else now)
+            tiles[t.id] = GpuTile(vbo, tex, t.mesh.n, t.mesh.center, frameNo, if (coveredBefore || all) 0L else now)
         }
         repeat(4) {
             val b = engine.readyBuildings.poll() ?: return@repeat
@@ -817,10 +894,6 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
         }
     }
 
-    private fun distTo(t: TileId, p: Vec3): Double {
-        val c = Wgs84.ecef((t.north + t.south) / 2, (t.west + t.east) / 2, 0.0)
-        return (c - p).length
-    }
 
     private fun uniforms(prog: Int, viewProj: FloatArray, e: Float, light: FloatArray, alt: Double) {
         GLES30.glUniformMatrix4fv(u(prog, "uViewProj"), 1, false, viewProj, 0)
@@ -867,6 +940,61 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
     companion object {
         private const val TAG = "Scene3D"
         const val FOV = 45f
+
+        /** The longest the intro waits for loaded tiles to reach the GPU before it turns anyway. */
+        private const val INTRO_HOLD_NS = 1_500_000_000L
+
+        /** The view-projection matrix of [cam] in a view of [aspect], clip planes as frames set them. */
+        fun projection(engine: TerrainEngine, cam: GlobeCamera, e: Float, aspect: Float): FloatArray {
+            val eye = cam.eye
+            val eyeGeo = Wgs84.geodetic(eye)
+            val alt = eyeGeo[2]
+            val d = cam.distance
+            // Clip planes: near close to the ground ahead, far beyond the horizon.
+            val aboveGround = max(alt - engine.groundAt(eyeGeo[0], eyeGeo[1]) * e, 1.0)
+            val near = min(aboveGround * 0.3, d * 0.1).coerceIn(0.5, 500_000.0)
+            val horizon = sqrt(max(alt, 0.0) * (2 * Wgs84.R + max(alt, 0.0))) + sqrt(2 * Wgs84.R * MAX_TERRAIN_M * e)
+            val far = max((horizon + d) * 1.2, near * 100)
+            val proj = Mat4.perspective(FOV.toDouble(), aspect.toDouble(), near, far)
+            return Mat4.multiply(proj, cam.viewMatrix())
+        }
+
+        /** What a view needs, each with its priority (lower first): its tiles, buildings and names. */
+        class Wishes(val sel: TileSelection, val tiles: Map<TileId, Double>, val buildings: Map<TileId, Double>, val labels: Map<TileId, Double>)
+
+        /** What the view at [eye] (around [target], [d] metres away) needs: coarse tiles first, then nearest. */
+        fun wishes(engine: TerrainEngine, eye: Vec3, viewProj: FloatArray, target: Vec3, d: Double, e: Float, buildingsOn: Boolean, previous: TileSelection?): Wishes {
+            val sel = GlobeTileSelector.select(eye, viewProj, engine.textures.maxZoom, maxHeight = (MAX_TERRAIN_M * e).toDouble(), previous = previous)
+            val tiles = HashMap<TileId, Double>()
+            for (t in sel.nodes) tiles[t] = t.z * 1e9 + distTo(t, eye)
+            val buildings = HashMap<TileId, Double>()
+            if (buildingsOn && engine.hasBuildings && d < 4_000) {
+                for (l in sel.leaves) {
+                    if (l.z < 16) continue
+                    val b = l.ancestorAt(16)
+                    val dd = distTo(b, target)
+                    if (dd < 2_500.0) buildings[b] = dd
+                }
+            }
+            val labels = LinkedHashMap<TileId, Double>()
+            for (l in sel.leaves) {
+                val t = if (l.z >= Label3D.MAP_LABELS_FROM_ZOOM) l.ancestorAt(min(l.z, LABEL_ZOOM)) else l
+                labels[t] = min(labels[t] ?: Double.MAX_VALUE, distTo(t, eye))
+            }
+            return Wishes(sel, tiles, buildings, labels)
+        }
+
+        /** What the view [c] needs (where the intro turns to), for a view of [aspect]. */
+        fun introWishes(engine: TerrainEngine, c: Camera3D, e: Float, aspect: Float, buildingsOn: Boolean): Wishes {
+            val d = c.distance.coerceIn(MIN_DISTANCE, MAX_DISTANCE).toDouble()
+            val cam = GlobeCamera(c.lat, c.lon, engine.groundAt(c.lat, c.lon).toDouble() * e, d, c.yaw.toDouble(), c.pitch.toDouble())
+            return wishes(engine, cam.eye, projection(engine, cam, e, aspect), cam.target, d, e, buildingsOn, null)
+        }
+
+        private fun distTo(t: TileId, p: Vec3): Double {
+            val c = Wgs84.ecef((t.north + t.south) / 2, (t.west + t.east) / 2, 0.0)
+            return (c - p).length
+        }
         const val MIN_DISTANCE = 150f
 
         /** Far enough to see the whole planet. */

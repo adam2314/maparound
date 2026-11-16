@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DownloadForOffline
 import androidx.compose.material.icons.filled.FiberManualRecord
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.LocationSearching
@@ -90,6 +91,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
@@ -114,6 +116,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -158,6 +161,7 @@ import app.maparound.routing.RouteResult
 import app.maparound.sensors.GeoFix
 import app.maparound.sensors.LocalDeviceSensors
 import app.maparound.share.Incoming
+import app.maparound.share.RouteText
 import app.maparound.shared.ioDispatcher
 import app.maparound.shared.util.Xml
 import app.maparound.shared.util.nowMillis
@@ -186,7 +190,14 @@ fun MapScreen(
     mapView: @Composable (MapSurface, Modifier) -> Unit,
     /** The platform's 3D view, for the 3D button. */
     view3d: @Composable (Scene3DViewArgs) -> Unit,
+    /**
+     * The map embedded in another website (the web app's `?embed`): the map with its layers and 3D,
+     * what it was given (a pin, a track) and a button that opens it in MapAround ([openFull]); no
+     * search, planning, tools, recording or position. Null in the app.
+     */
+    openFull: (() -> Unit)? = null,
 ) {
+    val embedded = openFull != null
     val prefs = LocalPrefs.current
     val offline = LocalOfflineData.current
     val platform = LocalPlatform.current
@@ -373,7 +384,7 @@ fun MapScreen(
 
     // ---- map tools (azimuth, line of sight, viewshed, coordinates) --------------------------------
     val tools by ToolsSession.state.collectAsState()
-    LaunchedEffect(tools.active, tools.mode, tools.a, tools.b, tools.los, tools.viewshed) {
+    LaunchedEffect(tools.active, tools.mode, tools.a, tools.b, tools.los, tools.viewshed, tools.next) {
         if (!tools.active) {
             controller.setTools(null, null, emptyList(), null, null)
             return@LaunchedEffect
@@ -404,7 +415,9 @@ fun MapScreen(
             else -> listOf(ToolLine(Geodesy.greatCircle(a, b), null))
         }
         val ring = if (tools.mode == ToolsSession.Mode.VIEW && a != null) a to (tools.viewshed?.radiusM ?: tools.radiusM) else null
-        controller.setTools(a, b, lines, ring, tools.viewshed?.takeIf { tools.mode == ToolsSession.Mode.VIEW })
+        // The point the next tap moves, ringed (where there are two to choose from).
+        val selected = if (!tools.usesB) null else if (tools.next == ToolsSession.Slot.A) a else tools.b
+        controller.setTools(a, b, lines, ring, tools.viewshed?.takeIf { tools.mode == ToolsSession.Mode.VIEW }, selected)
     }
 
     // ---- party ------------------------------------------------------------------------------------
@@ -416,7 +429,44 @@ fun MapScreen(
         }
     }
     var selectedParty by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(party, partyClock) { controller.setPartyMarkers(partyMapMarkers(party, partyClock)) }
+    // A member's history replayed: their marker goes along their way, drawn in their colour.
+    val replay by PartyReplay.state.collectAsState()
+    LaunchedEffect(party, partyClock, replay) { controller.setPartyMarkers(partyMapMarkers(party, partyClock, replay)) }
+    LaunchedEffect(replay?.playing) {
+        var last = nowMillis()
+        while (PartyReplay.state.value?.playing == true) {
+            delay(REPLAY_FRAME_MS)
+            val now = nowMillis()
+            PartyReplay.advance(now - last)
+            last = now
+        }
+    }
+    val replayPoints = replay?.points
+    LaunchedEffect(replay?.memberId, replayPoints) {
+        if (replayPoints == null) {
+            controller.setPartyTrail(emptyList(), emptyList(), 0)
+            return@LaunchedEffect
+        }
+        // The whole way in view, the planner and tools out of the way.
+        PlannerSession.close()
+        ToolsSession.close()
+        selectedParty = null
+        // Above the replay's panel (about the bottom third): the area fitted reaches further south.
+        val way = replayPoints.map { GeoPoint(it.position.lat, it.position.lon) }
+        val south = way.minOf { it.lat }
+        val below = GeoPoint(south - (way.maxOf { it.lat } - south) * 0.6, way.first().lon)
+        controller.showPoints(if (way.size > 1) way + below else way)
+    }
+    // What's been gone: redrawn when the moment passes a position, in steps on long histories
+    // (each time the whole line goes to the map).
+    val replayStep = replay?.let { r -> maxOf(1, r.points.size / REPLAY_TRAIL_UPDATES) } ?: 1
+    val replayDone = replay?.let { r -> if (r.t >= r.end) r.points.size else r.index / replayStep * replayStep + 1 }
+    LaunchedEffect(replayPoints, replayDone) {
+        val r = PartyReplay.state.value ?: return@LaunchedEffect
+        val full = r.points.map { GeoPoint(it.position.lat, it.position.lon) }
+        controller.setPartyTrail(full, full.take(replayDone ?: 0), r.color)
+    }
+    DisposableEffect(Unit) { onDispose { PartyReplay.close() } }
 
     // ---- saved places --------------------------------------------------------------------------------
     val places by placesRepo.places.collectAsState()
@@ -510,9 +560,10 @@ fun MapScreen(
     // Back closes what's open over the map, the top one first (search, the 3D view, sheets and
     // dialogs close themselves); with nothing open it leaves the app. Not while navigating.
     val somethingOpen = pin != null || selectedPlace != null || selectedParty != null || showMe ||
-        dataSelected != null || dataView || tools.active || (planner.active && !nav.active)
+        dataSelected != null || dataView || tools.active || (planner.active && !nav.active) || replay != null
     PlatformBackHandler(enabled = somethingOpen) {
         when {
+            replay != null -> PartyReplay.close()
             pin != null -> pin = null
             selectedPlace != null -> selectedPlace = null
             selectedParty != null -> selectedParty = null
@@ -526,13 +577,40 @@ fun MapScreen(
     val haptic = LocalHapticFeedback.current
     // (lat, lon, label) for the share sheet
     var shareTarget by remember { mutableStateOf<Triple<Double, Double, String?>?>(null) }
+    // A map tool's point being dragged, and how far the finger is from it (so it doesn't jump).
+    val toolDrag = remember { ToolDrag() }
     SideEffect {
         controller.listener = object : MapListener {
+            /** The tool's point under the finger, if any: within a fingertip's reach on screen. */
+            fun toolPointAt(p: GeoPoint): ToolsSession.Slot? =
+                if (!ToolsSession.state.value.active || NavigationSession.state.value.active) null
+                else ToolsSession.pointNear(p, controller.metresPerDp() * TOOL_GRAB_DP)
+
+            /** Picks the tool's point under [p] to drag; false when there's none. */
+            fun grabTool(p: GeoPoint): Boolean {
+                val slot = toolPointAt(p) ?: return false
+                val at = ToolsSession.pointOf(slot) ?: return false
+                ToolsSession.select(slot)
+                toolDrag.slot = slot
+                toolDrag.dLat = at.lat - p.lat
+                toolDrag.dLon = at.lon - p.lon
+                toolDrag.moved = false
+                return true
+            }
+
+            override fun onPress(point: GeoPoint): Boolean = grabTool(point)
+
             override fun onUserGesture() {
                 follow = false
             }
 
             override fun onLongPress(point: GeoPoint) {
+                // A tool's point (where the map didn't give it to us at the press): picked up to drag.
+                if (toolDrag.slot == null && grabTool(point)) {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    return
+                }
+                if (toolDrag.slot != null) return
                 // In the planner, a long press on a stop or the line picks it up to drag.
                 val planning = PlannerSession.state.value.active && !NavigationSession.state.value.active &&
                     !ToolsSession.state.value.active
@@ -544,9 +622,18 @@ fun MapScreen(
                 pinLabel = null
             }
 
-            override fun onLongPressMove(point: GeoPoint) = PlannerSession.drag(point)
+            override fun onLongPressMove(point: GeoPoint) {
+                val slot = toolDrag.slot ?: return PlannerSession.drag(point)
+                toolDrag.moved = true
+                ToolsSession.drag(slot, GeoPoint(point.lat + toolDrag.dLat, point.lon + toolDrag.dLon))
+            }
 
-            override fun onLongPressEnd(point: GeoPoint) = PlannerSession.drop(point)
+            override fun onLongPressEnd(point: GeoPoint) {
+                val slot = toolDrag.slot ?: return PlannerSession.drop(point)
+                // Lifted without moving: just picked (the next tap moves it).
+                if (toolDrag.moved) ToolsSession.drag(slot, GeoPoint(point.lat + toolDrag.dLat, point.lon + toolDrag.dLon))
+                toolDrag.slot = null
+            }
 
             override fun onMyLocationTap() {
                 showMe = true
@@ -554,7 +641,8 @@ fun MapScreen(
 
             override fun onTap(point: GeoPoint): Boolean = when {
                 ToolsSession.state.value.active -> {
-                    ToolsSession.tap(point)
+                    // On a point: picks it; elsewhere: moves the picked one there.
+                    toolPointAt(point)?.let(ToolsSession::select) ?: ToolsSession.tap(point)
                     true
                 }
                 PlannerSession.state.value.active && !NavigationSession.state.value.active -> {
@@ -630,6 +718,10 @@ fun MapScreen(
     LaunchedEffect(pin) { controller.setPin(pin) }
 
     // ---- things other apps shared with us ---------------------------------------------------------
+    // The embedded map's track: its name, length and climb over the map (it isn't kept anywhere),
+    // and only the last one given (another link in its address replaces it).
+    var embedTitle by remember { mutableStateOf<String?>(null) }
+    fun showOnly(id: String) = tracksRepo.visible.value.filter { it != id }.forEach { tracksRepo.setVisible(it, false) }
     val incoming by Incoming.pending.collectAsState()
     // consume() changes `incoming`, which restarts this effect and cancels it: anything that waits
     // (a snackbar) goes in the screen's scope.
@@ -653,7 +745,12 @@ fun MapScreen(
                 Incoming.consume()
                 follow = false
                 controller.showPoints(i.saved.track.points)
-                scope.launch { snackbar.showSnackbar(T.map.importedTrack(i.saved.track.name, i.placesAdded)) }
+                if (embedded) {
+                    showOnly(i.saved.id)
+                    embedTitle = RouteText.summary(i.saved.track)
+                } else {
+                    scope.launch { snackbar.showSnackbar(T.map.importedTrack(i.saved.track.name, i.placesAdded)) }
+                }
             }
             is Incoming.Item.LinkedTrack -> {
                 Incoming.consume()
@@ -662,20 +759,27 @@ fun MapScreen(
                 val name = link.name ?: T.map.sharedTrackName
                 // Opened before (the same link again): shown, not saved twice.
                 val known = tracksRepo.tracks.value.firstOrNull { it.track.name == name && it.track.points == link.points }
-                if (known != null) {
+                val track = known?.track ?: app.maparound.tracks.Track(name, app.maparound.tracks.TrackKind.IMPORTED, link.points, nowMillis())
+                val id = if (known != null) {
                     tracksRepo.setVisible(known.id, true)
+                    known.id
                 } else {
-                    tracksRepo.save(app.maparound.tracks.Track(name, app.maparound.tracks.TrackKind.IMPORTED, link.points, nowMillis()))
+                    tracksRepo.save(track).id
                 }
                 controller.showPoints(link.points)
-                scope.launch { snackbar.showSnackbar(if (known != null) T.map.sharedTrackShown(name) else T.map.importedTrack(name, 0)) }
+                if (embedded) {
+                    showOnly(id)
+                    embedTitle = RouteText.summary(track)
+                } else {
+                    scope.launch { snackbar.showSnackbar(if (known != null) T.map.sharedTrackShown(name) else T.map.importedTrack(name, 0)) }
+                }
             }
             is Incoming.Item.Places -> {
                 Incoming.consume()
                 follow = false
                 prefs.setPlacesOnMap(true)
                 controller.showPoints(i.points)
-                scope.launch { snackbar.showSnackbar(if (i.added == 0) T.map.placesAlreadySaved else T.map.placesAdded(i.added)) }
+                if (!embedded) scope.launch { snackbar.showSnackbar(if (i.added == 0) T.map.placesAlreadySaved else T.map.placesAdded(i.added)) }
             }
             else -> Unit
         }
@@ -684,6 +788,13 @@ fun MapScreen(
 
     var showLayers by remember { mutableStateOf(false) }
     var showLegend by remember { mutableStateOf(false) }
+    // The drawers over the map (tools, planner, a replayed history) folded away; open again each time they open.
+    var toolsFolded by rememberSaveable { mutableStateOf(false) }
+    var plannerFolded by rememberSaveable { mutableStateOf(false) }
+    var replayFolded by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(tools.active) { if (tools.active) toolsFolded = false }
+    LaunchedEffect(planner.active) { if (planner.active) plannerFolded = false }
+    LaunchedEffect(replay?.memberId) { if (replay != null) replayFolded = false }
     var scene3d by remember { mutableStateOf<app.maparound.three.Camera3D?>(null) }
     var scene3dControl by remember { mutableStateOf<Scene3DControl?>(null) }
     var searching by remember { mutableStateOf(false) }
@@ -708,13 +819,19 @@ fun MapScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.End,
         ) {
-            SmallFloatingActionButton(onClick = { searching = true }) {
-                Icon(Icons.Filled.Search, contentDescription = T.map.searchPlaces)
+            if (openFull != null) {
+                SmallFloatingActionButton(onClick = openFull) {
+                    Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = T.map.openMapInMapAround)
+                }
+            } else {
+                SmallFloatingActionButton(onClick = { searching = true }) {
+                    Icon(Icons.Filled.Search, contentDescription = T.map.searchPlaces)
+                }
             }
             SmallFloatingActionButton(onClick = { showLayers = true }) {
                 Icon(Icons.Filled.Layers, contentDescription = T.map.mapLayers)
             }
-            if (!nav.active) SmallFloatingActionButton(
+            if (!nav.active && !embedded) SmallFloatingActionButton(
                 onClick = {
                     if (in3d) return@SmallFloatingActionButton
                     if (planner.active) {
@@ -736,7 +853,7 @@ fun MapScreen(
                 contentColor = if (relief) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
             ) {
                 Icon(Icons.Filled.Terrain, contentDescription = T.map.view3dSettings)
-            } else if (!nav.active) SmallFloatingActionButton(
+            } else if (!nav.active && !embedded) SmallFloatingActionButton(
                 onClick = {
                     if (tools.active) {
                         ToolsSession.close()
@@ -822,6 +939,23 @@ fun MapScreen(
             bottomLimit = bottomButtonsTop,
         )
 
+        if (embedded) embedTitle?.let { title ->
+            Surface(
+                Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 12.dp, end = 64.dp),
+                shape = RoundedCornerShape(16.dp),
+                tonalElevation = 3.dp,
+                shadowElevation = 3.dp,
+            ) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
+        }
+
         if (nav.active) {
             // Left of the button column on the right.
             Column(
@@ -903,13 +1037,16 @@ fun MapScreen(
                 )
             }
             selectedParty?.let { key ->
-                PartyMarkerCard(key, party, location, onClose = { selectedParty = null }, onShare = { la, lo, title -> shareTarget = Triple(la, lo, title) }, onRoute = { target ->
+                PartyMarkerCard(key, party, location, speedUnit, onClose = { selectedParty = null }, onShare = { la, lo, title -> shareTarget = Triple(la, lo, title) }, onRoute = { target ->
                     selectedParty = null
                     ToolsSession.close()
                     PlannerSession.close()
                     PlannerSession.open()
                     location?.let { PlannerSession.add(GeoPoint(it.lat, it.lon)) }
                     PlannerSession.add(target)
+                }, onHistory = { member ->
+                    selectedParty = null
+                    PartyReplay.open(member, partyControl.history(member.id))
                 })
             }
             pin?.let { p ->
@@ -934,21 +1071,22 @@ fun MapScreen(
                             }
                         }
                     },
-                    onRoute = {
+                    // Embedded: no planner, places or tools to take it to.
+                    onRoute = if (embedded) null else ({
                         pin = null
                         ToolsSession.close()
                         PlannerSession.close()
                         PlannerSession.open()
                         location?.let { PlannerSession.add(GeoPoint(it.lat, it.lon)) }
                         PlannerSession.add(p)
-                    },
+                    }),
                     onShare = { shareTarget = Triple(p.lat, p.lon, pinLabel) },
-                    onSavePlace = { newPlace(p.lat, p.lon, pinLabel) },
-                    onTool = { mode ->
+                    onSavePlace = if (embedded) null else ({ newPlace(p.lat, p.lon, pinLabel) }),
+                    onTool = if (embedded) null else ({ mode ->
                         pin = null
                         PlannerSession.close()
                         ToolsSession.open(mode, p)
-                    },
+                    }),
                     onMeetHere = if (party.active && !partyControl.watchOnly) ({
                         partyControl.setMeeting(p.lat, p.lon, pinLabel ?: T.map.meetingPoint)
                         pin = null
@@ -1015,12 +1153,12 @@ fun MapScreen(
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (!recorder.recording) {
+            if (!recorder.recording && !embedded) {
                 SmallFloatingActionButton(onClick = startRecording) {
                     Icon(Icons.Filled.FiberManualRecord, contentDescription = T.map.recordTrack, tint = Color(0xFFD50000))
                 }
             }
-            FloatingActionButton(
+            if (!embedded) FloatingActionButton(
                 onClick = {
                     if (!hasLocation) {
                         requestLocation()
@@ -1054,6 +1192,8 @@ fun MapScreen(
                 },
                 onStop = { NavigationSession.stop() },
             )
+        } else if (replay != null) {
+            PartyReplayPanel(replay!!, speedUnit, folded = replayFolded, onFold = { replayFolded = it })
         } else if (planner.active) {
             PlannerPanel(
                 planner,
@@ -1072,6 +1212,8 @@ fun MapScreen(
                     }
                 },
                 onClose = { PlannerSession.close() },
+                folded = plannerFolded,
+                onFold = { plannerFolded = it },
             )
         }
         if (tools.active) {
@@ -1085,6 +1227,8 @@ fun MapScreen(
                 },
                 onShare = { p -> shareTarget = Triple(p.lat, p.lon, null) },
                 onGetTerrain = onOpenOffline,
+                folded = toolsFolded,
+                onFold = { toolsFolded = it },
             )
         }
         }
@@ -1259,8 +1403,15 @@ fun placeMapMarkers(places: List<app.maparound.places.Place>): List<PlaceMarker>
     places.map { PlaceMarker(it.id, it.lat, it.lon, it.name, it.category.emoji, it.category.argb.toInt()) }
 
 /** Party members, the meeting point and other radios as map markers (phone and car screens). */
-fun partyMapMarkers(party: PartyState, now: Long): List<PartyMarker> = buildList {
+fun partyMapMarkers(party: PartyState, now: Long, replay: PartyReplay.State? = null): List<PartyMarker> = buildList {
+    replay?.let { r ->
+        // Where they were at the moment shown, as they were (an SOS then: the SOS marker).
+        val at = r.where
+        val sos = r.points[r.index].position.sos
+        add(PartyMarker("m${r.memberId}", at.lat, at.lon, r.name, r.color, if (sos) PartyMarker.Kind.SOS else PartyMarker.Kind.MEMBER, false, r.icon))
+    }
     party.members.forEach { m ->
+        if (m.id == replay?.memberId) return@forEach
         m.position?.let { p ->
             add(PartyMarker(
                 "m${m.id}", p.lat, p.lon, m.displayName, m.color,
@@ -1288,9 +1439,12 @@ private fun PartyMarkerCard(
     key: String,
     party: PartyState,
     myLocation: GeoFix?,
+    speedUnit: app.maparound.sensors.SpeedUnit,
     onClose: () -> Unit,
     onShare: (Double, Double, String) -> Unit,
     onRoute: (GeoPoint) -> Unit,
+    /** Replays the member's way so far. */
+    onHistory: (app.maparound.party.Member) -> Unit,
 ) {
     val member = party.members.firstOrNull { "m${it.id}" == key }
     val radio = party.meshNodes.firstOrNull { "r${it.num}" == key }
@@ -1315,13 +1469,25 @@ private fun PartyMarkerCard(
                 val to = GeoPoint(lat, lon)
                 parts += T.map.distanceToward(Fmt.distance(Geo.distance(from, to).toFloat()), Fmt.cardinal(Geodesy.bearing(from, to).toFloat()))
             }
-            if (at > 0) parts += Fmt.relativeTime(at)
-            member?.position?.speedKmh?.takeIf { it >= 3 }?.let { parts += "$it ${T.common.unitKmh}" }
-            member?.position?.batteryPct?.let { parts += T.map.battery(it) }
+            // When: how long ago, and the time it was taken (theirs).
+            if (at > 0) parts += Fmt.relativeTime(at) + " (" + Fmt.moment(at, seconds = true) + ")"
             member?.let { parts += T.map.via(it.heard.keys.joinToString(" + ") { v -> v.label }) }
             if (member?.sos == true && member.sosText.isNotBlank()) parts.add(0, member.sosText)
             Text(parts.joinToString(" · "), style = MaterialTheme.typography.bodyMedium)
-            Row {
+            // Speed and heading, height, how exact, battery.
+            memberAt?.let { p ->
+                partyPositionDetails(p, speedUnit).takeIf { it.isNotEmpty() }?.let { details ->
+                    Text(details.joinToString(" · "), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Row(Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState())) {
+                if (member != null && (party.historyCounts[member.id] ?: 0) > 0) {
+                    TextButton(onClick = { onHistory(member) }) {
+                        Icon(Icons.Filled.History, contentDescription = null)
+                        Spacer(Modifier.width(6.dp))
+                        Text(T.party.history)
+                    }
+                }
                 TextButton(onClick = { onRoute(GeoPoint(lat, lon)) }) {
                     Icon(Icons.Filled.Route, contentDescription = null)
                     Spacer(Modifier.width(6.dp))
@@ -1338,6 +1504,23 @@ private fun PartyMarkerCard(
 }
 
 private data class Quad(val a: String, val b: Double, val c: Double, val d: Long)
+
+/** A map tool's point being dragged: which, and the finger's offset from it (degrees). */
+private class ToolDrag {
+    var slot: ToolsSession.Slot? = null
+    var dLat = 0.0
+    var dLon = 0.0
+    var moved = false
+}
+
+/** How near (dp on screen) a press has to be to a tool's point to pick it up. */
+private const val TOOL_GRAB_DP = 26.0
+
+/** The replay's frames, ms. */
+private const val REPLAY_FRAME_MS = 40L
+
+/** At most this many redraws of a replayed way's line (it's sent whole each time). */
+private const val REPLAY_TRAIL_UPDATES = 300
 
 @Composable
 private fun PinCard(
@@ -1864,14 +2047,38 @@ private fun PlannerPanel(
     onShare: () -> Unit,
     onNavigate: () -> Unit,
     onClose: () -> Unit,
+    /** Folded away to one line, so the map shows ([MapDrawer]). */
+    folded: Boolean,
+    onFold: (Boolean) -> Unit,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-        tonalElevation = 3.dp,
-        shadowElevation = 8.dp,
+    MapDrawer(
+        folded, onFold,
+        summary = {
+            // The profile, and the route's length, time and climb (or what to tap).
+            val r = state.route
+            Text(state.profile.label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(10.dp))
+            Text(
+                when {
+                    state.waypoints.isEmpty() -> T.map.plannerTapStart
+                    state.error != null -> state.error.orEmpty()
+                    r != null -> listOfNotNull(
+                        Fmt.distance(r.stats.distanceM.toFloat()),
+                        r.durationS?.let { Fmt.duration(it) },
+                        r.stats.ascentM?.let { "↑ ${it.roundToInt()} ${T.common.unitM}" },
+                    ).joinToString(" · ")
+                    else -> T.map.plannerTapNext
+                },
+                Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            if (state.busy) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+            IconButton(onClick = onNavigate, enabled = r != null && !state.busy) {
+                Icon(Icons.Filled.Navigation, contentDescription = T.common.start)
+            }
+            IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = T.map.closePlanner) }
+        },
     ) {
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 SingleChoiceSegmentedButtonRow(Modifier.weight(1f)) {
                     RouteProfile.entries.forEachIndexed { i, p ->

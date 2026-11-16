@@ -65,6 +65,9 @@ class AndroidNativeMap(
 
     private var longPressing = false
 
+    /** The press was taken to drag a point ([NativeMapCallbacks.onPress]): no tap or long press from it. */
+    private var grabbed = false
+
     // The app's language decides the side (the phone's may be another): the buttons are mirrored with it.
     private val rtl = app.maparound.i18n.I18n.rtl
     private val side = if (rtl) Gravity.RIGHT else Gravity.LEFT
@@ -95,11 +98,13 @@ class AndroidNativeMap(
                 if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) callbacks?.onUserGesture()
             }
             m.addOnMapClickListener { p ->
+                if (grabbed) return@addOnMapClickListener true
                 val screen = m.projection.toScreenLocation(p)
                 callbacks?.onTap(p.latitude, p.longitude, tapped(m, screen))
                 true
             }
             m.addOnMapLongClickListener { p ->
+                if (grabbed) return@addOnMapLongClickListener true
                 // Until the finger is lifted, moves go to the screen (dragging a route stop), not the map.
                 longPressing = true
                 m.uiSettings.isScrollGesturesEnabled = false
@@ -119,6 +124,16 @@ class AndroidNativeMap(
     @SuppressLint("ClickableViewAccessibility")
     private fun trackLongPress() {
         view.setOnTouchListener { _, ev ->
+            if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
+                // A press on something the screen drags (a tool's point): the map stays still.
+                grabbed = false
+                val p = map?.projection?.fromScreenLocation(PointF(ev.x, ev.y))
+                if (p != null && callbacks?.onPress(p.latitude, p.longitude) == true) {
+                    grabbed = true
+                    longPressing = true
+                    map?.uiSettings?.isScrollGesturesEnabled = false
+                }
+            }
             if (longPressing) {
                 val p = map?.projection?.fromScreenLocation(PointF(ev.x, ev.y))
                 when (ev.actionMasked) {

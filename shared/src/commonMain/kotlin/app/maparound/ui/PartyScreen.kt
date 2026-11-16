@@ -36,6 +36,12 @@ import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Route
+import androidx.compose.material.icons.filled.History
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import app.maparound.data.LocalPrefs
+import app.maparound.sensors.SpeedUnit
 import androidx.compose.material.icons.filled.Router
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
@@ -175,6 +181,11 @@ fun PartyScreen(
                     if (me != null) PlannerSession.add(GeoPoint(me.lat, me.lon))
                     PlannerSession.add(p)
                     MapFocus.show(listOfNotNull(me?.let { GeoPoint(it.lat, it.lon) }, p))
+                    onShowMap()
+                },
+                // Their way so far, replayed on the map.
+                onHistory = { m ->
+                    PartyReplay.open(m, party.history(m.id))
                     onShowMap()
                 },
             )
@@ -350,8 +361,10 @@ private fun InParty(
     onLeave: () -> Unit,
     onShowMember: (GeoPoint) -> Unit,
     onRouteTo: (GeoPoint) -> Unit,
+    onHistory: (Member) -> Unit,
 ) {
     val party = LocalParty.current
+    val speedUnit by LocalPrefs.current.speedUnit.collectAsState()
     // Re-render every 10 s so "x min ago" stays current.
     val now by produceState(nowMillis()) {
         while (true) {
@@ -423,7 +436,9 @@ private fun InParty(
                 modifier = Modifier.padding(top = 6.dp),
             )
         }
-        items(s.members, key = { it.id }) { m -> MemberRow(m, s.myPosition, now, onShowMember, onRouteTo) }
+        items(s.members, key = { it.id }) { m ->
+            MemberRow(m, s.myPosition, now, speedUnit, s.historyCounts[m.id] ?: 0, onShowMember, onRouteTo, onHistory)
+        }
         s.meeting?.let { meet ->
             item {
                 ListItem(
@@ -644,7 +659,17 @@ private fun StatusLine(icon: androidx.compose.ui.graphics.vector.ImageVector, ti
 }
 
 @Composable
-private fun MemberRow(m: Member, me: GeoFix?, now: Long, onShow: (GeoPoint) -> Unit, onRoute: (GeoPoint) -> Unit) {
+private fun MemberRow(
+    m: Member,
+    me: GeoFix?,
+    now: Long,
+    speedUnit: SpeedUnit,
+    /** How many of their positions are in their history. */
+    historyCount: Int,
+    onShow: (GeoPoint) -> Unit,
+    onRoute: (GeoPoint) -> Unit,
+    onHistory: (Member) -> Unit,
+) {
     val p = m.position
     ListItem(
         modifier = Modifier.clickable(enabled = p != null) { p?.let { onShow(GeoPoint(it.lat, it.lon)) } },
@@ -657,20 +682,29 @@ private fun MemberRow(m: Member, me: GeoFix?, now: Long, onShow: (GeoPoint) -> U
             )
         },
         supportingContent = {
-            val parts = mutableListOf<String>()
-            if (m.sos && m.sosText.isNotBlank()) parts += m.sosText
-            p?.let { pos ->
-                distanceText(me, pos.lat, pos.lon)?.let(parts::add)
-                pos.speedKmh?.takeIf { it >= 3 }?.let { parts += "$it ${T.common.unitKmh}" }
-                pos.batteryPct?.let { parts += T.party.battery(it) }
-            } ?: parts.add(T.party.noPositionYet)
-            ago(now, m.positionAt.takeIf { it > 0 } ?: m.lastHeard)?.let(parts::add)
-            parts += m.heard.keys.joinToString("+") { it.label }
-            Text(parts.joinToString(" · "), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Column {
+                // Where, when (how long ago, and the time it was taken) and how it came.
+                val parts = mutableListOf<String>()
+                if (m.sos && m.sosText.isNotBlank()) parts += m.sosText
+                p?.let { pos -> distanceText(me, pos.lat, pos.lon)?.let(parts::add) } ?: parts.add(T.party.noPositionYet)
+                val at = m.positionAt.takeIf { it > 0 } ?: m.lastHeard
+                ago(now, at)?.let { parts += "$it (${Fmt.moment(at, seconds = true, nowMs = now)})" }
+                parts += m.heard.keys.joinToString("+") { it.label }
+                Text(parts.joinToString(" · "), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                // Speed and heading, height, how exact, battery.
+                p?.let { partyPositionDetails(it, speedUnit) }?.takeIf { it.isNotEmpty() }?.let { details ->
+                    Text(details.joinToString(" · "), maxLines = 2, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
         },
         trailingContent = {
-            if (p != null) {
-                IconButton(onClick = { onRoute(GeoPoint(p.lat, p.lon)) }) { Icon(Icons.Filled.Route, contentDescription = T.party.routeTo(m.displayName)) }
+            Row {
+                IconButton(onClick = { onHistory(m) }, enabled = historyCount > 0) {
+                    Icon(Icons.Filled.History, contentDescription = T.party.history)
+                }
+                if (p != null) {
+                    IconButton(onClick = { onRoute(GeoPoint(p.lat, p.lon)) }) { Icon(Icons.Filled.Route, contentDescription = T.party.routeTo(m.displayName)) }
+                }
             }
         },
     )
@@ -690,8 +724,16 @@ private fun Chat(s: PartyState) {
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
+            // In the order they were written, each with its time (the writer's clock).
+            val muted = MaterialTheme.colorScheme.onSurfaceVariant
             s.chat.takeLast(8).forEach { line ->
-                Text("${names[line.from] ?: "?"}: ${line.text}", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    buildAnnotatedString {
+                        withStyle(SpanStyle(color = muted)) { append(ltr(Fmt.moment(line.at))) }
+                        append("  ${names[line.from] ?: "?"}: ${line.text}")
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
             if (!party.watchOnly) {
                 HorizontalDivider(Modifier.padding(vertical = 4.dp))

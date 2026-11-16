@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.Edit
@@ -65,6 +66,9 @@ import app.maparound.routing.MapFocus
 import app.maparound.routing.PlannerSession
 import app.maparound.routing.RouteProfile
 import app.maparound.share.RouteText
+import app.maparound.share.TrackLink
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import app.maparound.tracks.LocalTracks
 import app.maparound.tracks.SavedTrack
 import app.maparound.tracks.TrackKind
@@ -111,6 +115,14 @@ fun RoutesScreen(
     }
 
     fun share(t: SavedTrack) = platform.shareRoute(t.track, repo.pathOf(t.id))
+
+    // The code that puts it on a map in a web page, copied to paste there.
+    val clipboard = LocalClipboardManager.current
+    fun embed(t: SavedTrack) {
+        val code = TrackLink.embedCode(t.track) ?: return
+        clipboard.setText(AnnotatedString(code))
+        scope.launch { snackbar.showSnackbar(T.library.embedCodeCopied) }
+    }
 
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
@@ -184,6 +196,7 @@ fun RoutesScreen(
                     onToggle = { repo.setVisible(t.id, t.id !in visible) },
                     onShowOnMap = { showOnMap(t) },
                     onShare = { share(t) },
+                    onEmbed = { embed(t) },
                     onRename = { renaming = t },
                     onDelete = { deleting = t },
                 )
@@ -255,6 +268,7 @@ private fun TrackRow(
     onToggle: () -> Unit,
     onShowOnMap: () -> Unit,
     onShare: () -> Unit,
+    onEmbed: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -281,6 +295,9 @@ private fun TrackRow(
                         DropdownMenuItem(text = { Text(T.library.shareGpxAndLinks) }, leadingIcon = { Icon(Icons.Filled.Share, null) }, onClick = { menu = false; onShare() })
                         if (RouteText.hasLink(t.track)) {
                             DropdownMenuItem(text = { Text(T.library.shareLinkOnly) }, leadingIcon = { Icon(Icons.Filled.Link, null) }, onClick = { menu = false; platform.shareRouteLink(t.track) })
+                        }
+                        if (t.track.points.size >= 2) {
+                            DropdownMenuItem(text = { Text(T.library.embedInWebsite) }, leadingIcon = { Icon(Icons.Filled.Code, null) }, onClick = { menu = false; onEmbed() })
                         }
                         DropdownMenuItem(text = { Text(T.common.rename) }, leadingIcon = { Icon(Icons.Filled.Edit, null) }, onClick = { menu = false; onRename() })
                         DropdownMenuItem(text = { Text(T.common.delete) }, leadingIcon = { Icon(Icons.Filled.Delete, null) }, onClick = { menu = false; onDelete() })

@@ -152,11 +152,13 @@ private suspend fun PointerInputScope.mapGestures(map: WebNativeMap) {
     awaitPointerEventScope {
         while (true) {
             val first = awaitPointerEvent().changes.firstOrNull { it.pressed && !it.previousPressed } ?: continue
-            mlClaim()
             val start = first.position
             val startTime = first.uptimeMillis
             var moved = false
-            var longPress = false
+            // A press on something the screen drags (a tool's point): its drag, as after a long
+            // press, and the map isn't given the press at all.
+            var longPress = css(start).let { (x, y) -> map.lngLat(x, y) }.let { (lat, lon) -> map.callbacks?.onPress(lat, lon) == true }
+            if (!longPress) mlClaim()
 
             gesture@ while (true) {
                 val event = if (!moved && !longPress) {
@@ -186,7 +188,8 @@ private suspend fun PointerInputScope.mapGestures(map: WebNativeMap) {
                     if (!longPress) moved = true
                 }
                 val c = event.changes.first()
-                if (longPress && c.pressed && c.positionChanged()) {
+                // (Its position compared itself: a consumed change says it didn't move.)
+                if (longPress && c.pressed && c.position != c.previousPosition) {
                     val (x, y) = css(c.position)
                     map.lngLat(x, y).let { (lat, lon) -> map.callbacks?.onLongPressMove(lat, lon) }
                 }

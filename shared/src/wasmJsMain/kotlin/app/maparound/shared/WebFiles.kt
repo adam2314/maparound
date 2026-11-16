@@ -67,7 +67,11 @@ object WebFiles {
     private val dirty = LinkedHashSet<String>()
     private var flushPending = false
 
+    /** False: nothing is read from or saved to IndexedDB (the map embedded in another website). */
+    private var saving = true
+
     private fun changed(path: Path) {
+        if (!saving) return
         val p = path.normalized().toString()
         if (p != ROOT && !p.startsWith("$ROOT/")) return
         dirty += p
@@ -94,11 +98,18 @@ object WebFiles {
         }
     }
 
-    /** Reads the saved files into memory. Call once, before anything uses [fs]. */
-    suspend fun load() {
-        idbInit()
+    /**
+     * Reads the saved files into memory. Call once, before anything uses [fs]. Not [keep]: the
+     * files start empty and stay in memory, nothing saved (the embedded map).
+     */
+    suspend fun load(keep: Boolean = true) {
         memory.createDirectories(ROOT.toPath())
         memory.createDirectories("/tmp".toPath())
+        if (!keep) {
+            saving = false
+            return
+        }
+        idbInit()
         suspendCoroutine { cont ->
             idbLoadAll(
                 onEntry = { path, bytes, time, dir ->

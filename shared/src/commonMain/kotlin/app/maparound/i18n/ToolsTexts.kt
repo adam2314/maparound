@@ -21,7 +21,7 @@ open class ToolsTexts {
 
     // ---- azimuth & range ----
     open val measureTapA = "Tap the map to place A, the point you measure from."
-    open val measureTapB = "Now tap B. Further taps move B; tap a chip to move A instead."
+    open val measureTapB = "Now tap B. Further taps move the picked point (tap A or B to pick it); drag a point to move it."
 
     /** Under the distance and azimuth: "Magnetic 123° · 2187 mil · back 303°". */
     open fun magneticMilsBack(magnetic: String, mils: Int, back: String) = "Magnetic $magnetic · $mils mil · back $back"
@@ -56,8 +56,8 @@ open class ToolsTexts {
     open val targetB = "Target at B (m)"
     open val radioTapA = "Tap the map to place A, the first antenna."
     open val sightTapA = "Tap the map to place A, where you stand."
-    open val radioTapB = "Now tap B, the other antenna. Further taps move B."
-    open val sightTapB = "Now tap B, what you want to see. Further taps move B."
+    open val radioTapB = "Now tap B, the other antenna. Further taps move the picked point (tap A or B to pick it); drag a point to move it."
+    open val sightTapB = "Now tap B, what you want to see. Further taps move the picked point (tap A or B to pick it); drag a point to move it."
     open val bInSight = "B is in sight from A"
     open val bHidden = "B is hidden from A"
     open fun clearsBy(m: Int) = "The sight line clears the terrain by at least $m m."
@@ -186,7 +186,7 @@ object ToolsTextsHe : ToolsTexts() {
     override val placeBByBearing = "הצבת B לפי אזימוט ומרחק מ־A"
 
     override val measureTapA = "יש להקיש על המפה כדי להציב את A, הנקודה שממנה מודדים."
-    override val measureTapB = "עכשיו יש להקיש כדי להציב את B. הקשות נוספות מזיזות את B; כדי להזיז את A, יש לבחור קודם ב־A."
+    override val measureTapB = "עכשיו יש להקיש כדי להציב את B. הקשות נוספות מזיזות את הנקודה שנבחרה (הקשה על A או B בוחרת בה); אפשר גם לגרור נקודה."
     override fun magneticMilsBack(magnetic: String, mils: Int, back: String) =
         "מגנטי $magnetic · $mils אלפיות · אזימוט חוזר $back"
     override fun heightChange(from: Int, to: Int, delta: String, angle: String, slant: String?) =
@@ -212,8 +212,8 @@ object ToolsTextsHe : ToolsTexts() {
     override val targetB = "גובה מטרה ב־B (מ׳)"
     override val radioTapA = "יש להקיש על המפה כדי להציב את A, האנטנה הראשונה."
     override val sightTapA = "יש להקיש על המפה כדי להציב את A, המקום שבו עומדים."
-    override val radioTapB = "עכשיו יש להקיש כדי להציב את B, האנטנה השנייה. הקשות נוספות מזיזות את B."
-    override val sightTapB = "עכשיו יש להקיש כדי להציב את B, מה שרוצים לראות. הקשות נוספות מזיזות את B."
+    override val radioTapB = "עכשיו יש להקיש כדי להציב את B, האנטנה השנייה. הקשות נוספות מזיזות את הנקודה שנבחרה (הקשה על A או B בוחרת בה); אפשר גם לגרור נקודה."
+    override val sightTapB = "עכשיו יש להקיש כדי להציב את B, מה שרוצים לראות. הקשות נוספות מזיזות את הנקודה שנבחרה (הקשה על A או B בוחרת בה); אפשר גם לגרור נקודה."
     override val bInSight = "רואים את B מ־A"
     override val bHidden = "לא רואים את B מ־A"
     override fun clearsBy(m: Int) = "קו הראייה עובר לפחות $m מ׳ מעל פני השטח."

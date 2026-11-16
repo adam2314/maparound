@@ -47,6 +47,15 @@ object TrackLink {
         return SharedLinks.WEB_APP + "#track=" + encode(thin(points, MAX_POINTS)) + "&n=" + urlEncode(name.take(80))
     }
 
+    /**
+     * The route or track on a map in another website: an iframe with the web app's map alone
+     * (`?embed`), the line in its address as in [of]. Null when it has no line.
+     */
+    fun embedCode(track: Track): String? {
+        val link = of(track) ?: return null
+        return SharedLinks.iframe(link.replaceFirst("#", "?embed#"), track.name)
+    }
+
     /** The route or track in a link (or a text with one), or null. */
     fun parse(text: String): Shared.Track? {
         val code = PARAM.find(text)?.groupValues?.get(1) ?: return null

@@ -81,6 +81,12 @@ interface MapListener {
     /** The finger was lifted (or the gesture cancelled) after a long press. */
     fun onLongPressEnd(point: GeoPoint) {}
 
+    /**
+     * A finger just went down at [point]: true to drag what's there (a map tool's point) instead
+     * of moving the map; then [onLongPressMove] and [onLongPressEnd] follow, and no tap.
+     */
+    fun onPress(point: GeoPoint): Boolean = false
+
     /** A tap on the map itself; true if the screen used it. */
     fun onTap(point: GeoPoint): Boolean
 
@@ -154,8 +160,15 @@ interface MapSurface : ZoomTarget {
     fun setPlannedRoute(line: List<GeoPoint>, waypoints: List<GeoPoint>)
     fun setShownTracks(tracks: Map<String, List<GeoPoint>>)
     fun setRecording(points: List<GeoPoint>)
-    fun setTools(a: GeoPoint?, b: GeoPoint?, lines: List<ToolLine>, ring: Pair<GeoPoint, Double>?, viewshed: Viewshed?)
+    /** The map tools' points, lines, viewshed ring and image; [selected]: the point a tap moves next (ringed). */
+    fun setTools(a: GeoPoint?, b: GeoPoint?, lines: List<ToolLine>, ring: Pair<GeoPoint, Double>?, viewshed: Viewshed?, selected: GeoPoint? = null)
     fun setPartyMarkers(markers: List<PartyMarker>)
+
+    /**
+     * A party member's way replayed from their history: all of it ([full]) faint, what's been
+     * gone by the moment shown ([done]) in their [color] (ARGB). Empty lists: none.
+     */
+    fun setPartyTrail(full: List<GeoPoint>, done: List<GeoPoint>, color: Int) = Unit
     fun setPlaces(places: List<PlaceMarker>)
     fun updateLocation(fix: GeoFix?)
     fun setPin(point: GeoPoint?)

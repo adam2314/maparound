@@ -90,4 +90,19 @@ class TrackLinkTest {
         assertTrue(RouteText.hasLink(recorded))
         assertTrue(!RouteText.hasRouteLink(recorded))
     }
+
+    @Test
+    fun embedCodeIsAnIframeOfTheEmbeddedMap() {
+        val track = Track("Tom & Jerry's \"loop\"", TrackKind.RECORDED, hike(50), 0L)
+        val code = TrackLink.embedCode(track)!!
+        assertTrue(code, code.startsWith("<iframe src=\"https://adam2314.github.io/maparound/app/?embed#track="))
+        assertTrue(code, code.endsWith("></iframe>"))
+        // HTML-escaped, the address's & too; the browser reads it back as the link.
+        assertTrue(code, "title=\"Tom &amp; Jerry's &quot;loop&quot;\"" in code)
+        val src = code.substringAfter("src=\"").substringBefore('"').replace("&amp;", "&")
+        val back = TrackLink.parse(src)!!
+        assertEquals(track.name, back.name)
+        assertEquals(50, back.points.size)
+        assertNull(TrackLink.embedCode(Track("Dot", TrackKind.RECORDED, hike(1), 0L)))
+    }
 }

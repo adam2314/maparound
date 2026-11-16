@@ -28,6 +28,10 @@ open class LibraryTexts {
     open val shareGpxAndLinks = "Share (GPX + links)"
     open val shareLinkOnly = "Share link only"
 
+    /** Copies the code that puts the route or track on a map in a website (an iframe). */
+    open val embedInWebsite = "Embed in a website"
+    open val embedCodeCopied = "Code copied: paste it into your web page"
+
     // ---- routes & tracks: details and deleting ----
     /** Heights in metres. */
     open fun highestLowest(highest: Int, lowest: Int?) = "Highest $highest m · lowest $lowest m"
@@ -133,6 +137,8 @@ object LibraryTextsHe : LibraryTexts() {
     override val hideOnMap = "הסתרה מהמפה"
     override val shareGpxAndLinks = "שיתוף (GPX + קישורים)"
     override val shareLinkOnly = "שיתוף הקישור בלבד"
+    override val embedInWebsite = "הטמעה באתר"
+    override val embedCodeCopied = "הקוד הועתק: אפשר להדביק אותו בדף האינטרנט"
 
     override fun highestLowest(highest: Int, lowest: Int?) = "גובה מרבי $highest מ׳ · מזערי $lowest מ׳"
     override fun confirmDeleteTrack(name: String) = "למחוק את $name?"

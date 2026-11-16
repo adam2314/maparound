@@ -9,7 +9,19 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import android.content.Context
+import android.util.Log
+import app.maparound.three.introReady
+import app.maparound.three.introCovered
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.viewinterop.AndroidView
+import app.maparound.three.prepareIntro
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -38,6 +50,7 @@ import kotlin.math.cos
  */
 @Composable
 fun Scene3DAndroidView(args: Scene3DViewArgs) {
+    val context = LocalContext.current
     var glView by remember { mutableStateOf<Scene3DView?>(null) }
     // Where the view was when it's rebuilt (with new elevation data).
     var lastCamera by remember { mutableStateOf<Camera3D?>(null) }
@@ -53,6 +66,55 @@ fun Scene3DAndroidView(args: Scene3DViewArgs) {
     }
     // Elevation around the camera, fetched as the view moves; cells that didn't come aren't asked again.
     val tried = remember { HashSet<Pair<Int, Int>>() }
+
+    // Opening (the intro): the relief there, then what the view shows first, before it appears;
+    // the 2D map shows meanwhile. Then it turns into the view in one go, with nothing popping in.
+    var ready by remember { mutableStateOf(!args.intro) }
+    val first = remember { FirstEngine() }
+    var size by remember { mutableStateOf(IntSize.Zero) }
+    LaunchedEffect(size.width > 0 && size.height > 0) {
+        if (ready || size.width <= 0 || size.height <= 0) return@LaunchedEffect
+        val terrain = AppGraph.terrain
+        around(args.camera)?.let { area ->
+            val missing = terrain.missingCells(area)
+            if (missing.isNotEmpty() && terrain.ensure(T.map.the3dView, area) == null) {
+                tried += missing
+                args.onPreparing(T.map.loadingRelief)
+                // Until it's in, or the download ended without it (offline…), or too long.
+                val since = System.currentTimeMillis()
+                var downloading = false
+                while (System.currentTimeMillis() - since < RELIEF_WAIT_MS && terrain.missingCells(area).isNotEmpty()) {
+                    val p = terrain.state.value.progress
+                    if (p != null) {
+                        downloading = true
+                        args.onPreparing(T.map.gettingRelief(minOf(p.done + 1, p.total), p.total))
+                    } else if (downloading || System.currentTimeMillis() - since > 2_000) {
+                        break
+                    }
+                    delay(250)
+                }
+            }
+        }
+        // The engine reads the relief that's there now; what the view shows first loads.
+        args.onPreparing(T.map.loadingRelief)
+        val e3 = makeEngine(context, args.satellite)
+        first.engine = e3
+        val plan = e3.engine.prepareIntro(args.camera, size.width.toFloat() / size.height, args.exaggeration, args.buildings)
+        val since = System.currentTimeMillis()
+        // Sharp enough first (straight down all in, the turned view at most one level coarser); then
+        // a moment for the finest ones, which otherwise sharpen in place once the view is there.
+        val covered = withTimeoutOrNull(TILES_WAIT_MS) { while (!e3.engine.introCovered(plan)) delay(100) } != null
+        val coveredMs = System.currentTimeMillis() - since
+        val sharp = covered && withTimeoutOrNull(FINE_WAIT_MS) { while (!e3.engine.introReady(plan)) delay(100) } != null
+        Log.i("Scene3D", "First view: covered ${if (covered) "after $coveredMs ms" else "not in time"}, finest tiles ${if (sharp) "in" else "still coming"} " +
+            "after ${System.currentTimeMillis() - since} ms (${plan.down.leaves.size} + ${plan.ahead.leaves.size}); ${e3.engine.pending} loading")
+        // The relief that came is the version the view starts with (no rebuild right away).
+        terrainVersion = terrain.state.value.version
+        args.onPreparing(null)
+        ready = true
+    }
+    // Closed before the view came: the engine made for it goes too.
+    DisposableEffect(Unit) { onDispose { first.engine?.engine?.close(); first.engine = null } }
     LaunchedEffect(Unit) {
         var problem: String? = null
         while (true) {
@@ -87,46 +149,19 @@ fun Scene3DAndroidView(args: Scene3DViewArgs) {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    key(terrainVersion) {
+    Box(args.modifier.onSizeChanged { size = it }) {
+    if (ready) key(terrainVersion) {
         AndroidView(
             factory = { ctx ->
-                val prefs = AppGraph.prefs
-                // Same as the 2D map: an online layer, or the offline maps with their style,
-                // background (satellite / raster map) and trails; the 3D button's satellite instead.
-                val online = if (args.satellite) satelliteSource else TileSources.find(prefs.baseLayer.value, prefs.customSources.value)
-                val maps = AppGraph.mapFiles.files.value
-                val theme = prefs.mapTheme.value
-                val base = online?.let { BaseMap.Online(it) } ?: BaseMap.Offline(
-                    maps = maps,
-                    theme = theme,
-                    categories = AppGraph.themes.categories(theme, prefs.styleChoices.value),
-                    contours = prefs.contours.value,
-                    hillshade = false,
-                    terrainVersion = AppGraph.terrain.state.value.version,
-                    trails = prefs.trails.value,
-                    trailsVersion = AppGraph.trails.state.value.version,
-                    background = prefs.mapBackground.value,
-                    vectorOnTop = prefs.vectorOnBackground.value,
-                    rasterMaps = AppGraph.rasters.maps.value,
-                    streamed = AppGraph.streaming.maps.value,
-                )
-                val service = GlTiles.service
-                if (base is BaseMap.Offline) {
-                    // Usually already so from the 2D map; quick when it is.
-                    service.setMaps(maps.map { it.path }, base.streamed)
-                    if (base.contours) service.refreshTerrain()
-                }
-                val style = GlStyles.styleFor((base as? BaseMap.Offline)?.theme).build(base, service, forTextures = true)
-                val maxZoom = online?.maxZoom?.coerceAtMost(18) ?: 17
-                val textures = GlTileTextures(ctx, style, maxZoom)
-                var view: Scene3DView? = null
-                val engine = TerrainEngine(textures) { view?.requestRender() }
+                // The engine that loaded the first view, else a new one (a rebuild, satellite on/off).
+                val e3 = first.engine?.also { first.engine = null } ?: makeEngine(ctx, args.satellite)
                 // A rebuild (new elevation data) carries on where the view was, without the intro.
                 val start = lastCamera
-                Scene3DView(ctx, start ?: args.camera, engine, intro = args.intro && start == null).also {
-                    view = it
+                Scene3DView(ctx, start ?: args.camera, e3.engine, intro = args.intro && start == null).also {
+                    e3.view = it
                     glView = it
-                    args.onCreated(it, Scene3DSetup(emptyList(), engine.hasBuildings))
+                    it.onFirstFrame = args.onFirstFrame
+                    args.onCreated(it, Scene3DSetup(emptyList(), e3.engine.hasBuildings, firstFrameLater = true))
                 }
             },
             update = { v ->
@@ -139,10 +174,66 @@ fun Scene3DAndroidView(args: Scene3DViewArgs) {
                 v.release()
                 if (glView === v) glView = null
             },
-            modifier = args.modifier,
+            modifier = Modifier.fillMaxSize(),
         )
     }
+    }
 }
+
+/** The 3D view's engine, and the view it wakes when tiles are ready (set once the view exists). */
+private class Engine3D(val engine: TerrainEngine) {
+    @Volatile var view: Scene3DView? = null
+}
+
+/** The engine made before the first view, until the view takes it. */
+private class FirstEngine {
+    var engine: Engine3D? = null
+}
+
+/**
+ * The 3D view's engine, drawing the map as the 2D map does: an online layer, or the offline maps
+ * with their style, background (satellite / raster map) and trails; the 3D button's satellite instead.
+ */
+private fun makeEngine(ctx: Context, satellite: Boolean): Engine3D {
+    val prefs = AppGraph.prefs
+    val online = if (satellite) satelliteSource else TileSources.find(prefs.baseLayer.value, prefs.customSources.value)
+    val maps = AppGraph.mapFiles.files.value
+    val theme = prefs.mapTheme.value
+    val base = online?.let { BaseMap.Online(it) } ?: BaseMap.Offline(
+        maps = maps,
+        theme = theme,
+        categories = AppGraph.themes.categories(theme, prefs.styleChoices.value),
+        contours = prefs.contours.value,
+        hillshade = false,
+        terrainVersion = AppGraph.terrain.state.value.version,
+        trails = prefs.trails.value,
+        trailsVersion = AppGraph.trails.state.value.version,
+        background = prefs.mapBackground.value,
+        vectorOnTop = prefs.vectorOnBackground.value,
+        rasterMaps = AppGraph.rasters.maps.value,
+        streamed = AppGraph.streaming.maps.value,
+    )
+    val service = GlTiles.service
+    if (base is BaseMap.Offline) {
+        // Usually already so from the 2D map; quick when it is.
+        service.setMaps(maps.map { it.path }, base.streamed)
+        if (base.contours) service.refreshTerrain()
+    }
+    val style = GlStyles.styleFor((base as? BaseMap.Offline)?.theme).build(base, service, forTextures = true)
+    val maxZoom = online?.maxZoom?.coerceAtMost(18) ?: 17
+    val textures = GlTileTextures(ctx, style, maxZoom)
+    lateinit var e3: Engine3D
+    e3 = Engine3D(TerrainEngine(textures) { e3.view?.requestRender() })
+    return e3
+}
+
+/**
+ * How long opening the 3D view waits for its relief to download, then for its first view without
+ * holes, then for that view's finest tiles.
+ */
+private const val RELIEF_WAIT_MS = 20_000L
+private const val TILES_WAIT_MS = 8_000L
+private const val FINE_WAIT_MS = 1_500L
 
 /** The ground the 3D camera shows enough of to need relief, or null when it's too far out to matter. */
 private fun around(c: Camera3D): GeoBounds? {

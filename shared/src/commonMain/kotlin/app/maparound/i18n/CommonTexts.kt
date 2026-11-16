@@ -31,6 +31,14 @@ open class CommonTexts {
     open val start = "Start"
     open val stop = "Stop"
     open val undo = "Undo"
+
+    /** The website's page on what donations pay for (Settings). */
+    open val supportMapAround = "Support MapAround"
+    open val supportSubtitle = "Free, and it stays free: help build the offline maps and a better web app"
+
+    /** A panel over the map: folding it away to show the map, and opening it again. */
+    open val fold = "Fold away"
+    open val unfold = "Unfold"
     open val showOnMap = "Show on map"
     open val notNow = "Not now"
     open val settings = "Settings"
@@ -115,6 +123,10 @@ object CommonTextsHe : CommonTexts() {
     override val start = "התחלה"
     override val stop = "עצירה"
     override val undo = "ביטול הפעולה"
+    override val supportMapAround = "תמיכה ב־MapAround"
+    override val supportSubtitle = "חינמית, ותישאר חינמית: אפשר לעזור לבנות את המפות לאופליין ואפליקציית רשת טובה יותר"
+    override val fold = "קיפול"
+    override val unfold = "פתיחה"
     override val showOnMap = "הצגה במפה"
     override val notNow = "לא עכשיו"
     override val settings = "הגדרות"

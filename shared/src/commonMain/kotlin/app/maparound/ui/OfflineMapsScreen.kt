@@ -947,7 +947,20 @@ private fun CatalogMapRow(
                 null -> null
             }
             if (!downloadable) {
-                Text(why.orEmpty())
+                if (entry.unavailable == CatalogEntry.Unavailable.NEEDS_FUNDING) {
+                    // Too big for the free build machines: what would build it.
+                    val platform = LocalPlatform.current
+                    Column {
+                        Text(why.orEmpty())
+                        Text(
+                            T.offline.howToHelp,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.clickable { platform.openUrl(Guides.page(Guides.SUPPORT)) }.padding(vertical = 4.dp),
+                        )
+                    }
+                } else {
+                    Text(why.orEmpty())
+                }
             } else {
                 val date = entry.modified?.let { Fmt.date(it) }
                 Text(

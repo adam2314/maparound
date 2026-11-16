@@ -76,6 +76,8 @@ class MapLibreSurface(
             override fun onLongPressEnd(lat: Double, lon: Double) {
                 listener?.onLongPressEnd(GeoPoint(lat, lon))
             }
+
+            override fun onPress(lat: Double, lon: Double): Boolean = listener?.onPress(GeoPoint(lat, lon)) == true
         })
         applyStyle(styleFor(null).build(null, tiles))
     }
@@ -217,7 +219,7 @@ class MapLibreSurface(
      * The tools' lines, ring and points as GeoJSON; the viewshed as an image the platform's tile
      * server draws (Android; iOS draws none yet), which takes a new style.
      */
-    override fun setTools(a: GeoPoint?, b: GeoPoint?, lines: List<ToolLine>, ring: Pair<GeoPoint, Double>?, viewshed: Viewshed?) {
+    override fun setTools(a: GeoPoint?, b: GeoPoint?, lines: List<ToolLine>, ring: Pair<GeoPoint, Double>?, viewshed: Viewshed?, selected: GeoPoint?) {
         if (viewshed !== tiles.viewshed) {
             tiles.viewshed = viewshed
             rebuild()
@@ -232,6 +234,7 @@ class MapLibreSurface(
             }
             GeoJson.line(l.points, mapOf("role" to "line", "vis" to vis))?.let(features::add)
         }
+        selected?.let { features += GeoJson.point(it.lat, it.lon, mapOf("role" to "selected")) }
         a?.let { features += GeoJson.point(it.lat, it.lon, mapOf("role" to "letter", "icon" to MarkerIcons.letter("A", COLOR_A))) }
         b?.let { features += GeoJson.point(it.lat, it.lon, mapOf("role" to "letter", "icon" to MarkerIcons.letter("B", COLOR_B))) }
         native.setGeoJson(MapStyle.TOOLS, GeoJson.collection(features))
@@ -241,6 +244,14 @@ class MapLibreSurface(
         native.setGeoJson(MapStyle.PARTY, GeoJson.collection(markers.map { m ->
             GeoJson.point(m.lat, m.lon, mapOf("icon" to MarkerIcons.party(m.kind, m.color, m.label, m.stale, m.icon), "tap" to "$TAP_PARTY${m.key}"))
         }))
+    }
+
+    override fun setPartyTrail(full: List<GeoPoint>, done: List<GeoPoint>, color: Int) {
+        val css = "#" + (color and 0xFFFFFF).toString(16).padStart(6, '0')
+        native.setGeoJson(MapStyle.PARTY_TRAIL, GeoJson.collection(listOfNotNull(
+            GeoJson.line(full, mapOf("role" to "ahead", "color" to css)),
+            GeoJson.line(done, mapOf("role" to "done", "color" to css)),
+        )))
     }
 
     override fun setStats(countries: String?, localities: String?) {

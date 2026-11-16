@@ -27,10 +27,12 @@
     </div>
 </div>
 <script>
-    // The loading screen in the app's language (its setting, else the browser's), as the app will be.
+    // The loading screen in the app's language (lang= in the address, else its setting, else the
+    // browser's), as the app will be. The map embedded in another website (?embed) has no setting.
     (function () {
-        let lang = '';
-        try { lang = localStorage.getItem('maparound.prefs.language') || ''; } catch (e) { /* no storage */ }
+        const q = new URLSearchParams(location.search);
+        let lang = q.get('lang') || '';
+        try { if (!lang && !q.has('embed')) lang = localStorage.getItem('maparound.prefs.language') || ''; } catch (e) { /* no storage */ }
         if (!lang) lang = (navigator.language || 'en').split('-')[0];
         if (lang !== 'he' && lang !== 'iw') return;
         document.documentElement.lang = 'he';

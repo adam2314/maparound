@@ -31,7 +31,9 @@ import app.maparound.share.Incoming
 import app.maparound.share.Shared
 import app.maparound.share.SharedLinks
 import app.maparound.share.TrackLink
+import app.maparound.i18n.Language
 import app.maparound.i18n.T
+import app.maparound.map.TileSources
 import app.maparound.shared.WebFiles
 import app.maparound.shared.toByteArray
 import app.maparound.tracks.LocalTracks
@@ -66,6 +68,52 @@ private val RTL_FONTS = listOf("NotoSansHebrew.ttf", "NotoSansArabic.ttf")
 private fun pageBase(): String = js("location.href.split('#')[0].split('?')[0].replace(/[^/]*$/, '')")
 
 private fun pageAddress(): String = js("location.href")
+
+/** A parameter of the page's address (after ? or after #): its value, "" when it has none, null when absent. */
+private fun addressParam(name: String): String? = js(
+    """(() => {
+    for (const part of [location.search, location.hash]) {
+        for (const p of part.replace(/^[?#]/, '').split('&')) {
+            const i = p.indexOf('=');
+            if ((i < 0 ? p : p.substring(0, i)) !== name) continue;
+            try { return decodeURIComponent(i < 0 ? '' : p.substring(i + 1)); } catch (e) { return ''; }
+        }
+    }
+    return null;
+})()""",
+)
+
+/**
+ * The map embedded in another website: `?embed` in the address (an iframe's). Only the map, nothing
+ * read from or saved to the browser's storage, and a button that opens it in the app.
+ */
+private fun embeddedFromAddress(): Boolean = addressParam("embed").let { it != null && it != "0" && it != "false" }
+
+/**
+ * The embedded map's own options in its address: `layer=<online map>` (TileSources' ids),
+ * `trails=0` (without the marked trails, shown otherwise), `lang=<language>` (else the browser's).
+ * Kept for this visit only.
+ */
+private fun embedOptions(app: WebApp) {
+    addressParam("layer")?.let(TileSources::current)?.takeIf { id -> TileSources.builtIn.any { it.id == id } }
+        ?.let(app.prefs::setBaseLayer)
+    addressParam("trails")?.let { app.prefs.setTrails(it != "0" && it != "false") }
+    addressParam("lang")?.let(Language::of)?.let { app.prefs.setLanguage(it.code) }
+}
+
+/**
+ * Opens the embedded map in MapAround's web app, in a new tab: the same view, pin and track (from
+ * the address), with the visitor's own settings (the embed's options left out).
+ */
+private fun openFullApp(): Unit = js(
+    """{
+    const drop = ['embed', 'layer', 'trails', 'lang'];
+    const keep = (s) => s.split('&').filter((p) => p && !drop.includes(p.split('=')[0])).join('&');
+    const search = keep(location.search.replace(/^\?/, ''));
+    const hash = keep(location.hash.replace(/^#/, ''));
+    window.open(location.origin + location.pathname + (search ? '?' + search : '') + (hash ? '#' + hash : ''), '_blank', 'noopener');
+}""",
+)
 
 /**
  * A pinpoint in the page's address, openstreetmap.org's ?mlat=…&mlon=… (as MapAround shares a
@@ -108,24 +156,34 @@ private fun removeFromAddress(names: JsArray<JsString>): Unit = js(
 
 private fun removeFromAddress(vararg names: String) = removeFromAddress(names.map { it.toJsString() }.toJsArray())
 
+/** The embedded map's track or GPX link last shown (its address keeps it). */
+private var embeddedLink: String? = null
+
 /**
  * A route or track in the page's address (a MapAround track link, `#track=…&n=…`) or a GPX file
  * (`?gpx=<link>`): into Library and onto the map, like an imported file, then out of the address.
  * The GPX file is fetched by the browser, so only from websites that allow that (CORS).
+ * The embedded map keeps it in the address (for "Open in MapAround") and nothing is saved; another
+ * view in its address doesn't open the same link again.
  */
 private suspend fun linkFromAddress(app: WebApp) {
     val address = pageAddress()
+    if (app.embedded) {
+        val link = listOf("track", "n", "gpx").joinToString("&") { addressParam(it).orEmpty() }
+        if (link == embeddedLink) return
+        embeddedLink = link
+    }
     TrackLink.parse(address)?.let { track ->
-        removeFromAddress("track", "n")
+        if (!app.embedded) removeFromAddress("track", "n")
         Incoming.pending.value = Incoming.Item.LinkedTrack(track)
         return
     }
     val url = SharedLinks.gpxLink(address)?.takeIf { "gpx=" in address } ?: return
-    removeFromAddress("gpx")
+    if (!app.embedded) removeFromAddress("gpx")
     Incoming.pending.value = Incoming.Item.Message(T.map.gpxLinkOpening)
     val bytes = fetchBytes(url)
     Incoming.pending.value = if (bytes == null) {
-        Incoming.Item.Message(T.map.gpxLinkFailed(T.map.gpxLinkBlocked))
+        Incoming.Item.Message(T.map.gpxLinkFailed(if (app.embedded) T.map.gpxLinkBlockedEmbed else T.map.gpxLinkBlocked))
     } else {
         runCatching { Incoming.importGpx(bytes, SharedLinks.gpxName(url), app.tracks, app.places) }
             .getOrElse { Incoming.Item.Message(T.map.couldntReadGpx(it.message)) }
@@ -154,26 +212,33 @@ private fun onPageHide(f: () -> Unit): Unit = js(
 @OptIn(ExperimentalComposeUiApi::class)
 fun main() {
     MainScope().launch {
-        WebFiles.load()
-        WebFiles.persist()
+        // Embedded in another website: the map alone, its files and settings in memory only.
+        val embedded = embeddedFromAddress()
+        WebFiles.load(keep = !embedded)
+        if (!embedded) WebFiles.persist()
         val app = WebApp(
             topoXml = fetchText("themes/topo.xml"),
             world = fetchBytes("world.bin"),
             borders = fetchBytes("borders.bin"),
             base = pageBase(),
+            embedded = embedded,
         )
         app.startTiles("tiles/tiles-worker.js")
-        // Which map is made for where the map looks (the offer of the one for it).
-        val regions = fetchBytes("regions.bin")
-        MapRegions.source = { regions }
+        if (embedded) {
+            embedOptions(app)
+        } else {
+            // Which map is made for where the map looks (the offer of the one for it).
+            val regions = fetchBytes("regions.bin")
+            MapRegions.source = { regions }
+        }
         pinFromAddress()
-        inviteFromAddress(app)
+        if (!embedded) inviteFromAddress(app)
         linkFromAddress(app)
         onAddressChange {
-            inviteFromAddress(app)
+            if (!embedded) inviteFromAddress(app)
             launch { linkFromAddress(app) }
         }
-        notifyPartyEvents(app.party)
+        if (!embedded) notifyPartyEvents(app.party)
         // The 3D view's terrain tiles: the default, or the ones chosen in Offline maps.
         launch {
             app.prefs.terrain3dSource.collect { s ->
@@ -231,8 +296,9 @@ fun WebRoot(app: WebApp) {
                 mapView = { map, modifier -> WebMapView((map as MapLibreSurface).native as WebNativeMap, modifier) },
                 view3d = { args -> WebScene3DView(args) },
                 satellites = null,
-                // No Sensors tab: the browser's position is for the map ("my location").
-                tabs = listOf(Tab.Map, Tab.Routes, Tab.Party, Tab.Offline),
+                // No Sensors tab: the browser's position is for the map ("my location"). Embedded: the map alone.
+                tabs = if (app.embedded) listOf(Tab.Map) else listOf(Tab.Map, Tab.Routes, Tab.Party, Tab.Offline),
+                openFull = if (app.embedded) ::openFullApp else null,
             )
         }
     }

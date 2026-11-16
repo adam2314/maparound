@@ -50,6 +50,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -128,15 +129,23 @@ fun ToolsPanel(
     onShare: (GeoPoint) -> Unit,
     /** Goes to where terrain is downloaded; null where the platform has no such place yet. */
     onGetTerrain: (() -> Unit)?,
+    /** Folded away to one line, so the map shows ([MapDrawer]). */
+    folded: Boolean = false,
+    onFold: (Boolean) -> Unit = {},
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-        tonalElevation = 3.dp,
-        shadowElevation = 8.dp,
+    val format by LocalPrefs.current.coordFormat.collectAsState()
+    MapDrawer(
+        folded, onFold,
+        summary = {
+            Text(state.mode.label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(10.dp))
+            Text(toolsSummary(state, format), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (state.busy) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+            IconButton(onClick = { ToolsSession.close() }) { Icon(Icons.Filled.Close, contentDescription = T.tools.closeTools) }
+        },
     ) {
         Column(
-            Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp),
+            Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()).padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -159,6 +168,31 @@ fun ToolsPanel(
                 Mode.COORDS -> CoordsBody(state, myLocation, mapCenter, onShowPoint, onShare)
             }
         }
+    }
+}
+
+/** The tool's result in a line, for its folded drawer: "1.2 km · 45° NE", "B is in sight from A · 3 km"… */
+private fun toolsSummary(s: ToolsSession.State, format: CoordFormat): String {
+    val a = s.a
+    val b = s.b
+    return when (s.mode) {
+        Mode.MEASURE, Mode.SIGHT -> when {
+            a == null -> T.tools.chipTapMap("A")
+            b == null -> T.tools.chipTapMap("B")
+            s.mode == Mode.SIGHT && s.needsTerrain -> T.tools.terrainNeeded
+            s.mode == Mode.SIGHT -> s.los?.let { los ->
+                (if (los.targetVisible) T.tools.bInSight else T.tools.bHidden) + " · " + Fmt.distance(los.distanceM.toFloat())
+            } ?: "…"
+            else -> Geodesy.bearing(a, b).let { az -> "${Fmt.distance(Geo.distance(a, b).toFloat())} · ${deg(az)} ${Fmt.cardinal(az.toFloat())}" }
+        }
+        Mode.VIEW -> when {
+            a == null -> T.tools.chipTapMap(T.tools.observer)
+            s.needsTerrain -> T.tools.terrainNeeded
+            else -> s.viewshed?.let { vs ->
+                T.tools.percentInSight((vs.visibleFraction * 100).roundToInt()) + " " + T.tools.within(Fmt.distance(vs.radiusM.toFloat()))
+            } ?: "…"
+        }
+        Mode.COORDS -> a?.let { formatPoint(it.lat, it.lon, format) } ?: T.tools.chipTapMap("A")
     }
 }
 

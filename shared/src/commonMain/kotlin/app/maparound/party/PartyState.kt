@@ -35,6 +35,8 @@ data class PartyState(
     val radioName: String? = null,
     val gateway: Boolean = true,
     val myPosition: GeoFix? = null,
+    /** How many positions of each member (by id) are in their history ([PartyController.history]). */
+    val historyCounts: Map<Int, Int> = emptyMap(),
 )
 
 /** The party session as the shared screens drive it (Android: PartySession with MQTT and BLE; the web: OnlineParty). */
@@ -80,6 +82,9 @@ interface PartyController {
     fun setMeeting(lat: Double, lon: Double, label: String)
     fun clearMeeting()
     fun sendText(text: String)
+
+    /** [member]'s positions this device received in the party, oldest first (for replaying their way). */
+    fun history(member: Int): List<HistoryPoint> = emptyList()
 }
 
 val LocalParty = staticCompositionLocalOf<PartyController> { error("No PartyController provided") }

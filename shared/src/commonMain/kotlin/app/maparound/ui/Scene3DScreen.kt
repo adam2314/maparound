@@ -60,8 +60,11 @@ interface Scene3DControl : app.maparound.map.ZoomTarget {
     fun leave(done: () -> Unit) = done()
 }
 
-/** What the platform's 3D view found when it was set up. */
-class Scene3DSetup(val notes: List<String>, val hasBuildings: Boolean)
+/**
+ * What the platform's 3D view found when it was set up. [firstFrameLater]: it says when it has
+ * drawn ([Scene3DViewArgs.onFirstFrame]); until then the 2D map shows (Android's OpenGL view).
+ */
+class Scene3DSetup(val notes: List<String>, val hasBuildings: Boolean, val firstFrameLater: Boolean = false)
 
 /** How the shared screen wants the platform's 3D view (Android: OpenGL ES; iOS: Metal). */
 class Scene3DViewArgs(
@@ -75,6 +78,13 @@ class Scene3DViewArgs(
     val onCreated: (Scene3DControl, Scene3DSetup) -> Unit,
     val onReleased: (Scene3DControl) -> Unit,
     val modifier: Modifier,
+    /**
+     * Before the view is created (Android loads the relief and the first view's tiles first, the
+     * 2D map showing meanwhile): what's loading, or null when done.
+     */
+    val onPreparing: (String?) -> Unit = {},
+    /** The view has drawn its first frame (when its setup said it would tell). */
+    val onFirstFrame: () -> Unit = {},
 )
 
 /**
@@ -108,6 +118,10 @@ fun Scene3DScreen(
     var hasBuildings by remember { mutableStateOf(false) }
     var shown by remember { mutableStateOf(false) }
     var leaving by remember { mutableStateOf(false) }
+    // Before the platform's view is there: what it's loading (the 2D map shows meanwhile).
+    var preparing by remember { mutableStateOf<String?>(null) }
+    // The view has drawn: its backdrop and credits, instead of the 2D map's.
+    var drawn by remember { mutableStateOf(false) }
 
     // The view eases back to the 2D map's look, then the screen closes with where it was.
     fun close() {
@@ -138,7 +152,8 @@ fun Scene3DScreen(
         }
     }
 
-    Box(Modifier.fillMaxSize().background(Color(0xFFCCDDEF))) {
+    // No backdrop until the view has drawn: the 2D map shows through while it gets ready.
+    Box(Modifier.fillMaxSize().then(if (drawn) Modifier.background(Color(0xFFCCDDEF)) else Modifier)) {
         key(satellite) {
             view(
                 Scene3DViewArgs(
@@ -149,6 +164,7 @@ fun Scene3DScreen(
                     intro = !shown,
                     onCreated = { c, setup ->
                         shown = true
+                        if (!setup.firstFrameLater) drawn = true
                         control = c
                         notes = setup.notes
                         hasBuildings = setup.hasBuildings
@@ -158,6 +174,8 @@ fun Scene3DScreen(
                         if (control === c) control = null
                     },
                     modifier = Modifier.fillMaxSize(),
+                    onPreparing = { preparing = it },
+                    onFirstFrame = { drawn = true },
                 ),
             )
         }
@@ -165,6 +183,18 @@ fun Scene3DScreen(
         // The map's own column, where it is in 2D (right; left in a right-to-left language).
         Box(Modifier.align(Alignment.TopEnd)) {
             buttons(control, settings, { settings = !settings }, { close() }, bottomTop)
+        }
+        // Getting ready, over the 2D map: what's loading.
+        if (!drawn) preparing?.let { p ->
+            Text(
+                p,
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 12.dp, start = 64.dp, end = 64.dp)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.92f), RoundedCornerShape(16.dp))
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            )
         }
         // Turned away from north: a compass on the other side; a tap faces north.
         if (turned) {
@@ -197,8 +227,9 @@ fun Scene3DScreen(
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                 )
             }
-            // What's shown, as on the 2D map: the map (or the imagery), the relief.
-            Text(
+            // What's shown, as on the 2D map: the map (or the imagery), the relief. (Before the view is
+            // there, the 2D map's own credits show.)
+            if (drawn) Text(
                 listOfNotNull(
                     if (satellite) satelliteSource.attribution else null,
                     mapCredits.ifBlank { null },

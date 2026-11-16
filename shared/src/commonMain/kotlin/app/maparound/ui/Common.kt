@@ -168,6 +168,18 @@ object Fmt {
         return T.common.dayMonth(d.dayOfMonth, T.common.months[d.monthNumber - 1]) + " ${padded(d.hour, 2)}:${padded(d.minute, 2)}"
     }
 
+    /**
+     * When something happened: "14:05" today ("14:05:09" with [seconds]), "11 Nov 14:05" another
+     * day (local time).
+     */
+    fun moment(timeMs: Long, seconds: Boolean = false, nowMs: Long = nowMillis()): String {
+        val zone = TimeZone.currentSystemDefault()
+        val d = Instant.fromEpochMilliseconds(timeMs).toLocalDateTime(zone)
+        val today = Instant.fromEpochMilliseconds(nowMs).toLocalDateTime(zone).date
+        val time = "${padded(d.hour, 2)}:${padded(d.minute, 2)}" + if (seconds) ":${padded(d.second, 2)}" else ""
+        return if (d.date == today) time else dayMonthTime(timeMs)
+    }
+
     /** "14:05" (local time). */
     fun timeOfDay(timeMs: Long): String {
         val d = Instant.fromEpochMilliseconds(timeMs).toLocalDateTime(TimeZone.currentSystemDefault())

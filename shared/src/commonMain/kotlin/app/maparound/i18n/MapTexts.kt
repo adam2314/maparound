@@ -49,6 +49,12 @@ open class MapTexts {
     open val gpxLinkOpening = "Getting the GPX file…"
     open fun gpxLinkFailed(reason: String) = "Couldn't get the GPX file: $reason"
     open val gpxLinkBlocked = "its website doesn't let browsers fetch it. Download it, then import it in Library"
+
+    /** The map in another website (embedded): its GPX file's website doesn't let other websites read it. */
+    open val gpxLinkBlockedEmbed = "its website doesn't let other websites read it (CORS)"
+
+    /** The map embedded in another website: the button that opens it in MapAround's web app. */
+    open val openMapInMapAround = "Open in MapAround"
     open fun placesAdded(n: Int) = "Added $n place${if (n == 1) "" else "s"} to Library → Places"
 
     // ---- the pin card ----
@@ -340,6 +346,8 @@ object MapTextsHe : MapTexts() {
     override val gpxLinkOpening = "הורדת קובץ ה־GPX…"
     override fun gpxLinkFailed(reason: String) = "אי אפשר היה להוריד את קובץ ה־GPX: $reason"
     override val gpxLinkBlocked = "האתר שלו לא מאפשר לדפדפנים להוריד אותו. אפשר להוריד אותו ולייבא אותו בספרייה"
+    override val gpxLinkBlockedEmbed = "האתר שלו לא מאפשר לאתרים אחרים לקרוא אותו (CORS)"
+    override val openMapInMapAround = "פתיחה ב־MapAround"
     override fun placesAdded(n: Int) = when (n) {
         1 -> "מקום אחד נוסף לספרייה ← מקומות"
         2 -> "שני מקומות נוספו לספרייה ← מקומות"

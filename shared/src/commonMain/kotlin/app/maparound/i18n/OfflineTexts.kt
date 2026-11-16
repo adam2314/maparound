@@ -121,6 +121,9 @@ open class OfflineTexts {
     // ---- a map in the list ----
     open val tooBigBasic = "Too big for the free build machines yet (needs funding)"
     open val tooBig = "Not available: too big for the free build machines, needs funding"
+
+    /** Under a map that needs funding: opens the page on supporting MapAround. */
+    open val howToHelp = "How to help"
     open val notBuiltBasic = "Not built by MapAround yet"
     open val notAvailableYet = "Not available yet"
     open val basicMapNote = "basic map from mapsforge.org, no marked trails"
@@ -445,6 +448,7 @@ object OfflineTextsHe : OfflineTexts() {
 
     // ---- a map in the list ----
     override val tooBigBasic = "עדיין גדולה מדי לשרתי הבנייה החינמיים (נדרש מימון)"
+    override val howToHelp = "איך לעזור"
     override val tooBig = "לא זמינה: גדולה מדי לשרתי הבנייה החינמיים, נדרש מימון"
     override val notBuiltBasic = "עדיין לא נבנתה על ידי MapAround"
     override val notAvailableYet = "עדיין לא זמינה"
