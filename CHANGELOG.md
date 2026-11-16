@@ -114,6 +114,9 @@
   countries), and the app stores, with their costs, through GitHub Sponsors; and other ways to help
   (testing, OpenStreetMap, translating). Linked from Settings, from maps that need funding in Offline maps,
   from the website, and as the repository's Sponsor button.
+- **The Android beta on the website**: the front page's Google Play button and the party invite
+  page lead to a page on joining the beta (the testers' group, then Google Play), in English and
+  Hebrew; an invite opened without the app goes there too.
 
 ### The Topo style
 - **Bike paths you can see.** Bike paths, and the many paths shared by walkers and bikes (in

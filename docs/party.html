@@ -71,12 +71,12 @@
 
         <div class="actions">
           <a class="btn btn-primary" id="open" href="#">Open in MapAround</a>
-          <a class="btn btn-ghost" id="get" href="https://play.google.com/store/apps/details?id=app.maparound">Get MapAround on Google Play</a>
+          <a class="btn btn-ghost" id="get" href="beta">Get MapAround: join the Android beta</a>
           <a class="btn btn-ghost" id="watch" href="app/">Join in your browser</a>
         </div>
 
         <ol class="steps" id="steps">
-          <li>No MapAround yet? Install it from Google Play.</li>
+          <li>No MapAround yet? <a href="beta">Join the Android beta</a> and install it from Google Play.</li>
           <li>Come back to this page and tap <strong>Open in MapAround</strong>.</li>
           <li>Tap <strong>Join</strong> in the app.</li>
         </ol>
@@ -96,7 +96,7 @@
         <h1>This invite link is incomplete</h1>
         <p class="lede">Some apps cut links short. Ask for the invite again, or scan the invite QR code in MapAround's Party tab.</p>
         <div class="actions">
-          <a class="btn btn-ghost" href="https://play.google.com/store/apps/details?id=app.maparound">Get MapAround on Google Play</a>
+          <a class="btn btn-ghost" href="beta">Get MapAround: join the Android beta</a>
         </div>
       </div>
     </div>
@@ -120,7 +120,8 @@
 
 <script>
 (function () {
-  var PLAY = "https://play.google.com/store/apps/details?id=app.maparound";
+  // Without the app: how to get it (a closed beta on Google Play for now: the store page alone shows nothing).
+  var GET = "https://adam2314.github.io/maparound/beta";
   // #<code>?n=<name>: code = 48 bytes in URL-safe Base64 without padding (party/Protocol.kt).
   var hash = location.hash.replace(/^#/, "");
   var code = hash.split("?")[0].split("&")[0];
@@ -152,9 +153,9 @@
   document.getElementById("watch").href = "app/#party=" + code + "?n=" + encodeURIComponent(name) + extra;
   var open = document.getElementById("open");
   if (/Android/i.test(navigator.userAgent)) {
-    // Chrome and most Android browsers: opens MapAround, or Google Play when it isn't installed.
+    // Chrome and most Android browsers: opens MapAround, or the way to get it when it isn't installed.
     open.href = "intent://" + appLink + "#Intent;scheme=maparound;package=app.maparound;S.browser_fallback_url=" +
-      encodeURIComponent(PLAY) + ";end";
+      encodeURIComponent(GET) + ";end";
   } else {
     open.href = "maparound://" + appLink;
     open.hidden = true;
