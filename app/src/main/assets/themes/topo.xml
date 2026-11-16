@@ -476,10 +476,7 @@
                  smoothness good or better, else tracktype grade1-2; high vehicles:
                  smoothness bad, else grade3; 4x4: 4wd_only, smoothness very bad or horrible,
                  else grade4-5; impassable: smoothness very horrible or impassable; nothing known: minor. -->
-            <rule e="way" k="highway" v="track" zoom-max="12">
-                <line stroke="#AA8166" stroke-dasharray="9,4.5" stroke-width="1.35" scale="none" />
-            </rule>
-            <rule e="way" k="highway" v="track" zoom-min="13">
+            <rule e="way" k="highway" v="track" zoom-min="12">
                 <rule e="way" k="4wd_only" v="yes">
                     <rule e="any" k="*" v="*" zoom-max="14">
                         <line stroke="#3B2E24" stroke-dasharray="7.5,3,1.8,3" stroke-linecap="butt" stroke-width="1.2" dy="2.55" scale="none" /><line stroke="#3B2E24" stroke-dasharray="7.5,3,1.8,3" stroke-linecap="butt" stroke-width="1.2" dy="-2.55" scale="none" />
@@ -1121,29 +1118,14 @@
     <!-- ===== marked hiking trails =====
          On paths and roads: waymark dots, the colour ringed in white, side by side (up to four
          colours; zoomed out, the most important one only). On a dirt road (trail_track: the road's
-         class, any|high|4x4|minor, as the dirt-road rules read it) from zoom 13, where the road is a
-         double line: its edges in the waymark colours, dashed as the road's own; one colour on both
+         class, any|high|4x4|minor, as the dirt-road rules read it), a double line from zoom 12 like the
+         road: its edges in the waymark colours, dashed as the road's own; one colour on both
          edges, two one on each, a third and a fourth on a line outside each edge. The colours that
          draw alike are rules one after another (white last): the map draws them as one layer. -->
     <rule e="way" k="trail" v="hiking" zoom-min="12">
-        <!-- zoom 12 (a dirt road is a single line there): the most important colour only -->
-        <rule e="way" k="trail_n" v="*" zoom-max="12">
-            <rule e="way" k="trail_colour" v="red|blue|green|yellow|black|orange|purple|brown|other"><line stroke="#FFFFFF" stroke-dasharray="6,7.5" stroke-linecap="round" stroke-width="5.4" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="white"><line stroke="#7A7A7A" stroke-dasharray="6,7.5" stroke-linecap="round" stroke-width="5.4" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="red"><line stroke="#D32F2F" stroke-dasharray="6,7.5" stroke-linecap="round" stroke-width="3.6" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="blue"><line stroke="#1E63D6" stroke-dasharray="6,7.5" stroke-linecap="round" stroke-width="3.6" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="green"><line stroke="#2E9E3E" stroke-dasharray="6,7.5" stroke-linecap="round" stroke-width="3.6" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="yellow"><line stroke="#F2C200" stroke-dasharray="6,7.5" stroke-linecap="round" stroke-width="3.6" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="black"><line stroke="#222222" stroke-dasharray="6,7.5" stroke-linecap="round" stroke-width="3.6" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="orange"><line stroke="#F57C00" stroke-dasharray="6,7.5" stroke-linecap="round" stroke-width="3.6" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="purple"><line stroke="#8E24AA" stroke-dasharray="6,7.5" stroke-linecap="round" stroke-width="3.6" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="brown"><line stroke="#8D5524" stroke-dasharray="6,7.5" stroke-linecap="round" stroke-width="3.6" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="other"><line stroke="#C2185B" stroke-dasharray="6,7.5" stroke-linecap="round" stroke-width="3.6" scale="none" /></rule>
-            <rule e="way" k="trail_colour" v="white"><line stroke="#FFFFFF" stroke-dasharray="6,7.5" stroke-linecap="round" stroke-width="3.6" scale="none" /></rule>
-        </rule>
         <!-- on paths and roads -->
-        <rule e="way" k="trail_track" v="~" zoom-min="13">
-            <!-- zoom 13: the most important colour only -->
+        <rule e="way" k="trail_track" v="~" zoom-min="12">
+            <!-- zooms 12 and 13: the most important colour only -->
             <rule e="way" k="trail_n" v="*" zoom-max="13">
                 <rule e="way" k="trail_colour" v="red|blue|green|yellow|black|orange|purple|brown|other"><line stroke="#FFFFFF" stroke-dasharray="6,7.5" stroke-linecap="round" stroke-width="5.4" scale="none" /></rule>
                 <rule e="way" k="trail_colour" v="white"><line stroke="#7A7A7A" stroke-dasharray="6,7.5" stroke-linecap="round" stroke-width="5.4" scale="none" /></rule>
@@ -1258,7 +1240,7 @@
             </rule>
         </rule>
         <!-- on a dirt road: any -->
-        <rule e="way" k="trail_track" v="any" zoom-min="13">
+        <rule e="way" k="trail_track" v="any" zoom-min="12">
             <rule e="any" k="*" v="*" zoom-max="14">
                 <!-- one colour: both edges -->
                 <rule e="way" k="trail_n" v="1">
@@ -1459,7 +1441,7 @@
             </rule>
         </rule>
         <!-- on a dirt road: high -->
-        <rule e="way" k="trail_track" v="high" zoom-min="13">
+        <rule e="way" k="trail_track" v="high" zoom-min="12">
             <rule e="any" k="*" v="*" zoom-max="14">
                 <!-- one colour: both edges -->
                 <rule e="way" k="trail_n" v="1">
@@ -1668,7 +1650,7 @@
             </rule>
         </rule>
         <!-- on a dirt road: 4x4 -->
-        <rule e="way" k="trail_track" v="4x4" zoom-min="13">
+        <rule e="way" k="trail_track" v="4x4" zoom-min="12">
             <rule e="any" k="*" v="*" zoom-max="14">
                 <!-- one colour: both edges -->
                 <rule e="way" k="trail_n" v="1">
@@ -1877,7 +1859,7 @@
             </rule>
         </rule>
         <!-- on a dirt road: minor -->
-        <rule e="way" k="trail_track" v="minor" zoom-min="13">
+        <rule e="way" k="trail_track" v="minor" zoom-min="12">
             <rule e="any" k="*" v="*" zoom-max="14">
                 <!-- one colour: both edges -->
                 <rule e="way" k="trail_n" v="1">

@@ -127,6 +127,8 @@
   the map read them from the wrong data. They're on the map now.
 - **4×4 dirt roads as a double line** too, its edges dash-dot, after any vehicle (solid edges)
   and high vehicles (dashed).
+- **Dirt roads are a double line from zoom 12** (one zoom level further out than before), and the
+  marked trails on them colour their edges there too, instead of waymark dots.
 - **Dirt roads are just their two edges**, with the ground showing between them: no white band
   down the middle any more (any vehicle, high vehicles, 4×4). **Paths** lose their white casing
   too: just the line in its difficulty colour.

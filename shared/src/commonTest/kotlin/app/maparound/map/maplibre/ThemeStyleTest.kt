@@ -230,7 +230,7 @@ class ThemeStyleTest {
         // ...and the same trail lines when they're built into the map (MapAround's maps).
         assertTrue(drawn(trail, "line", MapsforgeToMvt.TRAILS).any { it.str("source") == MapStyle.OSM_SOURCE })
 
-        // On a dirt road (the trail line knows: trail_track), from zoom 13 (MapLibre 12): the road's
+        // On a dirt road (the trail line knows: trail_track), from zoom 12 (MapLibre 11): the road's
         // edges in the trail's colour, dashed as the road's, the road's own edges rubbed out under
         // the dashes; no waymark dots.
         val onRoad = trail + ("trail_track" to "4x4")
@@ -244,8 +244,12 @@ class ThemeStyleTest {
         val second = mapOf("trail" to "hiking", "trail_track" to "any", "trail_offset" to "r05", "trail_colour" to "blue")
         val blue = layers.filter { it.str("source") == ThemeStyle.TRAILS && matches(it, second) && at(it, 14.5) && lineColour(it, second) == "rgb(30,99,214)" }
         assertEquals(listOf(3.9), blue.map { it["paint"]!!.jsonObject["line-offset"]!!.jsonPrimitive.doubleOrNull })
-        // Zoomed out (12), still the dots.
-        assertTrue(layers.any { it.str("source") == ThemeStyle.TRAILS && matches(it, onRoad) && at(it, 11.5) && it["paint"]!!.jsonObject["line-offset"] == null })
+        // From zoom 12, where dirt roads are a double line already: the edges there too, no dots.
+        val roadTrail12 = layers.filter { it.type == "line" && it.str("source") == ThemeStyle.TRAILS && matches(it, onRoad) && at(it, 11.5) }
+        assertTrue(roadTrail12.isNotEmpty())
+        assertTrue(roadTrail12.none { it["paint"]!!.jsonObject["line-offset"] == null })
+        // On a path at zoom 12: the dots (the most important colour).
+        assertTrue(layers.any { it.str("source") == ThemeStyle.TRAILS && matches(it, trail) && at(it, 11.5) && it["paint"]!!.jsonObject["line-offset"] == null })
         // A trail's colours draw as one layer: the trail tiles' lines stay few.
         val trailLayers = layers.count { it.str("source") == ThemeStyle.TRAILS }
         assertTrue(trailLayers < 300, "$trailLayers trail layers")
