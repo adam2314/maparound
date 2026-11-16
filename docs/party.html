@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Join a MapAround party</title>
-  <!-- Party invite page: https://adam2314.github.io/maparound/party#<code>?n=<name>
+  <!-- Party invite page: https://maparound.app/party#<code>?n=<name>
        The code is in the part after #, which browsers never send to the website. This page only
        reads it to open MapAround with maparound://party/<code>?n=<name>, or the web app with
        app/#party=<code>?n=<name>. No scripts or files from other sites. -->
@@ -16,7 +16,7 @@
   <meta property="og:type" content="website">
   <meta property="og:title" content="Join my MapAround party">
   <meta property="og:description" content="Tap to see the group live on the map in MapAround, online and off-grid.">
-  <meta property="og:image" content="https://adam2314.github.io/maparound/store/feature-graphic.png">
+  <meta property="og:image" content="https://maparound.app/store/feature-graphic.png">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="stylesheet" href="assets/site.css">
   <style>
@@ -121,7 +121,7 @@
 <script>
 (function () {
   // Without the app: how to get it (a closed beta on Google Play for now: the store page alone shows nothing).
-  var GET = "https://adam2314.github.io/maparound/beta";
+  var GET = "https://maparound.app/beta";
   // #<code>?n=<name>: code = 48 bytes in URL-safe Base64 without padding (party/Protocol.kt).
   var hash = location.hash.replace(/^#/, "");
   var code = hash.split("?")[0].split("&")[0];

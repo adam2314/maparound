@@ -74,6 +74,12 @@
   the website holding the file allows it (GitHub's raw files do).
 - The message after importing a shared track or places now shows; it was cut off before.
 
+### MapAround's own address: maparound.app
+- **The website, the web app and invites moved to maparound.app**: the web app is
+  maparound.app/app, invites maparound.app/party, the guides maparound.app/guide. Links shared
+  before (adam2314.github.io/maparound/…) lead there, and the app still opens old invites and links
+  (in Android too). Shared points, tracks, embed codes and guide links use the new address.
+
 ### The map in other websites
 - **Put the map on any web page** with an iframe of the web app's address plus `?embed`: just the
   map, with its layers and the 3D view, and **Open in MapAround** to go on in the full web app. It

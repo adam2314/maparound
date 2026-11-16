@@ -32,7 +32,7 @@ Monthly or once, through GitHub Sponsors.
 |---|---|---|
 | **A better web experience** | | |
 | Hosting the maps for the browser | about $2–18 a month | The maps where the web app may read them (Cloudflare R2): the current ones, and up to a year of earlier ones to fall back on. |
-| A domain of its own | about $15 a year | A short address for the website and the web app, instead of adam2314.github.io/maparound. |
+| A domain of its own | about $15 a year | maparound.app: a short address of its own for the website, the web app and invites. |
 | **Building the offline maps** | | |
 | Building the biggest countries | about $10–30 a month (estimate) | France, Germany, Great Britain, Poland, the Alps, Japan, India, China, Indonesia, Brazil and the United States are too big for the free build machines; a bigger rented machine for a few hours each month builds them. Until then their regions (states, provinces) can be downloaded. |
 | **On the phones** | | |

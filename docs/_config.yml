@@ -2,6 +2,10 @@
 # (Settings → Pages → Source: GitHub Actions).
 # index.html is the home page; Markdown pages such as privacy.md use _layouts/default.html.
 title: MapAround
+# The site's own address: pages link from its root (GitHub Pages' project address,
+# adam2314.github.io/maparound, redirects here).
+url: "https://maparound.app"
+baseurl: ""
 description: Offline topo maps, routes and navigation, trails, and off-grid group tracking.
 defaults:
   - scope:

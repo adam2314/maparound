@@ -85,8 +85,7 @@ class MainActivity : ComponentActivity() {
         val data = intent?.data
         // The invite page's link; the site's other links (the web app's: a point, a track) are links to show.
         val invite = data != null &&
-            (data.scheme == "maparound" && data.host == "party" ||
-                data.host == PartyKey.INVITE_HOST && data.path?.startsWith(PartyKey.INVITE_PATH) == true)
+            (data.scheme == "maparound" && data.host == "party" || PartyKey.isInvitePage(data.host, data.path))
         if (intent?.action == Intent.ACTION_VIEW && invite) {
             PartyKey.parse(data.toString())?.let { PartySession.pendingInvite.value = it }
             return

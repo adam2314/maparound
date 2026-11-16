@@ -128,12 +128,23 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="maparound" android:host="party" />
             </intent-filter>
-            <!-- and the invite web link https://adam2314.github.io/maparound/party#<code>?n=<name>,
-                 and the web app's links (…/maparound/app/?mlat=…, #track=…, ?gpx=…). They open
-                 MapAround directly once Android verifies them, which needs
-                 https://adam2314.github.io/.well-known/assetlinks.json; until then the browser
-                 shows the page (shared to MapAround they always open in it). -->
+            <!-- and the invite web link https://maparound.app/party#<code>?n=<name>, and the web
+                 app's links (maparound.app/app/?mlat=…, #track=…, ?gpx=…). They open MapAround
+                 directly once Android verifies them, which needs
+                 https://maparound.app/.well-known/assetlinks.json with the app's signing key
+                 (Play Console → App integrity); until then the browser shows the page (shared to
+                 MapAround they always open in it). -->
             <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="maparound.app" />
+                <data android:path="/party" />
+                <data android:pathPrefix="/app" />
+            </intent-filter>
+            <!-- The same links at the site's earlier address (GitHub Pages' own), in what was shared before. -->
+            <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />

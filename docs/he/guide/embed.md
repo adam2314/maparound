@@ -12,7 +12,7 @@ lang: he
 ואין מה להתקין או להירשם. המבקרים מזיזים ומגדילים אותה, ו**פתיחה ב־MapAround** (הכפתור העליון)
 פותח אותה באפליקציית הרשת המלאה, שבה אפשר לשמור את המסלול או לתכנן מסלול משלהם.
 
-<iframe src="https://adam2314.github.io/maparound/app/?embed&amp;layer=opentopomap&amp;lang=he#map=13/31.47/35.38"
+<iframe src="https://maparound.app/app/?embed&amp;layer=opentopomap&amp;lang=he#map=13/31.47/35.38"
         title="מפת MapAround של אזור עין גדי" width="100%" height="420" style="border:0" loading="lazy"></iframe>
 
 ## הקוד
@@ -20,7 +20,7 @@ lang: he
 שמים את זה במקום שבו המפה צריכה להיות, עם המקום הרצוי בכתובת:
 
 ```html
-<iframe src="https://adam2314.github.io/maparound/app/?embed#map=13/31.47/35.38"
+<iframe src="https://maparound.app/app/?embed#map=13/31.47/35.38"
         title="מפה" width="100%" height="450" style="border:0" loading="lazy"></iframe>
 ```
 
@@ -38,7 +38,7 @@ lang: he
 **קובץ GPX באתר.** שמים את הכתובת שלו אחרי `gpx=`:
 
 ```html
-<iframe src="https://adam2314.github.io/maparound/app/?embed&gpx=https://example.org/hikes/wadi-qelt.gpx"
+<iframe src="https://maparound.app/app/?embed&gpx=https://example.org/hikes/wadi-qelt.gpx"
         title="ואדי קלט" width="100%" height="450" style="border:0" loading="lazy"></iframe>
 ```
 
@@ -53,7 +53,7 @@ lang: he
 הסיכה של openstreetmap.org, `mlat=` ו־`mlon=`:
 
 ```html
-<iframe src="https://adam2314.github.io/maparound/app/?embed&mlat=31.4655&mlon=35.3870#map=15/31.4655/35.3870"
+<iframe src="https://maparound.app/app/?embed&mlat=31.4655&mlon=35.3870#map=15/31.4655/35.3870"
         title="נקודת המפגש" width="100%" height="450" style="border:0" loading="lazy"></iframe>
 ```
 

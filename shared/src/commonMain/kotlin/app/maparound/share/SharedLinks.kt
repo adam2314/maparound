@@ -187,7 +187,7 @@ object SharedLinks {
         "https://www.openstreetmap.org/?mlat=${f(lat)}&mlon=${f(lon)}#map=$zoom/${f(lat)}/${f(lon)}"
 
     /** MapAround's web app. */
-    const val WEB_APP = "https://adam2314.github.io/maparound/app/"
+    const val WEB_APP = "https://maparound.app/app/"
 
     /** The point in MapAround's web app: the same pinpoint link as openstreetmap.org's, on MapAround's site. */
     fun webAppLink(lat: Double, lon: Double, zoom: Int = 16): String =

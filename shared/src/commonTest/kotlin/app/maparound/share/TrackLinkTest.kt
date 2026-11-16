@@ -22,7 +22,7 @@ class TrackLinkTest {
     fun aRouteAndBack() {
         val points = hike(120)
         val link = TrackLink.of("Nahal David", points)!!
-        assertTrue(link, link.startsWith("https://adam2314.github.io/maparound/app/#track="))
+        assertTrue(link, link.startsWith("https://maparound.app/app/#track="))
         val back = TrackLink.parse(link)!!
         assertEquals("Nahal David", back.name)
         assertEquals(points.size, back.points.size)
@@ -62,8 +62,8 @@ class TrackLinkTest {
 
     @Test
     fun notALink() {
-        assertNull(TrackLink.parse("https://adam2314.github.io/maparound/app/#map=15/31.4/35.3"))
-        assertNull(TrackLink.parse("https://adam2314.github.io/maparound/app/#track=AAAA"))
+        assertNull(TrackLink.parse("https://maparound.app/app/#map=15/31.4/35.3"))
+        assertNull(TrackLink.parse("https://maparound.app/app/#track=AAAA"))
         assertNull(TrackLink.parse("#track=!!!"))
         assertNull(TrackLink.of("One point", listOf(GeoPoint(31.0, 35.0))))
     }
@@ -74,10 +74,10 @@ class TrackLinkTest {
         assertEquals("https://example.org/t.GPX?dl=1", SharedLinks.gpxLink("https://example.org/t.GPX?dl=1"))
         assertEquals(
             "https://raw.githubusercontent.com/u/r/main/a.gpx",
-            SharedLinks.gpxLink("https://adam2314.github.io/maparound/app/?gpx=https%3A%2F%2Fraw.githubusercontent.com%2Fu%2Fr%2Fmain%2Fa.gpx"),
+            SharedLinks.gpxLink("https://maparound.app/app/?gpx=https%3A%2F%2Fraw.githubusercontent.com%2Fu%2Fr%2Fmain%2Fa.gpx"),
         )
         assertNull(SharedLinks.gpxLink("https://example.org/gpx-guide.html"))
-        assertNull(SharedLinks.gpxLink("https://adam2314.github.io/maparound/app/?gpx=javascript:alert(1)"))
+        assertNull(SharedLinks.gpxLink("https://maparound.app/app/?gpx=javascript:alert(1)"))
         assertEquals("Wadi Qelt", SharedLinks.gpxName("https://example.org/hikes/Wadi%20Qelt.gpx?dl=1"))
         assertEquals("ein gedi loop", SharedLinks.gpxName("https://example.org/ein_gedi_loop.GPX"))
     }
@@ -86,7 +86,7 @@ class TrackLinkTest {
     fun theSharedTextCarriesTheLink() {
         val recorded = Track("Morning walk", TrackKind.RECORDED, hike(50), 0L)
         val text = RouteText.of(recorded)
-        assertTrue(text, "/maparound/app/#track=" in text)
+        assertTrue(text, "maparound.app/app/#track=" in text)
         assertTrue(RouteText.hasLink(recorded))
         assertTrue(!RouteText.hasRouteLink(recorded))
     }
@@ -95,7 +95,7 @@ class TrackLinkTest {
     fun embedCodeIsAnIframeOfTheEmbeddedMap() {
         val track = Track("Tom & Jerry's \"loop\"", TrackKind.RECORDED, hike(50), 0L)
         val code = TrackLink.embedCode(track)!!
-        assertTrue(code, code.startsWith("<iframe src=\"https://adam2314.github.io/maparound/app/?embed#track="))
+        assertTrue(code, code.startsWith("<iframe src=\"https://maparound.app/app/?embed#track="))
         assertTrue(code, code.endsWith("></iframe>"))
         // HTML-escaped, the address's & too; the browser reads it back as the link.
         assertTrue(code, "title=\"Tom &amp; Jerry's &quot;loop&quot;\"" in code)

@@ -26,7 +26,7 @@ import app.maparound.i18n.T
 
 /** The guides on MapAround's website: one page per topic, in English and Hebrew (docs/guide/, docs/he/guide/). */
 object Guides {
-    private const val SITE = "https://adam2314.github.io/maparound"
+    private const val SITE = "https://maparound.app"
 
     const val OFFLINE_MAPS = "offline-maps"
     const val RASTER_MAPS = "raster-maps"

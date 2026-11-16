@@ -13,7 +13,7 @@ layers and the 3D view, and there's nothing to install or sign up for. Visitors 
 and **Open in MapAround** (the top button) opens it in the full web app, where they can save the
 track or plan their own route.
 
-<iframe src="https://adam2314.github.io/maparound/app/?embed&amp;layer=opentopomap#map=13/31.47/35.38"
+<iframe src="https://maparound.app/app/?embed&amp;layer=opentopomap#map=13/31.47/35.38"
         title="MapAround map of the Ein Gedi area" width="100%" height="420" style="border:0" loading="lazy"></iframe>
 
 ## The code
@@ -21,7 +21,7 @@ track or plan their own route.
 Put this where the map should be, with the place you want in the address:
 
 ```html
-<iframe src="https://adam2314.github.io/maparound/app/?embed#map=13/31.47/35.38"
+<iframe src="https://maparound.app/app/?embed#map=13/31.47/35.38"
         title="Map" width="100%" height="450" style="border:0" loading="lazy"></iframe>
 ```
 
@@ -40,7 +40,7 @@ length and climb at the top.
 **A GPX file on a website.** Put its address after `gpx=`:
 
 ```html
-<iframe src="https://adam2314.github.io/maparound/app/?embed&gpx=https://example.org/hikes/wadi-qelt.gpx"
+<iframe src="https://maparound.app/app/?embed&gpx=https://example.org/hikes/wadi-qelt.gpx"
         title="Wadi Qelt" width="100%" height="450" style="border:0" loading="lazy"></iframe>
 ```
 
@@ -56,7 +56,7 @@ places on the map. If the file's address has its own `?` or `&`, encode it first
 openstreetmap.org's pin, `mlat=` and `mlon=`:
 
 ```html
-<iframe src="https://adam2314.github.io/maparound/app/?embed&mlat=31.4655&mlon=35.3870#map=15/31.4655/35.3870"
+<iframe src="https://maparound.app/app/?embed&mlat=31.4655&mlon=35.3870#map=15/31.4655/35.3870"
         title="Where we meet" width="100%" height="450" style="border:0" loading="lazy"></iframe>
 ```
 

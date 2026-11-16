@@ -22,7 +22,7 @@ Google account you join with (see [Testing the Android beta](#testing-the-androi
   give when you pick them, and aren't sent anywhere.
 - **The camera** is only used to scan a party invite QR code. No pictures are kept or sent.
 - **Voice prompts** come from your phone's own text-to-speech engine.
-- **The web app** (adam2314.github.io/maparound/app) keeps your routes, places, settings and the
+- **The web app** (maparound.app/app) keeps your routes, places, settings and the
   maps you add in your browser's storage for that site, on your device. Clearing the site's data
   in the browser deletes them. GitHub, which hosts the site, receives your IP address when the page
   loads (see GitHub's privacy statement); after that, the app only asks GitHub for MapAround's list

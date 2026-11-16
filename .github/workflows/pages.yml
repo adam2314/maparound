@@ -1,7 +1,7 @@
 name: Pages
 
 # The website (docs/, Jekyll) and the web app (webApp/, Kotlin/Wasm) at
-# https://adam2314.github.io/maparound/ and …/maparound/app/.
+# https://maparound.app/ and …/maparound/app/.
 # Settings → Pages → Source: GitHub Actions.
 
 on:

@@ -58,13 +58,22 @@ class PartyKey(val id: ByteArray, val secret: ByteArray, val name: String, val s
     override fun hashCode() = id.contentHashCode() * 31 + server.hashCode()
 
     companion object {
-        /** Host and path of the invite page (docs/party.html on the project's GitHub Pages site). */
-        const val INVITE_HOST = "adam2314.github.io"
-        const val INVITE_PATH = "/maparound/party"
+        /** Host and path of the invite page (docs/party.html on MapAround's website). */
+        const val INVITE_HOST = "maparound.app"
+        const val INVITE_PATH = "/party"
         const val INVITE_PAGE = "https://$INVITE_HOST$INVITE_PATH"
 
-        /** Where an invite's code starts: the web link, and the app link (also the first app versions' invites). */
-        private val LINK_STARTS = listOf("$INVITE_HOST$INVITE_PATH#", "maparound://party/")
+        /** The invite page's earlier address (GitHub Pages' own), in invites shared before: still read. */
+        private const val OLD_INVITE_HOST = "adam2314.github.io"
+        private const val OLD_INVITE_PATH = "/maparound/party"
+
+        /** Whether a web link's [host] and [path] are the invite page's, now or before. */
+        fun isInvitePage(host: String?, path: String?): Boolean =
+            (host == INVITE_HOST && path?.startsWith(INVITE_PATH) == true) ||
+                (host == OLD_INVITE_HOST && path?.startsWith(OLD_INVITE_PATH) == true)
+
+        /** Where an invite's code starts: the web link (now and before), and the app link (also the first app versions' invites). */
+        private val LINK_STARTS = listOf("$INVITE_HOST$INVITE_PATH#", "$OLD_INVITE_HOST$OLD_INVITE_PATH#", "maparound://party/")
 
         /** URL-safe Base64, written without padding; read with or without. */
         private val B64 = Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT_OPTIONAL)

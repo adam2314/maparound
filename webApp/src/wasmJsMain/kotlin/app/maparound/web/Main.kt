@@ -64,7 +64,7 @@ private val UI_FONTS = listOf("NotoSansMath.ttf", "NotoSansSymbols2.ttf", "NotoS
 /** The right-to-left languages' fonts, loaded before the screens in such a language. */
 private val RTL_FONTS = listOf("NotoSansHebrew.ttf", "NotoSansArabic.ttf")
 
-/** The page's address up to its folder, e.g. "https://adam2314.github.io/maparound/app/". */
+/** The page's address up to its folder, e.g. "https://maparound.app/app/". */
 private fun pageBase(): String = js("location.href.split('#')[0].split('?')[0].replace(/[^/]*$/, '')")
 
 private fun pageAddress(): String = js("location.href")

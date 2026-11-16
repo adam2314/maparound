@@ -19,7 +19,7 @@ import kotlin.math.sqrt
 
 /**
  * A route or track as a link to MapAround's web app, the line itself in the address after `#`
- * (which browsers never send to the website): `…/maparound/app/#track=<line>&n=<name>`. It opens in
+ * (which browsers never send to the website): `https://maparound.app/app/#track=<line>&n=<name>`. It opens in
  * the web app, and in the Android app when shared or opened there. Long lines are thinned to at
  * most [MAX_POINTS], keeping their shape (Douglas–Peucker); the heights go along when every point
  * has one, so the climb and the elevation profile come too.

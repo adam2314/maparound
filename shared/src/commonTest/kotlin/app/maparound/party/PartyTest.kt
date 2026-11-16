@@ -49,15 +49,15 @@ class PartyTest {
     @Test
     fun linkRoundTrip() {
         val link = key.toLink()
-        assertTrue(link.startsWith("https://adam2314.github.io/maparound/party#"))
+        assertTrue(link.startsWith("https://maparound.app/party#"))
         val back = PartyKey.parse(link)!!
         assertTrue(back.secret.contentEquals(key.secret))
         assertTrue(back.id.contentEquals(key.id))
         assertEquals("Desert run", back.name)
         assertEquals(key.tag, back.tag)
         assertNull(PartyKey.parse("maparound://party/nonsense"))
-        assertNull(PartyKey.parse("https://adam2314.github.io/maparound/party#nonsense"))
-        assertNull(PartyKey.parse("https://adam2314.github.io/maparound/party"))
+        assertNull(PartyKey.parse("https://maparound.app/party#nonsense"))
+        assertNull(PartyKey.parse("https://maparound.app/party"))
     }
 
     @Test
@@ -76,7 +76,13 @@ class PartyTest {
         assertFalse(PartyKey.hasLink("party/club"))
         // Just the code, and a link without a name.
         assertEquals(key, PartyKey.parse(code))
+        assertEquals("Party", PartyKey.parse("https://maparound.app/party#$code")!!.name)
+        // Invites shared at the site's earlier address still work, as links and in the app.
         assertEquals("Party", PartyKey.parse("https://adam2314.github.io/maparound/party#$code")!!.name)
+        assertTrue(PartyKey.hasLink("Join: https://adam2314.github.io/maparound/party#$code"))
+        assertTrue(PartyKey.isInvitePage("adam2314.github.io", "/maparound/party"))
+        assertTrue(PartyKey.isInvitePage("maparound.app", "/party"))
+        assertFalse(PartyKey.isInvitePage("maparound.app", "/app/"))
     }
 
     @Test
