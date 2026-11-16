@@ -28,5 +28,14 @@ Use it where you hike, ride or drive, and
 [report what doesn't work](https://github.com/adam2314/maparound/issues), with your phone's model
 and what you did. That's what gets MapAround ready for everyone.
 
+## Your privacy
+
+- The developer sees the email address of the Google account you join the group with; other
+  testers don't. The beta app collects nothing more than the released one.
+- **Reports on GitHub are public**: leave out party invite links, track links, screenshots that
+  show where you live, and your email address. For anything personal, send feedback privately
+  through Google Play's page for MapAround.
+- More in the [privacy policy]({{ '/privacy#testing-the-android-beta' | relative_url }}).
+
 No Android phone? The [web app]({{ '/app/' | relative_url }}) runs in any recent browser, nothing to
 install. The iPhone app comes later.

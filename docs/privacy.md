@@ -1,14 +1,15 @@
 # MapAround privacy policy
 
-*Effective 12 November 2026*
+*Effective 16 November 2026*
 
 MapAround is an offline map app for Android and iPhone. This policy explains what information the
 app uses, where it goes, and what you control.
 
 **In short:** MapAround has no accounts, no ads, no analytics and no tracking. The developer
-doesn't run a server and doesn't receive any of your data. Your maps, tracks, places and settings
-stay on your phone. The app contacts other services only for the online features you use, as
-listed below.
+doesn't run a server and the app sends the developer none of your data. Your maps, tracks, places
+and settings stay on your phone. The app contacts other services only for the online features you
+use, as listed below. If you join the Android beta, the developer sees the email address of the
+Google account you join with (see [Testing the Android beta](#testing-the-android-beta)).
 
 ## What stays on your phone
 
@@ -75,6 +76,23 @@ policy.
   went. They stay on your device, aren't sent anywhere, and are deleted when you leave the party
   or join another.
 
+## Testing the Android beta
+
+- **The beta is the same app**, under this same policy: it collects nothing more.
+- **Joining the testers' group** ([groups.google.com/g/maparound](https://groups.google.com/g/maparound))
+  is done with your Google account. The developer, as the group's owner, sees the email address
+  you join with; other testers don't. It's used only to let you into the beta and, rarely, to tell
+  testers about a new version. Google Groups is Google's service, under Google's privacy policy.
+- **Becoming a tester on Google Play** is between you and Google. Google Play shows the developer
+  how many people test, and, if your phone shares usage and diagnostics with Google, crash and
+  performance reports (the phone model, the Android version, where the app failed), not who you
+  are. Feedback you send privately through Google Play's page for the app reaches the developer.
+- **Reports on GitHub are public.** Don't include party invite links (anyone with one can read the
+  party), track links (they carry the route), screenshots that show where you live, or your email
+  address. For anything personal, use Google Play's private feedback.
+- **Leaving**: leave the group and the test (the tester page on Google Play). The developer no
+  longer sees your address once you've left the group.
+
 ## Permissions
 
 - **Location (precise and approximate)** is used for the features above, also while recording a
@@ -104,4 +122,5 @@ If this policy changes, the new version will be posted at this address with a ne
 ## Contact
 
 Questions about this policy: open an issue at
-[github.com/adam2314/maparound/issues](https://github.com/adam2314/maparound/issues).
+[github.com/adam2314/maparound/issues](https://github.com/adam2314/maparound/issues). Issues are
+public; testers can also write privately through Google Play's feedback for the app.
