@@ -1,16 +1,14 @@
 <en-US>
-• The map now works online wherever you haven't downloaded one, in the same style, with the marked trails.
-• GeoTIFF scans and orthophotos as raster maps.
-• Share a track as a link; open GPX links.
-• Topo: dirt roads by how passable they are, marked trails on their edges, bike paths, clearer cliffs, bigger names and icons.
-• The map on a TV or second screen.
-• Back works as expected; no more crash when starting navigation after Android Auto.
+• Party: each member's speed, height, accuracy and time; messages in the order written, with their time; replay a member's way on the map.
+• Map tools: tap A or B to pick it, drag to move it; the panels fold away to show the map.
+• The 3D view loads first, then tilts in one smooth move.
+• Navigating from the phone shows on Android Auto: tap the card.
+• Put a track on any website. MapAround's new address: maparound.app.
 </en-US>
 <iw-IL>
-• המפה עובדת עכשיו גם אונליין איפה שלא הורדה מפה, באותו סגנון ועם השבילים המסומנים.
-• סריקות ותצלומי אוויר ב־GeoTIFF כמפות רסטר.
-• שיתוף מסלול כקישור, ופתיחת קישורי GPX.
-• Topo: דרכי עפר לפי עבירות, שבילים מסומנים על שוליהן, שבילי אופניים, מצוקים ברורים יותר, שמות וסמלים גדולים יותר.
-• המפה על טלוויזיה או מסך נוסף.
-• כפתור החזרה עובד כמצופה; אין יותר קריסה בהתחלת ניווט אחרי Android Auto.
+• קבוצה: מהירות, גובה, דיוק ושעה לכל משתתף; הודעות לפי סדר הכתיבה עם השעה; הפעלה מחדש של הדרך של משתתף על המפה.
+• כלי המפה: הקשה על A או B בוחרת, גרירה מזיזה; הלוחות מתקפלים כדי לראות את המפה.
+• תצוגת התלת־ממד נטענת קודם, ואז נוטה בתנועה חלקה אחת.
+• ניווט שהתחיל בטלפון מופיע ב־Android Auto: מקישים על הכרטיס.
+• הטמעת מסלול בכל אתר. הכתובת החדשה של MapAround: ‏maparound.app.
 </iw-IL>
