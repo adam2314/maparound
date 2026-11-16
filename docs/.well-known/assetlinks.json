@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.maparound",
+      "sha256_cert_fingerprints": [
+        "B9:A3:C2:1F:01:2E:1C:39:8A:68:44:38:B1:7C:98:DE:78:30:E1:54:92:B9:EE:D3:7F:19:E4:40:AE:C9:81:90",
+        "DB:E7:57:BB:AF:04:34:D2:9F:08:99:2A:55:BA:49:DA:19:28:52:B6:CB:31:7C:32:6B:A9:81:DF:04:46:D4:1C"
+      ]
+    }
+  }
+]

@@ -12,6 +12,10 @@ defaults:
       path: ""
     values:
       layout: default
+# Android's check that maparound.app links may open MapAround (Digital Asset Links): the app's
+# signing keys, Google Play's and the upload key. Jekyll skips dot-folders unless told.
+include:
+  - .well-known
 exclude:
   - IOS_PLAN.md
   - "store/*.mp4"
