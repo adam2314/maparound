@@ -8,6 +8,11 @@ records tracks, shows marked hiking trails,
 shares your group's live positions (online and off-grid over LoRa radios), and includes a compass,
 a barometer and a GNSS satellite-reception view.
 
+MapAround was born from a love of mapping and of the data behind maps. Maps guide us, and they
+should be freely available to all: MapAround is free and will stay free (no ads, no account, no
+tracking), and so are its maps. [Supporting it](https://adam2314.github.io/maparound/support) pays
+for a better web experience and for building the offline maps.
+
 Licence: **GPL-3.0** (see [LICENSE](LICENSE)); bundled components keep their own licences (below).
 
 ## Features
@@ -16,16 +21,16 @@ Licence: **GPL-3.0** (see [LICENSE](LICENSE)); bundled components keep their own
 |---|---|
 | **Map** | Pan/zoom map, my-location dot with accuracy circle and follow mode, long-press to drop a pin (coordinates, DMS, distance/bearing from you, copy, open in another app). Tap a peak, spring, hut, viewpoint or any place the map labels to pin it with what it is (its name in your language and where it is, its height); **What's here?** lists the places the map shows around it (offline) and Wikipedia articles about places nearby (online), and a place with its own article opens it, in your language when there is one, and shows its picture. *What's here?* also shows photos taken around the point (Wikimedia Commons); a photo opens over the whole screen with its author and licence, and shows where it was taken. Buttons for **search**, layers, the **route planner**, **map tools**, the **3D view** and **track recording**; zoom with pinch or double-tap. **Layers → Legend** explains the map on screen: an offline style's legend is made from the style itself (its roads, track grades, paths, marked trails, water, land, terrain and symbols, as it draws them), an online map's links to its makers' legend. |
 | **Search** (on the map, magnifier) | Your saved places, coordinates in any format and map links, and names in the **offline maps** around the map centre (towns, peaks, springs, streets, paths, hotels…, within 25 km, works without internet) as you type; **online** search of OpenStreetMap anywhere (Photon, with Nominatim as a fallback) when you press search. Picking a result drops a labelled pin there. |
-| **Map tools** (on the map, ruler button) | **Azimuth & range** between two points (true and magnetic bearing, mils, back bearing, height difference, slope, place B by bearing + distance). **Line of sight** from A to B with a terrain profile and where the view is blocked; as a **radio link**, with antenna heights at both ends and a frequency (LoRa 433/868/915 MHz, 2.4 and 5.8 GHz, VHF, PMR446, FRS/GMRS or any), it draws the first Fresnel zone on the profile and gives its clearance (60% rule) and the path loss (free space + terrain). **Viewshed**: a circle (250 m–25 km) showing ground in sight (green) and hidden (red). **Coordinate converter**: one point in decimal degrees, deg-min, deg-min-sec, UTM, MGRS, Israeli ITM, Plus Code and Maidenhead; type or paste any of them to jump there; pick the format used on pins. Line of sight and viewshed fetch the terrain they need themselves when it's missing (a few 1° tiles at most, as the Wi‑Fi-only setting allows). |
-| **Route planner** (on the map) | Tap points (start, stops, end); tap a numbered point to remove it. Hold a stop and drag it to move it, or hold the line and drag to add a stop there; the line follows your finger and the route is calculated again when you let go. Profiles **Hike / Bike / Car** follow paths and roads; **Line** draws straight lines to measure. Shows distance, climb/descent, estimated time and an elevation profile; undo, reverse, save to the library. **Start** navigates: a tilted view with the way ahead up that zooms out the faster you go, your speed, the next turn and its distance, time left and arrival, voice prompts (switchable), a new route when you leave it, and it keeps going with the screen off. |
-| **3D view** (on the map, cube button) | The map in 3D on the whole globe, streamed as you move: terrain relief with the map draped on it (drawn by MapLibre like the 2D map: your offline style, or the online layer, or satellite), detailed near you and coarser to the horizon, a sky with haze, names standing up over the terrain (places, peaks with their heights, huts; hidden behind ridges), and buildings extruded from the offline map close up (heights from OSM `height` / `building:levels`). Zoom out and it's the Earth in space. One finger pans and flings, pinch zooms, two fingers turn and tilt; relief exaggeration ×1–4, buildings on/off, face north. |
+| **Map tools** (on the map, ruler button) | **Azimuth & range** between two points (true and magnetic bearing, mils, back bearing, height difference, slope, place B by bearing + distance). **Line of sight** from A to B with a terrain profile and where the view is blocked; as a **radio link**, with antenna heights at both ends and a frequency (LoRa 433/868/915 MHz, 2.4 and 5.8 GHz, VHF, PMR446, FRS/GMRS or any), it draws the first Fresnel zone on the profile and gives its clearance (60% rule) and the path loss (free space + terrain). **Viewshed**: a circle (250 m–25 km) showing ground in sight (green) and hidden (red). **Coordinate converter**: one point in decimal degrees, deg-min, deg-min-sec, UTM, MGRS, Israeli ITM, Plus Code and Maidenhead; type or paste any of them to jump there; pick the format used on pins. Line of sight and viewshed fetch the terrain they need themselves when it's missing (a few 1° tiles at most, as the Wi‑Fi-only setting allows). Tap **A** or **B** on the map to pick it (a yellow ring shows which one taps move), press on a point and drag to move it; the panel folds away to one line with the result. |
+| **Route planner** (on the map) | Tap points (start, stops, end); tap a numbered point to remove it. Hold a stop and drag it to move it, or hold the line and drag to add a stop there; the line follows your finger and the route is calculated again when you let go. Profiles **Hike / Bike / Car** follow paths and roads; **Line** draws straight lines to measure. Shows distance, climb/descent, estimated time and an elevation profile; undo, reverse, save to the library. **Start** navigates: a tilted view with the way ahead up that zooms out the faster you go, your speed, the next turn and its distance, time left and arrival, voice prompts (switchable), a new route when you leave it, and it keeps going with the screen off. The panel folds away to one line (the route's length, time and climb, **Start**). |
+| **3D view** (on the map, cube button) | The map in 3D on the whole globe, streamed as you move: terrain relief with the map draped on it (drawn by MapLibre like the 2D map: your offline style, or the online layer, or satellite), detailed near you and coarser to the horizon, a sky with haze, names standing up over the terrain (places, peaks with their heights, huts; hidden behind ridges), and buildings extruded from the offline map close up (heights from OSM `height` / `building:levels`). Zoom out and it's the Earth in space. One finger pans and flings, pinch zooms, two fingers turn and tilt; relief exaggeration ×1–4, buildings on/off, face north. Opening it waits until the relief and the first view's tiles are in, the 2D map showing meanwhile, then tilts in one move. |
 | **Places** (Library → Places) | Your own points of interest: save from any pin or your location with a name, category (⭐ favourite, ⛺ camp, 💧 water, 🔭 viewpoint, 🅿️ parking, ⛽ fuel, 🍴 food, ⚠️ danger, 📍 other) and a note. Shown on the map (Layers → Saved places); tap one for route here, share, viewshed, edit, delete. The list searches names and notes, filters by category and sorts by distance, name or date. Import waypoints from any GPX file, share or export places as GPX. |
-| **Library** | Routes & tracks, and Places. Library of saved routes and tracks (GPX files): show/hide on the map, elevation profile & stats, share as GPX, rename, delete, **import GPX** from other apps. **Record** a track with GPS; it keeps recording with the screen off. |
-| **Party** | Live location sharing for a group (hiking, convoys). Create a party and invite with a QR code or link; members appear on the map with name, their chosen icon (initial; walker, hiker, runner, Nordic walker, skier, kayaker; cyclist, bicycle, e-bike, motorcycle, moped; car, 4×4, van, truck, caravan) on their colour (16 presets or any mix), age and how their update arrived. Works **online** (MQTT: public servers, or your own `wss://` server, which the invite carries; see the [guide](https://adam2314.github.io/maparound/guide/party-server)) and **off-grid over LoRa** through Meshtastic radios paired by Bluetooth; a phone with both acts as a **gateway** between them. SOS alerts, meeting point, route to a member, short messages, "hidden" mode. End-to-end encrypted. Members can also join from a **browser** (the web app), sharing their position while the page is open, online and, in Chrome or Edge, over a Meshtastic radio by Bluetooth too. |
+| **Library** | Routes & tracks, and Places. Library of saved routes and tracks (GPX files): show/hide on the map, elevation profile & stats, share as GPX, rename, delete, **import GPX** from other apps. **Record** a track with GPS; it keeps recording with the screen off. **Embed in a website** copies the code that puts a track on a map in any web page (see the web app). |
+| **Party** | Live location sharing for a group (hiking, convoys). Create a party and invite with a QR code or link; members appear on the map with name, their chosen icon (initial; walker, hiker, runner, Nordic walker, skier, kayaker; cyclist, bicycle, e-bike, motorcycle, moped; car, 4×4, van, truck, caravan) on their colour (16 presets or any mix), age and how their update arrived. Works **online** (MQTT: public servers, or your own `wss://` server, which the invite carries; see the [guide](https://adam2314.github.io/maparound/guide/party-server)) and **off-grid over LoRa** through Meshtastic radios paired by Bluetooth; a phone with both acts as a **gateway** between them. SOS alerts, meeting point, route to a member, short messages, "hidden" mode. Each member's speed and heading, height, accuracy, battery and the time of their position; messages in the order they were written, each with its time; **History** replays a member's way so far on the map (time slider, play ×10–×1200). End-to-end encrypted. Members can also join from a **browser** (the web app), sharing their position while the page is open, online and, in Chrome or Edge, over a Meshtastic radio by Bluetooth too. |
 | **Sharing** | Share any point (long-press pin, your location dot, party members, meeting point) as a **link** (Google Maps, OpenStreetMap, and MapAround's web app in OpenStreetMap's pinpoint form), a **GPX waypoint**, or open it in another app. Share routes as **GPX + links** (BRouter-Web rebuilds the route in any browser; Google Maps directions). MapAround also **opens** what others send: `geo:` links, Google/OSM/Apple/Waze/BRouter links, text with coordinates (also degrees-minutes-seconds), GPX files, mapsforge `.map` files, and party invites. |
 | **Offline** | Browse MapAround's own map catalog (continents → countries → regions): OpenStreetMap as mapsforge maps with the marked trails, cliffs, path and track grades, surfaces and 4×4-only tracks built in, rebuilt every month by [my-pipeline](https://github.com/adam2314/my-pipeline). While it fills up, regions it hasn't built (yet), and the whole countries too big for its free build machines, are offered from mapsforge.org as basic maps (no marked trails), and a switch shows the whole mapsforge.org list; it's also the list when MapAround's can't be read. An installed mapsforge.org map is offered MapAround's version as an update. Download with the system DownloadManager (background, resumable, Wi‑Fi-only option, storage check), update when the server has a newer file, delete, or **import a map file**: any mapsforge `.map` (e.g. one downloaded in the web app, or OpenAndroMaps) and, on Android, raster maps, from one button. Each section explains itself, with a link to its data's source and to its [guide](https://adam2314.github.io/maparound/guide/) (English and Hebrew); the elevation data's source can be changed (your own server). A built-in world map (coastlines, lakes, rivers, borders and names from Natural Earth) is drawn when zoomed out and around the downloaded maps, so the map is never blank; the iPhone app still uses mapsforge's 3 MB world overview download. Looking at a place no installed map covers (zoom 7 and closer), the map says **No offline map here** with the region whose map is made for it (a state of a big country, else the country: "Bayern, Germany"); **Get map** opens this list at that region (Android and the web; the regions' outlines, simplified, are built in: `map/MapRegions.kt`, `assets/regions.bin` by `tools/regions/make_regions.py`). Each map's **⋮** menu adds extras for its area: **contours & hill shading**, **offline routing** and **marked trails**; they keep downloading with the app in the background, with their progress in a notification. **Raster maps**: add **GeoTIFF** scans and orthophotos (`raster/Tiff.kt`, `GeoTiff.kt`: classic and BigTIFF, LZW / Deflate / PackBits / JPEG / WebP, placed by their EPSG code or the projection they describe; big ones without overviews get them built once, `TiffOverviews.kt`), TwoNav / CompeGPS **`.rmap`** files (e.g. scanned 1:50,000 topo sheets) and tile databases, **MBTiles** (from QGIS, GDAL, MOBAC, MapTiler…) and **SQLiteDB** (Locus, OsmAnd, RMaps); big files are read where they are, not copied. ECW can't be read (closed decoder): the app says how to convert it. Where no map is downloaded the vector map is **streamed** from MapAround's or mapsforge.org's map files by HTTP range requests (`shared/stream/MapStream.kt`), in the same style. |
 | **Layers** (on the map) | *Offline vector* (all installed maps rendered together) in a **style**: Topo, Classic, Osmarender, Biker, Motorider or one you **import** (a mapsforge render theme, `.xml` or `.zip`), each with its own **options** to show or hide parts of the map (Topo: land cover, buildings, boundaries, railways and lifts, names, peaks and springs, points of interest); switches for **contour lines** and **hill shading**; a **marked hiking trails** overlay. Or **online** raster sources: OpenStreetMap France and Germany, OpenTopoMap, CyclOSM, Humanitarian, Esri World Topo and Street, **Satellite** (Esri World Imagery), and national maps (swisstopo, basemap.at, Kartverket, IGN plan and aerial, USGS Topo), plus your own XYZ URL templates (`{s} {z} {x} {y} {-y}`); **import and export** the list of your own. Online tiles are cached on disk. See [docs/map-styles.md](docs/map-styles.md). **Background of the offline map**: its own colours, **satellite imagery**, or one of your **raster maps**, with the vector map's roads, trails, contours and labels drawn on top (switchable). |
-| **Android Auto** | The map on the car screen: the same offline/online map, contours, hill shading and trails as the phone, your position (follow mode), the planned route, shown tracks, the recording and party members. Speed, altitude, heading and party status at the top; **Satellite** toggle, re-centre, pan and zoom. "Navigate to" a place from the car routes there and starts **turn-by-turn navigation**: the next maneuver, time and distance left, voice through the car's speakers, and the trip on the car's own displays; Start / Stop / Mute on the car screen. |
+| **Android Auto** | The map on the car screen: the same offline/online map, contours, hill shading and trails as the phone, your position (follow mode), the planned route, shown tracks, the recording and party members. Speed, altitude, heading and party status at the top; **Satellite** toggle, re-centre, pan and zoom. "Navigate to" a place from the car routes there and starts **turn-by-turn navigation**: the next maneuver, time and distance left, voice through the car's speakers, and the trip on the car's own displays; Start / Stop / Mute on the car screen. Navigation started on the phone shows on the car as a card with the next turn, also while another app is on the car screen; a tap opens MapAround there. |
 | **Sensors** | **Compass:** rotation-vector heading with smoothing, magnetic or true north (declination from your position), calibration warning (tilt is in Motion). **Speed:** GPS ground speed (km/h, mph, knots, m/s) with its accuracy, heading of travel, walking pace, a trip counter (distance, max, average while moving, moving/total time) and a 10-minute chart; keeps the screen on. **Motion:** inclinometer for vehicles (pitch and roll drawn as a car from the side and behind, amber at 15°, red at 25°, **Set as level** for a phone in a holder); accelerometer (total g, x/y/z, movement without gravity, peak, a G-meter for braking/accelerating and cornering, 10-second chart); gyroscope (turn rate left/right, x/y/z °/s, chart); sensor model and range. **Barometer:** pressure (hPa / inHg / mmHg), barometric altitude, calibration by known elevation, GPS altitude or QNH, live trend chart with hPa/h. **Satellites:** live GNSS reception — fix state, satellites in use / in view, sky plot, per-satellite C/N₀ signal bars, constellation and band, TTFF, accuracy, speed, course. |
 
 Map extras per area (all optional):
@@ -37,6 +42,15 @@ Map extras per area (all optional):
 | Marked trails & cliffs | OpenStreetMap via Overpass API | ~0.5–8 MB per 1°×1° on the phone | Only for maps from elsewhere (mapsforge.org, imported): MapAround's maps have them built in. Without it, trails are an online overlay (waymarkedtrails.org) and the Topo style has no cliffs. |
 
 Missing sensors (no barometer, no GPS, and so on) show an explanation instead of crashing.
+
+## Supporting MapAround
+
+MapAround is free and will stay free. Donations through
+[GitHub Sponsors](https://github.com/sponsors/adam2314) pay for a better web experience (the maps
+hosted where a browser may read them, a domain), for building the offline maps (the biggest
+countries need bigger machines than the free ones) and for the app stores. The
+[support page](https://adam2314.github.io/maparound/support) (also in Hebrew; `docs/support.md`)
+lists the costs and other ways to help: testing, improving OpenStreetMap, translating.
 
 ## Build
 
@@ -188,6 +202,13 @@ on Windows, prefix the commands with `MSYS_NO_PATHCONV=1`.
 - **Router** (`PartyEngine`, `PartySession`): drops duplicates (the same update can arrive online
   and by radio), keeps the newest position per member, and on a **gateway** phone relays packets
   between online and radio unchanged (they stay encrypted).
+- **Order and history** (`PartyEngine`, `PartyHistory`): messages are kept in the order they were
+  written (their send time, in whole seconds), so one that comes late by radio goes in its place.
+  Every position received goes into its member's history in time order, the same moment once (at
+  most 5,000 a member). The platforms keep it in a file (`PartyHistoryFile`: the app's files, the
+  web app's IndexedDB), saved at most every minute and when the party stops, deleted when leaving
+  or joining another. **History** replays it on the map (`ui/PartyHistoryUi.kt`): the way in the
+  member's colour, the marker moving between positions, long stops skipped.
 - **In the browser** (`OnlineParty`, with the web's parts in `webApp/.../WebParty.kt` and
   `WebRadio.kt`): the invite page's *Join in your browser* opens the web app with
   `app/#party=<code>?n=<name>`; the app takes the code out of the address and asks for a name
@@ -230,7 +251,10 @@ on Windows, prefix the commands with `MSYS_NO_PATHCONV=1`.
 ## Map tools
 
 Open them with the ruler button on the map. Tap the map to place **A**, then **B**; further taps
-move B (tap the A chip to move A instead). The tools use the downloaded terrain (contours & hill
+move the picked point. Tap A or B on the map (or its chip) to pick it, ringed in yellow; press on a
+point and drag to move it at once (Android and the web: `MapListener.onPress`; on iPhone a long
+press, then drag). The panel's handle folds it to one line (`ui/MapDrawer.kt`, also the route
+planner's and a replayed history's). The tools use the downloaded terrain (contours & hill
 shading extra); azimuth and the converter work without it.
 
 - **Azimuth & range** (`tools/Sight.kt` → `Geodesy`): great-circle distance and initial bearing
@@ -321,7 +345,10 @@ and style, planned route, tracks, recording, party). Pan, pinch and double-tap c
 touch screen; the template has zoom buttons, re-centre and a satellite toggle. While navigating
 (`CarNavigation`), the template's routing card shows the next maneuver (arrows drawn from the same
 shapes as the phone's, `TurnGlyph`), `NavigationManager` gets the trip for the car's cluster or
-head-up display, and stopping navigation from the car stops it on the phone too.
+head-up display, and stopping navigation from the car stops it on the phone too. Android Auto lets
+no app take the car screen by itself: while navigation runs on the phone, its notification carries
+a `CarAppExtender`, so the car shows the next turn as a card (a pop-up once) while another app is in
+front, and a tap opens MapAround's car app in navigation (`CarPendingIntent`).
 
 **Using it with a sideloaded build** (Android Auto only lists Play Store apps unless you allow others):
 
@@ -339,8 +366,7 @@ head-up display, and stopping navigation from the car stops it on the phone too.
 
 The car map uses the phone's location permission (grant it once in the phone app). Release builds
 only accept known Android Auto hosts (`hosts_allowlist_sample`); debug builds accept any host,
-including the desktop head unit. Not yet tried in a real car: whether GPS keeps updating with the
-phone locked depends on how the Android Auto host keeps the app running.
+including the desktop head unit. Navigation has been tried in a car with Android Auto connected.
 
 ## Places and the 3D view
 
@@ -380,6 +406,11 @@ phone locked depends on how the Android Auto host keeps the app running.
   - **Sky and atmosphere**: a sky from the horizon's haze to blue overhead; from high up, space
     with a thin glowing band above the Earth's rim, and the atmosphere's tint at the globe's edge.
     Haze thickens with distance near the ground and thins with height. Light from the north-west.
+  - **Opening it** (Android, `prepareIntro` in `three/Scene3DView.kt`): the 2D map stays while
+    the relief's elevation data comes (if it's missing) and the tiles that decide how the first
+    view looks load (straight down all in, the turned view at most a level coarser); then the view
+    appears straight down, as the map was, and turns into 3D in one eased move. Without a
+    connection it goes ahead after a few seconds.
   - OpenGL ES 3 with 4× multisampling and anisotropic filtering; GPU memory is bounded (oldest
     unused tiles are dropped). One finger pans (a flick keeps it gliding), pinch zooms, two
     fingers twist to turn and slide up/down to tilt, double-tap zooms in smoothly.
@@ -493,7 +524,9 @@ routing and recording come next; the browser can't record with the screen off.
 
 Downloading a map takes two steps in the browser: **Offline → ⤓** has the browser download the
 `.map` file (GitHub's download servers don't let a web page fetch it itself), then the file
-button at the top adds it to the app. MapAround's maps have the marked trails built in.
+button at the top adds it to the app. MapAround's maps have the marked trails built in. Showing
+MapAround's vector map online, as Android does, needs the maps hosted where a browser may read
+them ([Supporting MapAround](#supporting-maparound)); until then the web's online maps are raster.
 
 The page's address follows the map, as openstreetmap.org's does (`…/app/#map=15/35.8985/14.5125`:
 zoom, latitude, longitude, with OpenStreetMap's zoom levels), so a reload, a bookmark or a link
@@ -501,6 +534,14 @@ opens the same view. A pin is in the address too, in OpenStreetMap's pinpoint fo
 (`…/app/?mlat=35.8985&mlon=14.5125#map=16/35.8985/14.5125`): a shared point opens with its pin, and
 any openstreetmap.org pinpoint link works with `www.openstreetmap.org/` changed to
 `adam2314.github.io/maparound/app/`.
+
+**In other websites** (`?embed`): the address with `?embed` is the map alone, for an iframe in any
+web page ([guide](https://adam2314.github.io/maparound/guide/embed)): a place (`#map=`), a pin
+(`mlat`/`mlon`), a track from a MapAround link (`#track=…`) or a GPX file on a site that allows it
+(`gpx=`), with `layer=`, `trails=0` and `lang=`. It keeps nothing: its files and settings stay in
+memory (`WebFiles.load(keep = false)`, `MemoryStore`), and **Open in MapAround** opens the full web
+app in a new tab with the same view, pin and track. **Embed in a website** in a track's menu copies
+the iframe code.
 
 How it fits together (`webApp/`, `shared/src/wasmJsMain/`):
 - **The map behind the screens.** MapLibre GL JS draws into `#map` under the Compose canvas; the map
@@ -565,7 +606,7 @@ shared/src/
                            coordinates, tilt & trip, sensor interfaces, 3D tiles & meshes, search
                            engine, routing geometry, planner (dragging stops: RouteEdit) & navigation, turn arrows, contours, elevation tiles
                            (memory-mapped), HGT processing, RMAP, places, GPX & track library, trail
-                           cells, links, party protocol, engine & state, Meshtastic codec, map
+                           cells, links, party protocol, engine, state & history, Meshtastic codec, map
                            catalog, settings (Prefs) and the offline-data interfaces
     shared/mapsforge/      a Kotlin port of the mapsforge map reader (no rendering)
     shared/mvt/            mapsforge data → vector tiles (for MapLibre on iOS)
@@ -649,7 +690,10 @@ The app's privacy policy (also for the stores) is [docs/privacy.md](docs/privacy
   Google beyond what Android Auto itself handles.
 - **Party sharing**: your position goes only to the party (encrypted with its key). Anyone you give
   the invite link or QR code to can join and see the party's positions; "Share my location" off
-  hides you.
+  hides you. The others' positions this device receives are kept on it for their history, until
+  you leave the party.
+- **The map embedded in other websites** (the web app's `?embed`) reads and saves nothing in the
+  visitor's browser and doesn't ask for their location.
 - **Internet**: used for map, terrain, routing-data and trail downloads, online tiles (2D and 3D),
   online route calculation, and online search (the search text and the map centre go to
   photon.komoot.io, or nominatim.openstreetmap.org as a fallback; offline search sends nothing),
@@ -682,9 +726,12 @@ The app's privacy policy (also for the stores) is [docs/privacy.md](docs/privacy
 - **Line of sight, radio links and viewsheds use bare ~30 m terrain**: no trees or buildings, and
   rounded peaks; radio loss is a single-obstacle estimate. Treat them as a guide.
 - **Off-grid party sharing needs Meshtastic radios**; there is no phone-to-phone Bluetooth yet.
-- **Not yet tried for real**: navigation on the road, Android Auto in a car, and the LoRa transport
-  with real radios.
-- **Raster maps: `.rmap`, MBTiles and SQLiteDB only** (no GeoTIFF, OziExplorer or KMZ yet), with no
+- **Not yet tried for real**: the LoRa transport with real radios.
+- **A party member's history is what this device received** since joining (the servers keep only
+  each member's latest position), with gaps while the party was off or the web page closed.
+- **The web app shows MapAround's vector map only where a map is downloaded**: a browser can't read
+  GitHub's release files, so online it uses raster maps until the maps are hosted elsewhere.
+- **Raster maps: GeoTIFF, `.rmap`, MBTiles and SQLiteDB** (no OziExplorer, KMZ or ECW yet), with no
   rotated, Lambert or Cassini `.rmap` maps or old Israeli grid;
   datums other than DHDN and Israel 1993 are treated as WGS 84.
 - **Overpass, brouter.de and public MQTT brokers are free community servers**: they can be slow,

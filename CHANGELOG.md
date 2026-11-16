@@ -22,6 +22,13 @@
   above the ground worked out first; then a single eased tilt into 3D, with nothing popping in or
   jumping after it. Without a network it goes ahead after a few seconds.
 
+### Android Auto
+- **Navigating from the phone shows on the car.** When navigation starts and Android Auto shows
+  another app (or MapAround hasn't been opened on the car yet), the next turn appears on the car
+  screen as a card (once as a pop-up), kept up to date. A tap opens MapAround on the car screen in
+  navigation: the map, the maneuver card and the arrival time. (Android Auto doesn't let an app
+  take over the car screen by itself; the card gets you there in one tap.)
+
 ### 3D on Android
 - **Opening the 3D view waits for what it shows, then tilts in one go**, as on the web. The 2D map
   stays (with "Loading the relief…") while the relief's elevation data comes, if it's missing, and

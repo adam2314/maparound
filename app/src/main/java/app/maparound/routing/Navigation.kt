@@ -20,6 +20,11 @@ import android.speech.tts.UtteranceProgressListener
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import android.content.ComponentName
+import androidx.car.app.notification.CarAppExtender
+import androidx.car.app.notification.CarPendingIntent
+import androidx.core.app.NotificationManagerCompat
+import app.maparound.car.MapAroundCarService
 import app.maparound.MainActivity
 import app.maparound.R
 import app.maparound.i18n.I18n
@@ -240,6 +245,21 @@ class NavigationService : Service() {
             this, 2, Intent(this, NavigationService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_IMMUTABLE,
         )
+        // On Android Auto too: the next turn as a card while another app is on the car screen (shown
+        // once as a heads-up when navigation starts); a tap opens MapAround there, in navigation.
+        // An app can't put itself on the car screen; this is how the driver gets there in one tap.
+        val onCar = CarAppExtender.Builder()
+            .setContentTitle(title)
+            .setContentText(text)
+            .setSmallIcon(R.drawable.ic_stat_navigation)
+            .setImportance(NotificationManagerCompat.IMPORTANCE_HIGH)
+            .setContentIntent(
+                CarPendingIntent.getCarApp(
+                    this, 3, Intent(Intent.ACTION_VIEW).setComponent(ComponentName(this, MapAroundCarService::class.java)), 0,
+                ),
+            )
+            .addAction(R.drawable.ic_stat_navigation, T.nav.stopNavigation, stop)
+            .build()
         return NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_navigation)
             .setContentTitle(title)
@@ -249,6 +269,7 @@ class NavigationService : Service() {
             .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
             .setContentIntent(open)
             .addAction(0, T.nav.stopNavigation, stop)
+            .extend(onCar)
             .build()
     }
 
