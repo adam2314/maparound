@@ -52,6 +52,28 @@ fun partyPositionDetails(p: PartyMessage.Position, unit: SpeedUnit): List<String
 }
 
 /**
+ * A member's details: speed and heading, height and accuracy of the position shown; battery from
+ * their newest report (also one without a GPS fix).
+ */
+fun memberDetails(m: Member, unit: SpeedUnit): List<String> {
+    val battery = m.report?.batteryPct ?: m.position?.batteryPct
+    return m.position?.let { partyPositionDetails(it.copy(batteryPct = null), unit) }.orEmpty() +
+        listOfNotNull(battery?.let { T.party.battery(it) })
+}
+
+/**
+ * While a member's newest report has no GPS fix good enough to show: "no GPS fix (±45 m) · heard
+ * 2 min ago", a sign of life (the map keeps their last good position). Null otherwise.
+ */
+fun noFixLine(m: Member, now: Long): String? {
+    if (!m.noFixNow) return null
+    val heard = m.lastHeard.takeIf { it > 0 }?.let { at ->
+        if (now - at < 60_000) T.party.heardJustNow else T.party.heard(Fmt.relativeTime(at, now).replaceFirstChar { it.lowercase() })
+    }
+    return listOfNotNull(T.party.noGpsFix(m.report?.accuracyM), heard).joinToString(" · ")
+}
+
+/**
  * A party member's history replayed on the map: their way so far as a line, and their marker
  * going along it, faster than it happened. The Party screen opens it, the map screen draws it
  * and plays it ([advance] each frame while [State.playing]).

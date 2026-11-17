@@ -91,6 +91,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -1435,6 +1436,7 @@ fun partyMapMarkers(party: PartyState, now: Long, replay: PartyReplay.State? = n
 }
 
 @Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 private fun PartyMarkerCard(
     key: String,
     party: PartyState,
@@ -1474,13 +1476,16 @@ private fun PartyMarkerCard(
             member?.let { parts += T.map.via(it.heard.keys.joinToString(" + ") { v -> v.label }) }
             if (member?.sos == true && member.sosText.isNotBlank()) parts.add(0, member.sosText)
             Text(parts.joinToString(" · "), style = MaterialTheme.typography.bodyMedium)
-            // Speed and heading, height, how exact, battery.
-            memberAt?.let { p ->
-                partyPositionDetails(p, speedUnit).takeIf { it.isNotEmpty() }?.let { details ->
+            member?.let { m ->
+                // No GPS fix now: the marker stays at the last good position; when they were heard.
+                noFixLine(m, nowMillis())?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.tertiary) }
+                // Speed and heading, height, how exact, battery.
+                memberDetails(m, speedUnit).takeIf { it.isNotEmpty() }?.let { details ->
                     Text(details.joinToString(" · "), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            Row(Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState())) {
+            // The buttons wrap to a second line where they don't fit (narrow phones, Hebrew, big text).
+            FlowRow {
                 if (member != null && (party.historyCounts[member.id] ?: 0) > 0) {
                     TextButton(onClick = { onHistory(member) }) {
                         Icon(Icons.Filled.History, contentDescription = null)

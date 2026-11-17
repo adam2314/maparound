@@ -123,6 +123,17 @@ sealed class PartyMessage {
         val driving: Boolean = false,
     ) : PartyMessage() {
         override val type = 1
+
+        /**
+         * Good enough to show on the map: within [GOOD_FIX_M] (or of unknown accuracy, as from
+         * older versions). A worse one (no GPS fix: from Wi-Fi or cell towers) is still a sign of life.
+         */
+        val isGoodFix: Boolean get() = accuracyM == null || accuracyM <= GOOD_FIX_M
+
+        companion object {
+            /** How exact a member's position has to be to be shown, metres. */
+            const val GOOD_FIX_M = 20
+        }
     }
 
     /**

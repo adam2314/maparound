@@ -686,13 +686,19 @@ private fun MemberRow(
                 // Where, when (how long ago, and the time it was taken) and how it came.
                 val parts = mutableListOf<String>()
                 if (m.sos && m.sosText.isNotBlank()) parts += m.sosText
-                p?.let { pos -> distanceText(me, pos.lat, pos.lon)?.let(parts::add) } ?: parts.add(T.party.noPositionYet)
-                val at = m.positionAt.takeIf { it > 0 } ?: m.lastHeard
-                ago(now, at)?.let { parts += "$it (${Fmt.moment(at, seconds = true, nowMs = now)})" }
+                if (p != null) {
+                    distanceText(me, p.lat, p.lon)?.let(parts::add)
+                    ago(now, m.positionAt)?.let { parts += "$it (${Fmt.moment(m.positionAt, seconds = true, nowMs = now)})" }
+                } else if (!m.noFixNow) {
+                    parts += T.party.noPositionYet
+                    ago(now, m.lastHeard)?.let(parts::add)
+                }
                 parts += m.heard.keys.joinToString("+") { it.label }
                 Text(parts.joinToString(" · "), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                // No GPS fix now: not plotted, but there (when they were last heard).
+                noFixLine(m, now)?.let { Text(it, maxLines = 2, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.tertiary) }
                 // Speed and heading, height, how exact, battery.
-                p?.let { partyPositionDetails(it, speedUnit) }?.takeIf { it.isNotEmpty() }?.let { details ->
+                memberDetails(m, speedUnit).takeIf { it.isNotEmpty() }?.let { details ->
                     Text(details.joinToString(" · "), maxLines = 2, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }

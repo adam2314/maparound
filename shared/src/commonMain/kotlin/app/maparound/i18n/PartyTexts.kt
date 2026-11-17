@@ -90,6 +90,13 @@ open class PartyTexts {
     /** A member who hasn't said their name yet; [code] is 4 letters/digits of their id. */
     open fun memberFallbackName(code: String) = "Member $code"
     open val noPositionYet = "no position yet"
+
+    /** A member's phone has no GPS fix good enough to show (its position is only approximate, ±[accuracyM]). */
+    open fun noGpsFix(accuracyM: Int?) = if (accuracyM != null) "no GPS fix (±$accuracyM m)" else "no GPS fix"
+
+    /** When something last came from a member (a sign of life): [ago] is "5 min ago". */
+    open fun heard(ago: String) = "heard $ago"
+    open val heardJustNow = "heard just now"
     open fun routeTo(name: String) = "Route to $name"
 
     /** A member's height above sea level, in metres. */
@@ -394,6 +401,9 @@ object PartyTextsHe : PartyTexts() {
 
     override fun memberFallbackName(code: String) = "משתתף $code"
     override val noPositionYet = "עדיין אין מיקום"
+    override fun noGpsFix(accuracyM: Int?) = if (accuracyM != null) "אין קליטת GPS (±$accuracyM מ׳)" else "אין קליטת GPS"
+    override fun heard(ago: String) = "עדכון אחרון: $ago"
+    override val heardJustNow = "עדכון אחרון: עכשיו"
     override fun routeTo(name: String) = "מסלול אל $name"
     override fun altitude(m: Int) = "גובה $m מ׳"
     override fun accuracy(m: Int) = "±$m מ׳"

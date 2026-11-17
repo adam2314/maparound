@@ -31,9 +31,16 @@ data class Member(
     /** [PartyIcon] code. */
     val icon: Int = 0,
     val meshNode: Long = 0,
+    /** The newest position good enough to show ([PartyMessage.Position.isGoodFix]); null before one came. */
     val position: PartyMessage.Position? = null,
     /** When the position was taken (sender's clock). */
     val positionAt: Long = 0,
+    /**
+     * The newest position report of any quality, and when it was taken: newer than [position] while
+     * the member has no GPS fix good enough to show, but still a sign of life (and their battery).
+     */
+    val report: PartyMessage.Position? = null,
+    val reportAt: Long = 0,
     /** When we last heard anything from this member (our clock), per transport. */
     val heard: Map<Via, Long> = emptyMap(),
     val sos: Boolean = false,
@@ -42,6 +49,9 @@ data class Member(
 ) {
     val displayName: String get() = name.ifBlank { T.party.memberFallbackName(hex(id).takeLast(4).uppercase()) }
     val lastHeard: Long get() = heard.values.maxOrNull() ?: 0
+
+    /** Their newest report has no fix good enough to show (the map keeps the last good one, if any). */
+    val noFixNow: Boolean get() = report != null && reportAt > positionAt
 }
 
 /** A Meshtastic radio in range that is not (known to be) a party member, e.g. a standalone tracker. */
@@ -115,11 +125,15 @@ class PartyEngine(
         val events = ArrayList<PartyEvent>()
         when (val msg = rec.message) {
             is PartyMessage.Position -> {
-                // Every one goes in the history, in its place; only a newer one moves the marker.
-                history.add(rec.sender, rec.sentAt, msg)
-                if (rec.sentAt >= m.positionAt) {
+                // Any report says they're there (and their battery, an SOS); only a good fix is
+                // plotted: it moves the marker (when it's the newest) and goes in the history.
+                if (rec.sentAt >= m.reportAt) {
                     if (msg.sos && !m.sos) events += PartyEvent.SosRaised(m, m.sosText)
-                    m = m.copy(position = msg, positionAt = rec.sentAt, sos = msg.sos || (m.sos && msg.sos), left = false)
+                    m = m.copy(report = msg, reportAt = rec.sentAt, sos = msg.sos || (m.sos && msg.sos), left = false)
+                }
+                if (msg.isGoodFix) {
+                    history.add(rec.sender, rec.sentAt, msg)
+                    if (rec.sentAt >= m.positionAt) m = m.copy(position = msg, positionAt = rec.sentAt)
                 }
             }
             is PartyMessage.Hello -> {

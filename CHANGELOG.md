@@ -88,7 +88,7 @@
   marked trails and set the language. It reads and saves nothing of the visitor's and doesn't ask for their location.
 - **Embed in a website** in a track's menu in Library copies the code, the line inside it, ready to
   paste into a page.
-- A guide: [The map in your website](https://adam2314.github.io/maparound/guide/embed).
+- A guide: [The map in your website](https://maparound.app/guide/embed).
 
 ### The party
 - **More about each member**: their speed and the way they're heading, height, how exact the
@@ -102,6 +102,14 @@
   from the start, ×10 to ×1200 (long stops are skipped). It's what your device received since you
   joined, positions that came late in their place; kept between runs, deleted when you leave the
   party.
+- **Only a real GPS fix goes on the map.** A position less exact than ±20 m (a phone indoors or
+  just started, going by Wi-Fi or cell towers) no longer moves a member's marker or goes in their
+  history, so it doesn't jump hundreds of metres. It still shows they're there: the members list
+  and their card say "no GPS fix (±45 m) · heard 2 min ago", with their battery, and an SOS still
+  comes through. The marker stays at their last good position; one who never had a fix is in the
+  list but not on the map.
+- **A member's card on the map fits narrow screens**: its buttons (History, Route here, Share) go
+  on to a second line instead of off the edge.
 
 ### Map tools
 - **Pick a point by tapping it, move it by dragging it.** Tapping A or B on the map picks it (a
@@ -114,7 +122,7 @@
 - On the web, dragging a route stop after a long press works again (the moves weren't reaching it).
 
 ### Supporting MapAround
-- **A page on what donations pay for** ([Support MapAround](https://adam2314.github.io/maparound/support),
+- **A page on what donations pay for** ([Support MapAround](https://maparound.app/support),
   in English and Hebrew). MapAround stays free; donations go to a better web experience (the maps
   hosted where the browser may read them, a domain) and to building the offline maps (the biggest
   countries), and the app stores, with their costs, through GitHub Sponsors; and other ways to help

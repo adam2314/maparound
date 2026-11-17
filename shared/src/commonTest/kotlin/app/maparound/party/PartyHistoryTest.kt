@@ -47,6 +47,34 @@ class PartyHistoryTest {
     }
 
     @Test
+    fun aPositionWithoutAGoodFixIsASignOfLifeNotAPlace() {
+        val engine = PartyEngine(key, myId = 1) { t0 }
+        // Wi-Fi or cell towers only: ±60 m. Not on the map, nor in the history.
+        val rough = PartyMessage.Position(31.10, 35.10, 300, 60, 0, null, 55)
+        engine.receive(Envelope.encode(key, 2, 1, t0, rough), Via.ONLINE)
+        var m = engine.members[2]!!
+        assertNull(m.position)
+        assertTrue(m.noFixNow)
+        assertEquals(55, m.report!!.batteryPct)
+        assertEquals(0, engine.history.of(2).size)
+        // A good fix (±8 m) is plotted.
+        engine.receive(Envelope.encode(key, 2, 2, t0 + 10_000, pos(31.20).copy(accuracyM = 8)), Via.ONLINE)
+        m = engine.members[2]!!
+        assertEquals(31.20, m.position!!.lat)
+        assertFalse(m.noFixNow)
+        // Then the fix is lost: the marker stays where it was, and an SOS still comes through.
+        engine.receive(Envelope.encode(key, 2, 3, t0 + 20_000, rough.copy(sos = true, batteryPct = 50)), Via.ONLINE)
+        m = engine.members[2]!!
+        assertEquals(31.20, m.position!!.lat)
+        assertTrue(m.noFixNow)
+        assertTrue(m.sos)
+        assertEquals(50, m.report!!.batteryPct)
+        assertEquals(listOf(31.20), engine.history.of(2).map { it.position.lat })
+        // Accuracy unknown (older versions): shown.
+        assertTrue(PartyMessage.Position(31.0, 35.0, null, null, null, null, null).isGoodFix)
+    }
+
+    @Test
     fun theHistoryKeepsItsNewestAndGoesToAFileAndBack() {
         val h = PartyHistory(maxPerMember = 3)
         for (i in 0 until 5) assertTrue(h.add(7, t0 + i * 1000L, pos(31.0 + i * 0.001)))
