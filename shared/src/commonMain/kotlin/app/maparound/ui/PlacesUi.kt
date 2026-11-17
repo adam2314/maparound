@@ -94,7 +94,7 @@ fun PlaceBadge(category: PlaceCategory, size: Int = 36) {
 /** "1.2 km NE" from the user's position, or null without one. */
 private fun distanceFrom(me: GeoFix?, p: Place): String? = me?.let {
     val from = GeoPoint(it.lat, it.lon)
-    T.library.distanceDirection(Fmt.distance(Geo.distance(from, p.point).toFloat()), Fmt.cardinal(Geodesy.bearing(from, p.point).toFloat()))
+    T.library.distanceDirection(Fmt.distance(Geo.distance(from, p.point).toFloat()), Fmt.heading(Geodesy.bearing(from, p.point).toFloat()))
 }
 
 // ---- add / edit -------------------------------------------------------------------------------------------
@@ -155,22 +155,22 @@ fun PlaceCard(
                 Column(Modifier.weight(1f)) {
                     Text(place.name, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(
-                        listOfNotNull(place.category.label, distanceFrom(myLocation, place), place.ele?.let { "${it.toInt()} ${T.common.unitM}" }).joinToString(" · "),
+                        listOfNotNull(place.category.label, distanceFrom(myLocation, place), place.ele?.let { Fmt.height(it) }).joinToString(" · "),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
-                IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = T.common.close) }
+                Tip(T.common.close) { IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = T.common.close) } }
             }
             if (place.note.isNotBlank()) {
                 Text(place.note, style = MaterialTheme.typography.bodyMedium, maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp, end = 8.dp))
             }
             Text(ltr(formatPoint(place.lat, place.lon, LocalPrefs.current.coordFormat.value)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row {
-                IconButton(onClick = onRoute) { Icon(Icons.Filled.Route, contentDescription = T.library.routeHere) }
-                IconButton(onClick = onShare) { Icon(Icons.Filled.Share, contentDescription = T.library.sharePlace) }
-                IconButton(onClick = onViewshed) { Icon(Icons.Filled.Visibility, contentDescription = T.library.whatCanBeSeenFromHere) }
-                IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, contentDescription = T.library.editPlace) }
-                IconButton(onClick = { confirm = true }) { Icon(Icons.Filled.Delete, contentDescription = T.library.deletePlace) }
+                Tip(T.library.routeHere) { IconButton(onClick = onRoute) { Icon(Icons.Filled.Route, contentDescription = T.library.routeHere) } }
+                Tip(T.library.sharePlace) { IconButton(onClick = onShare) { Icon(Icons.Filled.Share, contentDescription = T.library.sharePlace) } }
+                Tip(T.library.whatCanBeSeenFromHere) { IconButton(onClick = onViewshed) { Icon(Icons.Filled.Visibility, contentDescription = T.library.whatCanBeSeenFromHere) } }
+                Tip(T.library.editPlace) { IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, contentDescription = T.library.editPlace) } }
+                Tip(T.library.deletePlace) { IconButton(onClick = { confirm = true }) { Icon(Icons.Filled.Delete, contentDescription = T.library.deletePlace) } }
             }
         }
     }
@@ -247,10 +247,10 @@ fun PlacesScreen(hasLocation: Boolean, snackbar: SnackbarHostState, onShowMap: (
         TopAppBar(
             title = header,
             actions = {
-                IconButton(onClick = { importer() }) { Icon(Icons.Filled.FileOpen, contentDescription = T.library.importPlacesFromGpx) }
-                IconButton(onClick = { platform.sharePlaces(shown, T.library.sharedPlacesTitle) }, enabled = shown.isNotEmpty()) {
+                Tip(T.library.importPlacesFromGpx) { IconButton(onClick = { importer() }) { Icon(Icons.Filled.FileOpen, contentDescription = T.library.importPlacesFromGpx) } }
+                Tip(T.library.shareListedPlaces) { IconButton(onClick = { platform.sharePlaces(shown, T.library.sharedPlacesTitle) }, enabled = shown.isNotEmpty()) {
                     Icon(Icons.Filled.Share, contentDescription = T.library.shareListedPlaces)
-                }
+                } }
                 SettingsButton()
             },
         )
@@ -258,7 +258,7 @@ fun PlacesScreen(hasLocation: Boolean, snackbar: SnackbarHostState, onShowMap: (
             query, { query = it },
             placeholder = { Text(T.library.searchNamesAndNotes) },
             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-            trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, contentDescription = T.library.clear) } },
+            trailingIcon = { if (query.isNotEmpty()) Tip(T.library.clear) { IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, contentDescription = T.library.clear) } } },
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         )
@@ -331,7 +331,7 @@ private fun PlaceRow(p: Place, me: GeoFix?, onClick: () -> Unit, onEdit: () -> U
         },
         trailingContent = {
             Box {
-                IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = T.library.moreFor(p.name)) }
+                Tip(T.library.moreFor(p.name)) { IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = T.library.moreFor(p.name)) } }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(text = { Text(T.common.edit) }, leadingIcon = { Icon(Icons.Filled.Edit, null) }, onClick = { menu = false; onEdit() })
                     DropdownMenuItem(text = { Text(T.common.share) }, leadingIcon = { Icon(Icons.Filled.Share, null) }, onClick = { menu = false; onShare() })

@@ -86,7 +86,7 @@ open class SensorTexts {
     open val calibrateIntro =
         "Enter the elevation where you are (from a signpost, summit or map), or today's sea‑level pressure (QNH) from a weather report."
     open val knownElevation = "Known elevation (m)"
-    open fun useGpsAltitude(meters: Int) = "Use GPS altitude ($meters m)"
+    open fun useGpsAltitude(height: String) = "Use GPS altitude ($height)"
     open val allowLocationForGpsAltitude = "Allow location to use GPS altitude"
     open val waitingForGpsAltitude = "Waiting for a GPS altitude…"
     open val orSeaLevelPressure = "or sea‑level pressure (hPa)"
@@ -189,12 +189,12 @@ open class SensorTexts {
     open val altitude = "Altitude"
 
     /** "312 m (MSL)": above mean sea level, or the raw GPS (ellipsoid) altitude. */
-    open fun altitudeValue(meters: Int, msl: Boolean) = "$meters m" + if (msl) " (MSL)" else " (GPS)"
+    open fun altitudeValue(height: String, msl: Boolean) = height + if (msl) " (MSL)" else " (GPS)"
     open val accuracy = "Accuracy"
 
     /** "±4 m · ±6 m vert.": horizontal and, if known, vertical accuracy. */
-    open fun accuracyValue(horizontal: Int, vertical: Int?) =
-        "±$horizontal m" + (vertical?.let { " · ±$it m vert." } ?: "")
+    open fun accuracyValue(horizontal: String, vertical: String?) =
+        "±$horizontal" + (vertical?.let { " · ±$it vert." } ?: "")
     open val course = "Course"
     open val lastFix = "Last fix"
     open fun secondsAgo(n: Int) = "$n s ago"
@@ -275,7 +275,7 @@ object SensorTextsHe : SensorTexts() {
     override val calibrateIntro =
         "אפשר להזין את הגובה של המקום הנוכחי (משלט, מפסגה או מהמפה), או את הלחץ בגובה פני הים (QNH) של היום, מדיווח מזג האוויר."
     override val knownElevation = "גובה ידוע (מ׳)"
-    override fun useGpsAltitude(meters: Int) = "שימוש בגובה מה־GPS: $meters מ׳"
+    override fun useGpsAltitude(height: String) = "שימוש בגובה מה־GPS: $height"
     override val allowLocationForGpsAltitude = "מתן גישה למיקום, לשימוש בגובה מה־GPS"
     override val waitingForGpsAltitude = "בהמתנה לגובה מה־GPS…"
     override val orSeaLevelPressure = "או הלחץ בגובה פני הים (hPa)"
@@ -350,11 +350,11 @@ object SensorTextsHe : SensorTexts() {
     override val inUseInView = "בשימוש / נראים"
     override val position = "מיקום"
     override val altitude = "גובה"
-    override fun altitudeValue(meters: Int, msl: Boolean) =
-        "${ltr(meters.toString())} מ׳ " + if (msl) "(מעל פני הים)" else "(GPS)"
+    override fun altitudeValue(height: String, msl: Boolean) =
+        "${ltr(height)} " + if (msl) "(מעל פני הים)" else "(GPS)"
     override val accuracy = "דיוק"
-    override fun accuracyValue(horizontal: Int, vertical: Int?) =
-        "±$horizontal מ׳" + (vertical?.let { " · ±$it מ׳ אנכי" } ?: "")
+    override fun accuracyValue(horizontal: String, vertical: String?) =
+        "±$horizontal" + (vertical?.let { " · ±$it אנכי" } ?: "")
     override val course = "כיוון תנועה"
     override val lastFix = "עדכון אחרון"
     override fun secondsAgo(n: Int) = "לפני $n שנ׳"

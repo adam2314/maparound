@@ -46,6 +46,7 @@ private fun mlSetStyle(json: String): Unit = js("{ MapAroundMap.setStyle(json); 
 private fun mlSetGeoJson(id: String, json: String): Unit = js("{ MapAroundMap.setGeoJson(id, json); }")
 private fun mlCamera(): String = js("MapAroundMap.camera()")
 private fun mlHeight(): Double = js("MapAroundMap.height()")
+private fun mlBounds(): String = js("MapAroundMap.bounds()")
 private fun mlMove(lat: Double, lon: Double, zoom: Double, animated: Boolean): Unit = js("{ MapAroundMap.move(lat, lon, zoom, animated); }")
 private fun mlFit(s: Double, w: Double, n: Double, e: Double, animated: Boolean): Unit = js("{ MapAroundMap.fitBounds(s, w, n, e, animated); }")
 private fun mlPlace(left: Double, top: Double, width: Double, height: Double): Unit = js("{ MapAroundMap.place(left, top, width, height); }")
@@ -61,6 +62,11 @@ private fun mlSetTerrain3d(template: String, mapbox: Boolean): Unit = js("{ MapA
 
 /** The 3D view's terrain tiles ({z}/{x}/{y}; Terrarium, else Mapbox Terrain-RGB): used from the next time it opens. */
 fun setTerrain3dSource(template: String, mapbox: Boolean) = mlSetTerrain3d(template, mapbox)
+
+private fun mlSetImagery(template: String): Unit = js("{ MapAroundMap.setImagery(template); }")
+
+/** The 3D view's satellite imagery ({z}/{x}/{y}): used from the next time it opens. */
+fun setImagery3d(template: String) = mlSetImagery(template)
 
 private fun mlNavCamera(lat: Double, lon: Double, zoom: Double, bearing: Double, pitch: Double, anchor: Double, ms: Int): Unit =
     js("{ MapAroundMap.navCamera(lat, lon, zoom, bearing, pitch, anchor, ms); }")
@@ -88,6 +94,9 @@ class WebNativeMap(style: String, symbolsUrl: String, tiles: (String) -> JsAny?)
     }
 
     override fun viewHeight(): Double = mlHeight()
+
+    override fun visibleBounds(): DoubleArray? =
+        mlBounds().split(',').mapNotNull { it.toDoubleOrNull() }.takeIf { it.size == 4 }?.toDoubleArray()
     override fun moveCamera(lat: Double, lon: Double, zoom: Double, animated: Boolean) = mlMove(lat, lon, zoom, animated)
 
     override fun navCamera(lat: Double, lon: Double, zoom: Double, bearing: Double, pitch: Double, anchor: Double, durationMs: Int) =

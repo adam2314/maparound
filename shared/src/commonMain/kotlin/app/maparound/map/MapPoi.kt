@@ -42,7 +42,7 @@ data class MapPoi(val lat: Double, val lon: Double, val tags: Map<String, String
         get() = listOfNotNull(
             name?.takeIf { it != title },
             kind?.takeIf { it != title },
-            elevationM?.let { "$it ${T.common.unitM}" },
+            elevationM?.let { app.maparound.ui.Fmt.height(it) },
         ).joinToString(" · ").ifEmpty { null }
 
     /** Its Wikipedia article from its own `wikipedia` tag ("de:Drei Schwestern"): language and title. */

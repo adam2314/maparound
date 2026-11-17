@@ -20,6 +20,11 @@ data class PartyMe(val id: Int, val name: String, val color: Int, val icon: Int 
 data class PartyState(
     val party: PartyKey? = null,
     val me: PartyMe? = null,
+    /**
+     * My name, colour and icon as kept, in a party or not (what the next one starts with; Settings
+     * changes them): null before they were ever set.
+     */
+    val look: PartyMe? = null,
     /** Running: sending and receiving. */
     val active: Boolean = false,
     /** Share my position (off = "ghost": see others, stay hidden). */
@@ -73,6 +78,7 @@ interface PartyController {
     fun leave()
     fun setActive(on: Boolean)
     fun setSharing(on: Boolean)
+    /** My name, colour and icon: in the party now (the others are told), and for the next ones. */
     fun setProfile(name: String, color: Int, icon: Int)
     fun setOnlineEnabled(on: Boolean)
     fun setGateway(on: Boolean)

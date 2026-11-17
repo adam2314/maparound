@@ -23,6 +23,9 @@ interface NativeMap {
     /** Height of the view in points (0 before it is laid out). */
     fun viewHeight(): Double
 
+    /** What's in view: south, west, north, east (all of it when turned or tilted); null when unknown. */
+    fun visibleBounds(): DoubleArray? = null
+
     fun moveCamera(lat: Double, lon: Double, zoom: Double, animated: Boolean)
 
     /** Shows the area, with some padding. */

@@ -1,5 +1,7 @@
 package app.maparound.routing
 
+import app.maparound.sources.Sources
+import app.maparound.sources.SourceKind
 import android.app.DownloadManager
 import android.content.Context
 import android.net.Uri
@@ -66,7 +68,7 @@ class RoutingDataRepository(private val context: Context) : RoutingData {
 
     /** File sizes from the server's directory listing (cached). Missing names have no data (sea). */
     override suspend fun remoteSizes(): Map<String, Long> = remoteSizes ?: withContext(Dispatchers.IO) {
-        val conn = URL(SOURCE).openConnection() as HttpURLConnection
+        val conn = URL(source).openConnection() as HttpURLConnection
         try {
             conn.connectTimeout = 15_000
             conn.readTimeout = 30_000
@@ -86,7 +88,7 @@ class RoutingDataRepository(private val context: Context) : RoutingData {
         if (todo.isEmpty()) return null
         for (name in todo) {
             File(segmentsDir, "$name.rd5.part").delete()
-            val request = DownloadManager.Request(Uri.parse("$SOURCE$name.rd5"))
+            val request = DownloadManager.Request(Uri.parse("$source$name.rd5"))
                 .setTitle(T.offline.routingData(name))
                 .setDescription(T.offline.routingDownloadDescription)
                 .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
@@ -195,8 +197,11 @@ class RoutingDataRepository(private val context: Context) : RoutingData {
 
     fun format(bytes: Long): String = Formatter.formatShortFileSize(context, bytes)
 
+    /** Where the routing data comes from: the user's mirror (Settings → Sources), else brouter.de. */
+    private val source: String
+        get() = (Sources.address(SourceKind.ROUTING_DATA) ?: SourceKind.ROUTING_DATA.builtIn.first()).let { if (it.endsWith("/")) it else "$it/" }
+
     companion object {
-        const val SOURCE = "https://brouter.de/brouter/segments4/"
         private const val KEY = "pending"
     }
 }

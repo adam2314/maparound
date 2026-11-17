@@ -79,7 +79,13 @@ object PartySession : PartyController {
                 mySos = false,
             )
         }
+        _state.value = _state.value.copy(look = keptLook())
     }
+
+    /** My name, colour and icon as kept (also outside a party); null before they were ever set. */
+    private fun keptLook(): PartyMe? =
+        if (!prefs.contains("my_name") && !prefs.contains("my_rgb") && !prefs.contains("my_color")) null
+        else PartyMe(0, prefs.getString("my_name", "").orEmpty(), myColor(), prefs.getInt("my_icon", 0))
 
     /**
      * Called when the app's UI starts: if sharing was on when the app was closed, carry on.
@@ -122,7 +128,7 @@ object PartySession : PartyController {
         engine = PartyEngine(key, me.id)
         lastSent.clear()
         lastHello.clear()
-        _state.value = _state.value.copy(party = key, me = me, members = emptyList(), meshNodes = emptyList(), meeting = null, chat = emptyList(), mySos = false)
+        _state.value = _state.value.copy(party = key, me = me, look = me, members = emptyList(), meshNodes = emptyList(), meeting = null, chat = emptyList(), mySos = false)
         setActive(true)
     }
 
@@ -141,7 +147,7 @@ object PartySession : PartyController {
         engine = null
         historyFile.delete()
         prefs.edit { remove("link"); putBoolean("active", false) }
-        _state.value = PartyState(onlineEnabled = _state.value.onlineEnabled, radioName = _state.value.radioName, gateway = _state.value.gateway)
+        _state.value = PartyState(onlineEnabled = _state.value.onlineEnabled, radioName = _state.value.radioName, gateway = _state.value.gateway, look = _state.value.look)
     }
 
     /** Starts/stops [PartyService] (sending and receiving). */
@@ -159,10 +165,15 @@ object PartySession : PartyController {
     }
 
     override fun setProfile(name: String, color: Int, icon: Int) {
-        val me = _state.value.me ?: return
-        val updated = me.copy(name = name.trim().ifEmpty { me.name }, color = color, icon = icon)
+        val me = _state.value.me
+        val was = me ?: _state.value.look ?: PartyMe(0, "", color, icon)
+        val updated = was.copy(name = name.trim().ifEmpty { was.name }, color = color, icon = icon)
         prefs.edit { putString("my_name", updated.name); putInt("my_rgb", updated.color); putInt("my_icon", updated.icon) }
-        update { it.copy(me = updated) }
+        if (me == null) {
+            update { it.copy(look = updated) }
+            return
+        }
+        update { it.copy(me = updated, look = updated) }
         sendHello(force = true)
     }
 

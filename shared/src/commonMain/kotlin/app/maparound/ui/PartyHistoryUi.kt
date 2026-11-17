@@ -44,10 +44,10 @@ import kotlin.math.roundToInt
 fun partyPositionDetails(p: PartyMessage.Position, unit: SpeedUnit): List<String> = buildList {
     p.speedKmh?.let { kmh ->
         val speed = "${(kmh / 3.6 * unit.perMps).roundToInt()} ${unit.label}"
-        add(p.headingDeg?.takeIf { kmh >= 3 }?.let { "$speed ${Fmt.cardinal(it.toFloat())}" } ?: speed)
+        add(p.headingDeg?.takeIf { kmh >= 3 }?.let { "$speed ${Fmt.heading(it.toFloat())}" } ?: speed)
     }
-    p.altM?.let { add(T.party.altitude(it)) }
-    p.accuracyM?.let { add(T.party.accuracy(it)) }
+    p.altM?.let { add(T.party.altitude(Fmt.height(it))) }
+    p.accuracyM?.let { add(T.party.accuracy(Fmt.height(it))) }
     p.batteryPct?.let { add(T.party.battery(it)) }
 }
 
@@ -70,7 +70,7 @@ fun noFixLine(m: Member, now: Long): String? {
     val heard = m.lastHeard.takeIf { it > 0 }?.let { at ->
         if (now - at < 60_000) T.party.heardJustNow else T.party.heard(Fmt.relativeTime(at, now).replaceFirstChar { it.lowercase() })
     }
-    return listOfNotNull(T.party.noGpsFix(m.report?.accuracyM), heard).joinToString(" · ")
+    return listOfNotNull(T.party.noGpsFix(m.report?.accuracyM?.let { Fmt.height(it) }), heard).joinToString(" · ")
 }
 
 /**
@@ -202,10 +202,10 @@ fun PartyReplayPanel(s: PartyReplay.State, unit: SpeedUnit, folded: Boolean = fa
                 "${s.name} · ${Fmt.moment(s.t, seconds = true)} · ${Fmt.distance(s.distance.toFloat())}",
                 Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
-            if (s.points.size > 1) IconButton(onClick = { PartyReplay.play(!s.playing) }) {
+            if (s.points.size > 1) Tip(if (s.playing) T.party.pause else T.party.play) { IconButton(onClick = { PartyReplay.play(!s.playing) }) {
                 Icon(if (s.playing) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = if (s.playing) T.party.pause else T.party.play)
-            }
-            IconButton(onClick = PartyReplay::close) { Icon(Icons.Filled.Close, contentDescription = T.common.close) }
+            } }
+            Tip(T.common.close) { IconButton(onClick = PartyReplay::close) { Icon(Icons.Filled.Close, contentDescription = T.common.close) } }
         },
     ) {
         Column(Modifier.padding(start = 16.dp, end = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -220,7 +220,7 @@ fun PartyReplayPanel(s: PartyReplay.State, unit: SpeedUnit, folded: Boolean = fa
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(onClick = PartyReplay::close) { Icon(Icons.Filled.Close, contentDescription = T.common.close) }
+                Tip(T.common.close) { IconButton(onClick = PartyReplay::close) { Icon(Icons.Filled.Close, contentDescription = T.common.close) } }
             }
             // The moment shown, how far by then, and the position's details then.
             val at = s.points[s.index]
@@ -235,13 +235,13 @@ fun PartyReplayPanel(s: PartyReplay.State, unit: SpeedUnit, folded: Boolean = fa
                     modifier = Modifier.padding(end = 8.dp),
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { PartyReplay.play(!s.playing) }) {
+                    Tip(if (s.playing) T.party.pause else T.party.play) { IconButton(onClick = { PartyReplay.play(!s.playing) }) {
                         Icon(
                             if (s.playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                             contentDescription = if (s.playing) T.party.pause else T.party.play,
                         )
-                    }
-                    IconButton(onClick = PartyReplay::fromTheStart) { Icon(Icons.Filled.Replay, contentDescription = T.party.fromTheStart) }
+                    } }
+                    Tip(T.party.fromTheStart) { IconButton(onClick = PartyReplay::fromTheStart) { Icon(Icons.Filled.Replay, contentDescription = T.party.fromTheStart) } }
                     Spacer(Modifier.weight(1f))
                     PartyReplay.SPEEDS.forEach { x ->
                         FilterChip(

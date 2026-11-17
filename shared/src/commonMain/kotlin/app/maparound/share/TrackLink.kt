@@ -133,7 +133,7 @@ object TrackLink {
     }
 
     /** The indexes Douglas–Peucker keeps, both ends among them (in degrees, longitude by its scale). */
-    private fun douglasPeucker(points: List<GeoPoint>, tolerance: Double): List<Int> {
+    internal fun douglasPeucker(points: List<GeoPoint>, tolerance: Double): List<Int> {
         val n = points.size
         val keep = BooleanArray(n)
         keep[0] = true

@@ -330,6 +330,9 @@ open class OfflineTexts {
     open val addTwoPoints = "Add at least two points"
     open val noRouteHere = "No route here (a point may be away from roads and paths, or at sea)"
     open fun cantReachRoutingServer(error: String?) = "Couldn't reach the routing server: $error"
+
+    /** Online routing turned off in Settings → Sources. */
+    open val onlineRoutingOff = "Online routing is off (Settings → Sources)"
 }
 
 /** Hebrew. */
@@ -633,6 +636,7 @@ object OfflineTextsHe : OfflineTexts() {
     override val addTwoPoints = "יש להוסיף לפחות שתי נקודות"
     override val noRouteHere = "אין כאן מסלול (ייתכן שאחת הנקודות רחוקה מכבישים ומשבילים, או בים)"
     override fun cantReachRoutingServer(error: String?) = "אין חיבור לשרת הניתוב: $error"
+    override val onlineRoutingOff = "הניתוב המקוון כבוי (הגדרות ← מקורות)"
 
     /** How Rmap.kt names a projection it doesn't know (saved in English with the map). */
     private const val UNKNOWN_PROJECTION = "Approximate (unknown projection "

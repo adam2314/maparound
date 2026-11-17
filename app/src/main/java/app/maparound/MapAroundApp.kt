@@ -1,5 +1,8 @@
 package app.maparound
 
+import app.maparound.sources.Sources
+import app.maparound.i18n.Units
+import app.maparound.shared.util.deviceClock24h
 import app.maparound.map.MapRegions
 import app.maparound.places.PlaceRepository
 import app.maparound.raster.RasterMapRepository
@@ -95,7 +98,9 @@ object AppGraph {
             borders
         }
         userAgent = USER_AGENT
-        prefs = Prefs(SharedPrefsStore(app, "maparound"))
+        // The phone's own 12/24-hour setting, for the time of day when the user hasn't chosen (Settings).
+        deviceClock24h = { android.text.format.DateFormat.is24HourFormat(app) }
+        prefs = Prefs(SharedPrefsStore(app, "maparound"), onUnits = Units::set, onSources = Sources::set)
         mapFiles = MapFilesRepository(app)
         downloader = MapDownloader(app, mapFiles)
         terrain = TerrainRepository(app, prefs, mapFiles)

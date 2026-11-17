@@ -1,5 +1,6 @@
 package app.maparound.map.maplibre
 
+import app.maparound.tools.MapGrid
 import app.maparound.data.MapPos
 import app.maparound.i18n.I18n
 import app.maparound.map.BaseMap
@@ -121,10 +122,15 @@ class MapLibreSurface(
         }
     }
 
-    override fun followNavigation(lat: Double, lon: Double, bearing: Double, zoom: Double) {
+    override fun followNavigation(lat: Double, lon: Double, bearing: Double, zoom: Double, tilted: Boolean) {
         val nav = native as? NavCamera ?: return animateTo(lat, lon, zoom.toInt())
         val z = zoom.coerceIn(MIN_ZOOM.toDouble(), MAX_ZOOM.toDouble()) - ZOOM_OFFSET
-        nav.navCamera(lat, lon, z, bearing, NavView.PITCH, NavView.ANCHOR, NAV_EASE_MS)
+        if (tilted) {
+            nav.navCamera(lat, lon, z, bearing, NavView.PITCH, NavView.ANCHOR, NAV_EASE_MS)
+        } else {
+            // Flat, north up, the position in the middle (no top margin).
+            nav.navCamera(lat, lon, z, 0.0, 0.0, 0.5, NAV_EASE_MS)
+        }
     }
 
     override fun endNavigation() {
@@ -238,6 +244,16 @@ class MapLibreSurface(
         a?.let { features += GeoJson.point(it.lat, it.lon, mapOf("role" to "letter", "icon" to MarkerIcons.letter("A", COLOR_A))) }
         b?.let { features += GeoJson.point(it.lat, it.lon, mapOf("role" to "letter", "icon" to MarkerIcons.letter("B", COLOR_B))) }
         native.setGeoJson(MapStyle.TOOLS, GeoJson.collection(features))
+    }
+
+    override fun visibleBounds(): MapGrid.View? =
+        native.visibleBounds()?.takeIf { it.size == 4 }?.let { MapGrid.View(it[0], it[1], it[2], it[3]) }
+
+    override fun setGrid(grid: MapGrid.Grid?) {
+        val features = ArrayList<JsonObject>()
+        grid?.lines?.forEach { l -> GeoJson.line(l.points, mapOf("role" to "line"))?.let(features::add) }
+        grid?.labels?.forEach { l -> features += GeoJson.point(l.at.lat, l.at.lon, mapOf("role" to "label", "label" to l.text)) }
+        native.setGeoJson(MapStyle.GRID, GeoJson.collection(features))
     }
 
     override fun setPartyMarkers(markers: List<PartyMarker>) {

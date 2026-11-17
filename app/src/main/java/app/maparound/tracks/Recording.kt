@@ -128,7 +128,7 @@ class RecordingService : Service() {
             lastNotified = now
             val s = TrackRecorder.state.value.stats
             getSystemService(NotificationManager::class.java)
-                .notify(NOTIFICATION_ID, notification("${Fmt.distance(s.distanceM.toFloat())} · ↑ ${s.ascentM?.toInt() ?: 0} ${T.common.unitM}"))
+                .notify(NOTIFICATION_ID, notification("${Fmt.distance(s.distanceM.toFloat())} · ↑ ${Fmt.height(s.ascentM ?: 0.0)}"))
         }
     }
 

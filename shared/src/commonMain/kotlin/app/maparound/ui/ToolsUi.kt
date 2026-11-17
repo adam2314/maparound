@@ -1,5 +1,8 @@
 package app.maparound.ui
 
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.IconToggleButton
+import androidx.compose.material.icons.filled.Grid4x4
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -141,7 +144,7 @@ fun ToolsPanel(
             Spacer(Modifier.width(10.dp))
             Text(toolsSummary(state, format), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (state.busy) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-            IconButton(onClick = { ToolsSession.close() }) { Icon(Icons.Filled.Close, contentDescription = T.tools.closeTools) }
+            Tip(T.tools.closeTools) { IconButton(onClick = { ToolsSession.close() }) { Icon(Icons.Filled.Close, contentDescription = T.tools.closeTools) } }
         },
     ) {
         Column(
@@ -159,7 +162,7 @@ fun ToolsPanel(
                         ) { Text(m.label, maxLines = 1, style = MaterialTheme.typography.labelMedium) }
                     }
                 }
-                IconButton(onClick = { ToolsSession.close() }) { Icon(Icons.Filled.Close, contentDescription = T.tools.closeTools) }
+                Tip(T.tools.closeTools) { IconButton(onClick = { ToolsSession.close() }) { Icon(Icons.Filled.Close, contentDescription = T.tools.closeTools) } }
             }
             when (state.mode) {
                 Mode.MEASURE -> MeasureBody(state, myLocation)
@@ -204,17 +207,17 @@ private fun PointsRow(state: ToolsSession.State, myLocation: GeoFix?, onProject:
         PointChip("A", state.a, state.aGround, state.next == Slot.A) { ToolsSession.select(Slot.A) }
         PointChip("B", state.b, state.bGround, state.next == Slot.B) { ToolsSession.select(Slot.B) }
         Spacer(Modifier.weight(1f))
-        IconButton(
+        Tip(T.tools.putAtMyLocation(state.next.name)) { IconButton(
             onClick = { myLocation?.let { val p = GeoPoint(it.lat, it.lon); if (state.next == Slot.A) ToolsSession.setA(p) else ToolsSession.setB(p) } },
             enabled = myLocation != null,
-        ) { Icon(Icons.Filled.MyLocation, contentDescription = T.tools.putAtMyLocation(state.next.name)) }
-        IconButton(onClick = { ToolsSession.swap() }, enabled = state.a != null || state.b != null) {
+        ) { Icon(Icons.Filled.MyLocation, contentDescription = T.tools.putAtMyLocation(state.next.name)) } }
+        Tip(T.tools.swapAB) { IconButton(onClick = { ToolsSession.swap() }, enabled = state.a != null || state.b != null) {
             Icon(Icons.Filled.SwapHoriz, contentDescription = T.tools.swapAB)
-        }
+        } }
         if (onProject != null) {
-            IconButton(onClick = onProject, enabled = state.a != null) {
+            Tip(T.tools.placeBByBearing) { IconButton(onClick = onProject, enabled = state.a != null) {
                 Icon(Icons.Filled.Explore, contentDescription = T.tools.placeBByBearing)
-            }
+            } }
         }
     }
 }
@@ -228,7 +231,7 @@ private fun PointChip(name: String, p: GeoPoint?, ground: Double?, selected: Boo
             Text(
                 when {
                     p == null -> T.tools.chipTapMap(name)
-                    ground != null -> T.tools.chipHeight(name, ground.roundToInt())
+                    ground != null -> T.tools.chipHeight(name, Fmt.height(ground))
                     else -> name
                 },
                 maxLines = 1,
@@ -273,7 +276,7 @@ private fun MeasureBody(state: ToolsSession.State, myLocation: GeoFix?) {
             val angle = toDegrees(atan2(dh, dist))
             Text(
                 T.tools.heightChange(
-                    ga.roundToInt(), gb.roundToInt(), signed(dh.roundToInt()), localSigned(angle, 1),
+                    Fmt.height(ga), Fmt.height(gb), "${signed(Fmt.heightNumber(dh))} ${Fmt.heightUnit}", localSigned(angle, 1),
                     if (abs(dh) > dist * 0.05) Fmt.distance(sqrt(dist * dist + dh * dh).toFloat()) else null,
                 ),
                 style = MaterialTheme.typography.bodyMedium,
@@ -401,9 +404,9 @@ private fun SightBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTerra
             val o = los.obstacle
             Text(
                 if (los.targetVisible) {
-                    T.tools.clearsBy(max(0, los.marginM.roundToInt()))
+                    T.tools.clearsBy(Fmt.height(max(0.0, los.marginM)))
                 } else if (o != null) {
-                    T.tools.blockedAt(Fmt.distance(o.distanceM.toFloat()), o.groundM.roundToInt(), (-los.marginM).roundToInt())
+                    T.tools.blockedAt(Fmt.distance(o.distanceM.toFloat()), Fmt.height(o.groundM), Fmt.height(-los.marginM))
                 } else {
                     T.tools.blockedByTerrain
                 },
@@ -684,8 +687,8 @@ private fun SightProfile(los: LineOfSight, modifier: Modifier = Modifier) {
         mark?.let { o ->
             drawCircle(lineColor, 4.dp.toPx(), Offset(x(o.distanceM), y(o.groundM - los.drop(o.distanceM))), style = Stroke(2.dp.toPx()))
         }
-        drawText(measurer, "${hi.roundToInt()} ${T.common.unitM}", topLeft = Offset(10.dp.toPx(), 0f), style = label)
-        drawText(measurer, "${lo.roundToInt()} ${T.common.unitM}", topLeft = Offset(10.dp.toPx(), y(lo) - 15.dp.toPx()), style = label)
+        drawText(measurer, Fmt.height(hi), topLeft = Offset(10.dp.toPx(), 0f), style = label)
+        drawText(measurer, Fmt.height(lo), topLeft = Offset(10.dp.toPx(), y(lo) - 15.dp.toPx()), style = label)
         val km = measurer.measure(Fmt.distance(total.toFloat()), label)
         drawText(km, topLeft = Offset(size.width - km.size.width - 10.dp.toPx(), size.height - km.size.height))
     }
@@ -698,9 +701,9 @@ private fun ViewshedBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTe
     Row(verticalAlignment = Alignment.CenterVertically) {
         PointChip(T.tools.observer, state.a, state.aGround, true) {}
         Spacer(Modifier.weight(1f))
-        IconButton(onClick = { myLocation?.let { ToolsSession.setA(GeoPoint(it.lat, it.lon)) } }, enabled = myLocation != null) {
+        Tip(T.tools.observeFromMyLocation) { IconButton(onClick = { myLocation?.let { ToolsSession.setA(GeoPoint(it.lat, it.lon)) } }, enabled = myLocation != null) {
             Icon(Icons.Filled.MyLocation, contentDescription = T.tools.observeFromMyLocation)
-        }
+        } }
     }
     // Logarithmic slider: fine control at short range, up to 25 km.
     val lnMin = ln(ToolsSession.MIN_RADIUS)
@@ -751,8 +754,12 @@ private fun ViewshedBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTe
     if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
 }
 
-private fun heightText(m: Double) =
-    if (m == m.roundToInt().toDouble()) "${m.roundToInt()} ${T.common.unitM}" else "${localFixed(m, 1)} ${T.common.unitM}"
+/** An eye or target height: "1.7 m", "2 m"; "5.6 ft" (to a tenth). */
+private fun heightText(m: Double): String {
+    val v = if (Fmt.heightUnit == T.common.unitFt) m / Fmt.FOOT_M else m
+    val r = (v * 10).roundToInt() / 10.0
+    return (if (r == r.roundToInt().toDouble()) r.roundToInt().toString() else localFixed(r, 1)) + " " + Fmt.heightUnit
+}
 
 @Composable
 private fun Legend(color: Color, text: String) {
@@ -781,11 +788,19 @@ private fun CoordsBody(
     var message by remember { mutableStateOf<String?>(null) }
     // The format the typed text was read as, for the point it produced.
     var readAs by remember { mutableStateOf<Pair<GeoPoint, CoordFormat>?>(null) }
+    // What typed text is read as: any format (null), or the one chosen (numbers several grids use).
+    var inputFormat by remember { mutableStateOf<CoordFormat?>(null) }
+    var choosingInput by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    // The point shown in every format: the one set, else where you are, else the map's centre.
+    val centre = remember(state.a, myLocation == null) { mapCenter() }
+    val shown = state.a ?: myLocation?.let { GeoPoint(it.lat, it.lon) } ?: centre
 
     fun go() {
         val text = input.trim()
         if (text.isEmpty()) return
-        val parsed = Coords.parse(text, reference = state.a ?: mapCenter())
+        val reference = state.a ?: mapCenter()
+        val parsed = inputFormat?.let { Coords.parseAs(text, it, reference) } ?: if (inputFormat == null) Coords.parse(text, reference = reference) else null
         val point = parsed?.point ?: (SharedLinks.parse(text) as? Shared.Point)?.let { GeoPoint(it.lat, it.lon) }
         if (point == null) {
             message = T.tools.couldntReadCoords
@@ -808,9 +823,21 @@ private fun CoordsBody(
             keyboardActions = KeyboardActions(onGo = { go() }),
             isError = message != null,
         )
-        IconButton(onClick = { go() }) { Icon(Icons.Filled.Search, contentDescription = T.tools.findCoords) }
+        Tip(T.tools.findCoords) { IconButton(onClick = { go() }) { Icon(Icons.Filled.Search, contentDescription = T.tools.findCoords) } }
     }
     message?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+    // Read as: any format, or one chosen (with what the point looks like in each, to recognise it).
+    TextButton(onClick = { choosingInput = true }) {
+        Text(T.tools.readAsLabel + ": " + (inputFormat?.label ?: T.tools.readAsAutomatic))
+        Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
+    }
+    if (choosingInput) {
+        FormatPicker(shown, inputFormat, onDismiss = { choosingInput = false }) {
+            inputFormat = it
+            choosingInput = false
+            message = null
+        }
+    }
 
     Row(verticalAlignment = Alignment.CenterVertically) {
         TextButton(onClick = { myLocation?.let { ToolsSession.setA(GeoPoint(it.lat, it.lon)) } }, enabled = myLocation != null) {
@@ -824,23 +851,49 @@ private fun CoordsBody(
             Text(T.tools.mapCentre)
         }
         Spacer(Modifier.weight(1f))
+        // The grid of the format chosen below, over the map.
+        val grid by prefs.showGrid.collectAsState()
+        Tip(T.map.coordinateGrid) { IconToggleButton(checked = grid, onCheckedChange = { prefs.setShowGrid(it) }) {
+            Icon(Icons.Filled.Grid4x4, contentDescription = T.map.coordinateGrid, tint = if (grid) MaterialTheme.colorScheme.primary else LocalContentColor.current)
+        } }
         state.a?.let { a ->
-            IconButton(onClick = { onShare(a) }) { Icon(Icons.Filled.Share, contentDescription = T.tools.sharePoint) }
+            Tip(T.tools.sharePoint) { IconButton(onClick = { onShare(a) }) { Icon(Icons.Filled.Share, contentDescription = T.tools.sharePoint) } }
         }
     }
 
     val a = state.a
     if (a == null) {
-        Hint(T.tools.coordsHint)
-        return
+        // Nothing set: where you are (else the map's centre), in every format.
+        Hint(if (myLocation != null) T.tools.showingMyLocation else T.tools.showingMapCentre)
+    } else {
+        val details = listOfNotNull(
+            readAs?.takeIf { it.first == a }?.let { T.tools.readAs(it.second.label) },
+            state.aGround?.let { T.tools.groundHeight(Fmt.height(it)) },
+        )
+        if (details.isNotEmpty()) Hint(details.joinToString(" · "))
     }
-    val details = listOfNotNull(
-        readAs?.takeIf { it.first == a }?.let { T.tools.readAs(it.second.label) },
-        state.aGround?.let { T.tools.groundHeight(it.roundToInt()) },
+    // The formats, found by name ("swiss", "UTM", "geohash", "רשת").
+    OutlinedTextField(
+        query, { query = it },
+        placeholder = { Text(T.tools.findFormat) },
+        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
     )
-    if (details.isNotEmpty()) Hint(details.joinToString(" · "))
-    for (f in CoordFormat.entries) {
-        val value = Coords.format(a, f) ?: continue
+    val found = CoordFormat.entries.filter { formatMatches(it, query) }
+    if (found.isEmpty()) Hint(T.tools.noFormatFound)
+    for (f in found) {
+        val value = Coords.format(shown, f)
+        if (value == null) {
+            // A grid of another country: listed only when looked for.
+            if (query.isNotBlank()) {
+                Column(Modifier.fillMaxWidth().padding(start = 48.dp, top = 4.dp, bottom = 4.dp)) {
+                    Text(f.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(T.tools.notCoveredHere, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            continue
+        }
         Row(
             Modifier.fillMaxWidth().clickable { prefs.setCoordFormat(f) },
             verticalAlignment = Alignment.CenterVertically,
@@ -851,15 +904,70 @@ private fun CoordsBody(
                 // Left to right in a right-to-left language too (display only: the copy stays plain).
                 Text(ltr(value), style = MaterialTheme.typography.bodyLarge, fontFamily = FontFamily.Monospace)
             }
-            IconButton(onClick = { clipboard.setText(AnnotatedString(value)) }) {
+            Tip(T.tools.copyFormat(f.label)) { IconButton(onClick = { clipboard.setText(AnnotatedString(value)) }) {
                 Icon(Icons.Filled.ContentCopy, contentDescription = T.tools.copyFormat(f.label))
-            }
+            } }
         }
     }
     Text(
         T.tools.coordsNote,
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+/** Whether [f] is what's looked for: every word of [query] in its name or its other names. */
+private fun formatMatches(f: CoordFormat, query: String): Boolean {
+    val words = query.trim().lowercase().split(Regex("""\s+""")).filter { it.isNotEmpty() }
+    val name = f.label.lowercase() + " " + f.keywords
+    return words.all { it in name }
+}
+
+/**
+ * What typed coordinates are read as: any format, or one of them, each with [point] written in it
+ * (to recognise yours); found by name.
+ */
+@Composable
+private fun FormatPicker(point: GeoPoint, chosen: CoordFormat?, onDismiss: () -> Unit, onPick: (CoordFormat?) -> Unit) {
+    var query by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(T.tools.readAsLabel) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    query, { query = it },
+                    placeholder = { Text(T.tools.findFormat) },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                    if (query.isBlank()) {
+                        Row(Modifier.fillMaxWidth().clickable { onPick(null) }, verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = chosen == null, onClick = { onPick(null) })
+                            Text(T.tools.readAsAutomatic, style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                    for (f in CoordFormat.entries.filter { formatMatches(it, query) }) {
+                        Row(Modifier.fillMaxWidth().clickable { onPick(f) }, verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = chosen == f, onClick = { onPick(f) })
+                            Column {
+                                Text(f.label, style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    // Here in it, or (a grid of elsewhere) what it looks like.
+                                    Coords.format(point, f)?.let(::ltr) ?: T.tools.forExample(ltr(f.example)),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(T.common.close) } },
     )
 }
 

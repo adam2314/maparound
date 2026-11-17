@@ -86,7 +86,7 @@ fun LazyListScope.rasterMapsSection(
             },
             trailingContent = {
                 Box {
-                    IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = T.offline.moreFor(m.name)) }
+                    Tip(T.offline.moreFor(m.name)) { IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = T.offline.moreFor(m.name)) } }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(text = { Text(T.common.showOnMap) }, leadingIcon = { Icon(Icons.Filled.Map, null) }, onClick = { menu = false; onShow(m) })
                         DropdownMenuItem(text = { Text(T.common.remove) }, leadingIcon = { Icon(Icons.Filled.Delete, null) }, onClick = { menu = false; onRemove(m) })

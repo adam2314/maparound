@@ -58,7 +58,7 @@ class PrefsTest {
         assertNull(Prefs(store).levelUp.value)
         again.setBaseLayer("c1")
         again.removeCustomSource("c1")
-        assertEquals(TileSources.DEFAULT_ID, Prefs(store).baseLayer.value) // removing the source in use falls back
+        assertEquals(TileSources.AUTO_ID, Prefs(store).baseLayer.value) // removing the source in use falls back to the automatic one
     }
 
     @Test

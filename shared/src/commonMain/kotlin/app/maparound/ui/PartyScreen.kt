@@ -134,7 +134,7 @@ fun PartyScreen(
             title = { Text(s.party?.name ?: T.party.title) },
             actions = {
                 if (s.party != null && !party.watchOnly) {
-                    IconButton(onClick = { showQr = true }) { Icon(Icons.Filled.QrCode, contentDescription = T.party.invite) }
+                    Tip(T.party.invite) { IconButton(onClick = { showQr = true }) { Icon(Icons.Filled.QrCode, contentDescription = T.party.invite) } }
                 }
             },
             windowInsets = WindowInsets(0, 0, 0, 0),
@@ -146,7 +146,7 @@ fun PartyScreen(
                 else party.pendingInvite.value = key
             })
         } else if (s.party == null) {
-            NoParty(onCreate = { partyName, me ->
+            NoParty(myName = s.look?.name.orEmpty(), onCreate = { partyName, me ->
                 if (!hasLocation) requestLocation()
                 ensureNotifications()
                 party.create(partyName, me)
@@ -307,9 +307,9 @@ private fun WatchNoParty(onLink: (String) -> Unit) {
 }
 
 @Composable
-private fun NoParty(onCreate: (String, String) -> Unit, onScan: (() -> Unit)?, onLink: (String) -> Unit) {
+private fun NoParty(myName: String, onCreate: (String, String) -> Unit, onScan: (() -> Unit)?, onLink: (String) -> Unit) {
     var party by remember { mutableStateOf("") }
-    var me by remember { mutableStateOf("") }
+    var me by remember(myName) { mutableStateOf(myName) }
     var link by remember { mutableStateOf("") }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
@@ -451,7 +451,7 @@ private fun InParty(
                     supportingContent = { Text(distanceText(s.myPosition, meet.lat, meet.lon) ?: ltr(Fmt.latLon(meet.lat, meet.lon))) },
                     trailingContent = {
                         Row {
-                            IconButton(onClick = { onRouteTo(GeoPoint(meet.lat, meet.lon)) }) { Icon(Icons.Filled.Route, contentDescription = T.party.routeToMeetingPoint) }
+                            Tip(T.party.routeToMeetingPoint) { IconButton(onClick = { onRouteTo(GeoPoint(meet.lat, meet.lon)) }) { Icon(Icons.Filled.Route, contentDescription = T.party.routeToMeetingPoint) } }
                             if (!party.watchOnly) TextButton(onClick = { party.clearMeeting() }) { Text(T.party.clearMeetingPoint) }
                         }
                     },
@@ -475,7 +475,7 @@ private fun InParty(
                         Text(listOfNotNull(distanceText(s.myPosition, pos.lat, pos.lon), ago(now, n.heardAt)).joinToString(" · "))
                     },
                     trailingContent = {
-                        IconButton(onClick = { onShowMember(GeoPoint(pos.lat, pos.lon)) }) { Icon(Icons.Filled.Map, contentDescription = T.common.showOnMap) }
+                        Tip(T.common.showOnMap) { IconButton(onClick = { onShowMember(GeoPoint(pos.lat, pos.lon)) }) { Icon(Icons.Filled.Map, contentDescription = T.common.showOnMap) } }
                     },
                 )
             }
@@ -557,7 +557,7 @@ private fun ServerLine(s: PartyState) {
 
 /** The party's own MQTT server: a wss:// address, or (null) the public servers. */
 @Composable
-private fun ServerDialog(server: String?, onSave: (String?) -> Unit, onDismiss: () -> Unit) {
+internal fun ServerDialog(server: String?, onSave: (String?) -> Unit, onDismiss: () -> Unit) {
     var text by remember { mutableStateOf(server ?: "wss://") }
     val ok = PartyRelays.server(text)
     AlertDialog(
@@ -705,11 +705,11 @@ private fun MemberRow(
         },
         trailingContent = {
             Row {
-                IconButton(onClick = { onHistory(m) }, enabled = historyCount > 0) {
+                Tip(T.party.history) { IconButton(onClick = { onHistory(m) }, enabled = historyCount > 0) {
                     Icon(Icons.Filled.History, contentDescription = T.party.history)
-                }
+                } }
                 if (p != null) {
-                    IconButton(onClick = { onRoute(GeoPoint(p.lat, p.lon)) }) { Icon(Icons.Filled.Route, contentDescription = T.party.routeTo(m.displayName)) }
+                    Tip(T.party.routeTo(m.displayName)) { IconButton(onClick = { onRoute(GeoPoint(p.lat, p.lon)) }) { Icon(Icons.Filled.Route, contentDescription = T.party.routeTo(m.displayName)) } }
                 }
             }
         },
@@ -745,9 +745,9 @@ private fun Chat(s: PartyState) {
                 HorizontalDivider(Modifier.padding(vertical = 4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(text, { text = it.take(120) }, placeholder = { Text(T.party.messagePlaceholder) }, singleLine = true, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { party.sendText(text); text = "" }, enabled = text.isNotBlank() && s.active) {
+                    Tip(T.party.send) { IconButton(onClick = { party.sendText(text); text = "" }, enabled = text.isNotBlank() && s.active) {
                         Icon(Icons.AutoMirrored.Filled.Send, contentDescription = T.party.send)
-                    }
+                    } }
                 }
             }
         }
@@ -785,13 +785,20 @@ private fun InviteDialog(key: PartyKey, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun EditMeDialog(name: String, color: Int, icon: Int, onDismiss: () -> Unit, onSave: (String, Int, Int) -> Unit) {
+internal fun EditMeDialog(
+    name: String,
+    color: Int,
+    icon: Int,
+    onDismiss: () -> Unit,
+    title: String = T.party.youInThisParty,
+    onSave: (String, Int, Int) -> Unit,
+) {
     var n by remember { mutableStateOf(name) }
     var c by remember { mutableStateOf(color) }
     var i by remember { mutableStateOf(icon) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(T.party.youInThisParty) },
+        title = { Text(title) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -812,7 +819,7 @@ private fun distanceText(me: GeoFix?, lat: Double, lon: Double): String? {
     me ?: return null
     val from = GeoPoint(me.lat, me.lon)
     val to = GeoPoint(lat, lon)
-    return T.party.distanceDirection(Fmt.distance(Geo.distance(from, to).toFloat()), Fmt.cardinal(Geodesy.bearing(from, to).toFloat()))
+    return T.party.distanceDirection(Fmt.distance(Geo.distance(from, to).toFloat()), Fmt.heading(Geodesy.bearing(from, to).toFloat()))
 }
 
 private fun ago(now: Long, at: Long): String? {

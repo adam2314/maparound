@@ -1,5 +1,7 @@
 package app.maparound.data
 
+import app.maparound.sources.Sources
+import app.maparound.sources.SourceKind
 import app.maparound.i18n.T
 import app.maparound.shared.net.httpGetText
 import kotlinx.coroutines.CancellationException
@@ -24,8 +26,8 @@ import kotlin.concurrent.Volatile
  * built (yet) are offered from mapsforge.org too, as basic maps ([merge]).
  */
 class MapAroundCatalog(
-    /** Where catalog.json is, tried in turn. */
-    private val catalogUrls: List<String> = CATALOG_URLS,
+    /** Where catalog.json is, tried in turn: the user's first (Settings → Sources), then MapAround's. */
+    private val catalogUrls: () -> List<String> = { Sources.addresses(SourceKind.MAP_LIST) },
     private val fallback: CatalogSource = MapCatalog(),
     /**
      * Use the mapsforge.org list: as the fallback, to fill in what MapAround hasn't built, and as
@@ -33,7 +35,7 @@ class MapAroundCatalog(
      */
     private val useMapsforge: Boolean = true,
 ) : CatalogSource {
-    constructor(catalogUrl: String, fallback: CatalogSource) : this(listOf(catalogUrl), fallback)
+    constructor(catalogUrl: String, fallback: CatalogSource) : this({ listOf(catalogUrl) }, fallback)
 
     @Volatile
     private var maps: List<CatalogEntry>? = null
@@ -86,7 +88,7 @@ class MapAroundCatalog(
     /** catalog.json from the first address that answers. */
     private suspend fun fetch(): String {
         var last: Exception? = null
-        for (url in catalogUrls) {
+        for (url in catalogUrls()) {
             try {
                 return withContext(Dispatchers.Default) { httpGetText(url, timeoutMs = 20_000) }
             } catch (e: CancellationException) {

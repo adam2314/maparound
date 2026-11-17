@@ -1,5 +1,7 @@
 package app.maparound.ui
 
+import app.maparound.sources.Sources
+import app.maparound.sources.SourceKind
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -91,7 +93,7 @@ fun SearchOverlay(mapCenter: GeoPoint, myLocation: GeoFix?, onPick: (SearchResul
     }
 
     fun searchOnline() {
-        if (query.trim().length < 2) return
+        if (query.trim().length < 2 || Sources.isOff(SourceKind.SEARCH)) return
         onlineJob?.cancel()
         onlineJob = scope.launch {
             onlineBusy = true
@@ -106,13 +108,13 @@ fun SearchOverlay(mapCenter: GeoPoint, myLocation: GeoFix?, onPick: (SearchResul
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         Column(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = T.poi.closeSearch) }
+                Tip(T.poi.closeSearch) { IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = T.poi.closeSearch) } }
                 OutlinedTextField(
                     query, { query = it },
                     placeholder = { Text(T.poi.searchHint) },
                     singleLine = true,
                     trailingIcon = {
-                        if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, contentDescription = T.poi.clearSearch) }
+                        if (query.isNotEmpty()) Tip(T.poi.clearSearch) { IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, contentDescription = T.poi.clearSearch) } }
                     },
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { searchOnline() }),
@@ -143,7 +145,7 @@ fun SearchOverlay(mapCenter: GeoPoint, myLocation: GeoFix?, onPick: (SearchResul
                             )
                         }
                     }
-                    if (online == null && !onlineBusy) {
+                    if (online == null && !onlineBusy && !Sources.isOff(SourceKind.SEARCH)) {
                         item {
                             ListItem(
                                 modifier = Modifier.clickable { searchOnline() },

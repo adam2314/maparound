@@ -1,5 +1,11 @@
 package app.maparound.car
 
+import androidx.car.app.model.CarColor
+import android.graphics.Typeface
+import android.graphics.Paint
+import android.graphics.Color
+import android.graphics.Canvas
+import android.graphics.Bitmap
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.model.Action
@@ -80,6 +86,8 @@ class CarMapScreen(
             .addAction(Action.PAN)
             .addAction(Action.Builder().setIcon(icon(R.drawable.ic_car_zoom_in)).setOnClickListener { renderer.zoomIn() }.build())
             .addAction(Action.Builder().setIcon(icon(R.drawable.ic_car_zoom_out)).setOnClickListener { renderer.zoomOut() }.build())
+            // 2D / 3D, saying where it goes: "2D" while tilted, "3D" while flat.
+            .addAction(Action.Builder().setIcon(textIcon(if (s.view3d) "2D" else "3D")).setOnClickListener { renderer.toggle3d() }.build())
             .build()
         val template = NavigationTemplate.Builder()
             .setActionStrip(actions.build())
@@ -95,4 +103,19 @@ class CarMapScreen(
     }
 
     private fun icon(res: Int) = CarIcon.Builder(IconCompat.createWithResource(carContext, res)).build()
+
+    /** A short label as a map button's icon ("2D"), white on clear so the car tints it as its own. */
+    private fun textIcon(text: String): CarIcon {
+        val size = 96
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.DEFAULT_BOLD
+            textSize = size * 0.5f
+        }
+        val y = size / 2f - (paint.descent() + paint.ascent()) / 2
+        Canvas(bmp).drawText(text, size / 2f, y, paint)
+        return CarIcon.Builder(IconCompat.createWithBitmap(bmp)).setTint(CarColor.DEFAULT).build()
+    }
 }

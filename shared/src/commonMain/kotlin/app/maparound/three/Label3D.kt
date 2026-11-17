@@ -13,7 +13,7 @@ class Label3D(val lat: Double, val lon: Double, val name: String, val kind: Kind
     val priority: Double = kind.rank + if (kind == Kind.PEAK && ele != null) -ele / 10_000.0 else 0.0
 
     /** The text shown: the name, and a peak's or pass's height (labels live as long as the 3D view, which the language can't change under). */
-    val text: String = if (ele != null && (kind == Kind.PEAK || kind == Kind.PASS)) "$name  $ele ${T.common.unitM}" else name
+    val text: String = if (ele != null && (kind == Kind.PEAK || kind == Kind.PASS)) "$name  ${app.maparound.ui.Fmt.height(ele)}" else name
 
     companion object {
         /** Zoom from which the offline maps' names are read (the world's below). */

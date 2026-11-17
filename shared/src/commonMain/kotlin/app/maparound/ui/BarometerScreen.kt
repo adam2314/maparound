@@ -113,7 +113,7 @@ fun BarometerScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(T.sensors.barometricAltitude, style = MaterialTheme.typography.labelLarge)
                 Text(
-                    altitude?.let { "${ltr(it.roundToInt().toString())} ${T.common.unitM}" } ?: "—",
+                    altitude?.let { "${ltr(Fmt.heightNumber(it.toDouble()).toString())} ${Fmt.heightUnit}" } ?: "—",
                     style = MaterialTheme.typography.displaySmall,
                     fontWeight = FontWeight.Bold,
                 )
@@ -225,7 +225,7 @@ private fun CalibrateDialog(
                     gpsAltitude != null -> TextButton(onClick = {
                         altitudeText = gpsAltitude.roundToInt().toString()
                         qnhText = ""
-                    }) { Text(T.sensors.useGpsAltitude(gpsAltitude.roundToInt())) }
+                    }) { Text(T.sensors.useGpsAltitude(Fmt.height(gpsAltitude))) }
                     !hasLocation -> TextButton(onClick = requestLocation) { Text(T.sensors.allowLocationForGpsAltitude) }
                     else -> Text(T.sensors.waitingForGpsAltitude, style = MaterialTheme.typography.bodySmall)
                 }

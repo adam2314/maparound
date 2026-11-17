@@ -123,9 +123,14 @@ fun MapAroundRoot(
     // The screens' own Back (a folder, a settings page, search) comes first: they're composed later.
     PlatformBackHandler(enabled = tab != Tab.Map && Tab.Map in tabs) { tab = Tab.Map }
 
+    // The screen stays on as chosen in Settings (not in another website's page).
+    if (openFull == null) ScreenKeeper(navigating)
+
     // Right to left in a right-to-left language (Hebrew), on every platform: the screens mirror.
     CompositionLocalProvider(LocalLayoutDirection provides if (I18n.rtl) LayoutDirection.Rtl else LayoutDirection.Ltr) {
     Scaffold(
+        // Every touch counts for "the screen stays on N minutes after the last touch".
+        modifier = Modifier.watchTouches(),
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
             // Navigating on the map: the map has the whole screen. One tab (the embedded map): no bar.

@@ -49,6 +49,8 @@ open class CommonTexts {
     open val unitKm = "km"
     open val unitFt = "ft"
     open val unitMi = "mi"
+    open val unitNm = "NM"
+    open val unitMil = "mil"
     open val unitKmh = "km/h"
     open val unitMph = "mph"
     open val unitKnots = "kn"
@@ -73,6 +75,12 @@ open class CommonTexts {
 
     /** "3 Nov", as in names made from dates. */
     open fun dayMonth(day: Int, month: String) = "$day $month"
+
+    /** "3 Nov 2024" */
+    open fun dayMonthYear(day: Int, month: String, year: Int) = "$day $month $year"
+
+    /** The time of day in 12 hours: "2:05 PM". */
+    open fun timeAmPm(time: String, am: Boolean) = "$time ${if (am) "AM" else "PM"}"
 
     // ---- directions ----
     private val compass16 = listOf("N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW")
@@ -136,6 +144,8 @@ object CommonTextsHe : CommonTexts() {
     override val unitKm = "ק״מ"
     override val unitFt = "רגל"
     override val unitMi = "מייל"
+    override val unitNm = "מייל ימי"
+    override val unitMil = "מיל"
     override val unitKmh = "קמ״ש"
     override val unitMph = "מייל/ש׳"
     override val unitKnots = "קשר"
@@ -157,6 +167,8 @@ object CommonTextsHe : CommonTexts() {
     override fun monthDay(month: String, day: Int) = "$day ב$month"
     override fun monthDayYear(month: String, day: Int, year: Int) = "$day ב$month $year"
     override fun dayMonth(day: Int, month: String) = "$day ב$month"
+    override fun dayMonthYear(day: Int, month: String, year: Int) = "$day ב$month $year"
+    override fun timeAmPm(time: String, am: Boolean) = "${ltr(time)} ${if (am) "לפנה״צ" else "אחה״צ"}"
 
     private val compass8 = listOf("צפון", "צפון־מזרח", "מזרח", "דרום־מזרח", "דרום", "דרום־מערב", "מערב", "צפון־מערב")
 

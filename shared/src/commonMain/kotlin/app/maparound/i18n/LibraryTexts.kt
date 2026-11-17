@@ -34,8 +34,14 @@ open class LibraryTexts {
 
     // ---- routes & tracks: details and deleting ----
     /** Heights in metres. */
-    open fun highestLowest(highest: Int, lowest: Int?) = "Highest $highest m · lowest $lowest m"
+    open fun highestLowest(highest: String, lowest: String?) = "Highest $highest" + (lowest?.let { " · lowest $it" } ?: "")
     open fun confirmDeleteTrack(name: String) = "Delete $name?"
+
+    /** Navigation along a saved route or track. */
+    open val navigate = "Navigate"
+    open val navigateHow = "Navigate how?"
+    open val navigateAlongNote = "Along the line as it is: its sharper bends are said, and if you leave it, the way back to it."
+    open val calculatingRoute = "Calculating the route…"
     open val gpxFileRemoved = "The GPX file is removed from this phone."
 
     // ---- kinds of routes and tracks ----
@@ -140,8 +146,12 @@ object LibraryTextsHe : LibraryTexts() {
     override val embedInWebsite = "הטמעה באתר"
     override val embedCodeCopied = "הקוד הועתק: אפשר להדביק אותו בדף האינטרנט"
 
-    override fun highestLowest(highest: Int, lowest: Int?) = "גובה מרבי $highest מ׳ · מזערי $lowest מ׳"
+    override fun highestLowest(highest: String, lowest: String?) = "גובה מרבי $highest" + (lowest?.let { " · מזערי $it" } ?: "")
     override fun confirmDeleteTrack(name: String) = "למחוק את $name?"
+    override val navigate = "ניווט"
+    override val navigateHow = "ניווט באיזה אופן?"
+    override val navigateAlongNote = "לאורך הקו כמו שהוא: הפניות החדות בו נאמרות, ואם יוצאים ממנו, הדרך חזרה אליו."
+    override val calculatingRoute = "מחשב את המסלול…"
     override val gpxFileRemoved = "קובץ ה־GPX יימחק מהטלפון הזה."
 
     override val kindPlanned = "מסלול מתוכנן"

@@ -67,7 +67,7 @@ fun PhotoViewer(photo: Commons.Photo, onDismiss: () -> Unit, onShowOnMap: ((GeoP
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f).padding(start = 16.dp),
                     )
-                    IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, contentDescription = T.common.close) }
+                    Tip(T.common.close) { IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, contentDescription = T.common.close) } }
                 }
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     // The small picture at once, the bigger one over it when it's in.

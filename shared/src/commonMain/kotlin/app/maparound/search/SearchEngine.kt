@@ -1,5 +1,7 @@
 package app.maparound.search
 
+import app.maparound.sources.Sources
+import app.maparound.sources.SourceKind
 import app.maparound.i18n.T
 import app.maparound.places.Place
 import app.maparound.routing.GeoPoint
@@ -105,24 +107,39 @@ object SearchEngine {
 
     // ---- online ----------------------------------------------------------------------------------
 
+    const val PHOTON = "https://photon.komoot.io/api/"
+    const val NOMINATIM = "https://nominatim.openstreetmap.org/search"
+
     /**
-     * OpenStreetMap search online: Photon (results near [near] first), Nominatim if that fails.
-     * [fetch] downloads a URL as text (throwing on errors). Blocking.
+     * OpenStreetMap search online, each server in turn ([Sources]: the user's first, then Photon,
+     * then Nominatim): Photon's results near [near] first. [fetch] downloads a URL as text
+     * (throwing on errors). Blocking. Nothing when online search is off.
      */
     fun online(query: String, near: GeoPoint?, fetch: (url: String) -> String): List<SearchResult> {
         val q = query.trim()
         if (q.length < 2) return emptyList()
-        return runCatching { parsePhoton(fetch(photonUrl(q, near))) }.getOrElse {
-            parseNominatim(fetch(nominatimUrl(q, near)))
+        var failed: Exception? = null
+        for (server in Sources.addresses(SourceKind.SEARCH)) {
+            try {
+                return if (isNominatim(server)) parseNominatim(fetch(nominatimUrl(q, near, server))) else parsePhoton(fetch(photonUrl(q, near, server)))
+            } catch (e: Exception) {
+                failed = e
+            }
         }
+        if (failed != null) throw failed
+        return emptyList()
     }
 
-    fun photonUrl(q: String, near: GeoPoint?): String =
-        "https://photon.komoot.io/api/?limit=15&q=" + urlEncode(q) +
+    /** A Nominatim server's address (else Photon's). */
+    fun isNominatim(server: String): Boolean =
+        server.contains("nominatim", ignoreCase = true) || server.trimEnd('/').endsWith("/search")
+
+    fun photonUrl(q: String, near: GeoPoint?, server: String = PHOTON): String =
+        server.trimEnd('/') + "/?limit=15&q=" + urlEncode(q) +
             (near?.let { "&lat=${fixed(it.lat, 5)}&lon=${fixed(it.lon, 5)}" } ?: "")
 
-    fun nominatimUrl(q: String, near: GeoPoint?): String =
-        "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=10&q=" + urlEncode(q) +
+    fun nominatimUrl(q: String, near: GeoPoint?, server: String = NOMINATIM): String =
+        server.trimEnd('/').let { if (it.endsWith("/search")) it else "$it/search" } + "?format=jsonv2&limit=10&q=" + urlEncode(q) +
             (near?.let { "&viewbox=${fixed(it.lon - 1, 4)},${fixed(it.lat + 1, 4)},${fixed(it.lon + 1, 4)},${fixed(it.lat - 1, 4)}" } ?: "")
 
     /** Photon's GeoJSON answer. */
@@ -210,7 +227,7 @@ object SearchEngine {
             t["building"] != null -> words.building
             else -> words.place
         }
-        return listOfNotNull(kind, t["ele"]?.toDoubleOrNull()?.let { "${it.toInt()} ${T.common.unitM}" }).joinToString(" · ")
+        return listOfNotNull(kind, t["ele"]?.toDoubleOrNull()?.let { app.maparound.ui.Fmt.height(it.toInt()) }).joinToString(" · ")
     }
 
     /** What an OSM tag ([key]=[value]) says a place is, in the app's language ("Peak"; else the value in words). */

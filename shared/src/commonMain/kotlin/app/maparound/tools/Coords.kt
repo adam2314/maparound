@@ -32,6 +32,15 @@ enum class CoordFormat(val example: String) {
     ITM("222304 631558"),
     PLUS("8G3QQ6GM+MR"),
     MAIDENHEAD("KM71os"),
+    GEOHASH("sv9hp6r1z1"),
+    GEOREF("LKBJ 1406 4659"),
+    WEB_MERCATOR("3922023 3730048"),
+    ECEF("4440193 3135473 3336040"),
+    OSGB("TQ 30080 80820"),
+    IRISH_TM("715830 734697"),
+    LV95("2600072 1200147"),
+    RD("155000 463000"),
+    LAMBERT93("652381 6862047"),
     ;
 
     /** The format's name, in the app's language. */
@@ -45,7 +54,41 @@ enum class CoordFormat(val example: String) {
             ITM -> T.tools.formatIsraelGrid
             PLUS -> "Plus Code"
             MAIDENHEAD -> T.tools.formatMaidenhead
+            GEOHASH -> "Geohash"
+            GEOREF -> "GEOREF"
+            WEB_MERCATOR -> T.tools.formatWebMercator
+            ECEF -> T.tools.formatEcef
+            OSGB -> T.tools.formatBritishGrid
+            IRISH_TM -> T.tools.formatIrishGrid
+            LV95 -> T.tools.formatSwissGrid
+            RD -> T.tools.formatDutchGrid
+            LAMBERT93 -> T.tools.formatLambert93
         }
+
+    /** More words people search for it by (lower case, English and Hebrew). */
+    val keywords: String
+        get() = when (this) {
+            DD -> "decimal degrees lat lon latitude longitude wgs84 google gps מעלות עשרוניות"
+            DDM -> "degrees minutes gps garmin nmea מעלות דקות"
+            DMS -> "degrees minutes seconds dms מעלות דקות שניות"
+            UTM -> "utm universal transverse mercator wgs84 zone"
+            MGRS -> "mgrs usng military grid reference nato"
+            ITM -> "israel israeli itm new grid epsg 2039 רשת ישראל החדשה נ״צ"
+            PLUS -> "plus code open location code olc google pluscode"
+            MAIDENHEAD -> "maidenhead locator qth ham amateur radio grid square"
+            GEOHASH -> "geohash hash"
+            GEOREF -> "georef world geographic reference aviation"
+            WEB_MERCATOR -> "web mercator epsg 3857 900913 pseudo mercator google osm metres gis"
+            ECEF -> "ecef xyz earth centred centered fixed geocentric cartesian"
+            OSGB -> "british national grid os osgb osgb36 ordnance survey uk england scotland wales bng epsg 27700"
+            IRISH_TM -> "irish itm ireland ire transverse mercator epsg 2157"
+            LV95 -> "swiss lv95 lv03 ch1903 ch1903+ switzerland swisstopo epsg 2056"
+            RD -> "dutch rd rijksdriehoek amersfoort netherlands holland epsg 28992"
+            LAMBERT93 -> "lambert 93 l93 france french ign rgf93 epsg 2154"
+        }
+
+    /** Plain numbers that could be other formats as well: read only when chosen ([Coords.parseAs]). */
+    val explicitOnly: Boolean get() = this == WEB_MERCATOR || this == IRISH_TM || this == RD
 }
 
 object Coords {
@@ -62,6 +105,55 @@ object Coords {
         CoordFormat.ITM -> Itm.from(p)?.let { (e, n) -> "${e.roundToLong()} ${n.roundToLong()}" }
         CoordFormat.PLUS -> PlusCode.encode(p)
         CoordFormat.MAIDENHEAD -> Maidenhead.encode(p)
+        CoordFormat.GEOHASH -> Geohash.encode(p)
+        CoordFormat.GEOREF -> Georef.encode(p)
+        CoordFormat.WEB_MERCATOR -> WebMercator.from(p)?.let { (x, y) -> "${metres(x)} ${metres(y)}" }
+        CoordFormat.ECEF -> Ecef.from(p).let { (x, y, z) -> "${metres(x)} ${metres(y)} ${metres(z)}" }
+        CoordFormat.OSGB -> Osgb.format(p)
+        CoordFormat.IRISH_TM -> IrishTm.from(p)?.let { (e, n) -> "${metres(e)} ${metres(n)}" }
+        CoordFormat.LV95 -> Lv95.from(p)?.let { (e, n) -> "${metres(e)} ${metres(n)}" }
+        CoordFormat.RD -> Rd.from(p)?.let { (x, y) -> "${metres(x)} ${metres(y)}" }
+        CoordFormat.LAMBERT93 -> Lambert93.from(p)?.let { (x, y) -> "${metres(x)} ${metres(y)}" }
+    }
+
+    /** Words before a coordinate that say its format ("RD 155000 463000", "EPSG:2056 …"). */
+    private val named: List<Pair<Regex, CoordFormat>> = listOf(
+        Regex("""^(GEOHASH)[:\s]+""") to CoordFormat.GEOHASH,
+        Regex("""^(GEOREF)[:\s]+""") to CoordFormat.GEOREF,
+        Regex("""^(EPSG[:\s]*(3857|900913)|WEB ?MERCATOR|PSEUDO ?MERCATOR)[:\s]+""") to CoordFormat.WEB_MERCATOR,
+        Regex("""^(ECEF|XYZ|GEOCENTRIC)[:\s]+""") to CoordFormat.ECEF,
+        Regex("""^(EPSG[:\s]*27700|OSGB(36)?|BNG|OS ?GRID|BRITISH( NATIONAL)? GRID)[:\s]+""") to CoordFormat.OSGB,
+        Regex("""^(EPSG[:\s]*2157|IRISH( GRID| TM| ITM)?|IRENET95)[:\s]+""") to CoordFormat.IRISH_TM,
+        Regex("""^(EPSG[:\s]*(2056|21781)|LV95|LV03|CH1903\+?|SWISS( GRID)?)[:\s]+""") to CoordFormat.LV95,
+        Regex("""^(EPSG[:\s]*28992|RD( NEW)?|RIJKSDRIEHOEK|AMERSFOORT)[:\s]+""") to CoordFormat.RD,
+        Regex("""^(EPSG[:\s]*2154|LAMBERT[ -]?93|L93|RGF93)[:\s]+""") to CoordFormat.LAMBERT93,
+    )
+
+    /**
+     * Reads [input] as written in [format] only (for numbers that could be several formats: "155000
+     * 463000" in Dutch RD, not the Israeli grid); null if it isn't one.
+     */
+    fun parseAs(input: String, format: CoordFormat, reference: GeoPoint? = null): Parsed? {
+        val text = input.trim().uppercase().let { t -> named.firstOrNull { it.first.containsMatchIn(t) }?.first?.replaceFirst(t, "")?.trim() ?: t }
+        if (text.isEmpty()) return null
+        val point = when (format) {
+            CoordFormat.DD, CoordFormat.DDM, CoordFormat.DMS -> Degrees.parse(text)?.point
+            CoordFormat.UTM -> Utm.parse(text)
+            CoordFormat.MGRS -> Mgrs.parse(text)
+            CoordFormat.ITM -> Itm.parse(text)
+            CoordFormat.PLUS -> PlusCode.decode(text, reference)
+            CoordFormat.MAIDENHEAD -> Maidenhead.decode(text)
+            CoordFormat.GEOHASH -> Geohash.decode(text)
+            CoordFormat.GEOREF -> Georef.decode(text)
+            CoordFormat.WEB_MERCATOR -> numberPair(text)?.let { (x, y) -> WebMercator.toPoint(x, y) }
+            CoordFormat.ECEF -> numberTriple(text)?.let { (x, y, z) -> Ecef.toPoint(x, y, z) }
+            CoordFormat.OSGB -> Osgb.parse(text, numbers = true)
+            CoordFormat.IRISH_TM -> IrishTm.parse(text)
+            CoordFormat.LV95 -> Lv95.parse(text, old = true)
+            CoordFormat.RD -> Rd.parse(text)
+            CoordFormat.LAMBERT93 -> Lambert93.parse(text)
+        } ?: return null
+        return Parsed(point, format)
     }
 
     /**
@@ -73,12 +165,21 @@ object Coords {
             .replace(Regex("""^(UTM|MGRS|ITM|ISRAEL(I)?( TM| GRID)?|PLUS ?CODE|OLC|LOCATOR|GRID|LAT(ITUDE)?/?LON(G|GITUDE)?)[:\s]*"""), "")
             .trim()
         if (text.isEmpty()) return null
+        // Named ("RD 155000 463000"): that format.
+        named.firstOrNull { it.first.containsMatchIn(text) }?.let { (_, f) -> return parseAs(text, f, reference) }
         PlusCode.decode(text, reference)?.let { return Parsed(it, CoordFormat.PLUS) }
         Mgrs.parse(text)?.let { return Parsed(it, CoordFormat.MGRS) }
         Utm.parse(text)?.let { return Parsed(it, CoordFormat.UTM) }
         Itm.parse(text)?.let { return Parsed(it, CoordFormat.ITM) }
         Maidenhead.decode(text)?.let { return Parsed(it, CoordFormat.MAIDENHEAD) }
-        return Degrees.parse(text)
+        Georef.decode(text, strict = true)?.let { return Parsed(it, CoordFormat.GEOREF) }
+        Osgb.parse(text, strict = true)?.let { return Parsed(it, CoordFormat.OSGB) }
+        // Numbers only one grid uses: Swiss (2… 1…, seven digits each), Lambert 93 (a 7-digit northing from 6…), ECEF (three).
+        Lv95.parse(text)?.let { return Parsed(it, CoordFormat.LV95) }
+        Lambert93.parse(text)?.let { return Parsed(it, CoordFormat.LAMBERT93) }
+        numberTriple(text)?.let { (x, y, z) -> Ecef.toPoint(x, y, z) }?.let { return Parsed(it, CoordFormat.ECEF) }
+        Degrees.parse(text)?.let { return it }
+        return Geohash.decode(text, strict = true)?.let { Parsed(it, CoordFormat.GEOHASH) }
     }
 
     private fun ddm(p: GeoPoint): String {
@@ -303,6 +404,11 @@ internal object Itm {
     /** Only around Israel, where the grid is defined. */
     fun from(p: GeoPoint): Pair<Double, Double>? {
         if (p.lat !in 29.0..33.8 || p.lon !in 33.8..36.2) return null
+        return project(p)
+    }
+
+    /** Anywhere (a grid drawn over the map reaches past the borders). */
+    fun project(p: GeoPoint): Pair<Double, Double> {
         val (x, y, z) = Ellipsoid.WGS84.toEcef(p.lat, p.lon)
         // Inverse Helmert: X_local = Rᵀ (X_wgs - T) / (1 + s)
         val dx = (x - TX) / (1 + S)

@@ -1,11 +1,23 @@
 package app.maparound.data
 
+import app.maparound.ui.ScreenOn
+import app.maparound.i18n.DateOrder
+import app.maparound.i18n.DirectionFormat
+import app.maparound.i18n.DistanceUnit
+import app.maparound.i18n.HeightUnit
 import app.maparound.i18n.I18n
+import app.maparound.i18n.TimeFormat
+import app.maparound.i18n.UnitChoice
+import app.maparound.i18n.UnitSystem
+import app.maparound.i18n.Units
 import app.maparound.map.MapThemes
 import app.maparound.map.OnlineSource
 import app.maparound.map.StyleChoice
 import app.maparound.map.TileSources
 import app.maparound.sensors.SpeedUnit
+import app.maparound.sources.SourceKind
+import app.maparound.sources.SourceSetting
+import app.maparound.sources.Sources
 import app.maparound.sensors.Vec3
 import app.maparound.tools.CoordFormat
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,8 +37,17 @@ import kotlinx.serialization.json.put
 
 data class MapPos(val lat: Double, val lon: Double, val zoom: Int)
 
-/** The app's settings, saved in [sp] (the same keys as before on Android). */
-class Prefs(private val sp: KeyValueStore) {
+/**
+ * The app's settings, saved in [sp] (the same keys as before on Android). [onUnits] gets the units
+ * and formats in use, now and on each change: the apps pass [Units.set], so values everywhere are
+ * shown in them.
+ */
+class Prefs(
+    private val sp: KeyValueStore,
+    private val onUnits: (UnitSystem) -> Unit = {},
+    /** Gets the user's choices for the online services, now and on each change: the apps pass [Sources.set]. */
+    private val onSources: (Map<SourceKind, SourceSetting>) -> Unit = {},
+) {
 
     // ---- the app's language: a code ("he"), or "" for the device's ----
     private val _language = MutableStateFlow(sp.getString(K_LANGUAGE) ?: "")
@@ -41,7 +62,7 @@ class Prefs(private val sp: KeyValueStore) {
         I18n.apply(_language.value)
     }
 
-    private val _baseLayer = MutableStateFlow(sp.getString(K_BASE)?.let(TileSources::current) ?: TileSources.DEFAULT_ID)
+    private val _baseLayer = MutableStateFlow(sp.getString(K_BASE)?.let(TileSources::current) ?: TileSources.AUTO_ID)
     val baseLayer: StateFlow<String> = _baseLayer.asStateFlow()
     fun setBaseLayer(id: String) {
         _baseLayer.value = id
@@ -67,7 +88,7 @@ class Prefs(private val sp: KeyValueStore) {
 
     fun removeCustomSource(id: String) {
         saveSources(_customSources.value.filterNot { it.id == id })
-        if (_baseLayer.value == id) setBaseLayer(TileSources.DEFAULT_ID)
+        if (_baseLayer.value == id) setBaseLayer(TileSources.AUTO_ID)
     }
 
     private val _seaLevelPressure = MutableStateFlow(sp.getFloat(K_QNH, STANDARD_PRESSURE))
@@ -243,6 +264,16 @@ class Prefs(private val sp: KeyValueStore) {
         private const val K_TERRAIN_3D = "terrain_3d_source"
         private const val K_LEVEL_UP = "level_up"
         private const val K_SPEED_UNIT = "speed_unit"
+        private const val K_DISTANCE_UNIT = "distance_unit"
+        private const val K_HEIGHT_UNIT = "height_unit"
+        private const val K_DIRECTION_FORMAT = "direction_format"
+        private const val K_TIME_FORMAT = "time_format"
+        private const val K_DATE_ORDER = "date_order"
+        private const val K_SOURCES = "sources"
+        private const val K_NAV_3D = "navigation_3d"
+        private const val K_GRID = "show_grid"
+        private const val K_SCREEN_OPEN = "screen_on_open"
+        private const val K_SCREEN_NAV = "screen_on_nav"
         private const val K_PLACES_ON_MAP = "places_on_map"
         private const val K_NAV_VOICE = "nav_voice"
         private const val K_BACKGROUND = "map_background"
@@ -292,13 +323,95 @@ class Prefs(private val sp: KeyValueStore) {
         if (value == null) sp.remove(K_LEVEL_UP) else sp.putString(K_LEVEL_UP, value.toString())
     }
 
-    private val _speedUnit = MutableStateFlow(
-        SpeedUnit.entries.firstOrNull { it.name == sp.getString(K_SPEED_UNIT) } ?: SpeedUnit.KMH,
+    // ---- units and formats: the user's choices, the device's for the rest ([Units]) ----
+    private val _unitChoice = MutableStateFlow(
+        UnitChoice(
+            distance = enumOrNull<DistanceUnit>(sp.getString(K_DISTANCE_UNIT)),
+            height = enumOrNull<HeightUnit>(sp.getString(K_HEIGHT_UNIT)),
+            speed = enumOrNull<SpeedUnit>(sp.getString(K_SPEED_UNIT)),
+            direction = enumOrNull<DirectionFormat>(sp.getString(K_DIRECTION_FORMAT)),
+            time = enumOrNull<TimeFormat>(sp.getString(K_TIME_FORMAT)),
+            date = enumOrNull<DateOrder>(sp.getString(K_DATE_ORDER)),
+        ),
     )
+
+    /** What the user chose (null: the device's). */
+    val unitChoice: StateFlow<UnitChoice> = _unitChoice.asStateFlow()
+
+    /** The units and formats in use: the ones chosen, the device's for the rest. */
+    private val _units = MutableStateFlow(_unitChoice.value.resolve(Units.device))
+    val units: StateFlow<UnitSystem> = _units.asStateFlow()
+
+    init {
+        onUnits(_units.value)
+    }
+
+    fun setUnitChoice(c: UnitChoice) {
+        _unitChoice.value = c
+        putOrRemove(K_DISTANCE_UNIT, c.distance?.name)
+        putOrRemove(K_HEIGHT_UNIT, c.height?.name)
+        putOrRemove(K_SPEED_UNIT, c.speed?.name)
+        putOrRemove(K_DIRECTION_FORMAT, c.direction?.name)
+        putOrRemove(K_TIME_FORMAT, c.time?.name)
+        putOrRemove(K_DATE_ORDER, c.date?.name)
+        _units.value = c.resolve(Units.device)
+        onUnits(_units.value)
+        _speedUnit.value = _units.value.speed
+    }
+
+    /** The speed unit in use: the one chosen, else the device's region's. */
+    private val _speedUnit = MutableStateFlow(_units.value.speed)
     val speedUnit: StateFlow<SpeedUnit> = _speedUnit.asStateFlow()
-    fun setSpeedUnit(value: SpeedUnit) {
-        _speedUnit.value = value
-        sp.putString(K_SPEED_UNIT, value.name)
+    fun setSpeedUnit(value: SpeedUnit) = setUnitChoice(_unitChoice.value.copy(speed = value))
+
+    // ---- the coordinate grid over the map (in the coordinate format chosen) ----
+    private val _showGrid = MutableStateFlow(sp.getBoolean(K_GRID, false))
+    val showGrid: StateFlow<Boolean> = _showGrid.asStateFlow()
+    fun setShowGrid(value: Boolean) {
+        _showGrid.value = value
+        sp.putBoolean(K_GRID, value)
+    }
+
+    // ---- navigation's view, and the car's map: tilted, the way ahead up (3D), or flat, north up (2D) ----
+    private val _navigation3d = MutableStateFlow(sp.getBoolean(K_NAV_3D, true))
+    val navigation3d: StateFlow<Boolean> = _navigation3d.asStateFlow()
+    fun setNavigation3d(value: Boolean) {
+        _navigation3d.value = value
+        sp.putBoolean(K_NAV_3D, value)
+    }
+
+    // ---- how long the screen stays on ([app.maparound.ui.ScreenOn]): with the app open, while navigating ----
+    private val _screenOnOpen = MutableStateFlow(enumOrNull<ScreenOn>(sp.getString(K_SCREEN_OPEN)) ?: ScreenOn.SYSTEM)
+    val screenOnOpen: StateFlow<ScreenOn> = _screenOnOpen.asStateFlow()
+    fun setScreenOnOpen(value: ScreenOn) {
+        _screenOnOpen.value = value
+        sp.putString(K_SCREEN_OPEN, value.name)
+    }
+
+    private val _screenOnNav = MutableStateFlow(enumOrNull<ScreenOn>(sp.getString(K_SCREEN_NAV)) ?: ScreenOn.ALWAYS)
+    val screenOnNav: StateFlow<ScreenOn> = _screenOnNav.asStateFlow()
+    fun setScreenOnNav(value: ScreenOn) {
+        _screenOnNav.value = value
+        sp.putString(K_SCREEN_NAV, value.name)
+    }
+
+    // ---- the online services: the user's choices ([Sources]; some are kept as their own settings) ----
+    private val _sources = MutableStateFlow(Sources.decode(sp.getString(K_SOURCES)))
+    val sources: StateFlow<Map<SourceKind, SourceSetting>> = _sources.asStateFlow()
+
+    init {
+        onSources(_sources.value)
+    }
+
+    fun setSource(kind: SourceKind, setting: SourceSetting) {
+        val all = if (setting == SourceSetting.Default) _sources.value - kind else _sources.value + (kind to setting)
+        _sources.value = all
+        putOrRemove(K_SOURCES, Sources.encode(all).takeIf { all.isNotEmpty() })
+        onSources(all)
+    }
+
+    private fun putOrRemove(key: String, value: String?) {
+        if (value == null) sp.remove(key) else sp.putString(key, value)
     }
 
     // ---- where elevation data comes from ([ElevationSources]) ----
@@ -328,6 +441,8 @@ class Prefs(private val sp: KeyValueStore) {
         sp.putString(K_COORD_FORMAT, value.name)
     }
 }
+
+private inline fun <reified E : Enum<E>> enumOrNull(name: String?): E? = enumValues<E>().firstOrNull { it.name == name }
 
 /** The app's settings, provided at the root of the shared UI. */
 val LocalPrefs = androidx.compose.runtime.staticCompositionLocalOf<Prefs> { error("No Prefs provided") }

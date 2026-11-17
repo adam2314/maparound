@@ -22,7 +22,7 @@ object RouteText {
     fun summary(track: Track): String = buildString {
         val s = track.stats
         append(track.name).append(" · ").append(Fmt.distance(s.distanceM.toFloat()))
-        s.ascentM?.let { append(" · ↑ ").append(it.roundToInt()).append(" ").append(T.common.unitM) }
+        s.ascentM?.let { append(" · ↑ ").append(Fmt.height(it)) }
     }
 
     fun of(track: Track): String = buildString {

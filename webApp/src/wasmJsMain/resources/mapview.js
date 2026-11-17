@@ -572,7 +572,8 @@
   const DEM3D = 'mr3d-dem', SHADE3D = 'mr3d-shade', SAT3D = 'mr3d-sat', BUILDINGS3D = 'mr3d-buildings';
   /** The terrain tiles (ElevationSources): Terrain Tiles on AWS unless others were chosen. */
   let terrain3d = { tiles: 'https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png', encoding: 'terrarium' };
-  const IMAGERY = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+  /** The satellite imagery (Sources): Esri's unless the region has its own or others were chosen. */
+  let imagery = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
   const OSM_SOURCE = 'osm'; // MapStyle.OSM_SOURCE: the downloaded maps
   const MAX_PITCH_2D = 60, MAX_PITCH_3D = 80;
   /** Eases in and out (smoothstep), for the 3D view's turns and tilts. */
@@ -614,7 +615,7 @@
       });
       if (v.satellite) {
         // Imagery instead of the map, under its names and the app's own markers.
-        if (!map.getSource(SAT3D)) map.addSource(SAT3D, { type: 'raster', tiles: [IMAGERY], tileSize: 256, maxzoom: 19 });
+        if (!map.getSource(SAT3D)) map.addSource(SAT3D, { type: 'raster', tiles: [imagery], tileSize: 256, maxzoom: 19 });
         map.addLayer({ id: SAT3D, type: 'raster', source: SAT3D }, firstLayer(['symbol']));
       } else {
         // The relief shaded, under the roads, paths and names (its own source, as MapLibre prefers).
@@ -909,7 +910,7 @@
       }
     }
     if (v.satellite) {
-      sources.sat = { type: 'raster', tiles: [IMAGERY], tileSize: 256, maxzoom: 19 };
+      sources.sat = { type: 'raster', tiles: [imagery], tileSize: 256, maxzoom: 19 };
       layers.push({ id: 'sat', type: 'raster', source: 'sat' });
     } else {
       sources.shade = dem();
@@ -1092,6 +1093,12 @@
       return [c.lat, c.lng, map.getZoom(), map.getBearing()].join(',');
     },
     height() { return container ? container.clientHeight : 0; },
+    /** "south,west,north,east" of what's in view, or "" before the map is there. */
+    bounds() {
+      if (!map) return '';
+      const b = map.getBounds();
+      return [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].join(',');
+    },
     move(lat, lon, zoom, animated) {
       if (firstView) {
         // The app places the new map where it was last; the address asked for another view.
@@ -1133,7 +1140,10 @@
       if (!navigating || !map) return;
       navigating = false;
       if (view3d) return;
-      map.easeTo({ bearing: 0, pitch: 0, padding: { top: 0, bottom: 0, left: 0, right: 0 }, duration: 600, easing: SMOOTH });
+      // At once: an animation could be cut short by the next move (following the position),
+      // leaving the map half turned and tilted.
+      map.stop();
+      map.jumpTo({ bearing: 0, pitch: 0, padding: { top: 0, bottom: 0, left: 0, right: 0 } });
     },
 
     // ---- the 3D view (pitch: MapLibre's, from straight down) ----
@@ -1216,6 +1226,10 @@
       freeze3d();
       map.jumpTo({ zoom: z, elevation: map.transform.elevation });
       keepClear();
+    },
+    /** The 3D view's satellite imagery: a {z}/{x}/{y} template; from the next time it opens. */
+    setImagery(template) {
+      imagery = template.replace('{s}', 'a');
     },
     /** The 3D view's terrain tiles: a {z}/{x}/{y} template, Terrarium or (mapbox) Terrain-RGB; from the next time it opens. */
     setTerrain3d(template, mapbox) {

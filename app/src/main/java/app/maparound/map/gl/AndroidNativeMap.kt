@@ -199,6 +199,11 @@ class AndroidNativeMap(
 
     override fun viewHeight(): Double = view.height / density.toDouble()
 
+    override fun visibleBounds(): DoubleArray? {
+        val b = map?.projection?.visibleRegion?.latLngBounds ?: return null
+        return doubleArrayOf(b.latitudeSouth, b.longitudeWest, b.latitudeNorth, b.longitudeEast)
+    }
+
     override fun moveCamera(lat: Double, lon: Double, zoom: Double, animated: Boolean) {
         val m = map
         if (m == null) {
@@ -242,7 +247,10 @@ class AndroidNativeMap(
         m.uiSettings.isCompassEnabled = true
         val c = m.cameraPosition
         val position = CameraPosition.Builder(c).bearing(0.0).tilt(0.0).padding(0.0, 0.0, 0.0, 0.0).build()
-        m.animateCamera(CameraUpdateFactory.newCameraPosition(position), ANIMATION_MS)
+        // At once: an animation could be cut short by the next move (a location fix following the
+        // position), leaving the map half turned and tilted.
+        m.cancelTransitions()
+        m.moveCamera(CameraUpdateFactory.newCameraPosition(position))
     }
 
     override fun setCallbacks(callbacks: NativeMapCallbacks?) {
@@ -280,6 +288,22 @@ class AndroidNativeMap(
     /** Zooms in (+1) or out (−1) a whole level. */
     fun zoomBy(levels: Double) {
         map?.animateCamera(CameraUpdateFactory.zoomBy(levels), 300)
+    }
+
+    /**
+     * Eases over [durationMs] to ([lat], [lon]) at [zoom], [bearing] up, tilted [pitch], the target in
+     * the middle of what's left inside these margins (pixels): the car's map, which has its own.
+     */
+    fun driveCamera(lat: Double, lon: Double, zoom: Double, bearing: Double, pitch: Double, left: Int, top: Int, right: Int, bottom: Int, durationMs: Int) {
+        val m = map ?: return
+        val position = CameraPosition.Builder()
+            .target(LatLng(lat, lon))
+            .zoom(zoom)
+            .bearing(bearing)
+            .tilt(pitch)
+            .padding(left.toDouble(), top.toDouble(), right.toDouble(), bottom.toDouble())
+            .build()
+        m.easeCamera(CameraUpdateFactory.newCameraPosition(position), durationMs, false)
     }
 
     /** Keeps the camera's target in the middle of what's left inside these margins (pixels). */

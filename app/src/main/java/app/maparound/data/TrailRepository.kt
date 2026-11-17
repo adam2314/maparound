@@ -1,5 +1,7 @@
 package app.maparound.data
 
+import app.maparound.sources.Sources
+import app.maparound.sources.SourceKind
 import android.content.Context
 import android.net.ConnectivityManager
 import app.maparound.USER_AGENT
@@ -156,7 +158,7 @@ class TrailRepository(private val context: Context, private val prefs: Prefs) : 
             // Cliffs, arêtes, ridges and earth banks: the mapsforge maps leave them out.
             "way[\"natural\"~\"${TrailCellIO.FEATURE_REGEX}\"]($bbox);out geom qt;"
         for (attempt in 0 until 3) {
-            for (endpoint in ENDPOINTS) {
+            for (endpoint in Sources.addresses(SourceKind.TRAILS_DATA)) {
                 kotlin.coroutines.coroutineContext.ensureActive()
                 val conn = URL(endpoint).openConnection() as HttpURLConnection
                 try {
@@ -204,10 +206,6 @@ class TrailRepository(private val context: Context, private val prefs: Prefs) : 
         context.getSystemService(ConnectivityManager::class.java)?.isActiveNetworkMetered ?: false
 
     companion object {
-        private val ENDPOINTS = listOf(
-            "https://overpass-api.de/api/interpreter",
-            "https://overpass.private.coffee/api/interpreter",
-        )
         private const val MAX_CELLS = 120
 
         /** How long after the start outdated cells wait: the map comes first. */

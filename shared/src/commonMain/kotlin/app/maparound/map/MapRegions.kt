@@ -223,7 +223,13 @@ class MapRegions private constructor(private val regions: List<Region>) {
         /** Where the app's `regions.bin` comes from (the platform sets it at start); none: no offers. */
         var source: (() -> ByteArray?)? = null
 
-        /** The app's regions, read on first use (off the main thread). */
-        val bundled: MapRegions? by lazy { runCatching { source?.invoke()?.let(::decode) }.getOrNull() }
+        private var loaded: MapRegions? = null
+
+        /**
+         * The app's regions, read on first use (off the main thread); while there are none (the
+         * platform hasn't set [source] yet, the web app still fetching them), read again next time.
+         */
+        val bundled: MapRegions?
+            get() = loaded ?: runCatching { source?.invoke()?.let(::decode) }.getOrNull()?.also { loaded = it }
     }
 }

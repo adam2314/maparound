@@ -14,7 +14,7 @@ open class ToolsTexts {
     open fun chipTapMap(name: String) = "$name: tap map"
 
     /** A placed point's chip with its ground height: "A · 812 m". */
-    open fun chipHeight(name: String, heightM: Int) = "$name · $heightM m"
+    open fun chipHeight(name: String, height: String) = "$name · $height"
     open fun putAtMyLocation(point: String) = "Put $point at my location"
     open val swapAB = "Swap A and B"
     open val placeBByBearing = "Place B by bearing and distance from A"
@@ -30,8 +30,8 @@ open class ToolsTexts {
      * "Height 120 → 340 m · Δ +220 m · +4.5°", and " · slant 2.8 km" when [slant] isn't null.
      * [delta] and [angle] come signed ("+220", "-4.5").
      */
-    open fun heightChange(from: Int, to: Int, delta: String, angle: String, slant: String?) =
-        "Height $from → $to m · Δ $delta m · $angle°" + (if (slant != null) " · slant $slant" else "")
+    open fun heightChange(from: String, to: String, delta: String, angle: String, slant: String?) =
+        "Height $from → $to · Δ $delta · $angle°" + (if (slant != null) " · slant $slant" else "")
 
     /** [declination]: signed degrees, without the ° sign. */
     open fun bearingNote(declination: String) =
@@ -60,11 +60,11 @@ open class ToolsTexts {
     open val sightTapB = "Now tap B, what you want to see. Further taps move the picked point (tap A or B to pick it); drag a point to move it."
     open val bInSight = "B is in sight from A"
     open val bHidden = "B is hidden from A"
-    open fun clearsBy(m: Int) = "The sight line clears the terrain by at least $m m."
+    open fun clearsBy(height: String) = "The sight line clears the terrain by at least $height."
 
     /** [distance]: how far from A the obstacle is. */
-    open fun blockedAt(distance: String, groundM: Int, aboveM: Int) =
-        "Blocked $distance from A by ground at $groundM m, $aboveM m above the sight line."
+    open fun blockedAt(distance: String, ground: String, above: String) =
+        "Blocked $distance from A by ground at $ground, $above above the sight line."
     open val blockedByTerrain = "Blocked by terrain."
     open val sightNote = "Bare terrain with Earth curvature and refraction; trees and buildings aren't included."
 
@@ -148,6 +148,23 @@ open class ToolsTexts {
     open val formatDms = "Degrees, minutes, seconds"
     open val formatIsraelGrid = "Israel grid (ITM)"
     open val formatMaidenhead = "Maidenhead locator"
+    open val formatWebMercator = "Web Mercator (EPSG:3857)"
+    open val formatEcef = "ECEF X Y Z (metres)"
+    open val formatBritishGrid = "British National Grid"
+    open val formatIrishGrid = "Irish grid (ITM)"
+    open val formatSwissGrid = "Swiss grid (LV95)"
+    open val formatDutchGrid = "Dutch grid (RD)"
+    open val formatLambert93 = "France, Lambert 93"
+
+    /** The converter: what the typed coordinates are read as, the formats shown, which point. */
+    open val readAsLabel = "Read as"
+    open val readAsAutomatic = "Any format (automatic)"
+    open val findFormat = "Find a format"
+    open val showingMyLocation = "Your location, in every format:"
+    open val showingMapCentre = "The map's centre, in every format:"
+    open val noFormatFound = "No format by that name."
+    open val notCoveredHere = "Doesn't cover this place"
+    open fun forExample(sample: String) = "e.g. $sample"
 
     // ---- coordinate converter ----
     open val couldntReadCoords =
@@ -163,7 +180,7 @@ open class ToolsTexts {
     open fun readAs(format: String) = "Read as $format"
 
     /** After "Read as …": the point's ground height. */
-    open fun groundHeight(m: Int) = "height $m m"
+    open fun groundHeight(height: String) = "height $height"
     open fun copyFormat(format: String) = "Copy $format"
     open val coordsNote = "The selected format is used on pins and cards. ITM uses the EPSG Israel 1993 transformation (±0.5 m)."
 }
@@ -180,7 +197,7 @@ object ToolsTextsHe : ToolsTexts() {
     override val closeTools = "סגירת כלי המפה"
 
     override fun chipTapMap(name: String) = "$RLM$name: הקשה במפה"
-    override fun chipHeight(name: String, heightM: Int) = "$RLM$name · $heightM מ׳"
+    override fun chipHeight(name: String, height: String) = "$RLM$name · $height"
     override fun putAtMyLocation(point: String) = "הצבת $point במיקום שלי"
     override val swapAB = "החלפה בין A ל־B"
     override val placeBByBearing = "הצבת B לפי אזימוט ומרחק מ־A"
@@ -189,8 +206,8 @@ object ToolsTextsHe : ToolsTexts() {
     override val measureTapB = "עכשיו יש להקיש כדי להציב את B. הקשות נוספות מזיזות את הנקודה שנבחרה (הקשה על A או B בוחרת בה); אפשר גם לגרור נקודה."
     override fun magneticMilsBack(magnetic: String, mils: Int, back: String) =
         "מגנטי $magnetic · $mils אלפיות · אזימוט חוזר $back"
-    override fun heightChange(from: Int, to: Int, delta: String, angle: String, slant: String?) =
-        "גובה $from ← $to מ׳ · ${ltr("Δ $delta")} מ׳ · ${ltr("$angle°")}" +
+    override fun heightChange(from: String, to: String, delta: String, angle: String, slant: String?) =
+        "גובה $from ← $to · ${ltr("Δ $delta")} · ${ltr("$angle°")}" +
             (if (slant != null) " · מרחק אלכסוני $slant" else "")
     override fun bearingNote(declination: String) =
         "אזימוט לפי צפון אמיתי, לאורך המעגל הגדול; המגנטי לפי הסטייה המגנטית ב־A במודל WMM (${ltr("$declination°")})."
@@ -216,9 +233,9 @@ object ToolsTextsHe : ToolsTexts() {
     override val sightTapB = "עכשיו יש להקיש כדי להציב את B, מה שרוצים לראות. הקשות נוספות מזיזות את הנקודה שנבחרה (הקשה על A או B בוחרת בה); אפשר גם לגרור נקודה."
     override val bInSight = "רואים את B מ־A"
     override val bHidden = "לא רואים את B מ־A"
-    override fun clearsBy(m: Int) = "קו הראייה עובר לפחות $m מ׳ מעל פני השטח."
-    override fun blockedAt(distance: String, groundM: Int, aboveM: Int) =
-        "חסום במרחק $distance מ־A, בקרקע בגובה $groundM מ׳ שמתנשאת $aboveM מ׳ מעל קו הראייה."
+    override fun clearsBy(height: String) = "קו הראייה עובר לפחות $height מעל פני השטח."
+    override fun blockedAt(distance: String, ground: String, above: String) =
+        "חסום במרחק $distance מ־A, בקרקע בגובה $ground שמתנשאת $above מעל קו הראייה."
     override val blockedByTerrain = "פני השטח חוסמים את קו הראייה."
     override val sightNote = "לפי פני השטח בלבד, כולל עקמומיות כדור הארץ ושבירת האור; עצים ומבנים לא נלקחים בחשבון."
 
@@ -277,6 +294,21 @@ object ToolsTextsHe : ToolsTexts() {
     override val formatDms = "מעלות, דקות ושניות"
     override val formatIsraelGrid = "רשת ישראל החדשה (ITM)"
     override val formatMaidenhead = "לוקטור Maidenhead"
+    override val formatWebMercator = "Web Mercator ‏(EPSG:3857)"
+    override val formatEcef = "ECEF ‏X Y Z (מטרים)"
+    override val formatBritishGrid = "הרשת הלאומית הבריטית"
+    override val formatIrishGrid = "רשת אירלנד (ITM)"
+    override val formatSwissGrid = "רשת שווייץ (LV95)"
+    override val formatDutchGrid = "רשת הולנד (RD)"
+    override val formatLambert93 = "צרפת, Lambert 93"
+    override val readAsLabel = "לקרוא כ־"
+    override val readAsAutomatic = "כל פורמט (אוטומטי)"
+    override val findFormat = "חיפוש פורמט"
+    override val showingMyLocation = "המיקום שלך, בכל הפורמטים:"
+    override val showingMapCentre = "מרכז המפה, בכל הפורמטים:"
+    override val noFormatFound = "אין פורמט בשם הזה."
+    override val notCoveredHere = "לא מכסה את המקום הזה"
+    override fun forExample(sample: String) = "לדוגמה $sample"
 
     override val couldntReadCoords: String
         get() = "לא ניתן לזהות את הקואורדינטות. אפשר לנסות למשל ${ltr("31.7767 35.2345")}, " +
@@ -288,7 +320,7 @@ object ToolsTextsHe : ToolsTexts() {
     override val sharePoint = "שיתוף הנקודה"
     override val coordsHint = "אפשר להקיש על המפה, להשתמש במיקום הנוכחי או במרכז המפה, או להקליד קואורדינטות למעלה."
     override fun readAs(format: String) = "זוהה בפורמט $format"
-    override fun groundHeight(m: Int) = "גובה $m מ׳"
+    override fun groundHeight(height: String) = "גובה $height"
     override fun copyFormat(format: String) = "העתקת $format"
     override val coordsNote = "הפורמט שנבחר מוצג בסיכות ובכרטיסים. ההמרה ל־ITM לפי טרנספורמציית Israel 1993 של EPSG (±0.5 מ׳)."
 }

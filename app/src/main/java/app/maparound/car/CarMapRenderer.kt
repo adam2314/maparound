@@ -1,5 +1,6 @@
 package app.maparound.car
 
+import app.maparound.routing.NavView
 import android.app.Presentation
 import android.graphics.Rect
 import android.hardware.display.DisplayManager
@@ -52,7 +53,7 @@ import kotlin.math.roundToInt
  */
 class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) : SurfaceCallback, DefaultLifecycleObserver {
     /** What the template shows above the map. */
-    data class Status(val title: String, val text: String, val following: Boolean, val satellite: Boolean)
+    data class Status(val title: String, val text: String, val following: Boolean, val satellite: Boolean, val view3d: Boolean = true)
 
     private val _status = MutableStateFlow(Status("MapAround", T.nav.carStarting, following = true, satellite = false))
     val status: StateFlow<Status> = _status.asStateFlow()
@@ -163,6 +164,20 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
         location?.let { centerOn(it.latitude, it.longitude) }
     }
 
+    /**
+     * 2D / 3D (the same choice as the phone's navigation): tilted with the way ahead up, the car low
+     * on the screen; or flat, north up. Following the car again either way.
+     */
+    fun toggle3d() {
+        AppGraph.prefs.setNavigation3d(!AppGraph.prefs.navigation3d.value)
+        setFollowing(true)
+        location?.let { centerOn(it.latitude, it.longitude) } ?: map?.native?.let { n ->
+            val c = n.camera()
+            centerOn(c.lat, c.lon)
+        }
+        pushStatus()
+    }
+
     /** Switches between the phone's chosen map and satellite imagery (car screen only). */
     fun toggleSatellite() {
         satellite = !satellite
@@ -195,10 +210,27 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
         pushStatus()
     }
 
-    /** Puts the position in the middle of the part of the screen not covered by the car's UI (the padding). */
+    /**
+     * Puts the position in the part of the screen not covered by the car's UI: in 3D low in it, the
+     * way the car goes up, tilted; in 2D in its middle, north up.
+     */
     private fun centerOn(lat: Double, lon: Double) {
         val n = map?.native ?: return
-        n.moveCamera(lat, lon, n.camera().zoom, animated = true)
+        val (w, h) = surfaceSize
+        if (w <= 0 || h <= 0) return
+        val v = visibleArea ?: Rect(0, 0, w, h)
+        val left = v.left
+        val right = (w - v.right).coerceAtLeast(0)
+        val bottom = (h - v.bottom).coerceAtLeast(0)
+        val cam = n.camera()
+        if (AppGraph.prefs.navigation3d.value) {
+            // The way the car goes when it moves (else as it was); its place three quarters down.
+            val bearing = location?.takeIf { it.hasBearing() && it.hasSpeed() && it.speed > 1.5f }?.bearing?.toDouble() ?: cam.bearing
+            val top = v.top + (v.bottom - v.top).coerceAtLeast(0) / 2
+            n.driveCamera(lat, lon, cam.zoom, bearing, NavView.PITCH, left, top, right, bottom, 900)
+        } else {
+            n.driveCamera(lat, lon, cam.zoom, 0.0, 0.0, left, v.top, right, bottom, 600)
+        }
     }
 
     // ---- data -------------------------------------------------------------------------------------------
@@ -262,8 +294,8 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
         }
         val parts = mutableListOf<String>()
         if (!carContext.hasLocationPermission()) parts += T.nav.carAllowLocation
-        loc?.bestAltitude()?.let { parts += "${it.roundToInt()} ${T.common.unitM}" }
-        if (loc != null && loc.hasBearing() && (gpsSpeed ?: 0f) > 1f) parts += Fmt.cardinal(loc.bearing)
+        loc?.bestAltitude()?.let { parts += Fmt.height(it) }
+        if (loc != null && loc.hasBearing() && (gpsSpeed ?: 0f) > 1f) parts += Fmt.heading(loc.bearing)
         PlannerSession.state.value.route?.let { parts += T.nav.carRoute(Fmt.distance(it.stats.distanceM.toFloat())) }
         PartySession.state.value.takeIf { it.active }?.let { p ->
             val n = p.members.count { it.position != null }
@@ -273,7 +305,7 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
         if (AppGraph.mapFiles.files.value.isEmpty() && TileSources.find(AppGraph.prefs.baseLayer.value, AppGraph.prefs.customSources.value) == null && !satellite) {
             parts += T.nav.carNoOfflineMaps
         }
-        _status.value = Status(title, parts.joinToString(" · ").ifEmpty { T.nav.carMap }, following, satellite)
+        _status.value = Status(title, parts.joinToString(" · ").ifEmpty { T.nav.carMap }, following, satellite, AppGraph.prefs.navigation3d.value)
     }
 
     private fun release() {

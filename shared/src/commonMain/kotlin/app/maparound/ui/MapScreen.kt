@@ -1,5 +1,9 @@
 package app.maparound.ui
 
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import app.maparound.map.satelliteSource
+import app.maparound.sources.Sources
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -62,7 +66,6 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Terrain
-import androidx.compose.material.icons.filled.ViewInAr
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -170,6 +173,7 @@ import app.maparound.tools.Geodesy
 import app.maparound.tools.ToolsSession
 import app.maparound.tracks.LocalTracks
 import app.maparound.tracks.TrackRecorder
+import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -210,7 +214,7 @@ fun MapScreen(
     val sensors = LocalDeviceSensors.current
     val scope = rememberCoroutineScope()
 
-    val controller = remember { createMap().apply { moveTo(prefs.lastPosition() ?: MapPos(30.0, 10.0, 3)) } }
+    val controller = remember { createMap().apply { moveTo(prefs.lastPosition() ?: WORLD_START) } }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -270,10 +274,46 @@ fun MapScreen(
         vectorOnTop = vectorOnBackground,
         rasterMaps = rasterMaps,
         streamed = streamed,
+        satellite = if (background == app.maparound.data.Prefs.BACKGROUND_SATELLITE) satelliteSource.urlTemplate else "",
     )
     // Streamed maps readable again after tiles were made without them: the map asks for those again.
     val streamGeneration by app.maparound.shared.stream.MapStream.generation.collectAsState()
-    LaunchedEffect(baseMap, streamGeneration) { controller.setBaseMap(baseMap) }
+    // The coordinate grid (Layers, or the converter): drawn again when the view or the format changes.
+    val showGrid by prefs.showGrid.collectAsState()
+    val gridFormat by prefs.coordFormat.collectAsState()
+    LaunchedEffect(showGrid, gridFormat) {
+        if (!showGrid) {
+            controller.setGrid(null)
+            return@LaunchedEffect
+        }
+        var last: app.maparound.tools.MapGrid.View? = null
+        while (true) {
+            val view = controller.visibleBounds()
+            if (view != null && view != last) {
+                last = view
+                val mpd = controller.metresPerDp()
+                val grid = withContext(Dispatchers.Default) { app.maparound.tools.MapGrid.make(gridFormat, view, mpd) }
+                controller.setGrid(grid)
+            }
+            delay(GRID_CHECK_MS)
+        }
+    }
+
+    // The online services' addresses (Settings → Sources) are in the map's style too.
+    val sourceChoices = Sources.settings
+    LaunchedEffect(baseMap, streamGeneration, sourceChoices) { controller.setBaseMap(baseMap) }
+
+    // Where the map is, closely enough for a region's own sources (the automatic map layer, the
+    // satellite): Settings → Sources' regional defaults.
+    LaunchedEffect(Unit) {
+        val regions = regionsWhenRead() ?: return@LaunchedEffect
+        while (true) {
+            val pos = controller.position()
+            val here = if (pos.zoom < Sources.REGIONAL_ZOOM) emptyList() else withContext(Dispatchers.Default) { regions.at(pos.lat, pos.lon).map { it.path } }
+            if (here != Sources.regionPaths) Sources.regionPaths = here
+            delay(OFFER_CHECK_MS)
+        }
+    }
     val terrainShown = showingOffline && terrain.tiles > 0 && (contours || hillshade)
 
     // Terrain for the contour lines and hill shading: fetched by itself where the offline maps
@@ -288,7 +328,7 @@ fun MapScreen(
     LaunchedEffect(showingOffline, localMaps, onOpenOffline != null) {
         offerRegion = null
         if (!showingOffline || onOpenOffline == null) return@LaunchedEffect
-        val regions = withContext(Dispatchers.Default) { MapRegions.bundled } ?: return@LaunchedEffect
+        val regions = regionsWhenRead() ?: return@LaunchedEffect
         val installed = localMaps.map { it.fileName }.toSet()
         // Maps from elsewhere (not one of the regions): their areas.
         val others = withContext(Dispatchers.Default) {
@@ -495,6 +535,26 @@ fun MapScreen(
     }
     val location by locationFlow.collectAsStateWithLifecycle(initialValue = null)
     var follow by rememberSaveable { mutableStateOf(false) }
+
+    // First open (no place kept yet): the map goes to where the user is, once, when a location
+    // better than ±1 km comes within 20 s, while it still shows the whole world (not moved by
+    // the user, nor by a link, a pin or an invite opened); there the region's map is offered and
+    // its own sources apply. (Android asks for the location on first open; the web app only has
+    // one when it was allowed before.)
+    val openedAt = remember { nowMillis() }
+    var firstPlace by rememberSaveable { mutableStateOf(prefs.lastPosition() == null) }
+    LaunchedEffect(location, firstPlace) {
+        if (!firstPlace) return@LaunchedEffect
+        val fix = location ?: return@LaunchedEffect
+        val now = controller.position()
+        val stillTheWorld = now.zoom <= WORLD_START.zoom && abs(now.lat - WORLD_START.lat) < 1 && abs(now.lon - WORLD_START.lon) < 1
+        if (!stillTheWorld || nowMillis() - openedAt > FIRST_FIX_WAIT_MS) {
+            firstPlace = false
+        } else if ((fix.accuracyM ?: 0f) <= 1000f) {
+            firstPlace = false
+            controller.moveTo(MapPos(fix.lat, fix.lon, FIRST_FIX_ZOOM))
+        }
+    }
     var pin by remember { mutableStateOf<GeoPoint?>(null) }
     var pinLabel by remember { mutableStateOf<String?>(null) }
     // Where the buttons at the bottom right start: the zoom slider above them fits in what's left.
@@ -549,7 +609,7 @@ fun MapScreen(
     // A photo over the whole screen.
     var viewPhoto by remember { mutableStateOf<app.maparound.search.Commons.Photo?>(null) }
     LaunchedEffect(pinPoi) {
-        val place = pinPoi?.takeIf { it.hasArticle } ?: return@LaunchedEffect
+        val place = pinPoi?.takeIf { it.hasArticle && !Sources.isOff(app.maparound.sources.SourceKind.WIKIPEDIA) } ?: return@LaunchedEffect
         if (pinArticle?.first == place) return@LaunchedEffect
         // Which article (in the user's language when there is one), then its picture.
         val a = app.maparound.search.Wikipedia.articleOf(place, I18n.contentLanguage) ?: return@LaunchedEffect
@@ -603,6 +663,7 @@ fun MapScreen(
 
             override fun onUserGesture() {
                 follow = false
+                firstPlace = false
             }
 
             override fun onLongPress(point: GeoPoint) {
@@ -685,10 +746,15 @@ fun MapScreen(
     var navShown by remember { mutableStateOf(false) }
 
     /** Navigation's view at [loc], now. */
+    val navigation3d by prefs.navigation3d.collectAsState()
     fun showNavigation(loc: GeoFix) {
         if (navView.zoom.isNaN()) navView.update(loc, NavigationSession.state.value)
-        controller.followNavigation(loc.lat, loc.lon, navView.bearing, navView.zoom)
+        controller.followNavigation(loc.lat, loc.lon, navView.bearing, navView.zoom, tilted = prefs.navigation3d.value)
         navShown = true
+    }
+    // 2D or 3D chosen while navigating: the view changes at once.
+    LaunchedEffect(navigation3d) {
+        if (NavigationSession.state.value.active && follow) location?.let(::showNavigation)
     }
     LaunchedEffect(location) {
         val loc = location
@@ -710,12 +776,13 @@ fun MapScreen(
             showMe = false
             navView.reset()
             location?.let(::showNavigation)
-        } else if (navShown) {
+        } else {
+            // Navigation's over, wherever it was stopped (the car, the notification, another tab):
+            // the map flat and north up again, nothing of navigation's view left.
             navShown = false
             controller.endNavigation()
         }
     }
-    if (nav.active) KeepScreenOn()
     LaunchedEffect(pin) { controller.setPin(pin) }
 
     // ---- things other apps shared with us ---------------------------------------------------------
@@ -821,18 +888,20 @@ fun MapScreen(
             horizontalAlignment = Alignment.End,
         ) {
             if (openFull != null) {
-                SmallFloatingActionButton(onClick = openFull) {
+                Tip(T.map.openMapInMapAround) { SmallFloatingActionButton(onClick = openFull) {
                     Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = T.map.openMapInMapAround)
-                }
+                } }
             } else {
-                SmallFloatingActionButton(onClick = { searching = true }) {
-                    Icon(Icons.Filled.Search, contentDescription = T.map.searchPlaces)
+                Tip(T.map.searchPlaces) {
+                    SmallFloatingActionButton(onClick = { searching = true }) {
+                        Icon(Icons.Filled.Search, contentDescription = T.map.searchPlaces)
+                    }
                 }
             }
-            SmallFloatingActionButton(onClick = { showLayers = true }) {
+            Tip(T.map.mapLayers) { SmallFloatingActionButton(onClick = { showLayers = true }) {
                 Icon(Icons.Filled.Layers, contentDescription = T.map.mapLayers)
-            }
-            if (!nav.active && !embedded) SmallFloatingActionButton(
+            } }
+            if (!nav.active && !embedded) Tip(T.map.planRoute) { SmallFloatingActionButton(
                 onClick = {
                     if (in3d) return@SmallFloatingActionButton
                     if (planner.active) {
@@ -847,14 +916,14 @@ fun MapScreen(
                 contentColor = if (planner.active && !in3d) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
             ) {
                 Icon(Icons.Filled.Route, contentDescription = T.map.planRoute)
-            }
-            if (in3d) SmallFloatingActionButton(
+            } }
+            if (in3d) Tip(T.map.view3dSettings) { SmallFloatingActionButton(
                 onClick = onRelief,
                 containerColor = if (relief) MaterialTheme.colorScheme.primary else FloatingActionButtonDefaults.containerColor,
                 contentColor = if (relief) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
             ) {
                 Icon(Icons.Filled.Terrain, contentDescription = T.map.view3dSettings)
-            } else if (!nav.active && !embedded) SmallFloatingActionButton(
+            } } else if (!nav.active && !embedded) Tip(T.map.mapToolsButton) { SmallFloatingActionButton(
                 onClick = {
                     if (tools.active) {
                         ToolsSession.close()
@@ -867,13 +936,25 @@ fun MapScreen(
                 contentColor = if (tools.active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
             ) {
                 Icon(Icons.Filled.Straighten, contentDescription = T.map.mapToolsButton)
+            } }
+            // 2D / 3D: says where it goes. Navigating, it tilts navigation's view (3D) or lays it flat,
+            // north up (2D); otherwise it opens the 3D view, whose "2D" brings the flat map back.
+            val navigating = nav.active && !in3d
+            val lit = if (navigating) navigation3d else in3d
+            val what = when {
+                navigating -> if (navigation3d) T.map.navFlat else T.map.navTilted
+                in3d -> T.map.close3d
+                else -> T.map.view3dHere
             }
-            SmallFloatingActionButton(
-                onClick = onSwitch3d,
-                containerColor = if (in3d) MaterialTheme.colorScheme.primary else FloatingActionButtonDefaults.containerColor,
-                contentColor = if (in3d) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
-            ) {
-                Icon(Icons.Filled.ViewInAr, contentDescription = if (in3d) T.map.close3d else T.map.view3dHere)
+            Tip(what) {
+                SmallFloatingActionButton(
+                    onClick = if (navigating) ({ prefs.setNavigation3d(!navigation3d) }) else onSwitch3d,
+                    containerColor = if (lit) MaterialTheme.colorScheme.primary else FloatingActionButtonDefaults.containerColor,
+                    contentColor = if (lit) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.semantics { contentDescription = what },
+                ) {
+                    Text(if (lit) "2D" else "3D", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                }
             }
             // The zoom, with the scale on its thumb.
             zoom?.let { ZoomScale(it, Modifier.padding(top = 4.dp), bottomLimit = bottomLimit) }
@@ -924,7 +1005,7 @@ fun MapScreen(
                         )
                     }
                     TextButton(onClick = { OfflineFocus.show(offer.path); onOpenOffline() }) { Text(T.map.getMap) }
-                    IconButton(onClick = { declinedRegions += offer.path }) { Icon(Icons.Filled.Close, contentDescription = T.common.notNow) }
+                    Tip(T.common.notNow) { IconButton(onClick = { declinedRegions += offer.path }) { Icon(Icons.Filled.Close, contentDescription = T.common.notNow) } }
                 }
             }
         }
@@ -1002,7 +1083,7 @@ fun MapScreen(
             if (showMe) {
                 location?.let { me ->
                     PinCard(
-                        GeoPoint(me.lat, me.lon), T.map.myLocationWithin(me.accuracyM?.roundToInt()),
+                        GeoPoint(me.lat, me.lon), T.map.myLocationWithin(me.accuracyM?.let { Fmt.height(it) }),
                         null, onClose = { showMe = false },
                         onRoute = null,
                         onShare = { shareTarget = Triple(me.lat, me.lon, T.map.myLocation) },
@@ -1155,11 +1236,11 @@ fun MapScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (!recorder.recording && !embedded) {
-                SmallFloatingActionButton(onClick = startRecording) {
+                Tip(T.map.recordTrack) { SmallFloatingActionButton(onClick = startRecording) {
                     Icon(Icons.Filled.FiberManualRecord, contentDescription = T.map.recordTrack, tint = Color(0xFFD50000))
-                }
+                } }
             }
-            if (!embedded) FloatingActionButton(
+            if (!embedded) Tip(T.map.myLocation) { FloatingActionButton(
                 onClick = {
                     if (!hasLocation) {
                         requestLocation()
@@ -1180,7 +1261,7 @@ fun MapScreen(
                     if (follow) Icons.Filled.MyLocation else Icons.Filled.LocationSearching,
                     contentDescription = T.map.myLocation,
                 )
-            }
+            } }
         }
         }
         if (nav.active) {
@@ -1270,8 +1351,9 @@ fun MapScreen(
             onClose = { last ->
                 scene3d = null
                 scene3dControl = null
-                // The 2D map comes back where the 3D view was looking.
+                // The 2D map comes back where the 3D view was looking: flat, north up.
                 last?.let(controller::showFrom3D)
+                controller.endNavigation()
             },
             onControl = { scene3dControl = it },
             buttons = { zoom, relief, onRelief, close, limit ->
@@ -1463,13 +1545,13 @@ private fun PartyMarkerCard(
         Column(Modifier.padding(start = 16.dp, top = 8.dp, end = 4.dp, bottom = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = T.common.close) }
+                Tip(T.common.close) { IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = T.common.close) } }
             }
             val parts = mutableListOf<String>()
             myLocation?.let { me ->
                 val from = GeoPoint(me.lat, me.lon)
                 val to = GeoPoint(lat, lon)
-                parts += T.map.distanceToward(Fmt.distance(Geo.distance(from, to).toFloat()), Fmt.cardinal(Geodesy.bearing(from, to).toFloat()))
+                parts += T.map.distanceToward(Fmt.distance(Geo.distance(from, to).toFloat()), Fmt.heading(Geodesy.bearing(from, to).toFloat()))
             }
             // When: how long ago, and the time it was taken (theirs).
             if (at > 0) parts += Fmt.relativeTime(at) + " (" + Fmt.moment(at, seconds = true) + ")"
@@ -1573,7 +1655,7 @@ private fun PinCard(
                     )
                     Text(ltr(secondary), style = MaterialTheme.typography.bodySmall)
                 }
-                IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = T.common.close) }
+                Tip(T.common.close) { IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = T.common.close) } }
             }
             if (myLocation != null) {
                 val from = GeoPoint(myLocation.lat, myLocation.lon)
@@ -1603,19 +1685,19 @@ private fun PinCard(
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (onRoute != null) {
-                    IconButton(onClick = onRoute) { Icon(Icons.Filled.Route, contentDescription = T.map.routeHere) }
+                    Tip(T.map.routeHere) { IconButton(onClick = onRoute) { Icon(Icons.Filled.Route, contentDescription = T.map.routeHere) } }
                 }
-                IconButton(onClick = onShare) { Icon(Icons.Filled.Share, contentDescription = T.map.shareLocation) }
-                IconButton(onClick = { clipboard.setText(AnnotatedString(primary)) }) {
+                Tip(T.map.shareLocation) { IconButton(onClick = onShare) { Icon(Icons.Filled.Share, contentDescription = T.map.shareLocation) } }
+                Tip(T.map.copyCoordinates) { IconButton(onClick = { clipboard.setText(AnnotatedString(primary)) }) {
                     Icon(Icons.Filled.ContentCopy, contentDescription = T.map.copyCoordinates)
-                }
+                } }
                 if (onSavePlace != null) {
-                    IconButton(onClick = onSavePlace) { Icon(Icons.Filled.BookmarkAdd, contentDescription = T.map.saveAsPlace) }
+                    Tip(T.map.saveAsPlace) { IconButton(onClick = onSavePlace) { Icon(Icons.Filled.BookmarkAdd, contentDescription = T.map.saveAsPlace) } }
                 }
                 if (onTool != null) {
-                    IconButton(onClick = { onTool(ToolsSession.Mode.VIEW) }) {
+                    Tip(T.map.whatCanBeSeen) { IconButton(onClick = { onTool(ToolsSession.Mode.VIEW) }) {
                         Icon(Icons.Filled.Visibility, contentDescription = T.map.whatCanBeSeen)
-                    }
+                    } }
                 }
                 if (onMeetHere != null) {
                     TextButton(onClick = onMeetHere) { Text(T.map.meetHere) }
@@ -1834,8 +1916,20 @@ private fun LayersSheet(
                     checked = trails,
                 ) { prefs.setTrails(it) }
                 SwitchRow(T.map.savedPlaces, T.map.savedPlacesHint, checked = places) { prefs.setPlacesOnMap(it) }
+                // The coordinate grid, in the format chosen for coordinates; its spacing follows the zoom.
+                val grid by prefs.showGrid.collectAsState()
+                val gridIn by prefs.coordFormat.collectAsState()
+                SwitchRow(T.map.coordinateGrid, T.map.coordinateGridHint(gridIn.label), checked = grid) { prefs.setShowGrid(it) }
             }
             SheetHeader(T.map.sectionOnline)
+            // The map that suits where the map is (a country's own), until one is picked.
+            LayerRow(
+                selected = selectedId == TileSources.AUTO_ID,
+                title = T.settings.automaticNow(TileSources.title(TileSources.automatic())),
+                subtitle = T.map.srcAutomatic,
+                icon = Icons.Filled.Public,
+                onClick = { onSelect(TileSources.AUTO_ID) },
+            )
             TileSources.builtIn.forEach { src ->
                 LayerRow(
                     selected = selectedId == src.id,
@@ -1896,7 +1990,7 @@ private fun StyleRow(theme: MapTheme, selected: Boolean, onClick: () -> Unit, on
             Text(MapThemes.title(theme), style = MaterialTheme.typography.bodyLarge)
             Text(MapThemes.about(theme), style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        if (onRemove != null) IconButton(onClick = onRemove) { Icon(Icons.Filled.Delete, contentDescription = T.map.removeNamed(MapThemes.title(theme))) }
+        if (onRemove != null) Tip(T.map.removeNamed(MapThemes.title(theme))) { IconButton(onClick = onRemove) { Icon(Icons.Filled.Delete, contentDescription = T.map.removeNamed(MapThemes.title(theme))) } }
     }
 }
 
@@ -1981,7 +2075,7 @@ private fun LayerRow(
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (onRemove != null) {
-                    IconButton(onClick = onRemove) { Icon(Icons.Filled.Delete, contentDescription = T.map.removeNamed(title)) }
+                    Tip(T.map.removeNamed(title)) { IconButton(onClick = onRemove) { Icon(Icons.Filled.Delete, contentDescription = T.map.removeNamed(title)) } }
                 }
                 RadioButton(selected = selected, onClick = null)
             }
@@ -1991,7 +2085,7 @@ private fun LayerRow(
 }
 
 @Composable
-private fun AddSourceDialog(onDismiss: () -> Unit, onAdd: (OnlineSource) -> Unit) {
+internal fun AddSourceDialog(onDismiss: () -> Unit, onAdd: (OnlineSource) -> Unit) {
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("https://") }
     var maxZoom by remember { mutableStateOf("19") }
@@ -2070,17 +2164,17 @@ private fun PlannerPanel(
                     r != null -> listOfNotNull(
                         Fmt.distance(r.stats.distanceM.toFloat()),
                         r.durationS?.let { Fmt.duration(it) },
-                        r.stats.ascentM?.let { "↑ ${it.roundToInt()} ${T.common.unitM}" },
+                        r.stats.ascentM?.let { "↑ ${Fmt.height(it)}" },
                     ).joinToString(" · ")
                     else -> T.map.plannerTapNext
                 },
                 Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             if (state.busy) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-            IconButton(onClick = onNavigate, enabled = r != null && !state.busy) {
+            Tip(T.common.start) { IconButton(onClick = onNavigate, enabled = r != null && !state.busy) {
                 Icon(Icons.Filled.Navigation, contentDescription = T.common.start)
-            }
-            IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = T.map.closePlanner) }
+            } }
+            Tip(T.map.closePlanner) { IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = T.map.closePlanner) } }
         },
     ) {
         Column(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -2095,7 +2189,7 @@ private fun PlannerPanel(
                         ) { Text(p.label, maxLines = 1) }
                     }
                 }
-                IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = T.map.closePlanner) }
+                Tip(T.map.closePlanner) { IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = T.map.closePlanner) } }
             }
             val route = state.route
             when {
@@ -2126,18 +2220,18 @@ private fun PlannerPanel(
             }
             if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { PlannerSession.undo() }, enabled = PlannerSession.canUndo) {
+                Tip(T.common.undo) { IconButton(onClick = { PlannerSession.undo() }, enabled = PlannerSession.canUndo) {
                     Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = T.common.undo)
-                }
-                IconButton(onClick = { PlannerSession.reverse() }, enabled = state.waypoints.size >= 2) {
+                } }
+                Tip(T.map.reverseDirection) { IconButton(onClick = { PlannerSession.reverse() }, enabled = state.waypoints.size >= 2) {
                     Icon(Icons.Filled.SwapVert, contentDescription = T.map.reverseDirection)
-                }
-                IconButton(onClick = { PlannerSession.clear() }, enabled = state.waypoints.isNotEmpty()) {
+                } }
+                Tip(T.map.clearAllPoints) { IconButton(onClick = { PlannerSession.clear() }, enabled = state.waypoints.isNotEmpty()) {
                     Icon(Icons.Filled.Delete, contentDescription = T.map.clearAllPoints)
-                }
-                IconButton(onClick = onShare, enabled = route != null && !state.busy) {
+                } }
+                Tip(T.map.shareRoute) { IconButton(onClick = onShare, enabled = route != null && !state.busy) {
                     Icon(Icons.Filled.Share, contentDescription = T.map.shareRoute)
-                }
+                } }
                 Spacer(Modifier.weight(1f))
                 TextButton(onClick = onSave, enabled = route != null && !state.busy, contentPadding = PaddingValues(horizontal = 8.dp)) {
                     Text(T.common.save)
@@ -2196,6 +2290,25 @@ private fun overlap(a: GeoBounds, b: GeoBounds): GeoBounds? {
 /** From which zoom the map offers the map made for where it looks, and how often it looks. */
 private const val OFFER_ZOOM = 7
 private const val OFFER_CHECK_MS = 1_500L
+
+/** The app's regions, once they're read (the web app fetches them as it starts); null if they never are. */
+private suspend fun regionsWhenRead(): MapRegions? {
+    repeat(60) {
+        withContext(Dispatchers.Default) { MapRegions.bundled }?.let { return it }
+        delay(500)
+    }
+    return null
+}
+
+/** How often the grid looks whether the view moved. */
+private const val GRID_CHECK_MS = 400L
+
+/** Where the map starts the first time: the whole world. */
+private val WORLD_START = MapPos(30.0, 10.0, 3)
+
+/** On first open: how long a first location is waited for, and how close the map goes to it. */
+private const val FIRST_FIX_WAIT_MS = 20_000L
+private const val FIRST_FIX_ZOOM = 12
 
 /** The data view shows Israel's localities from this zoom (the app's: MapLibre's 6), the countries below it. */
 private const val LOCALITIES_ZOOM = 7.0

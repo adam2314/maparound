@@ -1,5 +1,9 @@
 package app.maparound.ui
 
+import app.maparound.tools.ToolsSession
+import app.maparound.routing.NavigationSession
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -116,6 +120,41 @@ fun RoutesScreen(
 
     fun share(t: SavedTrack) = platform.shareRoute(t.track, repo.pathOf(t.id))
 
+    // Navigation along it: a planned route is calculated again along its stops (for its turns);
+    // a track, or a route that can't be, is followed as it is (a track asks how first).
+    var navigateHow by remember { mutableStateOf<SavedTrack?>(null) }
+    fun follow(t: SavedTrack, profile: RouteProfile) {
+        ToolsSession.close()
+        NavigationSession.follow(t.track.points, profile)
+        repo.setVisible(t.id, true)
+        onShowMap()
+    }
+    fun navigate(t: SavedTrack) {
+        if (!hasLocation) {
+            requestLocation()
+            return
+        }
+        val track = t.track
+        val profile = track.profile
+        if (profile == null || track.waypoints.size < 2) {
+            navigateHow = t
+            return
+        }
+        scope.launch {
+            launch { snackbar.showSnackbar(T.library.calculatingRoute) }
+            val route = runCatching { PlannerSession.router(track.waypoints, profile) }.getOrNull()
+            snackbar.currentSnackbarData?.dismiss()
+            if (route == null || route.points.size < 2) {
+                follow(t, profile)
+            } else {
+                ToolsSession.close()
+                NavigationSession.start(route, track.waypoints, profile)
+                repo.setVisible(t.id, true)
+                onShowMap()
+            }
+        }
+    }
+
     // The code that puts it on a map in a web page, copied to paste there.
     val clipboard = LocalClipboardManager.current
     fun embed(t: SavedTrack) {
@@ -128,9 +167,9 @@ fun RoutesScreen(
         TopAppBar(
             title = header,
             actions = {
-                IconButton(onClick = { importer() }) {
+                Tip(T.library.importGpxFile) { IconButton(onClick = { importer() }) {
                     Icon(Icons.Filled.FileOpen, contentDescription = T.library.importGpxFile)
-                }
+                } }
                 SettingsButton()
             },
             windowInsets = WindowInsets(0, 0, 0, 0),
@@ -195,6 +234,7 @@ fun RoutesScreen(
                     onClick = { detail = t },
                     onToggle = { repo.setVisible(t.id, t.id !in visible) },
                     onShowOnMap = { showOnMap(t) },
+                    onNavigate = { navigate(t) },
                     onShare = { share(t) },
                     onEmbed = { embed(t) },
                     onRename = { renaming = t },
@@ -213,12 +253,22 @@ fun RoutesScreen(
                 ElevationProfile(t.track.points, Modifier.fillMaxWidth().height(140.dp))
                 t.track.stats.maxEleM?.let { hi ->
                     Text(
-                        T.library.highestLowest(hi.roundToInt(), t.track.stats.minEleM?.roundToInt()),
+                        T.library.highestLowest(Fmt.height(hi), t.track.stats.minEleM?.let { Fmt.height(it) }),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = {
+                    if (t.track.points.size >= 2) {
+                        Button(onClick = {
+                            detail = null
+                            navigate(t)
+                        }) {
+                            Icon(Icons.Filled.Navigation, contentDescription = null)
+                            Spacer(Modifier.width(6.dp))
+                            Text(T.library.navigate)
+                        }
+                    }
+                    OutlinedButton(onClick = {
                         detail = null
                         showOnMap(t)
                     }) { Text(T.common.showOnMap) }
@@ -226,6 +276,27 @@ fun RoutesScreen(
                 }
             }
         }
+    }
+
+    // A track (no way of travelling of its own): on foot, by bike or by car.
+    navigateHow?.let { t ->
+        AlertDialog(
+            onDismissRequest = { navigateHow = null },
+            title = { Text(T.library.navigateHow) },
+            text = {
+                Column {
+                    Text(T.library.navigateAlongNote, style = MaterialTheme.typography.bodySmall)
+                    for (p in listOf(RouteProfile.HIKE, RouteProfile.BIKE, RouteProfile.CAR)) {
+                        TextButton(onClick = {
+                            navigateHow = null
+                            follow(t, t.track.profile ?: p)
+                        }) { Text(p.label) }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { navigateHow = null }) { Text(T.common.cancel) } },
+        )
     }
 
     renaming?.let { t ->
@@ -267,6 +338,7 @@ private fun TrackRow(
     onClick: () -> Unit,
     onToggle: () -> Unit,
     onShowOnMap: () -> Unit,
+    onNavigate: () -> Unit,
     onShare: () -> Unit,
     onEmbed: () -> Unit,
     onRename: () -> Unit,
@@ -281,16 +353,19 @@ private fun TrackRow(
         supportingContent = { Text(subtitle(t), maxLines = 1, overflow = TextOverflow.Ellipsis) },
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onToggle) {
+                Tip(if (shown) T.library.hideOnMap else T.common.showOnMap) { IconButton(onClick = onToggle) {
                     Icon(
                         if (shown) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
                         contentDescription = if (shown) T.library.hideOnMap else T.common.showOnMap,
                         tint = if (shown) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                }
+                } }
                 Box {
-                    IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = T.common.more) }
+                    Tip(T.common.more) { IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = T.common.more) } }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        if (t.track.points.size >= 2) {
+                            DropdownMenuItem(text = { Text(T.library.navigate) }, leadingIcon = { Icon(Icons.Filled.Navigation, null) }, onClick = { menu = false; onNavigate() })
+                        }
                         DropdownMenuItem(text = { Text(T.common.showOnMap) }, leadingIcon = { Icon(Icons.Filled.Map, null) }, onClick = { menu = false; onShowOnMap() })
                         DropdownMenuItem(text = { Text(T.library.shareGpxAndLinks) }, leadingIcon = { Icon(Icons.Filled.Share, null) }, onClick = { menu = false; onShare() })
                         if (RouteText.hasLink(t.track)) {
@@ -329,7 +404,7 @@ private fun durationOf(t: SavedTrack): Long? {
 private fun subtitle(t: SavedTrack): String {
     val s = t.track.stats
     val parts = mutableListOf(Fmt.distance(s.distanceM.toFloat()))
-    s.ascentM?.let { parts += "↑ ${it.roundToInt()} ${T.common.unitM}" }
+    s.ascentM?.let { parts += "↑ ${Fmt.height(it)}" }
     durationOf(t)?.let { parts += Fmt.duration(it) }
     t.track.profile?.takeIf { it != RouteProfile.LINE }?.let { parts += it.label.lowercase() }
     parts += Fmt.relativeTime(t.track.created)

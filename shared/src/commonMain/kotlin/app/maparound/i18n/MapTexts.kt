@@ -59,7 +59,7 @@ open class MapTexts {
 
     // ---- the pin card ----
     /** "My location (±12 m)", or without the accuracy when there's none. */
-    open fun myLocationWithin(accuracyM: Int?) = if (accuracyM == null) "My location" else "My location (±$accuracyM m)"
+    open fun myLocationWithin(accuracy: String?) = if (accuracy == null) "My location" else "My location (±$accuracy)"
 
     /** "1.2 km from you · 45° NE" */
     open fun fromYou(distance: String, degrees: Int, direction: String) = "$distance from you · $degrees° $direction"
@@ -221,6 +221,7 @@ open class MapTexts {
     open val whatsHereTitle = "What's here"
     open fun aboutOnWikipedia(title: String) = "About $title on Wikipedia"
     open val wikipediaNeedsConnection = "Wikipedia needs a connection."
+    open val wikipediaOff = "Wikipedia and photos are off (Settings → Sources)."
     open val photosAround = "Photos around here"
     open val photosNeedConnection = "Photos need a connection."
     open val lookingForPhotos = "Looking for photos taken around here…"
@@ -229,7 +230,11 @@ open class MapTexts {
     open val noPlacesAround = "No other named places on the map here at this zoom."
     open val onWikipediaNearby = "On Wikipedia, nearby"
     open val lookingForArticles = "Looking for articles about places around here…"
-    open fun noArticlesWithin(km: Int) = "No articles about places within $km km."
+    open fun noArticlesWithin(distance: String) = "No articles about places within $distance."
+
+    /** Under "Automatic (…)" among the online maps. */
+    open val srcAutomatic =
+        "The map that suits where the map is: the national map in Switzerland, Austria, Norway, France and the US, OpenStreetMap France elsewhere."
 
     // ---- a photo ----
     open fun photoBy(author: String) = "Photo: $author"
@@ -282,11 +287,19 @@ open class MapTexts {
     open val rasterMapsOnIphoneLater = "Raster maps: Coming to iPhone in a later version"
 
     // ---- recording ----
-    open fun gpsAccuracy(m: Int) = "GPS ±$m m…"
+    open fun gpsAccuracy(accuracy: String) = "GPS ±$accuracy…"
     open val waitingForGps = "Waiting for GPS…"
 
     // ---- the 3D view ----
     open val close3d = "Close 3D view"
+
+    /** Layers: the coordinate grid over the map. */
+    open val coordinateGrid = "Coordinate grid"
+    open fun coordinateGridHint(format: String) = "$format, as chosen for coordinates; closer lines as you zoom in"
+
+    /** Navigation's view: to flat, north up (2D), or tilted, the way ahead up (3D). */
+    open val navFlat = "Flat map, north up (2D)"
+    open val navTilted = "Tilted, the way ahead up (3D)"
     open val faceNorth = "Face north"
     open val zoomIn = "Zoom in"
     open val zoomOut = "Zoom out"
@@ -354,7 +367,7 @@ object MapTextsHe : MapTexts() {
         else -> "$n מקומות נוספו לספרייה ← מקומות"
     }
 
-    override fun myLocationWithin(accuracyM: Int?) = if (accuracyM == null) "המיקום שלי" else "המיקום שלי (±$accuracyM מ׳)"
+    override fun myLocationWithin(accuracy: String?) = if (accuracy == null) "המיקום שלי" else "המיקום שלי (±$accuracy)"
     override fun fromYou(distance: String, degrees: Int, direction: String) = "$distance ממך · $degrees° $direction"
     override val whatsHere = "מה יש כאן?"
     override val wikipedia = "ויקיפדיה"
@@ -507,6 +520,7 @@ object MapTextsHe : MapTexts() {
     override val whatsHereTitle = "מה יש כאן"
     override fun aboutOnWikipedia(title: String) = "על $title בוויקיפדיה"
     override val wikipediaNeedsConnection = "ויקיפדיה דורשת חיבור לאינטרנט."
+    override val wikipediaOff = "ויקיפדיה והתמונות כבויות (הגדרות ← מקורות)."
     override val photosAround = "תמונות מהסביבה"
     override val photosNeedConnection = "התמונות דורשות חיבור לאינטרנט."
     override val lookingForPhotos = "חיפוש תמונות שצולמו בסביבה…"
@@ -515,7 +529,9 @@ object MapTextsHe : MapTexts() {
     override val noPlacesAround = "אין כאן על המפה מקומות נוספים עם שם, בזום הזה."
     override val onWikipediaNearby = "בוויקיפדיה, בקרבת מקום"
     override val lookingForArticles = "חיפוש ערכים על מקומות בסביבה…"
-    override fun noArticlesWithin(km: Int) = "אין ערכים על מקומות בטווח $km ק״מ."
+    override fun noArticlesWithin(distance: String) = "אין ערכים על מקומות בטווח $distance."
+    override val srcAutomatic =
+        "המפה שמתאימה למקום שהמפה מראה: המפה הלאומית בשווייץ, באוסטריה, בנורווגיה, בצרפת ובארה״ב, ו־OpenStreetMap France בכל מקום אחר."
 
     override fun photoBy(author: String) = "צילום: $author"
     override val fromCommons = "מתוך Wikimedia Commons"
@@ -558,10 +574,14 @@ object MapTextsHe : MapTexts() {
     override val noTrackInGpx = "אין בקובץ ה־GPX הזה מסלול או נקודת דרך"
     override val rasterMapsOnIphoneLater = "מפות רסטר: יגיעו לאייפון בגרסה מאוחרת יותר"
 
-    override fun gpsAccuracy(m: Int) = "GPS ±$m מ׳…"
+    override fun gpsAccuracy(accuracy: String) = "GPS ±$accuracy…"
     override val waitingForGps = "בהמתנה ל־GPS…"
 
     override val close3d = "סגירת תצוגת התלת־ממד"
+    override val coordinateGrid = "רשת קואורדינטות"
+    override fun coordinateGridHint(format: String) = "$format, כפי שנבחר לקואורדינטות; הקווים מתקרבים כשמגדילים"
+    override val navFlat = "מפה שטוחה, הצפון למעלה (דו־ממד)"
+    override val navTilted = "מפה מוטה, הכיוון קדימה למעלה (תלת־ממד)"
     override val faceNorth = "פנייה צפונה"
     override val zoomIn = "התקרבות"
     override val zoomOut = "התרחקות"

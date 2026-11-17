@@ -1,5 +1,8 @@
 package app.maparound.map
 
+import app.maparound.sources.Sources
+import app.maparound.sources.SourceSetting
+import app.maparound.sources.SourceKind
 import app.maparound.data.LocalMap
 import app.maparound.data.MapPos
 import app.maparound.data.Prefs
@@ -60,6 +63,8 @@ sealed class BaseMap {
         val rasterMaps: List<RasterMap>,
         /** Maps read over the internet where the installed ones don't reach ([app.maparound.data.MapStreaming]). */
         val streamed: List<RemoteMap> = emptyList(),
+        /** The satellite imagery's address while it's the background ([satelliteSource]): a change redraws. */
+        val satellite: String = "",
     ) : BaseMap() {
         /** The Topo style (MapAround's contours and trails are styled). */
         val topo: Boolean get() = theme == MapThemes.TOPO
@@ -137,9 +142,10 @@ interface MapSurface : ZoomTarget {
 
     /**
      * Navigation's view ([app.maparound.routing.NavView]): ([lat], [lon]) low in the view, [bearing]
-     * up, tilted, at [zoom] in [position]'s terms. Where the map can't, it just follows.
+     * up, tilted, at [zoom] in [position]'s terms; or, not [tilted], flat and north up with the
+     * position in the middle. Where the map can't, it just follows.
      */
-    fun followNavigation(lat: Double, lon: Double, bearing: Double, zoom: Double) = animateTo(lat, lon, zoom.toInt())
+    fun followNavigation(lat: Double, lon: Double, bearing: Double, zoom: Double, tilted: Boolean = true) = animateTo(lat, lon, zoom.toInt())
 
     /** Navigation's over: the flat map, north up. */
     fun endNavigation() = Unit
@@ -173,6 +179,12 @@ interface MapSurface : ZoomTarget {
     fun updateLocation(fix: GeoFix?)
     fun setPin(point: GeoPoint?)
 
+    /** What's in view (south, west, north, east), or null where the map can't say. */
+    fun visibleBounds(): app.maparound.tools.MapGrid.View? = null
+
+    /** The coordinate grid over the map, or none. */
+    fun setGrid(grid: app.maparound.tools.MapGrid.Grid?) = Unit
+
     /** The data view's layers ([app.maparound.stats.StatsLayers]' GeoJSON), or null for none. */
     fun setStats(countries: String?, localities: String?) {}
 
@@ -181,8 +193,20 @@ interface MapSurface : ZoomTarget {
     fun destroy()
 }
 
-/** The satellite source used as a background (and in the 3D view). */
-val satelliteSource: OnlineSource get() = TileSources.builtIn.first { it.id == "esri_imagery" }
+/**
+ * The satellite source used as a background (and in the 3D view): the user's (Sources), the
+ * region's own (IGN's in France), else Esri's.
+ */
+val satelliteSource: OnlineSource
+    get() {
+        val esri = TileSources.builtIn.first { it.id == "esri_imagery" }
+        return when (val s = Sources.setting(SourceKind.SATELLITE)) {
+            is SourceSetting.Custom -> s.addresses.first().let { url ->
+                esri.copy(id = "satellite_custom", name = TileSources.hostOf(url), urlTemplate = url, attribution = "© ${TileSources.hostOf(url)}", subdomains = listOf("a", "b", "c"))
+            }
+            else -> Sources.regional(SourceKind.SATELLITE) ?: esri
+        }
+    }
 
 /** Attribution for the chosen background, for the map's credits line. */
 fun backgroundAttribution(id: String, rasterMaps: List<RasterMap>): String? = when {

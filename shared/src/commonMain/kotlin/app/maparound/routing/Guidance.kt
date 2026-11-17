@@ -1,5 +1,9 @@
 package app.maparound.routing
 
+import app.maparound.ui.Fmt
+import app.maparound.i18n.Units
+import app.maparound.i18n.HeightUnit
+import app.maparound.i18n.DistanceUnit
 import app.maparound.i18n.T
 import app.maparound.shared.util.toRadians
 import kotlinx.serialization.json.Json
@@ -121,6 +125,33 @@ object Guidance {
         return out
     }
 
+    /**
+     * The turns along a line that wasn't planned with routing (a recorded or imported track): its
+     * bends of 60° or more once GPS jitter is smoothed out (the line kept to within 12 m), on legs
+     * of 15 m or more, at least 40 m apart.
+     */
+    fun shapeTurns(points: List<GeoPoint>): List<Maneuver> {
+        if (points.size < 3) return emptyList()
+        val keep = app.maparound.share.TrackLink.douglasPeucker(points, SHAPE_TOLERANCE_M / 111_320.0)
+        val cum = cumulative(points)
+        val out = ArrayList<Maneuver>()
+        var lastAt = Double.NEGATIVE_INFINITY
+        for (k in 1 until keep.lastIndex) {
+            val a = points[keep[k - 1]]
+            val i = keep[k]
+            val b = points[i]
+            val c = points[keep[k + 1]]
+            if (Geo.distance(a, b) < 15.0 || Geo.distance(b, c) < 15.0) continue
+            val turn = turnFor(angle(bearing(a, b), bearing(b, c))) ?: continue
+            if (turn == Turn.SLIGHT_LEFT || turn == Turn.SLIGHT_RIGHT || cum[i] - lastAt < 40.0) continue
+            out += Maneuver(i, turn)
+            lastAt = cum[i]
+        }
+        return out
+    }
+
+    private const val SHAPE_TOLERANCE_M = 12.0
+
     /** For each stop, the index of the route point closest to it, in order along the route. */
     fun stopIndices(points: List<GeoPoint>, stops: List<GeoPoint>): List<Int> {
         var from = 0
@@ -238,23 +269,63 @@ object Guidance {
 
     fun ordinal(n: Int): String = T.nav.ordinal(n)
 
-    /** A distance rounded the way it is shown and said: 5 m steps up to 100 m, then 10, 50, 100 m. */
-    fun rounded(m: Double): Double = when {
+    /**
+     * A distance rounded the way it is shown and said, in the units chosen ([Units]): metric 5 m
+     * steps up to 100 m, then 10, 50, 100 m; miles (or nautical miles) to a tenth, and under a
+     * tenth in feet (10 ft steps up to 300 ft, then 50) or metres. Still in metres.
+     */
+    fun rounded(m: Double): Double {
+        val u = Units.current
+        val long = when (u.distance) {
+            DistanceUnit.METRIC -> return roundedMetres(m)
+            DistanceUnit.IMPERIAL -> Fmt.MILE_M
+            DistanceUnit.NAUTICAL -> Fmt.NAUTICAL_MILE_M
+        }
+        return when {
+            m >= long / 10 -> (m / long * 10).roundToInt() / 10.0 * long
+            u.height == HeightUnit.FT -> roundedFeet(m / Fmt.FOOT_M) * Fmt.FOOT_M
+            else -> roundedMetres(m)
+        }
+    }
+
+    private fun roundedMetres(m: Double): Double = when {
         m < 100 -> (m / 5).roundToInt() * 5.0
         m < 300 -> (m / 10).roundToInt() * 10.0
         m < 1000 -> (m / 50).roundToInt() * 50.0
         else -> (m / 100).roundToInt() * 100.0
     }
 
-    /** "50 metres", "1 kilometre", "2.5 kilometres" (always a dot: English and Hebrew both say it so). */
+    private fun roundedFeet(ft: Double): Double = if (ft < 300) (ft / 10).roundToInt() * 10.0 else (ft / 50).roundToInt() * 50.0
+
+    /**
+     * "50 metres", "1 kilometre", "2.5 kilometres"; "300 feet", "0.4 miles", "2 nautical miles"
+     * (always a dot: English and Hebrew both say it so).
+     */
     fun spokenDistance(m: Double): String {
-        val r = when {
-            m < 100 -> maxOf(10.0, (m / 10).roundToInt() * 10.0)
-            else -> rounded(m)
+        val u = Units.current
+        val long = when (u.distance) {
+            DistanceUnit.METRIC -> 1000.0
+            DistanceUnit.IMPERIAL -> Fmt.MILE_M
+            DistanceUnit.NAUTICAL -> Fmt.NAUTICAL_MILE_M
         }
-        if (r < 1000) return T.nav.spokenMetres(r.toInt())
-        val tenths = (r / 100).roundToInt()
-        val km = if (tenths % 10 == 0) "${tenths / 10}" else "${tenths / 10}.${tenths % 10}"
-        return T.nav.spokenKilometres(km)
+        val short = if (u.distance == DistanceUnit.METRIC) long else long / 10
+        if (m < short) {
+            if (u.distance != DistanceUnit.METRIC && u.height == HeightUnit.FT) {
+                val ft = m / Fmt.FOOT_M
+                return T.nav.spokenFeet(maxOf(50.0, if (ft < 300) (ft / 50).roundToInt() * 50.0 else roundedFeet(ft)).toInt())
+            }
+            val r = if (m < 100) maxOf(10.0, (m / 10).roundToInt() * 10.0) else roundedMetres(m)
+            if (r < 1000) return T.nav.spokenMetres(r.toInt())
+        }
+        val tenths = when (u.distance) {
+            DistanceUnit.METRIC -> (roundedMetres(m) / 100).roundToInt()
+            else -> (m / long * 10).roundToInt()
+        }
+        val amount = if (tenths % 10 == 0) "${tenths / 10}" else "${tenths / 10}.${tenths % 10}"
+        return when (u.distance) {
+            DistanceUnit.METRIC -> T.nav.spokenKilometres(amount)
+            DistanceUnit.IMPERIAL -> T.nav.spokenMiles(amount)
+            DistanceUnit.NAUTICAL -> T.nav.spokenNauticalMiles(amount)
+        }
     }
 }

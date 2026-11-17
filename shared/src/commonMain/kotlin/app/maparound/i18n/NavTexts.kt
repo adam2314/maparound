@@ -100,6 +100,12 @@ open class NavTexts {
     /** The first words of a route whose first turn is far away: "Continue for 2 kilometres". */
     open fun continueFor(distance: String) = "Continue for $distance"
     open val recalculatingRoute = "Recalculating the route"
+
+    /** Said when leaving a line that's followed as it is (a recorded track): the way back to it. */
+    open val backToTheRoute = "Off the route: back to it"
+
+    /** A followed line far away with no route to it: [distance] "12 km". */
+    open fun routeIsFar(distance: String) = "The route is $distance away: navigation picks it up when you're there"
     open fun couldNotRecalculate(message: String?) = "Couldn't recalculate the route: $message"
 
     /** A distance as it is said: "50 metres". */
@@ -107,6 +113,11 @@ open class NavTexts {
 
     /** "1 kilometre", "2.5 kilometres"; [km] is written with a dot ("2.5"). */
     open fun spokenKilometres(km: String) = if (km == "1") "1 kilometre" else "$km kilometres"
+
+    /** "300 feet"; "1 mile", "0.4 miles"; "2 nautical miles" ([mi] and [nm] written with a dot). */
+    open fun spokenFeet(ft: Int) = "$ft feet"
+    open fun spokenMiles(mi: String) = if (mi == "1") "1 mile" else "$mi miles"
+    open fun spokenNauticalMiles(nm: String) = if (nm == "1") "1 nautical mile" else "$nm nautical miles"
 
     // ---- the navigation banner and panel ----
     open val recalculating = "Recalculating…"
@@ -241,6 +252,8 @@ object NavTextsHe : NavTexts() {
     override fun then(what: String) = "ואז $what"
     override fun continueFor(distance: String) = "להמשיך במסלול לאורך $distance"
     override val recalculatingRoute = "מחשב מסלול מחדש"
+    override val backToTheRoute = "יצאת מהמסלול: חזרה אליו"
+    override fun routeIsFar(distance: String) = "המסלול במרחק $distance: הניווט ימשיך כשתגיעו אליו"
     override fun couldNotRecalculate(message: String?) = "לא ניתן לחשב מסלול מחדש: $message"
 
     /** Words, not "מ׳", so that the voice reads them right: "200 מטר". */
@@ -250,6 +263,9 @@ object NavTextsHe : NavTexts() {
         "1.5" -> "קילומטר וחצי"
         else -> "$km קילומטר"
     }
+    override fun spokenFeet(ft: Int) = "$ft רגל"
+    override fun spokenMiles(mi: String) = if (mi == "1") "מייל אחד" else "$mi מייל"
+    override fun spokenNauticalMiles(nm: String) = if (nm == "1") "מייל ימי אחד" else "$nm מייל ימי"
 
     override val recalculating = "מחשב מסלול מחדש…"
     override val youHaveArrived = "הגעה ליעד"

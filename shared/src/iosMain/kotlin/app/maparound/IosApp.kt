@@ -1,5 +1,8 @@
 package app.maparound
 
+import app.maparound.map.MapRegions
+import app.maparound.sources.Sources
+import app.maparound.i18n.Units
 import app.maparound.data.MapAroundCatalog
 import app.maparound.i18n.T
 import app.maparound.i18n.ltr
@@ -56,7 +59,15 @@ object IosApp {
 
     val version: String = NSBundle.mainBundle.objectForInfoDictionaryKey("CFBundleShortVersionString") as? String ?: "0"
 
-    val prefs = Prefs(UserDefaultsStore("maparound"))
+    val prefs = Prefs(UserDefaultsStore("maparound"), onUnits = Units::set, onSources = Sources::set)
+
+    init {
+        // The download regions (regions.bin in the app bundle): the offer of the map made for where
+        // the map looks, and the sources a region has of its own.
+        MapRegions.source = {
+            NSBundle.mainBundle.pathForResource("regions", "bin")?.let { path -> fileSystem.read(path.toPath()) { readByteArray() } }
+        }
+    }
     /** Label fonts in the app bundle (iosApp/fetch-fonts.sh); online fonts when they're missing. */
     private val fonts: String? = NSBundle.mainBundle.resourcePath?.let { "$it/Fonts" }?.takeIf { fileSystem.exists(it.toPath()) }
     val tiles = TileService("$documents/dem", fonts)

@@ -1,5 +1,6 @@
 package app.maparound.data
 
+import app.maparound.shared.util.nowMillis
 import app.maparound.map.GeoBox
 import app.maparound.map.MapRegions
 import app.maparound.map.RemoteMap
@@ -51,10 +52,16 @@ class MapStreaming(
         scope.launch(Dispatchers.Default) { keep(MAPSFORGE, ::mapsforgeList, ::useMapsforge) }
     }
 
-    /** A list: what was kept from last time at once, then today's (tried every minute until it's read). */
+    /**
+     * A list: what was kept from last time at once, then today's (tried every minute until it's
+     * read). One kept less than a day ago is enough: the lists change monthly, and reading them
+     * (mapsforge.org's: a few hundred folders) would slow every start.
+     */
     private suspend fun keep(name: String, fetch: suspend () -> String?, use: (String) -> Boolean) {
         val saved = savedDir?.let { "$it/$name".toPath() }
-        saved?.let { p -> runCatching { fileSystem.read(p) { readUtf8() } }.getOrNull()?.let(use) }
+        val usedSaved = saved?.let { p -> runCatching { fileSystem.read(p) { readUtf8() } }.getOrNull()?.let(use) } == true
+        val savedAt = saved?.let { p -> runCatching { fileSystem.metadataOrNull(p)?.lastModifiedAtMillis }.getOrNull() } ?: 0L
+        if (usedSaved && nowMillis() - savedAt < FRESH_MS) return
         while (true) {
             val text = fetch()
             if (text != null && use(text)) {
@@ -135,6 +142,9 @@ class MapStreaming(
 
     private companion object {
         const val RETRY_MS = 60_000L
+
+        /** A list kept less than this long ago isn't read again at start. */
+        const val FRESH_MS = 24 * 3_600_000L
         const val CATALOG = "catalog.json"
         const val MAPSFORGE = "mapsforge-maps.txt"
     }

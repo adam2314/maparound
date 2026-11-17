@@ -1,5 +1,8 @@
 package app.maparound.web
 
+import app.maparound.ui.UserActivity
+import app.maparound.map.satelliteSource
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +47,7 @@ import app.maparound.ui.MapAroundRoot
 import app.maparound.ui.Tab
 import app.maparound.ui.theme.MapAroundTheme
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import kotlin.coroutines.resume
@@ -200,6 +204,22 @@ private fun inviteFromAddress(app: WebApp) {
 
 private fun removeLoading(): Unit = js("{ const l = document.getElementById('loading'); if (l) l.remove(); }")
 
+/**
+ * Whether the app will start in a right-to-left language (its setting, else the browser's): its
+ * letters are fetched at once then. (The settings aren't read yet; the language's key is theirs.)
+ */
+private fun rtlLikely(embedded: Boolean): Boolean {
+    val chosen = if (embedded) "" else runCatching { app.maparound.data.WebStorageStore("prefs").getString("language") }.getOrNull().orEmpty()
+    return Language.of(chosen.ifEmpty { app.maparound.shared.util.deviceLanguage() })?.rtl == true
+}
+
+/** [f] on every touch, click, wheel or key anywhere on the page (the map's element too). */
+private fun onUserActivity(f: () -> Unit): Unit = js(
+    """{
+    for (const t of ['pointerdown', 'wheel', 'keydown']) window.addEventListener(t, () => f(), { capture: true, passive: true });
+}""",
+)
+
 /** [f] when the page is hidden (another tab, the phone locked) or closed. */
 private fun onPageHide(f: () -> Unit): Unit = js(
     """{
@@ -214,12 +234,20 @@ fun main() {
     MainScope().launch {
         // Embedded in another website: the map alone, its files and settings in memory only.
         val embedded = embeddedFromAddress()
+        // The app's own files, all asked for at once (not one after another): the style, the
+        // world map and borders (waited for), the regions (set when they come), and in a
+        // right-to-left language its letters (waited for before the first text).
+        val topo = async { fetchText("themes/topo.xml") }
+        val world = async { fetchBytes("world.bin") }
+        val borders = async { fetchBytes("borders.bin") }
+        val regions = if (embedded) null else async { fetchBytes("regions.bin") }
+        val rtlFonts = if (rtlLikely(embedded)) RTL_FONTS.associateWith { async { fetchBytes("uifonts/$it") } } else emptyMap()
         WebFiles.load(keep = !embedded)
         if (!embedded) WebFiles.persist()
         val app = WebApp(
-            topoXml = fetchText("themes/topo.xml"),
-            world = fetchBytes("world.bin"),
-            borders = fetchBytes("borders.bin"),
+            topoXml = topo.await(),
+            world = world.await(),
+            borders = borders.await(),
             base = pageBase(),
             embedded = embedded,
         )
@@ -227,9 +255,8 @@ fun main() {
         if (embedded) {
             embedOptions(app)
         } else {
-            // Which map is made for where the map looks (the offer of the one for it).
-            val regions = fetchBytes("regions.bin")
-            MapRegions.source = { regions }
+            // Which map is made for where the map looks (the offer of the one for it; regional sources).
+            launch { regions?.await()?.let { bytes -> MapRegions.source = { bytes } } }
         }
         pinFromAddress()
         if (!embedded) inviteFromAddress(app)
@@ -245,7 +272,10 @@ fun main() {
                 setTerrain3dSource(s?.template ?: ElevationSources.DEFAULT_3D, s?.mapbox == true)
             }
         }
+        // Its satellite imagery: the user's, the region's own, else Esri's (Settings → Sources).
+        launch { snapshotFlow { satelliteSource.urlTemplate }.collect { setImagery3d(it) } }
         onPageHide { app.onHide() }
+        onUserActivity { UserActivity.touched() }
         removeLoading()
         ComposeViewport("app") {
             // Fallback fonts for what the built-in one lacks (arrows, symbols, Hebrew, Arabic), loaded after the first frame.
@@ -256,7 +286,7 @@ fun main() {
             var ready by remember { mutableStateOf(first.isEmpty()) }
             LaunchedEffect(Unit) {
                 for (name in first + UI_FONTS.filterNot { it in first }) {
-                    val bytes = fetchBytes("uifonts/$name")
+                    val bytes = rtlFonts[name]?.await() ?: fetchBytes("uifonts/$name")
                     if (bytes != null) runCatching { fonts.preload(FontFamily(Font(name, bytes))) }
                     if (name == first.lastOrNull()) ready = true
                 }

@@ -1,5 +1,7 @@
 package app.maparound.ui
 
+import app.maparound.sources.Sources
+import app.maparound.sources.SourceKind
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -73,6 +75,12 @@ fun WhatsHereSheet(
     var photosFailed by remember(point) { mutableStateOf(false) }
     var viewing by remember { mutableStateOf<Commons.Photo?>(null) }
     LaunchedEffect(point) {
+        // Turned off in Settings → Sources: nothing asked of Wikipedia or Commons.
+        if (Sources.isOff(SourceKind.WIKIPEDIA)) {
+            photos = emptyList()
+            problem = T.map.wikipediaOff
+            return@LaunchedEffect
+        }
         if (poi != null && poi.hasArticle && tagged?.picture == null) {
             launch { tagged = (tagged ?: articleOrNull(poi))?.let { Wikipedia.withPicture(it) } }
         }
@@ -170,7 +178,7 @@ fun WhatsHereSheet(
             when {
                 problem != null -> item { Note(problem!!) }
                 articles == null -> item { Loading(T.map.lookingForArticles) }
-                nearby.isEmpty() -> item { Note(T.map.noArticlesWithin(Wikipedia.RADIUS_M / 1000)) }
+                nearby.isEmpty() -> item { Note(T.map.noArticlesWithin(Fmt.distance(Wikipedia.RADIUS_M.toFloat()))) }
                 else -> items(nearby.take(MAX_ARTICLES), key = { "w-${it.lang}-${it.title}" }) { a ->
                     ListItem(
                         modifier = Modifier.clickable { platform.openUrl(a.url) },

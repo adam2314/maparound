@@ -1,6 +1,6 @@
 # MapAround privacy policy
 
-*Effective 16 November 2026*
+*Effective 17 November 2026*
 
 MapAround is an offline map app for Android and iPhone. This policy explains what information the
 app uses, where it goes, and what you control.
@@ -38,6 +38,13 @@ Google account you join with (see [Testing the Android beta](#testing-the-androi
 The app makes these requests only when you use the feature. Each service receives your device's IP
 address with the request, as with any internet connection, and handles it under its own privacy
 policy.
+
+**Settings → Sources** lists these services in one place. You can point most of them at a server
+of your own; that server then gets the requests instead, and **Check** sends it one test request.
+You can turn some off altogether: online search, online routing, Wikipedia and photos, and the
+vector map online. Where a country has its own national map (Switzerland, Austria, Norway, France
+and the US), the automatic online map uses it there, so that country's mapping agency gets the
+tile requests for that area.
 
 | Feature | Sent to | What is sent |
 |---|---|---|
@@ -111,6 +118,8 @@ MapAround isn't directed at children and doesn't knowingly collect information f
 ## Your choices
 
 - Use offline maps, routing data and search to keep all map use on your phone.
+- In **Settings → Sources**, turn off the online services you don't want, or use servers of your
+  own.
 - Delete tracks, places, maps and downloads in the app at any time, or uninstall the app to delete
   everything.
 - Leave a party to remove your last position from the relay servers.

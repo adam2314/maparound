@@ -169,12 +169,12 @@ fun NavigationPanel(nav: NavigationSession.State, voice: Boolean, onVoice: (Bool
                     )
                 }
             }
-            IconButton(onClick = { onVoice(!voice) }) {
+            Tip(if (voice) T.nav.muteVoice else T.nav.unmuteVoice) { IconButton(onClick = { onVoice(!voice) }) {
                 Icon(
                     if (voice) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff,
                     contentDescription = if (voice) T.nav.muteVoice else T.nav.unmuteVoice,
                 )
-            }
+            } }
             Button(
                 onClick = onStop,
                 colors = ButtonDefaults.buttonColors(

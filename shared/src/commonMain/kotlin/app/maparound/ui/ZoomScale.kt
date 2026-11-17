@@ -1,5 +1,7 @@
 package app.maparound.ui
 
+import app.maparound.i18n.Units
+import app.maparound.i18n.DistanceUnit
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -96,7 +98,7 @@ fun ZoomScale(map: ZoomTarget, modifier: Modifier = Modifier, bottomLimit: Float
         when {
             // The whole slider.
             track >= thumbH + 24.dp -> {
-                SmallFloatingActionButton(onClick = { zoomTo(floor(zoom + 1.0001)) }) { Icon(Icons.Filled.Add, contentDescription = T.map.zoomIn) }
+                Tip(T.map.zoomIn) { SmallFloatingActionButton(onClick = { zoomTo(floor(zoom + 1.0001)) }) { Icon(Icons.Filled.Add, contentDescription = T.map.zoomIn) } }
                 var trackPx by remember { mutableStateOf(1) }
                 val thumbPx = with(density) { thumbH.toPx() }
                 // The thumb's middle runs from half a thumb below the top to half a thumb above the bottom.
@@ -118,13 +120,13 @@ fun ZoomScale(map: ZoomTarget, modifier: Modifier = Modifier, bottomLimit: Float
                     val top: Dp = with(density) { (fraction * (trackPx - thumbPx).coerceAtLeast(0f)).toDp() }
                     ScaleThumb(metresPerDp, Modifier.align(Alignment.TopEnd).offset(y = top))
                 }
-                SmallFloatingActionButton(onClick = { zoomTo(kotlin.math.ceil(zoom - 1.0001)) }) { Icon(Icons.Filled.Remove, contentDescription = T.map.zoomOut) }
+                Tip(T.map.zoomOut) { SmallFloatingActionButton(onClick = { zoomTo(kotlin.math.ceil(zoom - 1.0001)) }) { Icon(Icons.Filled.Remove, contentDescription = T.map.zoomOut) } }
             }
             // + and − around the scale.
             room >= buttons + thumbH -> {
-                SmallFloatingActionButton(onClick = { zoomTo(floor(zoom + 1.0001)) }) { Icon(Icons.Filled.Add, contentDescription = T.map.zoomIn) }
+                Tip(T.map.zoomIn) { SmallFloatingActionButton(onClick = { zoomTo(floor(zoom + 1.0001)) }) { Icon(Icons.Filled.Add, contentDescription = T.map.zoomIn) } }
                 ScaleThumb(metresPerDp, Modifier.padding(vertical = 4.dp))
-                SmallFloatingActionButton(onClick = { zoomTo(kotlin.math.ceil(zoom - 1.0001)) }) { Icon(Icons.Filled.Remove, contentDescription = T.map.zoomOut) }
+                Tip(T.map.zoomOut) { SmallFloatingActionButton(onClick = { zoomTo(kotlin.math.ceil(zoom - 1.0001)) }) { Icon(Icons.Filled.Remove, contentDescription = T.map.zoomOut) } }
             }
             // The scale alone.
             room >= thumbH -> ScaleThumb(metresPerDp)
@@ -158,12 +160,15 @@ private fun ScaleBars(metresPerDp: Double) {
     val feet = maxM / 0.3048
     val imperial = if (feet >= 5280) nice(feet / 5280) * 1609.344 else nice(feet) * 0.3048
     val color = MaterialTheme.colorScheme.onSurface
+    val metricFirst = Units.current.distance == DistanceUnit.METRIC
+    val (top, topLabel) = if (metricFirst) metres to metricLabel(metres) else imperial to imperialLabel(imperial)
+    val (bottom, bottomLabel) = if (metricFirst) imperial to imperialLabel(imperial) else metres to metricLabel(metres)
     Column(Modifier.padding(horizontal = 6.dp, vertical = 3.dp).width(SCALE_MAX + 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(ltr(metricLabel(metres)), style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center, maxLines = 1)
-        Box(Modifier.width((metres / metresPerDp).dp.coerceAtMost(SCALE_MAX)).height(2.dp).background(color))
+        Text(ltr(topLabel), style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center, maxLines = 1)
+        Box(Modifier.width((top / metresPerDp).dp.coerceAtMost(SCALE_MAX)).height(2.dp).background(color))
         Box(Modifier.size(1.dp))
-        Box(Modifier.width((imperial / metresPerDp).dp.coerceAtMost(SCALE_MAX)).height(2.dp).background(color.copy(alpha = 0.6f)))
-        Text(ltr(imperialLabel(imperial)), style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center, maxLines = 1)
+        Box(Modifier.width((bottom / metresPerDp).dp.coerceAtMost(SCALE_MAX)).height(2.dp).background(color.copy(alpha = 0.6f)))
+        Text(ltr(bottomLabel), style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center, maxLines = 1)
     }
 }
 

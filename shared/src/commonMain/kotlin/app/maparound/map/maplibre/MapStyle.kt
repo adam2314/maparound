@@ -209,6 +209,27 @@ class MapStyle(
                 "circle-stroke-width" to 0.8,
             ))
         },
+        // The coordinate grid, under everything the user put on the map; its values haloed.
+        layer("grid-line", "line") {
+            put("source", GRID)
+            put("filter", eq("role", "line"))
+            put("paint", obj("line-color" to "rgba(20,20,20,0.55)", "line-width" to 1.1))
+        },
+        layer("grid-label", "symbol") {
+            put("source", GRID)
+            put("filter", eq("role", "label"))
+            put("layout", obj(
+                "text-field" to arr("get", "label"),
+                "text-font" to arr("Noto Sans Bold"),
+                "text-size" to 11,
+                "text-padding" to 4,
+            ))
+            put("paint", obj(
+                "text-color" to "#1B1B1B",
+                "text-halo-color" to "rgba(255,255,255,0.92)",
+                "text-halo-width" to 1.6,
+            ))
+        },
         line("tracks-casing", TRACKS, "#FFFFFF", 7.0),
         line("tracks-line", TRACKS, "#E65100", 4.0),
         line("recording", RECORDING, "#D50000", 4.0),
@@ -310,9 +331,10 @@ class MapStyle(
         const val PARTY = "mr-party"
         const val ME = "mr-me"
         const val PIN = "mr-pin"
+        const val GRID = "mr-grid"
         const val DATA_COUNTRIES = "mr-data-countries"
         const val DATA_LOCALITIES = "mr-data-localities"
-        val OVERLAY_SOURCES = listOf(DATA_COUNTRIES, DATA_LOCALITIES, TRACKS, RECORDING, PARTY_TRAIL, ROUTE, TOOLS, PLACES, PARTY, ME, PIN)
+        val OVERLAY_SOURCES = listOf(DATA_COUNTRIES, DATA_LOCALITIES, GRID, TRACKS, RECORDING, PARTY_TRAIL, ROUTE, TOOLS, PLACES, PARTY, ME, PIN)
 
         /** Colour around the maps (no data). */
         const val OUTSIDE = "#EDEADA"

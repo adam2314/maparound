@@ -22,7 +22,44 @@
   above the ground worked out first; then a single eased tilt into 3D, with nothing popping in or
   jumping after it. Without a network it goes ahead after a few seconds.
 
+### 2D and 3D on the phone
+- **The 3D button says 2D or 3D**, where it goes. While navigating it switches navigation's view
+  between tilted, the way ahead up (3D), and flat, north up (2D); otherwise it opens the 3D view, and
+  its "2D" brings back the flat map, north up.
+- **The map no longer stays tilted after navigation.** Navigation stopped elsewhere (on the car, in
+  the notification, from another tab) left the phone's map tilted and turned, and the reset to flat
+  could be cut short by the next GPS fix. It now always goes back flat and north up, at once.
+
+### The coordinate converter
+- **Nine more formats**: Geohash, GEOREF, Web Mercator (EPSG:3857), ECEF X Y Z, and the national
+  grids of Britain (OS National Grid, "TQ 30080 80820"), Ireland (ITM), Switzerland (LV95, LV03 read
+  too), the Netherlands (RD) and France (Lambert 93), besides decimal degrees, degrees and minutes,
+  DMS, UTM, MGRS, the Israeli grid, Plus Codes and Maidenhead.
+- **Any format in, every format out.** What you type is read as whatever it is ("RD 155000
+  463000", "EPSG:2154 …", "2'600'000 / 1'200'000", "NN 166 712"); **Read as** picks the format
+  where plain numbers could be several grids, each shown with your point in it to recognise yours.
+- **Find a format** by name among the results ("swiss", "utm", "רשת"); a grid of another country
+  says it doesn't cover the place.
+- **Your location in every format** straight away, before you set a point (else the map's centre).
+- **A coordinate grid over the map**, in the format chosen for coordinates: a switch in Layers and a
+  button in the converter. Its lines get closer as you zoom in (about 110 dp apart): kilometres for
+  UTM, MGRS and the national grids (10 m to 1000 km, labelled in km: "711", "3517"); degrees,
+  minutes or seconds for the angle formats ("31.75°", "31°27.5′N", "35°23′30″E"); and for
+  Maidenhead, Plus Codes, Geohash and GEOREF their cells, each with its code. A grid of another
+  country where it doesn't reach is drawn in degrees.
+
+### Navigating a saved route
+- **Navigate** in a route's menu in Library (and on its card). A route you planned is calculated
+  again along its stops, for its turns. A recorded or imported track is followed as it is: you choose
+  on foot, by bike or by car, its sharper bends are announced (GPS jitter smoothed out), and if you
+  leave it, the way back goes to its nearest point ahead, by the router, or straight when there's
+  none, then on along it. Far from it with no route there, it says how far and picks it up when you
+  get there.
+
 ### Android Auto
+- **2D / 3D on the car.** A 2D/3D button with the car's zoom buttons: 3D tilts the car's map with
+  the way the car goes up and the car low on the screen (as the phone's navigation view), 2D lays it
+  flat, north up. It's the same choice as the phone's while navigating, so both screens agree.
 - **Navigating from the phone shows on the car.** When navigation starts and Android Auto shows
   another app (or MapAround hasn't been opened on the car yet), the next turn appears on the car
   screen as a card (once as a pop-up), kept up to date. A tap opens MapAround on the car screen in
@@ -89,6 +126,42 @@
 - **Embed in a website** in a track's menu in Library copies the code, the line inside it, ready to
   paste into a page.
 - A guide: [The map in your website](https://maparound.app/guide/embed).
+
+### The web app
+- **Tooltips**: resting the mouse on an icon button (the map's buttons, zoom, the panels, Library,
+  Party, Offline, the tools) says what it does. On phones, a long press shows the same.
+
+### Settings: one place
+- **Units & formats.** Distance (km, miles or nautical miles; feet or metres close by), height
+  (metres or feet), speed, direction (compass points, degrees, both, or mils), time (24 or 12
+  hours) and date order (17 Nov 2026, Nov 17 2026, 2026-11-17), plus coordinates. Quick choices:
+  Automatic, Metric, Imperial, Nautical. Automatic follows the device's region and clock; the
+  region counts only where the time zone agrees, so an "English (US)" phone in Israel stays metric.
+  They apply on the map's cards, the party, the tools, Library, Speed, the satellites screen, the
+  scale bar (the chosen units on top), charts, the car screen, and navigation's spoken instructions
+  ("In 350 feet").
+- **How long the screen stays on**, with the app open and while navigating: the phone's own setting,
+  2, 5, 10 or 30 minutes after the last touch, or always on. As before until changed: the phone's
+  setting with the app open, always on while navigating. (It never goes off sooner than the phone's
+  own setting; the Speed screen keeps it on as before.)
+- **Party** in Settings: your name and look (also before joining a party: the next one starts with
+  them, and a new party's name field is filled in), the server parties meet on (invites include
+  it), the online switch and the radio gateway.
+- **Sources**: every online service the app uses, in one list: the map list, the online map,
+  satellite imagery, marked trails (online and to download), elevation, online routing and its
+  data, search, Wikipedia and photos, and the party's server. Each one uses the default, your own
+  address (**Check** sends one request and says how long it took), or is off where the app can do
+  without it (online search, routing, Wikipedia and photos, maps over the internet). Your own
+  address for the map list, Overpass and search is tried first, then the defaults.
+- **Regional defaults.** The online map is now **Automatic** until you pick one: from zoom 8 a
+  country's national map where there is one (swisstopo, basemap.at, Kartverket, Plan IGN, USGS
+  Topo), OpenStreetMap France elsewhere. In France the satellite background is IGN's aerial photos.
+- **The first time, the map opens where you are.** With your location allowed, the map moves to
+  it once (zoom 12) instead of showing the whole world; a link, pin or invite you opened wins.
+- **Starting faster.** Android reads the lists of maps (MapAround's, and mapsforge.org's few
+  hundred folders) at most once a day instead of at every start. The web app asks for its own
+  files all at once rather than one after another (a small gain; most of the wait is the app
+  itself).
 
 ### The party
 - **More about each member**: their speed and the way they're heading, height, how exact the

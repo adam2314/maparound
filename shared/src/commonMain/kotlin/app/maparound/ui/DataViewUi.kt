@@ -86,7 +86,7 @@ fun DataViewPanel(
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(onClick = onGoTo) { Text(if (showLocalities) T.stats.countries else T.stats.localities) }
-                IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = T.stats.leaveDataView) }
+                Tip(T.stats.leaveDataView) { IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = T.stats.leaveDataView) } }
             }
             if (showLocalities) {
                 Picker(localityIndicator.title, LocalityIndicator.entries, { it.title }, onLocalityIndicator)
@@ -147,7 +147,7 @@ fun CountryCard(country: Country, figures: Map<CountryIndicator, Map<String, Fig
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
                 )
-                IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = T.common.close) }
+                Tip(T.common.close) { IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = T.common.close) } }
             }
             for (i in CountryIndicator.entries) {
                 val f = figures[i]?.get(country.iso) ?: continue
@@ -168,7 +168,7 @@ fun LocalityCard(l: Locality, onPin: () -> Unit, onClose: () -> Unit) {
                     Text(if (he) l.nameHe else l.nameEn.ifBlank { l.nameHe }, style = MaterialTheme.typography.titleMedium)
                     Text(if (he) l.nameEn else l.nameHe, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = T.common.close) }
+                Tip(T.common.close) { IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = T.common.close) } }
             }
             val kind = T.stats.localityTypes[LocalityIndicator.typeOf(l.form)]
             Text(listOfNotNull(kind, T.stats.district(l.district).takeIf { it.isNotBlank() }).joinToString(" · "), style = MaterialTheme.typography.bodyMedium)

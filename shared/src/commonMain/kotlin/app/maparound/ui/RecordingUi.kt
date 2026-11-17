@@ -51,12 +51,12 @@ fun RecordingBar(state: TrackRecorder.State, onStop: () -> Unit, modifier: Modif
             Text(Fmt.clock(elapsed), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
             if (state.points.isEmpty()) {
                 Text(
-                    state.accuracyM?.let { T.map.gpsAccuracy(it.roundToInt()) } ?: T.map.waitingForGps,
+                    state.accuracyM?.let { T.map.gpsAccuracy(Fmt.height(it)) } ?: T.map.waitingForGps,
                     style = MaterialTheme.typography.bodyMedium,
                 )
             } else {
                 Text(Fmt.distance(state.stats.distanceM.toFloat()), style = MaterialTheme.typography.bodyMedium)
-                state.stats.ascentM?.let { Text("↑ ${it.roundToInt()} ${T.common.unitM}", style = MaterialTheme.typography.bodyMedium) }
+                state.stats.ascentM?.let { Text("↑ ${Fmt.height(it)}", style = MaterialTheme.typography.bodyMedium) }
             }
             TextButton(onClick = onStop) { Text(T.common.stop) }
         }

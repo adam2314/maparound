@@ -29,6 +29,6 @@ class FmtTest {
         val now = 1_790_000_000_000 // Sep 2026
         assertEquals("Just now", Fmt.relativeTime(now - 20_000, now))
         assertEquals("5 min ago", Fmt.relativeTime(now - 5 * 60_000, now))
-        assertTrue(Fmt.date(1_700_000_000_000, now).endsWith(", 2023")) // another year shows it
+        assertTrue(Fmt.date(1_700_000_000_000, now).endsWith(" 2023")) // another year shows it
     }
 }

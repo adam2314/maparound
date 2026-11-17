@@ -72,6 +72,12 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) handleIntent(intent)
     }
 
+    /** A touch or key anywhere: for how long the screen stays on (Settings → Screen). */
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        app.maparound.ui.UserActivity.touched()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleIntent(intent)

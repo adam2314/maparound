@@ -123,11 +123,18 @@ class CoordsTest {
         assertEquals("36R 711594 3517858", Coords.format(p, CoordFormat.UTM))
         assertEquals("36R YA 11594 17858", Coords.format(p, CoordFormat.MGRS))
         assertEquals("222304 631558", Coords.format(p, CoordFormat.ITM))
-        // Every format reads back what it writes.
+        // Every format that covers it reads back what it writes, by itself (the plain pairs that
+        // could be other grids are read when chosen: GridsTest).
         for (f in CoordFormat.entries) {
-            val s = Coords.format(p, f)!!
+            val s = Coords.format(p, f) ?: continue
+            if (f.explicitOnly) continue
             val back = Coords.parse(s, reference = p)
-            near(p, back?.point, if (f == CoordFormat.MAIDENHEAD) 5_000.0 else 8.0, "$f $s")
+            val within = when (f) {
+                CoordFormat.MAIDENHEAD -> 5_000.0
+                CoordFormat.GEOREF -> 15.0 // to a hundredth of a minute
+                else -> 8.0
+            }
+            near(p, back?.point, within, "$f $s")
             assertEquals("$f $s", f, back!!.format)
         }
         // Seconds that round up carry into the minutes.

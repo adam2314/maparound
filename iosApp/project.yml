@@ -18,6 +18,9 @@ targets:
       # The Android map's theme: the iOS map style is made from it (ThemeStyle.kt).
       - path: ../app/src/main/assets/themes/topo.xml
         buildPhase: resources
+      # The download regions' outlines: which map is made for where the map looks, regional sources.
+      - path: ../app/src/main/assets/regions.bin
+        buildPhase: resources
       # Label fonts (run fetch-fonts.sh first), kept as a folder: Fonts/<font>/<range>.pbf
       - path: Fonts
         type: folder

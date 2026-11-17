@@ -92,7 +92,7 @@ open class PartyTexts {
     open val noPositionYet = "no position yet"
 
     /** A member's phone has no GPS fix good enough to show (its position is only approximate, ±[accuracyM]). */
-    open fun noGpsFix(accuracyM: Int?) = if (accuracyM != null) "no GPS fix (±$accuracyM m)" else "no GPS fix"
+    open fun noGpsFix(accuracy: String?) = if (accuracy != null) "no GPS fix (±$accuracy)" else "no GPS fix"
 
     /** When something last came from a member (a sign of life): [ago] is "5 min ago". */
     open fun heard(ago: String) = "heard $ago"
@@ -100,10 +100,10 @@ open class PartyTexts {
     open fun routeTo(name: String) = "Route to $name"
 
     /** A member's height above sea level, in metres. */
-    open fun altitude(m: Int) = "alt. $m m"
+    open fun altitude(height: String) = "alt. $height"
 
     /** How exact a member's position is, in metres. */
-    open fun accuracy(m: Int) = "±$m m"
+    open fun accuracy(accuracy: String) = "±$accuracy"
 
     // ---- a member's history: their way so far, replayed on the map ----
     open val history = "History"
@@ -401,12 +401,12 @@ object PartyTextsHe : PartyTexts() {
 
     override fun memberFallbackName(code: String) = "משתתף $code"
     override val noPositionYet = "עדיין אין מיקום"
-    override fun noGpsFix(accuracyM: Int?) = if (accuracyM != null) "אין קליטת GPS (±$accuracyM מ׳)" else "אין קליטת GPS"
+    override fun noGpsFix(accuracy: String?) = if (accuracy != null) "אין קליטת GPS (±$accuracy)" else "אין קליטת GPS"
     override fun heard(ago: String) = "עדכון אחרון: $ago"
     override val heardJustNow = "עדכון אחרון: עכשיו"
     override fun routeTo(name: String) = "מסלול אל $name"
-    override fun altitude(m: Int) = "גובה $m מ׳"
-    override fun accuracy(m: Int) = "±$m מ׳"
+    override fun altitude(height: String) = "גובה $height"
+    override fun accuracy(accuracy: String) = "±$accuracy"
     override val history = "היסטוריה"
     override fun historyOf(name: String) = "היסטוריה: $name"
     override fun historyPositions(n: Int, since: String) = if (n == 1) "מיקום אחד, ב־$since" else "$n מיקומים התקבלו מאז $since"

@@ -1,5 +1,7 @@
 package app.maparound.routing
 
+import app.maparound.sources.Sources
+import app.maparound.sources.SourceKind
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
@@ -39,6 +41,7 @@ class RoutePlanner(
         } else if (!isOnline()) {
             throw RoutingException(T.nav.noInternetNoRoutingData(missing.joinToString()))
         }
+        if (Sources.isOff(SourceKind.ROUTING)) throw RoutingException(T.offline.onlineRoutingOff)
         withContext(Dispatchers.IO) { online(points, profile) }
     }
 
@@ -57,7 +60,8 @@ class RoutePlanner(
 
     private fun online(points: List<GeoPoint>, profile: RouteProfile): RouteResult {
         val lonlats = points.joinToString("|") { String.format(Locale.ROOT, "%.6f,%.6f", it.lon, it.lat) }
-        val url = "https://brouter.de/brouter?lonlats=${URLEncoder.encode(lonlats, "UTF-8")}" +
+        val server = Sources.address(SourceKind.ROUTING) ?: throw RoutingException(T.offline.onlineRoutingOff)
+        val url = "$server?lonlats=${URLEncoder.encode(lonlats, "UTF-8")}" +
             "&profile=${profile.brouterProfile}&alternativeidx=0&format=geojson&timode=${OfflineRouter.TURN_HINTS_LOCUS}"
         val conn = URL(url).openConnection() as HttpURLConnection
         val body = try {

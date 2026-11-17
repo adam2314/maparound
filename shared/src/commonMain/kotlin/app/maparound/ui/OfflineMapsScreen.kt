@@ -262,9 +262,9 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
         TopAppBar(
             title = { Text(T.offline.screenTitle) },
             actions = {
-                IconButton(onClick = { importLauncher() }) {
+                Tip(T.offline.importAnyMapFile) { IconButton(onClick = { importLauncher() }) {
                     Icon(Icons.Filled.FileOpen, contentDescription = T.offline.importAnyMapFile)
-                }
+                } }
             },
             windowInsets = WindowInsets(0, 0, 0, 0),
         )
@@ -337,9 +337,9 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                     },
                     trailingContent = {
                         Box {
-                            IconButton(onClick = { menu = true }) {
+                            Tip(T.offline.optionsFor(map.title)) { IconButton(onClick = { menu = true }) {
                                 Icon(Icons.Filled.MoreVert, contentDescription = T.offline.optionsFor(map.title))
-                            }
+                            } }
                             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                                 if (!map.isWorld && offline.terrainAddOn) {
                                     DropdownMenuItem(
@@ -439,9 +439,9 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                                 }
                             },
                             trailingContent = {
-                                IconButton(onClick = { offline.terrain.cancel() }) {
+                                Tip(T.offline.stopTerrainDownload) { IconButton(onClick = { offline.terrain.cancel() }) {
                                     Icon(Icons.Filled.Close, contentDescription = T.offline.stopTerrainDownload)
-                                }
+                                } }
                             },
                         )
                     }
@@ -453,9 +453,9 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                             headlineContent = { Text(T.offline.elevationData) },
                             supportingContent = { Text(T.offline.elevationTiles(terrainState.tiles)) },
                             trailingContent = {
-                                IconButton(onClick = { confirmDeleteTerrain = true }) {
+                                Tip(T.offline.deleteAllTerrain) { IconButton(onClick = { confirmDeleteTerrain = true }) {
                                     Icon(Icons.Filled.Delete, contentDescription = T.offline.deleteAllTerrain)
-                                }
+                                } }
                             },
                         )
                     }
@@ -491,9 +491,9 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                             else LinearProgressIndicator(Modifier.fillMaxWidth())
                         },
                         trailingContent = {
-                            IconButton(onClick = { offline.routing.cancel(d.id) }) {
+                            Tip(T.offline.cancelDownload) { IconButton(onClick = { offline.routing.cancel(d.id) }) {
                                 Icon(Icons.Filled.Close, contentDescription = T.offline.cancelDownload)
-                            }
+                            } }
                         },
                     )
                 }
@@ -503,9 +503,9 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                         headlineContent = { Text(T.offline.routingData(s.name)) },
                         supportingContent = { Text(T.offline.routingBlock(Fmt.fileSize(s.bytes))) },
                         trailingContent = {
-                            IconButton(onClick = { offline.routing.delete(s.name) }) {
+                            Tip(T.offline.deleteRoutingData(s.name)) { IconButton(onClick = { offline.routing.delete(s.name) }) {
                                 Icon(Icons.Filled.Delete, contentDescription = T.offline.deleteRoutingData(s.name))
-                            }
+                            } }
                         },
                     )
                 }
@@ -546,9 +546,9 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                                 }
                             },
                             trailingContent = {
-                                IconButton(onClick = { offline.trails.cancel() }) {
+                                Tip(T.offline.stopTrailDownload) { IconButton(onClick = { offline.trails.cancel() }) {
                                     Icon(Icons.Filled.Close, contentDescription = T.offline.stopTrailDownload)
-                                }
+                                } }
                             },
                         )
                     }
@@ -560,9 +560,9 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                             headlineContent = { Text(T.offline.trailData) },
                             supportingContent = { Text(T.offline.trailAreas(trailState.cells)) },
                             trailingContent = {
-                                IconButton(onClick = { confirmDeleteTrails = true }) {
+                                Tip(T.offline.deleteAllTrails) { IconButton(onClick = { confirmDeleteTrails = true }) {
                                     Icon(Icons.Filled.Delete, contentDescription = T.offline.deleteAllTrails)
-                                }
+                                } }
                             },
                         )
                     }
@@ -787,7 +787,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
  * view's image tiles. Saving the defaults (or "Use the default") gives null: the defaults.
  */
 @Composable
-private fun ElevationSourceDialog(
+internal fun ElevationSourceDialog(
     tiles: String?,
     tiles3d: Terrain3dSource?,
     web: Boolean,
@@ -919,7 +919,7 @@ private fun DownloadRow(d: DownloadInfo, onCancel: () -> Unit) {
             }
         },
         trailingContent = {
-            IconButton(onClick = onCancel) { Icon(Icons.Filled.Close, contentDescription = T.offline.cancelDownload) }
+            Tip(T.offline.cancelDownload) { IconButton(onClick = onCancel) { Icon(Icons.Filled.Close, contentDescription = T.offline.cancelDownload) } }
         },
     )
 }
@@ -998,9 +998,9 @@ private fun CatalogMapRow(
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(12.dp),
                 )
-                else -> IconButton(onClick = onDownload) {
+                else -> Tip(T.offline.downloadMap(entry.title)) { IconButton(onClick = onDownload) {
                     Icon(Icons.Filled.Download, contentDescription = T.offline.downloadMap(entry.title))
-                }
+                } }
             }
         },
     )

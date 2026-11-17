@@ -25,6 +25,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import app.maparound.i18n.T
 import app.maparound.routing.Guidance
+import app.maparound.ui.Fmt
+import app.maparound.i18n.DistanceUnit
+import app.maparound.i18n.HeightUnit
+import app.maparound.i18n.Units
 import app.maparound.routing.NavigationSession
 import app.maparound.routing.Turn
 import app.maparound.routing.TurnGlyph
@@ -112,7 +116,7 @@ class CarNavigation(private val carContext: CarContext, lifecycle: Lifecycle) : 
             state.rerouting || next == null -> RoutingInfo.Builder().setLoading(true).build()
             p?.arrived == true -> MessageInfo.Builder(T.nav.youHaveArrived).setImage(icon(Turn.ARRIVE, 0)).build()
             p?.offRoute == true -> MessageInfo.Builder(T.nav.offRoute)
-                .setText(state.error ?: T.nav.offRouteBy("${Guidance.rounded(p.offsetM).roundToInt()} ${T.common.unitM}"))
+                .setText(state.error ?: T.nav.offRouteBy(Fmt.distance(Guidance.rounded(p.offsetM).toFloat())))
                 .build()
             else -> RoutingInfo.Builder()
                 .setCurrentStep(step(next), distance(p?.distanceToNextM ?: 0.0))
@@ -215,12 +219,23 @@ class CarNavigation(private val carContext: CarContext, lifecycle: Lifecycle) : 
         CarIcon.Builder(IconCompat.createWithBitmap(bmp)).build()
     }
 
+    /** For the car screen, in the units chosen ([Units]). */
     private fun distance(m: Double): Distance {
         val r = Guidance.rounded(m)
-        return when {
-            r < 1000 -> Distance.create(r, Distance.UNIT_METERS)
-            r < 10_000 -> Distance.create(r / 1000, Distance.UNIT_KILOMETERS_P1)
-            else -> Distance.create((r / 1000).roundToInt().toDouble(), Distance.UNIT_KILOMETERS)
+        val u = Units.current
+        return when (u.distance) {
+            DistanceUnit.METRIC -> when {
+                r < 1000 -> Distance.create(r, Distance.UNIT_METERS)
+                r < 10_000 -> Distance.create(r / 1000, Distance.UNIT_KILOMETERS_P1)
+                else -> Distance.create((r / 1000).roundToInt().toDouble(), Distance.UNIT_KILOMETERS)
+            }
+            // Android Auto has no nautical miles: miles then (a car rarely goes by sea).
+            else -> when {
+                r < Fmt.MILE_M / 10 && u.height == HeightUnit.FT -> Distance.create((r / Fmt.FOOT_M).roundToInt().toDouble(), Distance.UNIT_FEET)
+                r < Fmt.MILE_M / 10 -> Distance.create(r, Distance.UNIT_METERS)
+                r < 10 * Fmt.MILE_M -> Distance.create(r / Fmt.MILE_M, Distance.UNIT_MILES_P1)
+                else -> Distance.create((r / Fmt.MILE_M).roundToInt().toDouble(), Distance.UNIT_MILES)
+            }
         }
     }
 

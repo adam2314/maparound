@@ -21,7 +21,7 @@ Licence: **GPL-3.0** (see [LICENSE](LICENSE)); bundled components keep their own
 |---|---|
 | **Map** | Pan/zoom map, my-location dot with accuracy circle and follow mode, long-press to drop a pin (coordinates, DMS, distance/bearing from you, copy, open in another app). Tap a peak, spring, hut, viewpoint or any place the map labels to pin it with what it is (its name in your language and where it is, its height); **What's here?** lists the places the map shows around it (offline) and Wikipedia articles about places nearby (online), and a place with its own article opens it, in your language when there is one, and shows its picture. *What's here?* also shows photos taken around the point (Wikimedia Commons); a photo opens over the whole screen with its author and licence, and shows where it was taken. Buttons for **search**, layers, the **route planner**, **map tools**, the **3D view** and **track recording**; zoom with pinch or double-tap. **Layers → Legend** explains the map on screen: an offline style's legend is made from the style itself (its roads, track grades, paths, marked trails, water, land, terrain and symbols, as it draws them), an online map's links to its makers' legend. |
 | **Search** (on the map, magnifier) | Your saved places, coordinates in any format and map links, and names in the **offline maps** around the map centre (towns, peaks, springs, streets, paths, hotels…, within 25 km, works without internet) as you type; **online** search of OpenStreetMap anywhere (Photon, with Nominatim as a fallback) when you press search. Picking a result drops a labelled pin there. |
-| **Map tools** (on the map, ruler button) | **Azimuth & range** between two points (true and magnetic bearing, mils, back bearing, height difference, slope, place B by bearing + distance). **Line of sight** from A to B with a terrain profile and where the view is blocked; as a **radio link**, with antenna heights at both ends and a frequency (LoRa 433/868/915 MHz, 2.4 and 5.8 GHz, VHF, PMR446, FRS/GMRS or any), it draws the first Fresnel zone on the profile and gives its clearance (60% rule) and the path loss (free space + terrain). **Viewshed**: a circle (250 m–25 km) showing ground in sight (green) and hidden (red). **Coordinate converter**: one point in decimal degrees, deg-min, deg-min-sec, UTM, MGRS, Israeli ITM, Plus Code and Maidenhead; type or paste any of them to jump there; pick the format used on pins. Line of sight and viewshed fetch the terrain they need themselves when it's missing (a few 1° tiles at most, as the Wi‑Fi-only setting allows). Tap **A** or **B** on the map to pick it (a yellow ring shows which one taps move), press on a point and drag to move it; the panel folds away to one line with the result. |
+| **Map tools** (on the map, ruler button) | **Azimuth & range** between two points (true and magnetic bearing, mils, back bearing, height difference, slope, place B by bearing + distance). **Line of sight** from A to B with a terrain profile and where the view is blocked; as a **radio link**, with antenna heights at both ends and a frequency (LoRa 433/868/915 MHz, 2.4 and 5.8 GHz, VHF, PMR446, FRS/GMRS or any), it draws the first Fresnel zone on the profile and gives its clearance (60% rule) and the path loss (free space + terrain). **Viewshed**: a circle (250 m–25 km) showing ground in sight (green) and hidden (red). **Coordinate converter**: one point (yours until you set one) in decimal degrees, deg-min, deg-min-sec, UTM, MGRS, Israeli ITM, Plus Code, Maidenhead, Geohash, GEOREF, Web Mercator, ECEF X Y Z and the national grids of Britain, Ireland, Switzerland, the Netherlands and France; type or paste any of them to jump there (**Read as** picks the format where plain numbers could be several grids), find a format by name, and pick the one used on pins. **Coordinate grid** (Layers, or the converter's grid button): the chosen format's grid over the map, closer lines as you zoom in (metric grids in km, degrees, minutes or seconds, or a code's cells with their codes). Line of sight and viewshed fetch the terrain they need themselves when it's missing (a few 1° tiles at most, as the Wi‑Fi-only setting allows). Tap **A** or **B** on the map to pick it (a yellow ring shows which one taps move), press on a point and drag to move it; the panel folds away to one line with the result. |
 | **Route planner** (on the map) | Tap points (start, stops, end); tap a numbered point to remove it. Hold a stop and drag it to move it, or hold the line and drag to add a stop there; the line follows your finger and the route is calculated again when you let go. Profiles **Hike / Bike / Car** follow paths and roads; **Line** draws straight lines to measure. Shows distance, climb/descent, estimated time and an elevation profile; undo, reverse, save to the library. **Start** navigates: a tilted view with the way ahead up that zooms out the faster you go, your speed, the next turn and its distance, time left and arrival, voice prompts (switchable), a new route when you leave it, and it keeps going with the screen off. The panel folds away to one line (the route's length, time and climb, **Start**). |
 | **3D view** (on the map, cube button) | The map in 3D on the whole globe, streamed as you move: terrain relief with the map draped on it (drawn by MapLibre like the 2D map: your offline style, or the online layer, or satellite), detailed near you and coarser to the horizon, a sky with haze, names standing up over the terrain (places, peaks with their heights, huts; hidden behind ridges), and buildings extruded from the offline map close up (heights from OSM `height` / `building:levels`). Zoom out and it's the Earth in space. One finger pans and flings, pinch zooms, two fingers turn and tilt; relief exaggeration ×1–4, buildings on/off, face north. Opening it waits until the relief and the first view's tiles are in, the 2D map showing meanwhile, then tilts in one move. |
 | **Places** (Library → Places) | Your own points of interest: save from any pin or your location with a name, category (⭐ favourite, ⛺ camp, 💧 water, 🔭 viewpoint, 🅿️ parking, ⛽ fuel, 🍴 food, ⚠️ danger, 📍 other) and a note. Shown on the map (Layers → Saved places); tap one for route here, share, viewshed, edit, delete. The list searches names and notes, filters by category and sorts by distance, name or date. Import waypoints from any GPX file, share or export places as GPX. |
@@ -161,6 +161,11 @@ on Windows, prefix the commands with `MSYS_NO_PATHCONV=1`.
   15 s. A foreground service (`NavigationService`) keeps the fixes coming with the screen off and
   shows the next turn in its notification; the voice is Android's TextToSpeech, as navigation
   guidance (music ducks). Navigation ends two minutes after you arrive.
+  **Navigate** on a route in Library: a planned route is calculated again along its stops (its
+  turns); a recorded or imported track (or a route that can't be calculated) is followed as it is
+  (`NavigationSession.follow`): its bends of 60° or more after smoothing to 12 m
+  (`Guidance.shapeTurns`) are the turns, and off it, the way back goes to its nearest point ahead
+  (by the router, else straight up to 2 km; further, it waits until you're near it).
 - **Tracks** (`tracks/`): every route and track is a GPX 1.1 file in `files/tracks/`.
   `RecordingService` is a location foreground service; each fix (accuracy ≤ 40 m, ≥ 3 m from the
   last) is appended to `recording.journal` first. If Android restarts the service after killing
@@ -301,7 +306,13 @@ shading extra); azimuth and the converter work without it.
   - **Israeli Transverse Mercator** (ITM, EPSG:2039) with EPSG's "Israel 1993 to WGS 84 (2)"
     7-parameter transformation (±0.5 m; the old 3-parameter shift is ~10 m off), around Israel only;
   - **Plus Codes** (Open Location Code, full or short codes near the map centre, e.g. `GM+MR Jerusalem`);
-  - **Maidenhead** locators (amateur radio, 4–8 characters).
+  - **Maidenhead** locators (amateur radio, 4–8 characters);
+  - (`tools/Grids.kt`) **Geohash**, **GEOREF** (to 0.01′), **Web Mercator** (EPSG:3857), **ECEF**
+    X Y Z (on the ellipsoid), the **British National Grid** (OSGB36 by the OS Helmert, about 5 m;
+    letters or numbers), **Irish ITM** (EPSG:2157), **Swiss LV95** (and LV03) and **Dutch RD** by
+    their agencies' approximate formulas (about 1 m), **Lambert 93** (EPSG:2154). Plain pairs that
+    could be several grids (RD, Irish ITM, Web Mercator) are read when named ("RD 155000 463000",
+    "EPSG:2157 …") or chosen in **Read as**; the others are told apart by their ranges.
 
   Reference values in `CoordsTest` come from pyproj (EPSG), the `mgrs` library and Google's
   `openlocationcode`. The chosen format is shown on pins and copied by their copy button. Grid
@@ -487,6 +498,25 @@ including the desktop head unit. Navigation has been tried in a car with Android
 The app speaks English and **Hebrew (עברית)**, right to left. It follows the device's language
 when it speaks it (Android's per-app language setting too); **Settings** (the gear in the
 Library) chooses: the device's language, English or עברית. The language changes at once.
+
+**Settings** is the one place for the rest too:
+
+- **Units & formats**: distance (km, mi or nautical miles), height (m or ft), speed, direction
+  (compass points, degrees, both, or mils), time (24 h or 12 h), date order, and coordinates.
+  *Automatic*, the default, follows the device: its region (only where the time zone agrees, so an
+  "English (US)" phone in Israel stays metric) and its clock. Navigation speaks in the units chosen.
+- **Screen**: how long the screen stays on after the last touch, with the app open and while
+  navigating (the phone's setting, 2–30 minutes, or always on; by default the phone's setting, and
+  always on while navigating). Android counts every touch in the activity, the web app every touch on
+  the page (it holds a screen wake lock), iOS turns the idle timer off.
+- **Party**: your name and look (for this party and the next), the server parties meet on (invites
+  carry it), the online switch and the radio gateway.
+- **Sources**: every online service the app uses (the map list, online map, satellite, marked trails,
+  Overpass, elevation, routing and its data, search, Wikipedia and photos, the party's server). Each
+  one can use the default, your own address (with **Check**, one test request), or be off where the
+  app can do without it. The defaults are regional: the online map is *Automatic*, a country's
+  national map where there is one (swisstopo, basemap.at, Kartverket, Plan IGN, USGS Topo) from
+  zoom 8, and OpenStreetMap France elsewhere; IGN's aerial photos are France's satellite.
 
 - **Texts** (`shared/.../i18n/`): every text is in a Kotlin class per part of the app (`MapTexts`,
   `OfflineTexts`, `PartyTexts`, `ToolsTexts`, `LibraryTexts`, `SensorTexts`, `NavTexts`,

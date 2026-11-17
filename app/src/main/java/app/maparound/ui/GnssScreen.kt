@@ -178,14 +178,14 @@ private fun FixCard(state: GnssState, nowNanos: Long) {
                 InfoRow("", ltr(Fmt.dms(loc.latitude, loc.longitude)))
                 loc.bestAltitude()?.let { alt ->
                     val msl = Build.VERSION.SDK_INT >= 34 && loc.hasMslAltitude()
-                    InfoRow(T.sensors.altitude, T.sensors.altitudeValue(alt.roundToInt(), msl))
+                    InfoRow(T.sensors.altitude, T.sensors.altitudeValue(Fmt.height(alt), msl))
                 }
                 if (loc.hasAccuracy()) {
-                    val vertical = if (loc.hasVerticalAccuracy()) loc.verticalAccuracyMeters.roundToInt() else null
-                    InfoRow(T.sensors.accuracy, T.sensors.accuracyValue(loc.accuracy.roundToInt(), vertical))
+                    val vertical = if (loc.hasVerticalAccuracy()) Fmt.height(loc.verticalAccuracyMeters) else null
+                    InfoRow(T.sensors.accuracy, T.sensors.accuracyValue(Fmt.height(loc.accuracy), vertical))
                 }
                 if (loc.hasSpeed()) {
-                    InfoRow(T.sensors.speed, "${String.format(Locale.getDefault(), "%.1f", loc.speed * 3.6f)} ${T.common.unitKmh}")
+                    InfoRow(T.sensors.speed, Fmt.speed(loc.speed.toDouble()))
                 }
                 if (loc.hasBearing() && loc.hasSpeed() && loc.speed > 0.5f) {
                     InfoRow(T.sensors.course, "${ltr("${loc.bearing.roundToInt()}°")} ${Fmt.cardinal(loc.bearing)}")

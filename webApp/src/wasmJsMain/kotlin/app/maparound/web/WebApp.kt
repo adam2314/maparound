@@ -1,5 +1,8 @@
 package app.maparound.web
 
+import app.maparound.sources.SourceKind
+import app.maparound.sources.Sources
+import app.maparound.i18n.Units
 import app.maparound.party.OnlineParty
 import app.maparound.terrain.DemIndex
 import app.maparound.data.MapAroundCatalog
@@ -51,7 +54,7 @@ class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: Str
     /** Where settings are kept: the browser's localStorage, or (embedded) nowhere. */
     private fun store(name: String): KeyValueStore = if (embedded) MemoryStore() else WebStorageStore(name)
 
-    val prefs = Prefs(store("prefs"))
+    val prefs = Prefs(store("prefs"), onUnits = Units::set, onSources = Sources::set)
 
     private val demDir = "${WebFiles.ROOT}/dem"
 
@@ -187,7 +190,8 @@ private fun route(points: List<GeoPoint>, profile: RouteProfile): RouteResult {
         return RouteResult(points, stats, Geo.hikingTimeSeconds(stats.distanceM, stats.ascentM, stats.descentM), RouteResult.Source.STRAIGHT)
     }
     val lonlats = points.joinToString("|") { "${round6(it.lon)},${round6(it.lat)}" }
-    val url = "https://brouter.de/brouter?lonlats=${urlEncode(lonlats)}&profile=${profile.brouterProfile}" +
+    val server = Sources.address(SourceKind.ROUTING) ?: throw RoutingException(T.offline.onlineRoutingOff)
+    val url = "$server?lonlats=${urlEncode(lonlats)}&profile=${profile.brouterProfile}" +
         "&alternativeidx=0&format=geojson&timode=2"
     val body = try {
         httpGetText(url, timeoutMs = 60_000)

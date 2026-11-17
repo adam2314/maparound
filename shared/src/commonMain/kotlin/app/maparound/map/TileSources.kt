@@ -1,6 +1,9 @@
 package app.maparound.map
 
 import app.maparound.i18n.T
+import app.maparound.sources.RegionalDefaults
+import app.maparound.sources.SourceKind
+import app.maparound.sources.Sources
 
 // Plain Kotlin (Android and iOS): the online map tile services.
 
@@ -27,6 +30,15 @@ object TileSources {
     /** Pseudo-source id meaning "render the downloaded offline vector maps". */
     const val OFFLINE_ID = "offline"
     const val DEFAULT_ID = "osmfr"
+
+    /**
+     * Pseudo-source id: the map layer that suits where the map is ([app.maparound.sources.RegionalDefaults]),
+     * else [DEFAULT_ID]; what's shown until the user picks one.
+     */
+    const val AUTO_ID = "auto"
+
+    const val ESRI_IMAGERY = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+    const val WAYMARKED_HIKING = "https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png"
 
     private const val OSM = "© OpenStreetMap contributors"
     private const val ESRI = "Tiles © Esri and its data providers, the GIS User Community"
@@ -87,7 +99,7 @@ object TileSources {
         OnlineSource(
             id = "esri_imagery",
             name = "Satellite",
-            urlTemplate = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            urlTemplate = ESRI_IMAGERY,
             maxZoom = 19,
             attribution = "Imagery © Esri, Maxar, Earthstar Geographics, GIS User Community",
             kind = OnlineSource.Kind.IMAGERY,
@@ -152,18 +164,30 @@ object TileSources {
     /** A saved source id as it is now ([retired] ones replaced). */
     fun current(id: String): String = retired[id] ?: id
 
-    /** Marked hiking routes as a transparent overlay (online only). */
-    val trailsOverlay = OnlineSource(
-        id = "wmt_hiking",
-        name = "Marked trails",
-        urlTemplate = "https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png",
-        maxZoom = 18,
-        attribution = "trails © waymarkedtrails.org",
-        transparent = true,
-    )
+    /** Marked hiking routes as a transparent overlay (online only): waymarkedtrails.org, or the user's (Sources). */
+    val trailsOverlay: OnlineSource
+        get() {
+            val url = Sources.address(SourceKind.TRAILS_OVERLAY) ?: WAYMARKED_HIKING
+            return OnlineSource(
+                id = "wmt_hiking",
+                name = "Marked trails",
+                urlTemplate = url,
+                maxZoom = 18,
+                attribution = if (url == WAYMARKED_HIKING) "trails © waymarkedtrails.org" else "trails © ${hostOf(url)}",
+                transparent = true,
+            )
+        }
 
+    /**
+     * The source [id] names: a built-in or [custom] one; [AUTO_ID] the one for where the map is
+     * ([RegionalDefaults]), else [DEFAULT_ID]'s. Null for the offline maps (or an id that's gone).
+     */
     fun find(id: String, custom: List<OnlineSource>): OnlineSource? =
-        builtIn.firstOrNull { it.id == id } ?: custom.firstOrNull { it.id == id }
+        if (id == AUTO_ID) automatic() else builtIn.firstOrNull { it.id == id } ?: custom.firstOrNull { it.id == id }
+
+    /** The map layer for where the map is: the region's own, else [DEFAULT_ID]'s. */
+    fun automatic(regions: List<String> = Sources.regionPaths): OnlineSource =
+        RegionalDefaults.of(SourceKind.MAP_LAYER, regions) ?: builtIn.first { it.id == DEFAULT_ID }
 
     /** A source's name as people see it: the built-in ones that aren't names of their own, in the app's language. */
     fun title(source: OnlineSource): String = when (source.id) {
@@ -211,7 +235,7 @@ object TileSources {
             .replace("{y}", y.toString())
     }
 
-    fun hostOf(template: String, subdomains: List<String>): String =
+    fun hostOf(template: String, subdomains: List<String> = listOf("a")): String =
         Regex("^https?://([^/:]+)").find(template.replace("{s}", subdomains.firstOrNull() ?: "a"))
             ?.groupValues?.get(1) ?: "localhost"
 }

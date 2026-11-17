@@ -107,12 +107,17 @@ class OnlineParty(
         }
     }
 
-    /** The online switch, the radio and the gateway, as kept. */
+    /** The online switch, the radio and the gateway, and my look, as kept. */
     private fun transportSettings(s: PartyState) = s.copy(
         onlineEnabled = store.getBoolean(K_ONLINE, true),
         radioName = if (radios != null) store.getString(K_RADIO_NAME) else null,
         gateway = store.getBoolean(K_GATEWAY, true),
+        look = keptLook(),
     )
+
+    private fun keptLook(): PartyMe? =
+        if (!store.contains(K_NAME) && !store.contains(K_COLOR)) null
+        else PartyMe(0, store.getString(K_NAME).orEmpty(), store.getInt(K_COLOR, PartyPalette.PRESETS[0]), store.getInt(K_ICON, 0))
 
     override fun create(partyName: String, myName: String) = join(PartyKey.create(partyName, defaultServer), myName)
 
@@ -151,7 +156,7 @@ class OnlineParty(
         engine = PartyEngine(key, me.id, clock = clock)
         lastSent.clear()
         lastHello.clear()
-        _state.value = _state.value.copy(party = key, me = me, members = emptyList(), meshNodes = emptyList(), meeting = null, chat = emptyList(), mySos = false)
+        _state.value = _state.value.copy(party = key, me = me, look = me, members = emptyList(), meshNodes = emptyList(), meeting = null, chat = emptyList(), mySos = false)
         setActive(true)
     }
 
@@ -213,12 +218,17 @@ class OnlineParty(
     }
 
     override fun setProfile(name: String, color: Int, icon: Int) {
-        val me = _state.value.me ?: return
-        val updated = me.copy(name = name.trim().ifEmpty { me.name }, color = color, icon = icon)
+        val me = _state.value.me
+        val was = me ?: _state.value.look ?: PartyMe(0, "", color, icon)
+        val updated = was.copy(name = name.trim().ifEmpty { was.name }, color = color, icon = icon)
         store.putString(K_NAME, updated.name)
         store.putInt(K_COLOR, updated.color)
         store.putInt(K_ICON, updated.icon)
-        update { it.copy(me = updated) }
+        if (me == null) {
+            update { it.copy(look = updated) }
+            return
+        }
+        update { it.copy(me = updated, look = updated) }
         sendHello(force = true)
     }
 

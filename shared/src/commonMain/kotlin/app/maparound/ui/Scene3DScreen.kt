@@ -198,9 +198,9 @@ fun Scene3DScreen(
         }
         // Turned away from north: a compass on the other side; a tap faces north.
         if (turned) {
-            SmallFloatingActionButton(onClick = { control?.faceNorth() }, modifier = Modifier.align(Alignment.TopStart).padding(12.dp)) {
+            Tip(T.map.faceNorth) { SmallFloatingActionButton(onClick = { control?.faceNorth() }, modifier = Modifier.align(Alignment.TopStart).padding(12.dp)) {
                 Icon(Icons.Filled.Explore, contentDescription = T.map.faceNorth)
-            }
+            } }
         }
 
         Column(

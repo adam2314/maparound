@@ -2,6 +2,6 @@ package app.maparound.ui
 
 import androidx.compose.runtime.Composable
 
-/** Keeps the screen on while this is in the composition (speedometer, navigation). */
+/** Keeps the screen on while this is in the composition (speedometer, [ScreenKeeper]); several may at once. */
 @Composable
 expect fun KeepScreenOn()
