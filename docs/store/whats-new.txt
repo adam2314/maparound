@@ -1,14 +1,16 @@
 <en-US>
-• Party: each member's speed, height, accuracy and time; messages in the order written, with their time; replay a member's way on the map.
-• Map tools: tap A or B to pick it, drag to move it; the panels fold away to show the map.
-• The 3D view loads first, then tilts in one smooth move.
-• Navigating from the phone shows on Android Auto: tap the card.
-• Put a track on any website. MapAround's new address: maparound.app.
+• Settings in one place: units and formats (miles, feet, 12-hour…), how long the screen stays on, your party name and server, and every online source: default, your own server, or off.
+• Navigate a saved route or track from Library.
+• 2D/3D button, now on Android Auto too.
+• A coordinate grid on the map; the converter reads 9 more formats.
+• Party: only a real GPS fix moves a member's marker.
+• Opens where you are the first time.
 </en-US>
 <iw-IL>
-• קבוצה: מהירות, גובה, דיוק ושעה לכל משתתף; הודעות לפי סדר הכתיבה עם השעה; הפעלה מחדש של הדרך של משתתף על המפה.
-• כלי המפה: הקשה על A או B בוחרת, גרירה מזיזה; הלוחות מתקפלים כדי לראות את המפה.
-• תצוגת התלת־ממד נטענת קודם, ואז נוטה בתנועה חלקה אחת.
-• ניווט שהתחיל בטלפון מופיע ב־Android Auto: מקישים על הכרטיס.
-• הטמעת מסלול בכל אתר. הכתובת החדשה של MapAround: ‏maparound.app.
+• כל ההגדרות במקום אחד: יחידות ותבניות (מיילים, רגל, 12 שעות…), כמה זמן המסך דולק, השם והשרת בקבוצה, וכל מקור מקוון: ברירת מחדל, שרת משלך או כבוי.
+• ניווט במסלול שמור מהספרייה.
+• כפתור דו־ממד/תלת־ממד, עכשיו גם ב־Android Auto.
+• רשת קואורדינטות על המפה; הממיר קורא 9 פורמטים נוספים.
+• קבוצה: רק קליטת GPS אמיתית מזיזה את הסמן של משתתף.
+• בפתיחה הראשונה המפה נפתחת במקום שבו אתם נמצאים.
 </iw-IL>

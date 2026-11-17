@@ -26,7 +26,7 @@ import kotlinx.serialization.json.put
 // choices for them (Settings → Sources). Unit-tested.
 
 /** How the Sources page groups them. */
-enum class SourceGroup { MAPS, TERRAIN, ROUTING, PLACES, PARTY }
+enum class SourceGroup { MAPS, TERRAIN, ROUTING, PLACES, DATA, PARTY }
 
 /** What the address of a service is like, for checking one the user types. */
 enum class AddressKind {
@@ -98,6 +98,9 @@ enum class SourceKind(
 
     /** Wikipedia articles and Wikimedia Commons photos around a place ("What's here?"). */
     WIKIPEDIA(SourceGroup.PLACES, listOf("https://wikipedia.org", "https://commons.wikimedia.org"), AddressKind.NONE, canBeOff = true),
+
+    /** The data view's GPS traces (the web app): OpenStreetMap's public ones. */
+    GPS_TRACES(SourceGroup.DATA, listOf(TileSources.GPS_TRACES), AddressKind.TILES, canBeOff = true),
 
     /** Where parties meet online: kept by the party. */
     PARTY(SourceGroup.PARTY, PartyRelays.WEBSOCKET, AddressKind.MQTT),

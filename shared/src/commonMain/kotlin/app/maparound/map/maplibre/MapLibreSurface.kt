@@ -7,6 +7,7 @@ import app.maparound.map.BaseMap
 import app.maparound.map.MapListener
 import app.maparound.map.MapPoi
 import app.maparound.map.MapSurface
+import app.maparound.map.OnlineSource
 import app.maparound.map.PartyMarker
 import app.maparound.map.PlaceMarker
 import app.maparound.map.ToolLine
@@ -46,6 +47,7 @@ class MapLibreSurface(
     private var lastStyle: String? = null
     private var base: BaseMap? = null
     private var trailOverlay = false
+    private var dataOverlay: OnlineSource? = null
 
     init {
         native.setCallbacks(object : NativeMapCallbacks {
@@ -181,7 +183,7 @@ class MapLibreSurface(
     /** The style for what's shown now, applied when it changed. */
     fun rebuild() {
         val b = base
-        applyStyle(styleFor((b as? BaseMap.Offline)?.theme).build(b, tiles, trailOverlay))
+        applyStyle(styleFor((b as? BaseMap.Offline)?.theme).build(b, tiles, trailOverlay, dataOverlay = dataOverlay))
     }
 
     private fun applyStyle(json: String) {
@@ -270,9 +272,16 @@ class MapLibreSurface(
         )))
     }
 
-    override fun setStats(countries: String?, localities: String?) {
+    override fun setStats(countries: String?, localities: String?, zones: String?) {
         native.setGeoJson(MapStyle.DATA_COUNTRIES, countries ?: GeoJson.collection(emptyList()))
         native.setGeoJson(MapStyle.DATA_LOCALITIES, localities ?: GeoJson.collection(emptyList()))
+        native.setGeoJson(MapStyle.DATA_ZONES, zones ?: GeoJson.collection(emptyList()))
+    }
+
+    override fun setDataOverlay(source: OnlineSource?) {
+        if (source == dataOverlay) return
+        dataOverlay = source
+        rebuild()
     }
 
     override fun setPlaces(places: List<PlaceMarker>) {

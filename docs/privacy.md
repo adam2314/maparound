@@ -41,8 +41,8 @@ policy.
 
 **Settings → Sources** lists these services in one place. You can point most of them at a server
 of your own; that server then gets the requests instead, and **Check** sends it one test request.
-You can turn some off altogether: online search, online routing, Wikipedia and photos, and the
-vector map online. Where a country has its own national map (Switzerland, Austria, Norway, France
+You can turn some off altogether: online search, online routing, Wikipedia and photos, the
+vector map online, and the web app's GPS traces. Where a country has its own national map (Switzerland, Austria, Norway, France
 and the US), the automatic online map uses it there, so that country's mapping agency gets the
 tile requests for that area.
 
@@ -57,6 +57,7 @@ tile requests for that area.
 | A place you tapped that has its own Wikipedia article (its picture, the Wikipedia button, What's here? for it) | wikidata.org, wikipedia.org, upload.wikimedia.org | Which place it is (its Wikidata id, its article's name), to find its article in your language and its picture; the picture itself |
 | Photos around here (in What's here?) | commons.wikimedia.org, upload.wikimedia.org | The pin's coordinates, to find photos taken nearby; which photos to show; when you open one, which one, for its author and licence |
 | Online routing (when routing data for the area isn't downloaded) | brouter.de | The route's points. While navigating, if a new route is calculated online, your current position too. |
+| The web app's data view (when you turn it on and pick a layer) | ourworldindata.org (the countries' figures), data.gov.il (Israel's localities), gps.tile.openstreetmap.org (GPS traces, when you show them) | Which figures to download; for the GPS traces, which map tiles to show, which reveals the area you're looking at. The time zones are built in and send nothing. |
 | Opening a shortened map link someone shared with you | The link's own service (for example Google) | The link, to find the place it points to |
 | Party location sharing | The other members of your party, through public relay servers (broker.emqx.io, test.mosquitto.org, broker.hivemq.com) or the party's own server if it has one (its invite says which) and, if you pair one, Meshtastic LoRa radios | Your name, icon and colour, your position, speed, heading and battery level, SOS alerts, the meeting point and messages. All of it is end-to-end encrypted (AES-256-GCM) with the party's key, so the relays and radios can't read it. They do see that encrypted messages pass, when, and from which IP address. |
 | iPhone only, if the app's built-in label fonts are missing | demotiles.maplibre.org | Which font characters to load |

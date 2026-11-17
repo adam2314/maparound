@@ -40,6 +40,9 @@ object TileSources {
     const val ESRI_IMAGERY = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
     const val WAYMARKED_HIKING = "https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png"
 
+    /** OpenStreetMap's public GPS traces, as lines drawn brighter where more people went. */
+    const val GPS_TRACES = "https://gps.tile.openstreetmap.org/lines/{z}/{x}/{y}.png"
+
     private const val OSM = "© OpenStreetMap contributors"
     private const val ESRI = "Tiles © Esri and its data providers, the GIS User Community"
 
@@ -165,6 +168,20 @@ object TileSources {
     fun current(id: String): String = retired[id] ?: id
 
     /** Marked hiking routes as a transparent overlay (online only): waymarkedtrails.org, or the user's (Sources). */
+    /** The data view's GPS traces layer, or null when it's off (Settings → Sources). */
+    val gpsTraces: OnlineSource?
+        get() {
+            val url = Sources.address(SourceKind.GPS_TRACES) ?: return null
+            return OnlineSource(
+                id = "gps_traces",
+                name = "GPS traces",
+                urlTemplate = url,
+                maxZoom = 20,
+                attribution = if (url == GPS_TRACES) "GPS traces © OpenStreetMap contributors" else "GPS traces © ${hostOf(url)}",
+                transparent = true,
+            )
+        }
+
     val trailsOverlay: OnlineSource
         get() {
             val url = Sources.address(SourceKind.TRAILS_OVERLAY) ?: WAYMARKED_HIKING

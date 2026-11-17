@@ -33,6 +33,7 @@ import app.maparound.stats.CountryIndicator
 import app.maparound.stats.LocalStats
 import app.maparound.stats.LocalityIndicator
 import app.maparound.stats.StatsLayers
+import app.maparound.stats.TimeZones
 import app.maparound.shared.util.currentYear
 import androidx.compose.material3.CircularProgressIndicator
 import app.maparound.data.mapBounds
@@ -563,16 +564,33 @@ fun MapScreen(
     // The data view (the web app): countries and Israel's localities coloured by their figures.
     val stats = LocalStats.current
     var dataView by rememberSaveable { mutableStateOf(false) }
-    var countryIndicator by rememberSaveable { mutableStateOf(CountryIndicator.POPULATION) }
-    var localityIndicator by rememberSaveable { mutableStateOf(LocalityIndicator.SIZE) }
+    var dataLayers by remember { mutableStateOf(DataLayers()) }
+    val countryIndicator = dataLayers.country.takeUnless { dataLayers.timeZones }
+    val localityIndicator = dataLayers.locality
     var hiddenCountryClasses by remember { mutableStateOf(emptySet<Int>()) }
     var hiddenLocalityClasses by remember { mutableStateOf(emptySet<Int>()) }
+    var hiddenZoneClasses by remember { mutableStateOf(emptySet<Int>()) }
     var dataSelected by remember { mutableStateOf<String?>(null) }
     var dataZoom by remember { mutableStateOf(0.0) }
     val statsCountries = stats?.countries?.collectAsState()?.value
     val statsFigures = stats?.figures?.collectAsState()?.value.orEmpty()
     val statsLocalities = stats?.localities?.collectAsState()?.value
     val statsStatus = stats?.status?.collectAsState()?.value.orEmpty()
+    val statsZones = stats?.timeZones?.collectAsState()?.value
+    // GPS traces over the data view's colours (their source can be turned off in Settings → Sources).
+    val gpsTraces = TileSources.gpsTraces
+    val dataOverlay = gpsTraces?.takeIf { dataView && dataLayers.gpsTraces }
+    LaunchedEffect(dataOverlay) { controller.setDataOverlay(dataOverlay) }
+    // The time zones' offsets are worked out again every quarter of an hour (clocks change).
+    var zonesQuarter by remember { mutableStateOf(0L) }
+    LaunchedEffect(stats, dataView, dataLayers.timeZones) {
+        if (stats == null || !dataView || !dataLayers.timeZones) return@LaunchedEffect
+        stats.loadTimeZones()
+        while (true) {
+            zonesQuarter = nowMillis() / ZONES_REFRESH_MS
+            delay(ZONES_REFRESH_MS - nowMillis() % ZONES_REFRESH_MS)
+        }
+    }
     LaunchedEffect(stats, dataView) {
         if (stats == null || !dataView) return@LaunchedEffect
         launch { stats.loadCountries() }
@@ -583,22 +601,32 @@ fun MapScreen(
         }
     }
     LaunchedEffect(stats, dataView, countryIndicator) {
-        if (stats != null && dataView) stats.loadFigures(countryIndicator, currentYear())
+        if (stats != null && dataView && countryIndicator != null) stats.loadFigures(countryIndicator, currentYear())
     }
-    LaunchedEffect(dataView, statsCountries, statsFigures, countryIndicator, hiddenCountryClasses, statsLocalities, localityIndicator, hiddenLocalityClasses) {
+    LaunchedEffect(
+        dataView, statsCountries, statsFigures, countryIndicator, hiddenCountryClasses, statsLocalities, localityIndicator,
+        hiddenLocalityClasses, statsZones, dataLayers.timeZones, hiddenZoneClasses, zonesQuarter,
+    ) {
         if (!dataView) {
-            controller.setStats(null, null)
+            controller.setStats(null, null, null)
             return@LaunchedEffect
         }
-        val countriesJson = statsCountries?.let { cs ->
-            withContext(Dispatchers.Default) {
-                StatsLayers.countries(cs.mapValues { it.value.geometry }, countryIndicator, statsFigures[countryIndicator].orEmpty(), hiddenCountryClasses)
+        val countriesJson = countryIndicator?.let { indicator ->
+            statsCountries?.let { cs ->
+                withContext(Dispatchers.Default) {
+                    StatsLayers.countries(cs.mapValues { it.value.geometry }, indicator, statsFigures[indicator].orEmpty(), hiddenCountryClasses)
+                }
             }
         }
-        val localitiesJson = statsLocalities?.let { ls ->
-            withContext(Dispatchers.Default) { StatsLayers.localities(ls, localityIndicator, hiddenLocalityClasses) }
+        val localitiesJson = localityIndicator?.let { indicator ->
+            statsLocalities?.let { ls -> withContext(Dispatchers.Default) { StatsLayers.localities(ls, indicator, hiddenLocalityClasses) } }
         }
-        controller.setStats(countriesJson, localitiesJson)
+        val zonesJson = statsZones?.takeIf { dataLayers.timeZones }?.let { zs ->
+            val now = nowMillis()
+            val offsets = zs.mapNotNull { z -> stats?.zoneOffset(z.name, now)?.let { z.name to it } }.toMap()
+            withContext(Dispatchers.Default) { TimeZones.geoJson(zs, offsets, hiddenZoneClasses) }
+        }
+        controller.setStats(countriesJson, localitiesJson, zonesJson)
     }
     // The point of interest the pin is on (tapped on the map), while the pin stays there.
     var pinPoi by remember { mutableStateOf<app.maparound.map.MapPoi?>(null) }
@@ -1181,8 +1209,10 @@ fun MapScreen(
                 val country = key?.takeIf { it.startsWith(StatsLayers.TAP_COUNTRY) }?.let { statsCountries?.get(it.removePrefix(StatsLayers.TAP_COUNTRY)) }
                 val locality = key?.takeIf { it.startsWith(StatsLayers.TAP_LOCALITY) }
                     ?.let { k -> statsLocalities?.firstOrNull { it.code.toString() == k.removePrefix(StatsLayers.TAP_LOCALITY) } }
+                val zone = key?.takeIf { it.startsWith(TimeZones.TAP_ZONE) }?.removePrefix(TimeZones.TAP_ZONE)
                 val showLocalities = dataZoom >= LOCALITIES_ZOOM
                 when {
+                    zone != null -> ZoneCard(zone, stats::zoneOffset, onClose = { dataSelected = null })
                     country != null -> CountryCard(country, statsFigures, onClose = { dataSelected = null })
                     locality != null -> LocalityCard(
                         locality,
@@ -1195,14 +1225,32 @@ fun MapScreen(
                     )
                     else -> DataViewPanel(
                         showLocalities = showLocalities,
-                        countryIndicator = countryIndicator,
-                        onCountryIndicator = { countryIndicator = it; hiddenCountryClasses = emptySet() },
-                        localityIndicator = localityIndicator,
-                        onLocalityIndicator = { localityIndicator = it; hiddenLocalityClasses = emptySet() },
-                        hidden = if (showLocalities) hiddenLocalityClasses else hiddenCountryClasses,
+                        layers = dataLayers,
+                        onLayers = { new ->
+                            if (new.country != dataLayers.country || new.timeZones != dataLayers.timeZones) {
+                                hiddenCountryClasses = emptySet()
+                                hiddenZoneClasses = emptySet()
+                            }
+                            if (new.locality != dataLayers.locality) {
+                                hiddenLocalityClasses = emptySet()
+                                // Israel's way of colouring picked from afar: there.
+                                if (new.locality != null && !showLocalities) controller.animateTo(31.6, 35.0, minZoom = 7)
+                            }
+                            dataLayers = new
+                        },
+                        hasTimeZones = stats.hasTimeZones,
+                        hasGpsTraces = gpsTraces != null,
+                        hidden = when {
+                            showLocalities -> hiddenLocalityClasses
+                            dataLayers.timeZones -> hiddenZoneClasses
+                            else -> hiddenCountryClasses
+                        },
                         onToggleClass = { c ->
-                            if (showLocalities) hiddenLocalityClasses = hiddenLocalityClasses.toggled(c)
-                            else hiddenCountryClasses = hiddenCountryClasses.toggled(c)
+                            when {
+                                showLocalities -> hiddenLocalityClasses = hiddenLocalityClasses.toggled(c)
+                                dataLayers.timeZones -> hiddenZoneClasses = hiddenZoneClasses.toggled(c)
+                                else -> hiddenCountryClasses = hiddenCountryClasses.toggled(c)
+                            }
                         },
                         status = statsStatus,
                         onGoTo = {
@@ -1221,9 +1269,11 @@ fun MapScreen(
                     if (terrainShown) terrainCredit(elevationSourceNow) else null,
                     if (trailOverlay) TileSources.trailsOverlay.attribution else null,
                     if (dataView && stats != null) T.stats.credits else null,
+                    if (dataView && stats != null && dataLayers.timeZones) T.stats.zonesCredit else null,
+                    dataOverlay?.attribution,
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.labelSmall,
-                maxLines = 3,
+                maxLines = if (dataView && stats != null) 4 else 3,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f), RoundedCornerShape(4.dp))
@@ -2312,5 +2362,8 @@ private const val FIRST_FIX_ZOOM = 12
 
 /** The data view shows Israel's localities from this zoom (the app's: MapLibre's 6), the countries below it. */
 private const val LOCALITIES_ZOOM = 7.0
+
+/** How often the time zones' offsets are worked out again. */
+private const val ZONES_REFRESH_MS = 15 * 60_000L
 
 private fun Set<Int>.toggled(c: Int): Set<Int> = if (c in this) this - c else this + c

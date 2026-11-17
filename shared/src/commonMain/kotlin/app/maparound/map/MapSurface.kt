@@ -185,8 +185,14 @@ interface MapSurface : ZoomTarget {
     /** The coordinate grid over the map, or none. */
     fun setGrid(grid: app.maparound.tools.MapGrid.Grid?) = Unit
 
-    /** The data view's layers ([app.maparound.stats.StatsLayers]' GeoJSON), or null for none. */
-    fun setStats(countries: String?, localities: String?) {}
+    /**
+     * The data view's layers ([app.maparound.stats.StatsLayers]' and [app.maparound.stats.TimeZones]'
+     * GeoJSON), or null for none.
+     */
+    fun setStats(countries: String?, localities: String?, zones: String? = null) {}
+
+    /** A raster layer over the data view's colours (GPS traces), or none. */
+    fun setDataOverlay(source: OnlineSource?) {}
 
     fun onResume()
     fun onPause()

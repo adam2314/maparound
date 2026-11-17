@@ -22,7 +22,18 @@ class Country(val iso: String, val nameEn: String, val nameHe: String, val geome
  * figures (Our World in Data) and Israel's localities (data.gov.il). Each is downloaded when first
  * needed and kept in [dir] for a week, and read from there when offline.
  */
-class StatsData(private val dir: String, private val outlines: suspend () -> String, private val clock: () -> Long = ::nowMillis) {
+class StatsData(
+    private val dir: String,
+    private val outlines: suspend () -> String,
+    private val clock: () -> Long = ::nowMillis,
+    /** The time zones' file (timezones.bin, the app's own), or null where there's none. */
+    private val zones: (suspend () -> ByteArray?)? = null,
+    /**
+     * A zone's offset from UTC at a time, in seconds (the zone: an IANA name; null: the device's
+     * own); null when it isn't known. The web app's comes from the browser.
+     */
+    private val zoneOffset: (zone: String?, epochMillis: Long) -> Int? = { _, _ -> null },
+) {
     private val _countries = MutableStateFlow<Map<String, Country>?>(null)
     val countries: StateFlow<Map<String, Country>?> = _countries.asStateFlow()
 
@@ -31,6 +42,15 @@ class StatsData(private val dir: String, private val outlines: suspend () -> Str
 
     private val _localities = MutableStateFlow<List<Locality>?>(null)
     val localities: StateFlow<List<Locality>?> = _localities.asStateFlow()
+
+    private val _timeZones = MutableStateFlow<List<ZoneArea>?>(null)
+    val timeZones: StateFlow<List<ZoneArea>?> = _timeZones.asStateFlow()
+
+    /** Whether there are time zones to show. */
+    val hasTimeZones: Boolean get() = zones != null
+
+    /** [zone]'s offset from UTC at [epochMillis] (seconds; null zone: the device's), or null. */
+    fun zoneOffset(zone: String?, epochMillis: Long): Int? = zoneOffset.invoke(zone, epochMillis)
 
     /** What's being downloaded, or what failed; empty when nothing. */
     private val _status = MutableStateFlow("")
@@ -48,6 +68,12 @@ class StatsData(private val dir: String, private val outlines: suspend () -> Str
                 Country(iso, o["en"]?.jsonPrimitive?.content.orEmpty(), o["he"]?.jsonPrimitive?.content.orEmpty(), o["g"].toString())
             }
         }
+    }
+
+    suspend fun loadTimeZones() = lock.withLock {
+        if (_timeZones.value != null) return@withLock
+        val bytes = runCatching { zones?.invoke() }.getOrNull() ?: return@withLock
+        _timeZones.value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { TimeZones.decode(bytes) }.takeIf { it.isNotEmpty() }
     }
 
     suspend fun loadFigures(indicator: CountryIndicator, year: Int) = lock.withLock {

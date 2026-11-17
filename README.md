@@ -592,13 +592,15 @@ How it fits together (`webApp/`, `shared/src/wasmJsMain/`):
   Android), the style's symbols are mapsforge's SVGs.
 - **The 3D view** turns the map itself 3D (`mapview.js`, `WebScene3DView` in `WebMap.kt`):
   MapLibre's terrain from online elevation tiles (Mapzen's terrarium tiles on Amazon's servers,
-  the source Android's terrain downloads use), the globe projection with sky and atmosphere, the
+  the source Android's terrain downloads use), the globe projection with sky and atmosphere when zoomed out (flat from zoom 9, where MapLibre's
+  own globe-to-flat turn drew steep tilts as walls of streaks), the
   relief shaded, buildings extruded from the downloaded maps (`height`, `building:levels`), and
   Esri imagery for satellite, under the names. When it closes (also with Esc), the 2D map shows
   where it was looking, flat and north up (`MapLibreSurface.zoomFor`, the way back from
   `camera3D`); it eases in from the 2D map's look (straight down) and back out when it closes, as
   on Android. Two fingers moving up or down tilt it; a right-button (or ctrl + drag) mouse drag
-  turns and tilts it. Esc is the web app's back key: it also closes the search and goes up a
+  turns and tilts it around the place it starts on, which stays under the pointer (a ring marks it
+  while turning; started on the sky, it turns around the middle). Esc is the web app's back key: it also closes the search and goes up a
   level in the map list.
 - **Files and settings.** The browser has no file system for the shared code: files live in memory
   (Okio's FakeFileSystem) and everything under `/data` is saved to IndexedDB and read back at
@@ -778,7 +780,12 @@ The app's privacy policy (also for the stores) is [docs/privacy.md](docs/privacy
   localities from [data.gov.il](https://data.gov.il): the Central Bureau of Statistics' list of
   localities and the 2019 socio-economic clusters (open licence), and the Population and
   Immigration Authority's residents by age group (no licence stated on the portal). Downloaded
-  when the view is first used and kept for a week (`shared/.../stats/`).
+  when the view is first used and kept for a week (`shared/.../stats/`). The time zones are
+  [timezone-boundary-builder](https://github.com/evansiroky/timezone-boundary-builder)'s, with the
+  seas' (from OpenStreetMap data, © OpenStreetMap contributors, ODbL), simplified to about 2 km and
+  packed into `webApp/.../resources/timezones.bin` by `tools/timezones/make_timezones.py`; the GPS
+  traces are OpenStreetMap's public ones (gps.tile.openstreetmap.org, © OpenStreetMap
+  contributors).
 - **Built-in world map** (Android), drawn at the overview zooms and outside the downloaded maps: [Natural Earth](https://www.naturalearthdata.com) (public domain) at 1:10m: land, minor islands, lakes, rivers, populated places, marine area names and land boundary lines, and the 1:50m countries for country names. Packed into `app/src/main/assets/world.bin` by `tools/world/make_world.py` and `borders.bin` by `tools/borders/make_borders.py`.
 - **Map regions** (which map is made for a place): the outlines of [Geofabrik](https://download.geofabrik.de)'s download regions (from OpenStreetMap data, © OpenStreetMap contributors, ODbL), simplified to about a kilometre and packed into `app/src/main/assets/regions.bin` by `tools/regions/make_regions.py`.
 - **Terrain**: [Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) on AWS Open Data, © Mapzen and its sources (SRTM, GMTED, ETOPO1 and others; see the dataset's attribution page).

@@ -46,7 +46,14 @@ class MapStyle(
      * as a picture for the 3D view's terrain: no labels and icons (the 3D view stands them up), no
      * hill shading (its light shades the relief) and no overlays.
      */
-    fun build(base: BaseMap?, tiles: TileService, trailOverlay: Boolean = false, forTextures: Boolean = false): String = buildJsonObject {
+    fun build(
+        base: BaseMap?,
+        tiles: TileService,
+        trailOverlay: Boolean = false,
+        forTextures: Boolean = false,
+        /** A raster layer of the data view's (GPS traces), drawn over its colours. */
+        dataOverlay: OnlineSource? = null,
+    ): String = buildJsonObject {
         val tilesBaseUrl = tiles.baseUrl
         put("version", 8)
         put("name", "MapAround")
@@ -153,6 +160,9 @@ class MapStyle(
                 put("paint", obj("raster-fade-duration" to 0))
             }
         }
+        if (dataOverlay != null && !forTextures) {
+            sources[DATA_RASTER] = rasterSource(dataOverlay)
+        }
         if (!forTextures) {
             for (id in OVERLAY_SOURCES) {
                 sources[id] = buildJsonObject {
@@ -183,7 +193,23 @@ class MapStyle(
     }
 
     private fun overlayLayers(): List<JsonObject> = listOf(
-        // The data view (the web app): countries coloured by a figure until zoom 7, Israel's localities from 6.
+        // The data view (the web app): the time zones, or the countries coloured by a figure until
+        // zoom 7; a raster over them (GPS traces); Israel's localities from 6; the zones' offsets.
+        layer("${TAP_PREFIX}data-zones", "fill") {
+            put("source", DATA_ZONES)
+            put("maxzoom", 11)
+            put("filter", eq("role", "zone"))
+            put("paint", obj(
+                "fill-color" to arr("get", "color"),
+                "fill-opacity" to arr("interpolate", arr("linear"), arr("zoom"), 2, 0.7, 8, 0.35),
+            ))
+        },
+        layer("data-zones-line", "line") {
+            put("source", DATA_ZONES)
+            put("maxzoom", 11)
+            put("filter", eq("role", "zone"))
+            put("paint", obj("line-color" to "rgba(255,255,255,0.85)", "line-width" to 0.8))
+        },
         layer("${TAP_PREFIX}data-countries", "fill") {
             put("source", DATA_COUNTRIES)
             put("maxzoom", 7)
@@ -192,6 +218,10 @@ class MapStyle(
                 "fill-opacity" to arr("interpolate", arr("linear"), arr("zoom"), 2, 0.8, 6.5, 0.45),
                 "fill-outline-color" to "rgba(255,255,255,0.9)",
             ))
+        },
+        layer(DATA_RASTER, "raster") {
+            put("source", DATA_RASTER)
+            put("paint", obj("raster-fade-duration" to 0))
         },
         layer("${TAP_PREFIX}data-localities", "circle") {
             put("source", DATA_LOCALITIES)
@@ -207,6 +237,24 @@ class MapStyle(
                 "circle-opacity" to 0.88,
                 "circle-stroke-color" to "#FFFFFF",
                 "circle-stroke-width" to 0.8,
+            ))
+        },
+        layer("data-zones-label", "symbol") {
+            put("source", DATA_ZONES)
+            put("maxzoom", 11)
+            // Each from the zoom its zone's size allows; the big ones placed first.
+            put("filter", arr("all", eq("role", "label"), arr(">=", arr("zoom"), arr("get", "minz"))))
+            put("layout", obj(
+                "symbol-sort-key" to arr("get", "rank"),
+                "text-field" to arr("get", "label"),
+                "text-font" to arr("Noto Sans Bold"),
+                "text-size" to 12,
+                "text-padding" to 6,
+            ))
+            put("paint", obj(
+                "text-color" to "#1B1B1B",
+                "text-halo-color" to "rgba(255,255,255,0.9)",
+                "text-halo-width" to 1.6,
             ))
         },
         // The coordinate grid, under everything the user put on the map; its values haloed.
@@ -334,7 +382,9 @@ class MapStyle(
         const val GRID = "mr-grid"
         const val DATA_COUNTRIES = "mr-data-countries"
         const val DATA_LOCALITIES = "mr-data-localities"
-        val OVERLAY_SOURCES = listOf(DATA_COUNTRIES, DATA_LOCALITIES, GRID, TRACKS, RECORDING, PARTY_TRAIL, ROUTE, TOOLS, PLACES, PARTY, ME, PIN)
+        const val DATA_ZONES = "mr-data-zones"
+        const val DATA_RASTER = "mr-data-raster"
+        val OVERLAY_SOURCES = listOf(DATA_ZONES, DATA_COUNTRIES, DATA_LOCALITIES, GRID, TRACKS, RECORDING, PARTY_TRAIL, ROUTE, TOOLS, PLACES, PARTY, ME, PIN)
 
         /** Colour around the maps (no data). */
         const val OUTSIDE = "#EDEADA"

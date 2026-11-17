@@ -94,9 +94,12 @@ class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: Str
     val searcher = WebSearcher(places, maps)
 
     /** The data view's data: the countries' outlines are the app's own file, the figures downloaded and kept. */
-    val stats = app.maparound.stats.StatsData("${WebFiles.ROOT}/stats", outlines = {
-        app.maparound.shared.net.httpGetAsync("${base}countries.json", 60_000).decodeToString()
-    })
+    val stats = app.maparound.stats.StatsData(
+        "${WebFiles.ROOT}/stats",
+        outlines = { app.maparound.shared.net.httpGetAsync("${base}countries.json", 60_000).decodeToString() },
+        zones = { app.maparound.shared.net.httpGetAsync("${base}timezones.bin", 60_000) },
+        zoneOffset = { zone, ms -> app.maparound.shared.util.browserZoneOffsetSeconds(zone, ms) },
+    )
     /** Elevation data for line of sight and viewshed, fetched as they need it. */
     val terrain = WebTerrain(demDir) { prefs.elevationSource.value }
 

@@ -8,7 +8,7 @@ import kotlin.math.roundToLong
 /** The data view (the web app): countries and Israel's localities coloured by their figures. */
 open class StatsTexts {
     open val dataView = "Data view"
-    open val dataViewSubtitle = "Countries and Israel's localities by their figures"
+    open val dataViewSubtitle = "Countries and Israel's localities by their figures, time zones, GPS traces"
     open val leaveDataView = "Leave the data view"
     open val countries = "Countries"
     open val localities = "Israel's localities"
@@ -87,6 +87,40 @@ open class StatsTexts {
     open fun asOf(year: Int) = "($year)"
     open val pinIt = "Pin it"
 
+    // ---- the explorer ----
+    open val layers = "Data layers"
+    open val findData = "Find data"
+    open val nothingFound = "Nothing found"
+    open val world = "World"
+    open val israel = "Israel"
+    open val time = "Time"
+    open val movement = "Movement"
+    open val timeZones = "Time zones"
+    open val gpsTraces = "GPS traces"
+    open val gpsTracesNote = "Public GPS traces uploaded to OpenStreetMap: the denser the lines, the more people went that way."
+    open val gettingTimeZones = "Getting the time zones…"
+    /** Words that find them (besides their names). */
+    open val countriesKeywords = "countries country"
+    open val localitiesKeywords = "localities towns cities villages places"
+    open val timeZonesKeywords = "clock hour utc gmt daylight saving summer time dst offset"
+    open val gpsKeywords = "heat map heatmap tracks traces activity hiking where people go"
+    open val offsetsNow = "Hours from UTC, now"
+    open val zonesCredit = "time zones: timezone-boundary-builder (© OpenStreetMap contributors)"
+
+    // ---- a tapped time zone ----
+    open val atSea = "At sea"
+    open val seaZone = "Nautical time zone"
+    open fun localTime(time: String, day: String) = "Local time: $time · $day"
+    open fun utcNow(offset: String) = "UTC$offset now"
+    open fun ahead(by: String) = "$by ahead of you"
+    open fun behind(by: String) = "$by behind you"
+    open val sameTime = "Same time as you"
+    open fun clocksForward(by: String, day: String, time: String) = "Clocks go forward $by on $day at $time"
+    open fun clocksBack(by: String, day: String, time: String) = "Clocks go back $by on $day at $time"
+    open val noClockChanges = "No clock changes in the coming year"
+    /** A length of time: "1 h", "30 min", "5 h 30 min". */
+    open fun hoursMinutes(h: Int, m: Int) = listOfNotNull(if (h > 0) "$h h" else null, if (m > 0 || h == 0) "$m min" else null).joinToString(" ")
+
     /** 12,345 */
     fun group(v: Double): String {
         val n = v.roundToLong()
@@ -103,7 +137,7 @@ open class StatsTexts {
 
 object StatsTextsHe : StatsTexts() {
     override val dataView = "תצוגת נתונים"
-    override val dataViewSubtitle = "מדינות ויישובי ישראל לפי הנתונים שלהם"
+    override val dataViewSubtitle = "מדינות ויישובי ישראל לפי הנתונים שלהם, אזורי זמן, מסלולי GPS"
     override val leaveDataView = "יציאה מתצוגת הנתונים"
     override val countries = "מדינות"
     override val localities = "יישובי ישראל"
@@ -169,4 +203,40 @@ object StatsTextsHe : StatsTexts() {
     override val byAge = "תושבים לפי גיל"
     override fun asOf(year: Int) = "($year)"
     override val pinIt = "סימון במפה"
+
+    override val layers = "שכבות נתונים"
+    override val findData = "חיפוש נתונים"
+    override val nothingFound = "לא נמצא"
+    override val world = "העולם"
+    override val israel = "ישראל"
+    override val time = "זמן"
+    override val movement = "תנועה"
+    override val timeZones = "אזורי זמן"
+    override val gpsTraces = "מסלולי GPS"
+    override val gpsTracesNote = "מסלולי GPS ציבוריים שהועלו ל־OpenStreetMap: ככל שהקווים צפופים יותר, יותר אנשים עברו שם."
+    override val gettingTimeZones = "מוריד את אזורי הזמן…"
+    override val countriesKeywords = "מדינות מדינה countries"
+    override val localitiesKeywords = "יישובים יישוב ערים עיר כפרים localities"
+    override val timeZonesKeywords = "שעון שעה שעות UTC GMT שעון קיץ חורף הפרש time zones"
+    override val gpsKeywords = "מפת חום הקלטות מסלולים טיולים פעילות heat map gps traces"
+    override val offsetsNow = "שעות מ־UTC, עכשיו"
+    override val zonesCredit = "אזורי זמן: timezone-boundary-builder (© תורמי OpenStreetMap)"
+
+    override val atSea = "בים"
+    override val seaZone = "אזור זמן ימי"
+    override fun localTime(time: String, day: String) = "השעה שם: ${ltr(time)} · $day"
+    override fun utcNow(offset: String) = "${ltr("UTC$offset")} עכשיו"
+    override fun ahead(by: String) = "$by יותר מאצלך"
+    override fun behind(by: String) = "$by פחות מאצלך"
+    override val sameTime = "אותה שעה כמו אצלך"
+    override fun clocksForward(by: String, day: String, time: String) = "השעון יוזז $by קדימה ב־$day בשעה ${ltr(time)}"
+    override fun clocksBack(by: String, day: String, time: String) = "השעון יוזז $by אחורה ב־$day בשעה ${ltr(time)}"
+    override val noClockChanges = "אין שינויי שעון בשנה הקרובה"
+    override fun hoursMinutes(h: Int, m: Int) = when {
+        h == 1 && m == 0 -> "שעה"
+        h == 2 && m == 0 -> "שעתיים"
+        m == 0 -> "$h שעות"
+        h == 0 -> "$m דקות"
+        else -> "$h שעות ו־$m דקות"
+    }
 }

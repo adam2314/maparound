@@ -1,14 +1,33 @@
 # The data view
 
 The **data view** turns the map into a way to explore places through their numbers: how many people
-live there, how old they are, how rich, how high, how long they live. It's in the web app, under
-**Layers → Data view**.
+live there, how old they are, how rich, how high, how long they live, what time it is there, and
+where people go. It's in the web app, under **Layers → Data view**.
 
 **The goal:** more data to explore the world. The first version covers every country and one
 country in depth (Israel, down to each of its localities). This page describes what's there, where
 the data comes from, how it's built, how to add more, and where it goes next.
 
 ## What it shows now
+
+### The explorer
+
+The panel opens on a tree of everything the view can show:
+
+| Branch | Layers |
+|---|---|
+| World | the five country figures (one at a time) |
+| Israel | the eleven ways to colour its localities |
+| Time | Time zones (instead of a country figure) |
+| Movement | GPS traces (over any of the others) |
+
+- **Search.** The box above the tree finds a layer by its name, its branch, or words about it
+  ("clock", "UTC", "heat map", "שעון"), in English or Hebrew.
+- **On and off.** Picking a layer shows it and folds the tree into its legend; picking the one
+  that's on turns it off, so the countries or the localities can be hidden altogether.
+- **Folding.** Branches of up to five layers start open; a longer one (Israel) starts folded and
+  shows how many of its layers are on.
+- Picking one of Israel's layers from far away flies the map there.
 
 ### Countries (zoomed out)
 
@@ -55,6 +74,31 @@ share (from 1%), founding year, altitude, socio-economic cluster, and a bar char
 groups. **Pin it** drops the map's pin there, so *What's here?*, Wikipedia, routing and sharing
 work as for any place.
 
+### Time zones
+
+The world's time zones, the seas' included, each coloured by its offset from UTC now: the colours
+go round the colour wheel once from UTC−12 to UTC+14 (which meet at the date line), lighter and
+darker in turn so that neighbouring hours always differ. Half and quarter hours go with the hour
+nearer zero (+5:30 with +5, −3:30 with −3), and each zone's label says its exact offset. Labels
+appear as the map zooms in, the biggest zones' first, so zoomed out Europe isn't a crowd of "+1".
+
+Tapping a zone opens a card: the place its name is for ("Jerusalem", "Asia · Asia/Jerusalem"; at
+sea, "Nautical time zone · Etc/GMT+4"), its local time (ticking), its offset now, how far it is
+ahead of or behind the device's clock, and its next clock change in the coming year, with the date
+and the local time it happens at. Offsets are worked out again every quarter of an hour, so the
+map follows a change while it's open.
+
+The clocks come from the browser's own time-zone rules (`Intl`; the Kotlin date library has no
+time-zone data on the web): the web app hands them to the view (`browserZoneOffsetSeconds`, given
+to `StatsData` in `WebApp.kt`).
+
+### GPS traces
+
+OpenStreetMap's public GPS traces (the lines people uploaded to OpenStreetMap), drawn over the
+map and the view's colours and under Israel's localities. The denser the lines, the more people went
+that way; their colours show the direction of travel. It's in **Settings → Sources** (Data view), so
+it can be turned off or replaced with other tiles.
+
 ### In both levels
 
 - **The legend filters.** Tapping a class hides those countries or places; tapping it again brings
@@ -72,6 +116,8 @@ work as for any place.
 | Localities of Israel | Central Bureau of Statistics (הלמ"ס), *localities-in-israel* on [data.gov.il](https://data.gov.il) | marked open | CKAN API: the dataset's newest table | about 1.5 MB |
 | Residents by age group | Population and Immigration Authority, *residents_in_israel_by_communities_and_age_groups* | **none stated on the portal** | CKAN API, newest table (updated monthly) | about 0.3 MB |
 | Socio-economic clusters (2019) | *social_economic_cluster* on data.gov.il | marked open | CKAN API | small |
+| Time zones | [timezone-boundary-builder](https://github.com/evansiroky/timezone-boundary-builder) 2026f, *timezones-with-oceans* | ODbL (from OpenStreetMap: © OpenStreetMap contributors) | bundled: `webApp/.../resources/timezones.bin` | 0.3 MB |
+| GPS traces | [OpenStreetMap](https://www.openstreetmap.org/traces)'s public GPS traces, as tiles from `gps.tile.openstreetmap.org` | © OpenStreetMap contributors; OpenStreetMap's tile usage policy | map tiles, as the map shows them | per tile |
 
 All the online sources allow a web page to read them directly (CORS `*`), so the browser fetches
 them itself; no server is involved.
@@ -97,19 +143,37 @@ All the logic is shared Kotlin; only the web app switches it on.
 | Country figures | `shared/.../stats/CountryStats.kt` | Reads an Our World in Data CSV and keeps the latest year with a value per ISO 3166 code, up to this year. |
 | Classes and layers | `shared/.../stats/StatsLayers.kt` | Each figure's classes, colours and legend labels, and the GeoJSON for the map: countries with a `color` per feature, localities with `color` and a radius `r`. |
 | Loading and cache | `shared/.../stats/StatsData.kt` | Downloads each source the first time it's needed and keeps it for a week in the app's files (`/data/stats` on the web); offline, it uses the kept copy however old. |
-| Map layers | `MapStyle.kt` | Two GeoJSON sources: a fill for the countries (to MapLibre's zoom 7) and circles for the localities (from 6). Their ids start with `tap-`, so a tap reports the feature's `tap` key (`data:c:ISR`, `data:l:3000`). |
-| Screen | `ui/DataViewUi.kt`, `ui/MapScreen.kt` | The panel (pickers, legend, level button), the country and locality cards, and the Layers switch. |
+| Time zones | `shared/.../stats/TimeZones.kt` | Reads `timezones.bin`; finds the zone at a place (outer rings and their holes: Lesotho is a hole in South Africa's zone); the offsets' classes and colours; the next clock change (a day at a time, then halving to the minute); and the GeoJSON: each zone's area and a label point in its biggest part. |
+| Map layers | `MapStyle.kt` | Three GeoJSON sources: the time zones (a fill, white borders, and labels from the zoom their size allows), a fill for the countries (to MapLibre's zoom 7) and circles for the localities (from 6); and a raster source for the GPS traces, between the fills and the circles. The ids of what can be tapped start with `tap-`, so a tap reports the feature's `tap` key (`data:c:ISR`, `data:l:3000`, `data:z:Asia/Jerusalem`). |
+| Screen | `ui/DataViewUi.kt`, `ui/MapScreen.kt` | The explorer (tree, search, legend, level button), the country, locality and time-zone cards, and the Layers switch. |
 | Texts | `i18n/StatsTexts.kt` | English and Hebrew. |
 | Outlines file | `tools/stats/make_countries.py` | Builds `countries.json` from Natural Earth: ISO code, English and Hebrew names, the outline simplified to about 1.5 km. |
+| Time zones file | `tools/timezones/make_timezones.py` | Builds `timezones.bin` from timezone-boundary-builder's GeoJSON: each zone's IANA name and polygons, simplified to about 2 km (smaller islands and slivers left out), as varint deltas. |
 
 The view appears only where the app provides `LocalStats` (the web app, in `WebApp.kt` and
 `Main.kt`). Android and iPhone would need only that: a `StatsData` with a cache folder and the
 outlines file from their assets.
 
 Tests: `shared/src/commonTest/.../stats/StatsTest.kt` covers the grid conversion, the tables, the
-CSV, the classes and the layers.
+CSV, the classes and the layers; `TimeZonesTest.kt` the time zones' file, lookup (with holes),
+classes, labels, GeoJSON and clock changes; `androidUnitTest/.../TimeZonesFileTest.kt` the real
+file (known places, Israel's next change, every zone known to Java's time-zone rules).
 
 ## Adding data
+
+### Another layer in the explorer
+
+Add a leaf to its branch in `Explorer` (`ui/DataViewUi.kt`), or a new branch, with its title and
+the words that should find it (in `StatsTexts`, English and Hebrew); keep its state in
+`DataLayers`. Draw it in `MapStyle.overlayLayers` and fill it from `MapScreen`'s data-view effect.
+An online source goes in `SourceKind` (group `DATA`) so Settings → Sources lists it.
+
+### Updating the time zones
+
+Download `timezones-with-oceans.geojson.zip` from timezone-boundary-builder's latest release and
+run `python tools/timezones/make_timezones.py combined-with-oceans.json
+webApp/src/wasmJsMain/resources/timezones.bin`. Zones that the browsers don't know yet show as
+"no data" until they do.
 
 ### Another figure for the countries
 
@@ -167,7 +231,8 @@ the research request).
 - election results by locality
 
 **5. Data that fits a hiking and off-road app.** Protected areas, climate normals (temperature and
-rain by month), daylight. Licences vary here: the main world protected-areas database restricts
+rain by month), daylight (sunrise and sunset by place and date, worked out on the device like the
+time zones' clocks). Licences vary here: the main world protected-areas database restricts
 commercial use, for example. Check each one before using it.
 
 **6. Android and iPhone.** The code is shared; provide `StatsData` on each.

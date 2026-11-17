@@ -96,6 +96,8 @@ internal fun SourcesPage() {
             // With elevation: one dialog has both.
             SourceKind.RELIEF_3D -> false
             SourceKind.PARTY -> !party.watchOnly
+            // Where there's a data view.
+            SourceKind.GPS_TRACES -> app.maparound.stats.LocalStats.current != null
             else -> true
         }
     }
@@ -108,6 +110,7 @@ internal fun SourcesPage() {
                 SourceGroup.TERRAIN -> T.settings.groupTerrain
                 SourceGroup.ROUTING -> T.settings.groupRouting
                 SourceGroup.PLACES -> T.settings.groupPlaces
+                SourceGroup.DATA -> T.stats.dataView
                 SourceGroup.PARTY -> T.settings.party
             },
         )
@@ -155,6 +158,7 @@ private fun title(k: SourceKind): String = when (k) {
     SourceKind.SEARCH -> T.settings.search
     SourceKind.WIKIPEDIA -> T.settings.wikipedia
     SourceKind.PARTY -> T.settings.partyServer
+    SourceKind.GPS_TRACES -> T.stats.gpsTraces
 }
 
 /** A server's name from its address ("brouter.de"). */

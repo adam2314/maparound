@@ -374,7 +374,11 @@
     if (!notified) { notified = true; if (onGesture) onGesture(); }
     const dx = now.cx - last.cx, dy = now.cy - last.cy;
     if (view3d && now.n === 1 && turning) {
-      map.jumpTo({ bearing: map.getBearing() - dx * 0.4, pitch: tilt3d(dy) });
+      if (pivot === undefined) {
+        pivot = pickPivot(start.cx, start.cy);
+        if (pivot) markPivot(start.cx, start.cy);
+      }
+      orbit3d(dx, dy);
     } else if (view3d && now.n >= 2) {
       // Two fingers in 3D: up and down tilt the view (pinch and twist below), they don't move it.
       if (dy) map.jumpTo({ pitch: tilt3d(dy) });
@@ -411,6 +415,7 @@
     if (pointers.size === 0) {
       claimed = false; holding = false; moved = false; notified = false; last = null; samples = [];
       turning = e.pointerType === 'mouse' && (e.button === 2 || e.ctrlKey || e.shiftKey || e.altKey);
+      pivot = undefined;
       const p = local(e);
       start = { cx: p.x, cy: p.y };
     }
@@ -445,6 +450,7 @@
       }
     }
     claimed = false;
+    unmarkPivot();
     if (view3d) settle3d(null); // the gesture's over (a flick: when it stops)
   }
 
@@ -578,6 +584,12 @@
   const MAX_PITCH_2D = 60, MAX_PITCH_3D = 80;
   /** Eases in and out (smoothstep), for the 3D view's turns and tilts. */
   const SMOOTH = (t) => t * t * (3 - 2 * t);
+  /**
+   * The 3D view's projection: a globe zoomed out, flat from MapLibre's zoom 8 (its own "globe"
+   * turns flat only between 10 and 12, and in that turn a steep tilt drew the relief as walls of
+   * stretched streaks). Closer in, the globe's curve doesn't show anyway; the atmosphere fades by 9.
+   */
+  const PROJECTION_3D = { type: ['interpolate', ['linear'], ['zoom'], 6, 'vertical-perspective', 8, 'mercator'] };
   /** Around the globe: space (the atmosphere's glow is MapLibre's). */
   const SPACE = 'radial-gradient(ellipse at 50% 60%, #1b2a4a 0%, #0a1020 70%)';
   /** While the 3D view is open: its settings, and the 2D view to go back to. */
@@ -603,7 +615,7 @@
       dem(DEM3D);
       // Entering: the relief comes on once the ground under the view is known (intro3d).
       if (!v.holdTerrain) map.setTerrain({ source: DEM3D, exaggeration: v.exaggeration });
-      map.setProjection({ type: 'globe' });
+      map.setProjection(PROJECTION_3D);
       map.setSky({
         'sky-color': '#5d97d6',
         'horizon-color': '#dceaf6',
@@ -827,6 +839,103 @@
     map.jumpTo({ center: to, elevation: tr.elevation });
   }
 
+  // ---- turning around a place (3D, the mouse) ----
+  // A right-button drag (or ctrl, shift or alt with the left) turns and tilts the view around the
+  // place it started on, as if the camera were on an arm fixed there: that place stays under the
+  // pointer, marked while turning. Started on the sky (or the far horizon), it turns around the
+  // view's middle, as before.
+
+  /** What a turn goes around: { lng, lat, alt } (alt: metres, as drawn); null: the middle; undefined: not picked yet. */
+  let pivot;
+  let pivotMark = null;
+
+  /** Further than this many times the camera's distance from the middle: the horizon, not a place. */
+  const PIVOT_MAX = 4;
+
+  /** The ground under (x, y), read once from the relief as drawn; null on the sky or too far off. */
+  function pickPivot(x, y) {
+    if (!map || !map.terrain) return null;
+    let at;
+    try { at = map.unproject([x, y]); } catch (e) { return null; }
+    if (!at || isNaN(at.lng) || isNaN(at.lat)) return null;
+    const k = Math.PI / 180, c = map.getCenter();
+    const de = (at.lng - c.lng) * k * EARTH_R * Math.cos(c.lat * k), dn = (at.lat - c.lat) * k * EARTH_R;
+    if (Math.hypot(de, dn) > PIVOT_MAX * cameraDistance()) return null;
+    const alt = map.terrain.getElevationForLngLatZoom(at, map.transform.tileZoom);
+    return { lng: at.lng, lat: at.lat, alt: isNaN(alt) ? map.transform.elevation : alt };
+  }
+
+  /** A ring where the turn goes around (it stays there on the screen while turning). */
+  function markPivot(x, y) {
+    if (!container) return;
+    if (!pivotMark) {
+      pivotMark = document.createElement('div');
+      pivotMark.style.cssText = 'position:absolute;width:18px;height:18px;margin:-11px 0 0 -11px;border-radius:50%;' +
+        'border:2px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,0.45),inset 0 0 0 2px rgba(0,0,0,0.25);' +
+        'pointer-events:none;z-index:5';
+    }
+    pivotMark.style.left = x + 'px';
+    pivotMark.style.top = y + 'px';
+    container.appendChild(pivotMark);
+  }
+
+  function unmarkPivot() {
+    if (pivotMark && pivotMark.parentNode) pivotMark.parentNode.removeChild(pivotMark);
+  }
+
+  /**
+   * A turning drag of (dx, dy) pixels: the bearing and the tilt change as before, and the whole
+   * camera (its place and the view's middle) swings around the pivot with them, so the pivot stays
+   * where it is on the screen. The tilt stops where the camera would go into the ground.
+   */
+  function orbit3d(dx, dy) {
+    const k = Math.PI / 180, c = map.getCenter(), b = map.getBearing(), p = map.getPitch();
+    const alt0 = map.transform.elevation, turn = -dx * 0.4;
+    let pitch = Math.max(0, Math.min(MAX_PITCH_3D, p - dy * 0.4));
+    if (!pivot) {
+      map.jumpTo({ bearing: b + turn, pitch: pitch, elevation: alt0 });
+      view3d.pitch = pitch;
+      return;
+    }
+    const d = cameraDistance(), cosP = Math.cos(pivot.lat * k);
+    // The view's middle from the pivot, in metres east, north and up.
+    const e0 = (c.lng - pivot.lng) * k * EARTH_R * cosP, n0 = (c.lat - pivot.lat) * k * EARTH_R, u0 = alt0 - pivot.alt;
+    const place = (to) => {
+      let e = e0, n = n0, u = u0;
+      // Tilting: around the line through the pivot across the view (the bearing's right).
+      const phi = (to - p) * k;
+      if (phi) {
+        const bb = b * k, fe = Math.sin(bb), fn = Math.cos(bb), re = Math.cos(bb), rn = -Math.sin(bb);
+        const vr = e * re + n * rn, vf = e * fe + n * fn;
+        const vf2 = vf * Math.cos(phi) - u * Math.sin(phi);
+        u = vf * Math.sin(phi) + u * Math.cos(phi);
+        e = vr * re + vf2 * fe;
+        n = vr * rn + vf2 * fn;
+      }
+      // Turning: around the upright line through the pivot.
+      const t = turn * k, e2 = e * Math.cos(t) + n * Math.sin(t);
+      n = -e * Math.sin(t) + n * Math.cos(t);
+      e = e2;
+      const lat = pivot.lat + n / EARTH_R / k, lng = pivot.lng + e / (EARTH_R * cosP) / k;
+      // The camera, behind the new middle along the new bearing: is it clear of the ground?
+      const nb = (b + turn) * k, back = d * Math.sin(to * k), cosLat = Math.cos(lat * k);
+      const ground = groundAt(lng - back * Math.sin(nb) / (EARTH_R * cosLat) / k, lat - back * Math.cos(nb) / EARTH_R / k);
+      const camera = pivot.alt + u + d * Math.cos(to * k);
+      return {
+        clear: isNaN(ground) || camera >= ground + Math.max(15, d * 0.05),
+        // The same distance from the camera to the middle: the zoom follows the latitude.
+        view: { center: [lng, lat], zoom: map.getZoom() + Math.log2(cosLat / Math.cos(c.lat * k)), bearing: b + turn, pitch: to, elevation: pivot.alt + u },
+      };
+    };
+    let next = place(pitch);
+    if (!next.clear && pitch > p) {
+      pitch = p; // not down into the hill: only the turn
+      next = place(pitch);
+    }
+    map.jumpTo(next.view);
+    view3d.pitch = pitch;
+  }
+
   /**
    * A pinch and twist in 3D around the fingers at (x, y): the place under them stays there. The
    * place is found on the view's plane, not by reading the terrain (that stalls the GPU each time).
@@ -919,7 +1028,7 @@
     try {
       m2 = new maplibregl.Map({
         container: box,
-        style: { version: 8, sources: sources, layers: layers, projection: { type: 'globe' } },
+        style: { version: 8, sources: sources, layers: layers, projection: PROJECTION_3D },
         interactive: false,
         attributionControl: false,
         center: to.center, zoom: to.zoom, bearing: to.bearing, pitch: to.pitch,
@@ -1039,7 +1148,7 @@
     map.setProjection({ type: 'mercator' });
   }
 
-  // A right-button drag turns and tilts the 3D view: no browser menu there.
+  // A right-button drag turns and tilts the 3D view around a place: no browser menu there.
   window.addEventListener('contextmenu', (e) => {
     if (!view3d || !container) return;
     const r = container.getBoundingClientRect();
