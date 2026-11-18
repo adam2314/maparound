@@ -1,6 +1,16 @@
 package app.maparound.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Surface
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.key
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -29,12 +39,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -68,49 +76,73 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
-/** The gear for the app's settings (in the Library's top bar), and its sheet. */
+/** The gear for the app's settings (in the top bar of every screen but the map's), and its screen. */
 @Composable
 fun SettingsButton() {
     var open by remember { mutableStateOf(false) }
     Tip(T.common.settings) { IconButton(onClick = { open = true }) { Icon(Icons.Filled.Settings, contentDescription = T.common.settings) } }
-    if (open) SettingsSheet(onDismiss = { open = false })
+    if (open) SettingsScreen(onDismiss = { open = false })
 }
 
 private enum class SettingsPage { LANGUAGE, UNITS, SCREEN, PARTY, SOURCES }
 
 /**
- * The app's settings in one place: a list (the language, units and formats, the party, the online
- * sources; supporting MapAround), each opening its page; Back goes to the list.
+ * The app's settings in one place, over the whole screen: a list (the language, units and formats,
+ * the screen, the party, the online sources; supporting MapAround), each opening its page. The top
+ * bar's arrow, the phone's Back and the browser's Escape go from a page to the list, and from the
+ * list out. (A full-screen dialog, not a bottom sheet: on Android a sheet's window takes Back for
+ * itself and closed the whole of Settings from a page.)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsSheet(onDismiss: () -> Unit) {
+fun SettingsScreen(onDismiss: () -> Unit) {
     var page by remember { mutableStateOf<SettingsPage?>(null) }
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        PlatformBackHandler(enabled = page != null) { page = null }
-        Column(Modifier.padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
-            when (val p = page) {
-                null -> SettingsList { page = it }
-                else -> {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp)) {
-                        Tip(T.common.back) { IconButton(onClick = { page = null }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = T.common.back) } }
+    val back = { if (page != null) page = null else onDismiss() }
+    Dialog(
+        onDismissRequest = onDismiss,
+        // Back is handled here, a page at a time.
+        properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnBackPress = false),
+    ) {
+        PlatformBackHandler(enabled = true, onBack = back)
+        Surface(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize()) {
+                val p = page
+                TopAppBar(
+                    navigationIcon = {
+                        val label = if (p != null) T.common.back else T.common.close
+                        Tip(label) {
+                            IconButton(onClick = back) {
+                                Icon(if (p != null) Icons.AutoMirrored.Filled.ArrowBack else Icons.Filled.Close, contentDescription = label)
+                            }
+                        }
+                    },
+                    title = {
                         Text(
                             when (p) {
+                                null -> T.common.settings
                                 SettingsPage.LANGUAGE -> T.common.language
                                 SettingsPage.UNITS -> T.settings.unitsAndFormats
                                 SettingsPage.SCREEN -> T.settings.screen
                                 SettingsPage.PARTY -> T.settings.party
                                 SettingsPage.SOURCES -> T.settings.sources
                             },
-                            style = MaterialTheme.typography.titleLarge,
                         )
-                    }
-                    when (p) {
-                        SettingsPage.LANGUAGE -> LanguagePage()
-                        SettingsPage.UNITS -> UnitsPage()
-                        SettingsPage.SCREEN -> ScreenPage()
-                        SettingsPage.PARTY -> PartyPage()
-                        SettingsPage.SOURCES -> SourcesPage()
+                    },
+                    windowInsets = WindowInsets(0, 0, 0, 0),
+                )
+                // Readable on a wide screen: a column down the middle.
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+                    key(p) {
+                        Column(Modifier.widthIn(max = 640.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
+                            when (p) {
+                                null -> SettingsList { page = it }
+                                SettingsPage.LANGUAGE -> LanguagePage()
+                                SettingsPage.UNITS -> UnitsPage()
+                                SettingsPage.SCREEN -> ScreenPage()
+                                SettingsPage.PARTY -> PartyPage()
+                                SettingsPage.SOURCES -> SourcesPage()
+                            }
+                        }
                     }
                 }
             }
@@ -124,7 +156,6 @@ private fun SettingsList(onOpen: (SettingsPage) -> Unit) {
     val party = LocalParty.current
     val s by party.state.collectAsState()
     val choice by LocalPrefs.current.language.collectAsState()
-    Text(T.common.settings, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 16.dp))
     Row_(Icons.Filled.Language, T.common.language, if (choice.isEmpty()) "${T.common.deviceLanguage} · ${I18n.language.nativeName}" else I18n.language.nativeName) {
         onOpen(SettingsPage.LANGUAGE)
     }

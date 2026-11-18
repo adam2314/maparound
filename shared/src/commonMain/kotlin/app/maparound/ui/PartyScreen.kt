@@ -136,6 +136,7 @@ fun PartyScreen(
                 if (s.party != null && !party.watchOnly) {
                     Tip(T.party.invite) { IconButton(onClick = { showQr = true }) { Icon(Icons.Filled.QrCode, contentDescription = T.party.invite) } }
                 }
+                SettingsButton()
             },
             windowInsets = WindowInsets(0, 0, 0, 0),
         )

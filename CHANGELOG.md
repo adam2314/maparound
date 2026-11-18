@@ -3,13 +3,17 @@
 ## 0.5.4 (not released yet)
 
 ### Settings: one place
+- **Settings is a screen of its own**, from the gear at the top of every screen but the map
+  (Library, Party, Offline, Sensors). Each page has its back arrow, and the phone's Back goes from a
+  page (Language, say) to the Settings list, then out: as a bottom sheet, Back closed the whole of
+  Settings on Android.
 - **Units & formats.** Distance (km, miles or nautical miles; feet or metres close by), height
   (metres or feet), speed, direction (compass points, degrees, both, or mils), time (24 or 12
   hours) and date order (17 Nov 2026, Nov 17 2026, 2026-11-17), plus coordinates. Quick choices:
   Automatic, Metric, Imperial, Nautical. Automatic follows the device's region and clock; the
   region counts only where the time zone agrees, so an "English (US)" phone in Israel stays metric.
   They apply on the map's cards, the party, the tools, Library, Speed, the satellites screen, the
-  scale bar (the chosen units on top), charts, the car screen, and navigation's spoken instructions
+  scale line (in the chosen unit only), charts, the car screen, and navigation's spoken instructions
   ("In 350 feet").
 - **How long the screen stays on**, with the app open and while navigating: the phone's own setting,
   2, 5, 10 or 30 minutes after the last touch, or always on. As before until changed: the phone's
@@ -84,8 +88,8 @@
 
 ### The map
 - **The scale is a line in the corner again**, as before the zoom slider: in the top corner away
-  from the buttons, a round distance above the line and another below it (the chosen units'
-  first), each with its tick, black on a white halo. The zoom slider keeps a plain thumb. The
+  from the buttons, one round distance above the line, in the distance unit chosen only (km and
+  m; miles, and feet close in; nautical miles), with a tick at each end, black on a white halo. The zoom slider keeps a plain thumb. The
   compass (Android's, and the 3D view's) sits under the scale. On Android, iPhone and the web, in
   2D and 3D.
 

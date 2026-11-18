@@ -496,8 +496,9 @@ including the desktop head unit. Navigation has been tried in a car with Android
 ## Languages: English and Hebrew
 
 The app speaks English and **Hebrew (עברית)**, right to left. It follows the device's language
-when it speaks it (Android's per-app language setting too); **Settings** (the gear in the
-Library) chooses: the device's language, English or עברית. The language changes at once.
+when it speaks it (Android's per-app language setting too); **Settings** (the gear at the top of
+every screen but the map: Library, Party, Offline, Sensors) chooses: the device's language,
+English or עברית. The language changes at once.
 
 **Settings** is the one place for the rest too:
 

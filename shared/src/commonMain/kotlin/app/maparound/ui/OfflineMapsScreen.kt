@@ -265,6 +265,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                 Tip(T.offline.importAnyMapFile) { IconButton(onClick = { importLauncher() }) {
                     Icon(Icons.Filled.FileOpen, contentDescription = T.offline.importAnyMapFile)
                 } }
+                SettingsButton()
             },
             windowInsets = WindowInsets(0, 0, 0, 0),
         )

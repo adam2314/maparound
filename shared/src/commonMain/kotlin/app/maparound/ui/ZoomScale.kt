@@ -52,6 +52,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.maparound.i18n.T
 import app.maparound.i18n.ltr
+import app.maparound.i18n.UnitSystem
+import app.maparound.i18n.HeightUnit
 import app.maparound.map.ZoomTarget
 import kotlin.math.floor
 import kotlin.math.log10
@@ -62,8 +64,8 @@ import kotlinx.coroutines.delay
 /** How long the scale line may be, at most. */
 private val SCALE_MAX = 100.dp
 
-/** The scale line's height: a label above the line, the line, a label below. */
-val SCALE_HEIGHT = 40.dp
+/** The scale line's height: its label, and the line under it. */
+val SCALE_HEIGHT = 30.dp
 
 /** The track's height between the + and − buttons. */
 private val TRACK = 150.dp
@@ -147,10 +149,9 @@ fun ZoomScale(map: ZoomTarget, modifier: Modifier = Modifier, bottomLimit: Float
 }
 
 /**
- * The map's scale as a line in its corner (the side away from the buttons), as mapsforge's: a round
- * distance above the line and another below it, each with its tick where it ends, as long as it is
- * on the map at the view's middle; the chosen units' system first (metric above, else miles and
- * feet), black on a white halo so it reads on any map.
+ * The map's scale as a line in its corner (the side away from the buttons): a round distance in the
+ * distance unit chosen (Settings → Units & formats) above a line as long as it is on the map at the
+ * view's middle, with a tick at each end; black on a white halo so it reads on any map.
  */
 @Composable
 fun ScaleLine(map: ZoomTarget, modifier: Modifier = Modifier) {
@@ -162,32 +163,41 @@ fun ScaleLine(map: ZoomTarget, modifier: Modifier = Modifier) {
         }
     }
     if (!(metresPerDp > 0) || metresPerDp.isInfinite()) return
-    val maxM = metresPerDp * SCALE_MAX.value
-    val metres = nice(maxM)
-    val feet = maxM / 0.3048
-    val imperial = if (feet >= 5280) nice(feet / 5280) * 1609.344 else nice(feet) * 0.3048
-    val metricFirst = Units.current.distance == DistanceUnit.METRIC
-    val (top, topLabel) = if (metricFirst) metres to metricLabel(metres) else imperial to imperialLabel(imperial)
-    val (bottom, bottomLabel) = if (metricFirst) imperial to imperialLabel(imperial) else metres to metricLabel(metres)
-    val wTop = (top / metresPerDp).toFloat().coerceAtMost(SCALE_MAX.value)
-    val wBottom = (bottom / metresPerDp).toFloat().coerceAtMost(SCALE_MAX.value)
+    val (length, label) = scaleLength(metresPerDp * SCALE_MAX.value)
+    val w = (length / metresPerDp).toFloat().coerceAtMost(SCALE_MAX.value)
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     Box(modifier.size(SCALE_MAX + 8.dp, SCALE_HEIGHT)) {
         Canvas(Modifier.matchParentSize()) {
             val start = 3.dp.toPx()
-            val mid = size.height / 2
+            val base = size.height - 4.dp.toPx()
             val tick = 8.dp.toPx()
             // From the corner's side: the right in a right-to-left language.
             fun x(dp: Float) = if (rtl) size.width - start - dp.dp.toPx() else start + dp.dp.toPx()
             for ((color, width) in listOf(Color.White to 5.dp.toPx(), Color.Black to 2.dp.toPx())) {
-                drawLine(color, Offset(x(0f), mid), Offset(x(maxOf(wTop, wBottom)), mid), width, StrokeCap.Square)
-                drawLine(color, Offset(x(0f), mid - tick), Offset(x(0f), mid + tick), width, StrokeCap.Square)
-                drawLine(color, Offset(x(wTop), mid), Offset(x(wTop), mid - tick), width, StrokeCap.Square)
-                drawLine(color, Offset(x(wBottom), mid), Offset(x(wBottom), mid + tick), width, StrokeCap.Square)
+                drawLine(color, Offset(x(0f), base), Offset(x(w), base), width, StrokeCap.Square)
+                drawLine(color, Offset(x(0f), base), Offset(x(0f), base - tick), width, StrokeCap.Square)
+                drawLine(color, Offset(x(w), base), Offset(x(w), base - tick), width, StrokeCap.Square)
             }
         }
-        HaloText(topLabel, Modifier.align(Alignment.TopStart).padding(start = 8.dp))
-        HaloText(bottomLabel, Modifier.align(Alignment.BottomStart).padding(start = 8.dp))
+        HaloText(label, Modifier.align(Alignment.TopStart).padding(start = 8.dp))
+    }
+}
+
+/**
+ * The scale's length (metres) and label for a line of at most [maxM] metres, a round number in the
+ * distance unit chosen: metres and km; miles, below a fifth of a mile feet (or metres, where heights
+ * are in metres); nautical miles, below a tenth of one the same.
+ */
+internal fun scaleLength(maxM: Double, units: UnitSystem = Units.current): Pair<Double, String> {
+    fun short(): Pair<Double, String> =
+        if (units.height == HeightUnit.FT) nice(maxM / Fmt.FOOT_M).let { it * Fmt.FOOT_M to "${amount(it)} ${T.common.unitFt}" }
+        else nice(maxM).let { it to metricLabel(it) }
+    return when (units.distance) {
+        DistanceUnit.METRIC -> nice(maxM).let { it to metricLabel(it) }
+        DistanceUnit.IMPERIAL ->
+            if (maxM >= 0.2 * Fmt.MILE_M) nice(maxM / Fmt.MILE_M).let { it * Fmt.MILE_M to "${amount(it)} ${T.common.unitMi}" } else short()
+        DistanceUnit.NAUTICAL ->
+            if (maxM >= 0.1 * Fmt.NAUTICAL_MILE_M) nice(maxM / Fmt.NAUTICAL_MILE_M).let { it * Fmt.NAUTICAL_MILE_M to "${amount(it)} ${T.common.unitNm}" } else short()
     }
 }
 
@@ -216,11 +226,6 @@ internal fun nice(v: Double): Double {
 
 internal fun metricLabel(m: Double): String =
     if (m >= 1000) "${amount(m / 1000)} ${T.common.unitKm}" else "${amount(m)} ${T.common.unitM}"
-
-internal fun imperialLabel(m: Double): String {
-    val feet = m / 0.3048
-    return if (feet >= 5280 * 0.99) "${amount(m / 1609.344)} ${T.common.unitMi}" else "${amount(feet)} ${T.common.unitFt}"
-}
 
 private fun amount(v: Double): String =
     if (v >= 1 || v == 0.0) v.roundToInt().toString() else ((v * 10).roundToInt() / 10.0).toString()
