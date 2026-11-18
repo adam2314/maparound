@@ -68,6 +68,10 @@ android {
 val mapsforgeVersion = "0.25.0"
 
 dependencies {
+    // A paired Wear OS watch (docs/WATCH_PLAN.md): Google's watch link, with coroutines.
+    implementation("com.google.android.gms:play-services-wearable:19.0.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
+
     // Jetpack / Compose
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.9.3")

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MapAround's Wear OS app (docs/WATCH_PLAN.md): shows and controls the phone's navigation and
+     recording over Google's watch link. It needs the phone app (not standalone, for now). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-feature android:name="android.hardware.type.watch" />
+
+    <application
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.DeviceDefault">
+
+        <uses-library android:name="com.google.android.wearable" android:required="false" />
+
+        <meta-data android:name="com.google.android.wearable.standalone" android:value="false" />
+
+        <activity
+            android:name=".WearActivity"
+            android:exported="true"
+            android:taskAffinity="">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

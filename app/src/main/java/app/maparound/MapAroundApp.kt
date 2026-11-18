@@ -43,6 +43,8 @@ class MapAroundApp : Application() {
     override fun onCreate() {
         super.onCreate()
         AppGraph.init(this)
+        // A paired watch follows navigation and recording.
+        app.maparound.watch.PhoneWatchLink.start(this)
     }
 }
 

@@ -63,6 +63,29 @@ not ongoing) and by unit tests; **still to check on a paired watch**, Wear OS em
 
 ## Phase 2: the Wear OS app, without a map
 
+**Slice 1, built (2026-11-18):**
+- `wear/`: the watch app (Compose for Wear OS 1.4, Wear OS 3+), the phone app's id, its own
+  version numbers (phone 10 → watch 100010), built in CI beside the phone's.
+- `shared/.../watch/WatchProtocol.kt`: what the phone sends (navigation and recording, already in
+  its language and units) and the watch's commands (stop navigating, start or stop recording), as
+  small JSON; unit-tested (`WatchProtocolTest`).
+- Phone: `PhoneWatchLink` (started with the app) puts the state in a data item when it changes,
+  at most once a second, urgently while navigating; `PhoneWatchService` does the watch's commands;
+  the phone says it has the `maparound_phone` capability. Nothing happens without Google Play
+  services.
+- Watch: one screen (`WearActivity`): navigating, the next turn's arrow (the phone's `TurnIcon`),
+  its distance large, the instruction, distance left and arrival, recording if it is, Stop; else
+  the recording (its time counted on the watch, distance, climb, Stop & save); else "Open MapAround
+  on your phone" and Record. In the phone's language, right to left in Hebrew.
+- Checked on a Wear OS 5 emulator (round, 454×454) with sample states (`--es demo nav|nav-he|rec`).
+  **Not yet checked: the phone and the watch together.** Pairing emulators needs a phone image with
+  Google Play and a Google account; to try on a real phone and watch.
+- Known limit: starting a recording from the watch while MapAround is in the background on the
+  phone may be refused by Android (starting location work from the background); stopping works.
+
+**Next slices:** the tile and the watch-face (Ongoing Activity) while navigating; the route view;
+the party (members, SOS) and the compass to a point; the complication.
+
 A `wear/` module in this repo: the same package (`app.maparound`), Wear OS 3 and later
 (API 30+), Compose for Wear OS. It reuses `:shared` (geo math, GPX, the party's protocol, texts in
 English and Hebrew); R8 drops what the watch doesn't use.

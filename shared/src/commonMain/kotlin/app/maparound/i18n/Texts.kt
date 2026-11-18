@@ -22,15 +22,16 @@ class Texts(
     val stats: StatsTexts,
     val settings: SettingsTexts,
     val live: LiveTexts,
+    val watch: WatchTexts,
 ) {
     companion object {
         val English = Texts(
             CommonTexts(), MapTexts(), OfflineTexts(), PartyTexts(), ToolsTexts(), LibraryTexts(), SensorTexts(),
-            NavTexts(), PoiTexts(), LegendTexts(), StatsTexts(), SettingsTexts(), LiveTexts(),
+            NavTexts(), PoiTexts(), LegendTexts(), StatsTexts(), SettingsTexts(), LiveTexts(), WatchTexts(),
         )
         val Hebrew = Texts(
             CommonTextsHe, MapTextsHe, OfflineTextsHe, PartyTextsHe, ToolsTextsHe, LibraryTextsHe, SensorTextsHe,
-            NavTextsHe, PoiTextsHe, LegendTextsHe, StatsTextsHe, SettingsTextsHe, LiveTextsHe,
+            NavTextsHe, PoiTextsHe, LegendTextsHe, StatsTextsHe, SettingsTextsHe, LiveTextsHe, WatchTextsHe,
         )
     }
 }
