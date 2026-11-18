@@ -51,14 +51,21 @@ import app.maparound.i18n.T
 import app.maparound.routing.Turn
 import app.maparound.ui.TurnIcon
 import app.maparound.watch.WatchCommand
+import app.maparound.routing.GeoPoint
+import app.maparound.watch.WatchRoute
 import app.maparound.watch.WatchState
+import androidx.compose.foundation.background
+import androidx.compose.material.icons.filled.Route
+import androidx.compose.runtime.mutableStateOf
+import androidx.wear.compose.material.SwipeToDismissBox
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
  * The watch app's one screen: the phone's navigation (the next turn, big), else its recording (or
- * a way to start one), else how to get going. Launched with `--es demo nav|nav-he|rec`, it shows a
- * sample (for trying it on an emulator without a paired phone).
+ * a way to start one), else how to get going; the route view from there. Launched with
+ * `--es demo nav|nav-he|rec` it shows a sample (for trying it on an emulator without a paired
+ * phone), and with `--es open route` it opens on the route view.
  */
 class WearActivity : ComponentActivity() {
     private val link by lazy { PhoneLink(this) }
@@ -67,7 +74,11 @@ class WearActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val demo = Demo.of(intent?.getStringExtra("demo"))
         // A sample goes where the phone's state goes, so the tile and the watch face show it too.
-        if (intent?.hasExtra("demo") == true) WatchStore.update(this, demo)
+        if (intent?.hasExtra("demo") == true) {
+            WatchStore.update(this, demo)
+            WatchStore.updateRoute(this, Demo.route.takeIf { demo?.nav != null })
+        }
+        val openRoute = intent?.getStringExtra("open") == "route"
         if (android.os.Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
         ) {
@@ -76,7 +87,8 @@ class WearActivity : ComponentActivity() {
         WatchStore.current(this)
         setContent {
             val state by WatchStore.state.collectAsState()
-            WearApp(state) { command ->
+            val route by WatchStore.route.collectAsState()
+            WearApp(state, route, openRoute) { command ->
                 if (demo != null) return@WearApp
                 lifecycleScope.launch {
                     if (!link.send(command)) Toast.makeText(this@WearActivity, T.watch.phoneNotReachable, Toast.LENGTH_SHORT).show()
@@ -99,11 +111,28 @@ class WearActivity : ComponentActivity() {
 }
 
 @Composable
-fun WearApp(state: WatchState?, onCommand: (WatchCommand) -> Unit) {
+fun WearApp(state: WatchState?, route: WatchRoute?, openRoute: Boolean = false, onCommand: (WatchCommand) -> Unit) {
     // The phone's language (and its direction): the words come from the phone app's texts.
     remember(state?.language) { I18n.apply(state?.language.orEmpty()) }
+    // And its units, for what the watch measures itself.
+    remember(state?.distanceUnit, state?.heightUnit) {
+        app.maparound.i18n.Units.set(
+            app.maparound.i18n.UnitSystem(
+                distance = state?.distanceUnit ?: app.maparound.i18n.DistanceUnit.METRIC,
+                height = state?.heightUnit ?: app.maparound.i18n.HeightUnit.M,
+            ),
+        )
+    }
+    var showRoute by remember { mutableStateOf(openRoute) }
     CompositionLocalProvider(LocalLayoutDirection provides if (I18n.rtl) LayoutDirection.Rtl else LayoutDirection.Ltr) {
         MaterialTheme {
+            // The route view over the rest; a swipe goes back.
+            if (showRoute && route != null && state?.nav != null) {
+                SwipeToDismissBox(onDismissed = { showRoute = false }) { background ->
+                    if (background) Box(Modifier.fillMaxSize().background(Color.Black)) else RouteView(route, state.nav)
+                }
+                return@MaterialTheme
+            }
             val list = rememberScalingLazyListState()
             Scaffold(
                 timeText = { TimeText() },
@@ -135,6 +164,7 @@ fun WearApp(state: WatchState?, onCommand: (WatchCommand) -> Unit) {
                                 Text(more, style = MaterialTheme.typography.caption2, color = MaterialTheme.colors.onSurfaceVariant, textAlign = TextAlign.Center)
                             }
                             if (rec != null) item { RecordingLine(rec) }
+                            if (route != null) item { Action(T.watch.route, Icons.Filled.Route) { showRoute = true } }
                             item { Action(T.nav.stopNavigation, Icons.Filled.Stop) { onCommand(WatchCommand.STOP_NAVIGATION) } }
                         }
                         rec != null -> {
@@ -232,4 +262,14 @@ private object Demo {
         "idle" -> WatchState("en")
         else -> null
     }
+
+    /** Along the sea in Tel Aviv: north, a left turn inland, north again to the end. */
+    val route = WatchRoute(
+        points = listOf(
+            GeoPoint(32.0800, 34.7690), GeoPoint(32.0830, 34.7700), GeoPoint(32.0860, 34.7712), GeoPoint(32.0885, 34.7722),
+            GeoPoint(32.0890, 34.7760), GeoPoint(32.0895, 34.7800), GeoPoint(32.0930, 34.7810), GeoPoint(32.0960, 34.7818),
+        ),
+        turns = listOf(GeoPoint(32.0885, 34.7722), GeoPoint(32.0895, 34.7800)),
+        stops = listOf(GeoPoint(32.0960, 34.7818)),
+    )
 }

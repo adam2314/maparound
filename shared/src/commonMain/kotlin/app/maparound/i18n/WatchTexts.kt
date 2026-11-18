@@ -6,6 +6,7 @@ open class WatchTexts {
     open val openOnPhoneNote = "Navigation and recording on the phone show here, and can be stopped from here."
     open val phoneNotReachable = "Can't reach the phone"
     open val recording = "Recording"
+    open val route = "Route"
 }
 
 object WatchTextsHe : WatchTexts() {
@@ -13,4 +14,5 @@ object WatchTextsHe : WatchTexts() {
     override val openOnPhoneNote = "ניווט והקלטה בטלפון מוצגים כאן, ואפשר לעצור אותם מכאן."
     override val phoneNotReachable = "אין קשר עם הטלפון"
     override val recording = "מקליט"
+    override val route = "מסלול"
 }

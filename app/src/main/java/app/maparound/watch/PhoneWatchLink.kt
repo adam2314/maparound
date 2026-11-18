@@ -21,6 +21,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
@@ -49,13 +50,25 @@ object PhoneWatchLink {
                     delay(SEND_GAP_MS)
                 }
         }
+        // The route once a route (a new one after recalculating), for the watch's route view.
+        scope.launch {
+            NavigationSession.state
+                // Thinned again only for a new route, not at every fix.
+                .distinctUntilChanged { a, b -> a.active == b.active && a.route === b.route && a.maneuvers === b.maneuvers }
+                .map { WatchProtocol.routeOf(it) }
+                .distinctUntilChanged()
+                .collect { r -> put(data, WatchProtocol.ROUTE_PATH, WatchProtocol.encodeRoute(r), urgent = r != null) }
+        }
     }
 
-    private suspend fun publish(data: DataClient, s: WatchState) {
-        val request = PutDataMapRequest.create(WatchProtocol.STATE_PATH).apply {
-            dataMap.putByteArray(WatchProtocol.STATE_KEY, WatchProtocol.encode(s))
+    private suspend fun publish(data: DataClient, s: WatchState) =
+        put(data, WatchProtocol.STATE_PATH, WatchProtocol.encode(s), urgent = s.nav != null)
+
+    private suspend fun put(data: DataClient, path: String, bytes: ByteArray, urgent: Boolean) {
+        val request = PutDataMapRequest.create(path).apply {
+            dataMap.putByteArray(WatchProtocol.STATE_KEY, bytes)
         }.asPutDataRequest()
-        if (s.nav != null) request.setUrgent()
+        if (urgent) request.setUrgent()
         try {
             data.putDataItem(request).await()
         } catch (e: CancellationException) {

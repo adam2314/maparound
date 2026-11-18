@@ -8,8 +8,10 @@
   distance and climb, with Stop & save; or Record. It follows the phone over Google's watch link, in
   the phone's language (Hebrew right to left). A **tile** (swipe from the watch face) shows the
   next turn or the recording, and while either goes on the app's icon is on the **watch face** with
-  the turn, or the recording's ticking time and distance. Not yet tried with a real phone and watch
-  together.
+  the turn, or the recording's ticking time and distance. **Route** shows the route around you
+  without a map: its line, turns and stops, and you as an arrow (from the watch's own location),
+  north up or the way you go, zoomed with the crown, with the next turn and a scale. Not yet tried
+  with a real phone and watch together.
 - **Turn alerts on any watch.** While navigating with MapAround in the background, each
   instruction ("In 180 metres, turn left", off the route, arrived) is also a short notification that
   vibrates, so a watch that mirrors the phone's notifications buzzes at each turn: Wear OS, Galaxy

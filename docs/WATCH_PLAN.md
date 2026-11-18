@@ -97,8 +97,19 @@ not ongoing) and by unit tests; **still to check on a paired watch**, Wear OS em
 - Checked on the Wear OS 5 emulator with the samples: the tile (navigating, recording) and the
   watch's notification.
 
-**Next slices:** the route view; the party (members, SOS) and the compass to a point; the
-complication.
+**Slice 3, built (2026-11-18): the route view.**
+- The phone sends the route once a route (a data item of its own, `ROUTE_PATH`): thinned by
+  Douglas–Peucker until it has at most 600 points (a few kB), with its turns and stops; again only
+  when the route changes (recalculated), not at every fix.
+- The watch draws it around **its own location** (Google's fused location: the watch's GPS, or the
+  phone's through it, every 2 s while shown): the route, its turns (white dots) and stops (orange),
+  you as an arrow the way you go; north up or the way you go up (the button); the crown zooms; the
+  next turn at the top; a scale in the phone's units (sent with the state). "Route" on the
+  navigation screen opens it, a swipe goes back.
+- Checked on the emulator with a sample route in Tel Aviv and a GPS position on it, in English and
+  Hebrew.
+
+**Next slices:** the party (members, SOS) and the compass to a point; the complication.
 
 A `wear/` module in this repo: the same package (`app.maparound`), Wear OS 3 and later
 (API 30+), Compose for Wear OS. It reuses `:shared` (geo math, GPX, the party's protocol, texts in

@@ -80,6 +80,8 @@ dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.concurrent:concurrent-futures:1.2.0")
     implementation("com.google.guava:listenablefuture:1.0")
+    // Where you are, for the route view (the watch's GPS, or the phone's through it).
+    implementation("com.google.android.gms:play-services-location:21.3.0")
     // Google's watch link, with coroutines.
     implementation("com.google.android.gms:play-services-wearable:19.0.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")

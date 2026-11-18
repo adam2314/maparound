@@ -27,11 +27,13 @@ class PhoneLink(context: Context) : DataClient.OnDataChangedListener {
     suspend fun listen() {
         data.addListener(this)
         try {
-            val items = data.getDataItems(Uri.parse("wear://*${WatchProtocol.STATE_PATH}")).await()
-            try {
-                items.lastOrNull()?.let(::read)
-            } finally {
-                items.release()
+            for (path in listOf(WatchProtocol.STATE_PATH, WatchProtocol.ROUTE_PATH)) {
+                val items = data.getDataItems(Uri.parse("wear://*" + path)).await()
+                try {
+                    items.lastOrNull()?.let(::read)
+                } finally {
+                    items.release()
+                }
             }
         } catch (e: CancellationException) {
             throw e
@@ -46,13 +48,16 @@ class PhoneLink(context: Context) : DataClient.OnDataChangedListener {
 
     override fun onDataChanged(events: DataEventBuffer) {
         for (e in events) {
-            if (e.type == DataEvent.TYPE_CHANGED && e.dataItem.uri.path == WatchProtocol.STATE_PATH) read(e.dataItem)
+            if (e.type == DataEvent.TYPE_CHANGED) read(e.dataItem)
         }
     }
 
     private fun read(item: DataItem) {
         val bytes = DataMapItem.fromDataItem(item).dataMap.getByteArray(WatchProtocol.STATE_KEY) ?: return
-        WatchProtocol.decode(bytes)?.let { WatchStore.update(app, it) }
+        when (item.uri.path) {
+            WatchProtocol.STATE_PATH -> WatchProtocol.decode(bytes)?.let { WatchStore.update(app, it) }
+            WatchProtocol.ROUTE_PATH -> WatchStore.updateRoute(app, WatchProtocol.decodeRoute(bytes))
+        }
     }
 
     /** Sends [command] to the phone app; false when no phone with it is in reach. */

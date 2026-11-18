@@ -13,9 +13,12 @@ import com.google.android.gms.wearable.WearableListenerService
 class WatchDataService : WearableListenerService() {
     override fun onDataChanged(events: DataEventBuffer) {
         for (e in events) {
-            if (e.type != DataEvent.TYPE_CHANGED || e.dataItem.uri.path != WatchProtocol.STATE_PATH) continue
+            if (e.type != DataEvent.TYPE_CHANGED) continue
             val bytes = DataMapItem.fromDataItem(e.dataItem).dataMap.getByteArray(WatchProtocol.STATE_KEY) ?: continue
-            WatchProtocol.decode(bytes)?.let { WatchStore.update(this, it) }
+            when (e.dataItem.uri.path) {
+                WatchProtocol.STATE_PATH -> WatchProtocol.decode(bytes)?.let { WatchStore.update(this, it) }
+                WatchProtocol.ROUTE_PATH -> WatchStore.updateRoute(this, WatchProtocol.decodeRoute(bytes))
+            }
         }
     }
 }

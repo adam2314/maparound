@@ -188,7 +188,7 @@ fun ScaleLine(map: ZoomTarget, modifier: Modifier = Modifier) {
  * distance unit chosen: metres and km; miles, below a fifth of a mile feet (or metres, where heights
  * are in metres); nautical miles, below a tenth of one the same.
  */
-internal fun scaleLength(maxM: Double, units: UnitSystem = Units.current): Pair<Double, String> {
+fun scaleLength(maxM: Double, units: UnitSystem = Units.current): Pair<Double, String> {
     fun short(): Pair<Double, String> =
         if (units.height == HeightUnit.FT) nice(maxM / Fmt.FOOT_M).let { it * Fmt.FOOT_M to "${amount(it)} ${T.common.unitFt}" }
         else nice(maxM).let { it to metricLabel(it) }

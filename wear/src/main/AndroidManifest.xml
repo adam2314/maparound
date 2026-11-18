@@ -8,6 +8,10 @@
     <!-- The Ongoing Activity (navigating, recording) is a notification on the watch. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- The route view shows where you are: the watch's own location (or the phone's, through it). -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <application
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -36,6 +40,7 @@
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
                 <data android:scheme="wear" android:host="*" android:path="/maparound/state" />
+                <data android:scheme="wear" android:host="*" android:path="/maparound/route" />
             </intent-filter>
         </service>
 
