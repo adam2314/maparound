@@ -36,9 +36,17 @@ notifications except ongoing ones; to confirm on a paired watch emulator):
 | Party SOS, joins, messages | no | yes |
 | Downloads | yes | no (fine) |
 
-## Phase 1: turn alerts on any watch (phone code only)
+## Phase 1: turn alerts on any watch (phone code only): done (2026-11-18)
 
 Every watch that mirrors notifications buzzes at each turn, with no watch app.
+
+**As built:** `NavigationSession.announcements` gives every instruction (whether the voice is on or
+not); `NavigationService` posts each as notification 46 on the "Turn alerts" channel (vibration, no
+sound, importance default: no pop-up over other apps), not ongoing, auto-cancelled, gone after a
+minute, with Stop navigation; skipped while one of MapAround's screens is in front. No setting of
+its own: the channel is turned off in Android's settings like any other. Checked on the phone
+emulator (navigating in the background, off the route: "In 180 metres, turn left · 4.6 km left",
+not ongoing) and by unit tests; **still to check on a paired watch**, Wear OS emulator or real.
 
 - **What:** a short, ordinary (not ongoing) notification at the moments navigation already speaks
   its instructions: "In 200 m, left onto Derech HaShalom", then "Turn left now". Each replaces the

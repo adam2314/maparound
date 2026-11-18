@@ -2,6 +2,15 @@
 
 ## 0.5.4 (not released yet)
 
+### Navigation on a watch
+- **Turn alerts on any watch.** While navigating with MapAround in the background, each
+  instruction ("In 180 metres, turn left", off the route, arrived) is also a short notification that
+  vibrates, so a watch that mirrors the phone's notifications buzzes at each turn: Wear OS, Galaxy
+  Watch, Garmin, Suunto, Amazfit and others, with no watch app. Also with the voice off, for quiet
+  hikes. Each replaces the one before and goes after a minute; "Turn alerts" can be turned off in
+  Android's notification settings for MapAround. (The next-turn notification itself is ongoing,
+  and watches don't show those.)
+
 ### Settings: one place
 - **Settings is a screen of its own**, from the gear at the top of every screen but the map
   (Library, Party, Offline, Sensors). Each page has its back arrow, and the phone's Back goes from a

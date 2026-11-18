@@ -152,6 +152,8 @@ open class NavTexts {
     open fun arrivalInLine(time: String) = "arrival $time"
     open val channelName = "Navigation"
     open val channelDescription = "The next turn, shown while MapAround navigates"
+    open val alertChannelName = "Turn alerts"
+    open val alertChannelDescription = "Each instruction as a short notification while navigating, so a watch buzzes at turns. Not while MapAround is on screen."
 
     // ---- Android Auto ----
 
@@ -284,6 +286,8 @@ object NavTextsHe : NavTexts() {
     override fun arrivalInLine(time: String) = "הגעה ב־$time"
     override val channelName = "ניווט"
     override val channelDescription = "הפנייה הבאה, בזמן ניווט ב־MapAround"
+    override val alertChannelName = "התראות פנייה"
+    override val alertChannelDescription = "כל הנחיה כהתראה קצרה בזמן ניווט, כדי ששעון ירטוט בפניות. לא כש־MapAround פתוחה על המסך."
 
     override val destination = "יעד"
     override val mute = "השתקה"

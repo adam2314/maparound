@@ -9,6 +9,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -43,6 +46,13 @@ object NavigationSession {
     }
 
     var speaker: Speaker? = null
+
+    /**
+     * Every instruction navigation gives, as it gives it, whether the voice is on or not: the
+     * platforms show them elsewhere too (Android: a short notification for a watch to buzz with).
+     */
+    private val _announcements = MutableSharedFlow<String>(extraBufferCapacity = 16)
+    val announcements: SharedFlow<String> = _announcements.asSharedFlow()
 
     /** The user's voice setting; set by the platform. */
     var voiceOn: () -> Boolean = { true }
@@ -266,6 +276,7 @@ object NavigationSession {
     }
 
     private fun say(text: String) {
+        _announcements.tryEmit(text)
         if (voiceOn()) speaker?.speak(text)
     }
 

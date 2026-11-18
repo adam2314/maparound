@@ -178,6 +178,7 @@ class NavigationService : Service() {
         }
         running = true
         scope.launch { LocationSource.updates(this@NavigationService).collect { NavigationSession.onFix(it.toGeoFix()) } }
+        scope.launch { NavigationSession.announcements.collect(::alert) }
         scope.launch {
             NavigationSession.state.collect { s ->
                 if (!s.active) finish() else show(s)
@@ -189,6 +190,7 @@ class NavigationService : Service() {
     private fun finish() {
         running = false
         scope.coroutineContext.cancelChildren()
+        NotificationManagerCompat.from(this).cancel(ALERT_ID)
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -226,8 +228,63 @@ class NavigationService : Service() {
         getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(title, text))
     }
 
+    /**
+     * An instruction as a short notification of its own, for a watch: watches show the phone's
+     * notifications but not ongoing ones (the one with the next turn), so this is how one buzzes at
+     * each turn, arriving and leaving the route, also with the voice off. Each replaces the one
+     * before and goes after a minute. Not while MapAround is on screen: the map and the voice say it
+     * there. Turned off like any of the app's notifications (Android settings: "Turn alerts").
+     */
+    private fun alert(text: String) {
+        if (inForeground()) return
+        val n = NotificationCompat.Builder(this, ALERT_CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_navigation)
+            .setContentTitle(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setContentText(NavigationSession.state.value.progress?.takeIf { !it.arrived }?.let { T.nav.distanceLeft(Fmt.distance(it.remainingM.toFloat())) })
+            .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setVibrate(ALERT_VIBRATION)
+            .setAutoCancel(true)
+            .setTimeoutAfter(ALERT_TIMEOUT_MS)
+            .setContentIntent(openApp())
+            .addAction(0, T.nav.stopNavigation, stopNavigation())
+            .build()
+        try {
+            NotificationManagerCompat.from(this).notify(ALERT_ID, n)
+        } catch (e: SecurityException) {
+            // Notifications not allowed (Android 13+): nothing to show.
+        }
+    }
+
+    /** Whether one of MapAround's screens is in front (on the phone's screen). */
+    private fun inForeground(): Boolean {
+        val info = android.app.ActivityManager.RunningAppProcessInfo()
+        android.app.ActivityManager.getMyMemoryState(info)
+        return info.importance <= android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+    }
+
+    private fun openApp() = PendingIntent.getActivity(
+        this, 0, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+        PendingIntent.FLAG_IMMUTABLE,
+    )
+
+    private fun stopNavigation() = PendingIntent.getService(
+        this, 2, Intent(this, NavigationService::class.java).setAction(ACTION_STOP),
+        PendingIntent.FLAG_IMMUTABLE,
+    )
+
     private fun createChannel() {
         val nm = getSystemService(NotificationManager::class.java)
+        // Turn alerts: vibration, no sound (the voice speaks), no pop-up over another app's screen.
+        nm.createNotificationChannel(
+            NotificationChannel(ALERT_CHANNEL, T.nav.alertChannelName, NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = T.nav.alertChannelDescription
+                setSound(null, null)
+                enableVibration(true)
+                vibrationPattern = ALERT_VIBRATION
+            },
+        )
         // Also when it exists: that renames it, so its name follows the app's language.
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL, T.nav.channelName, NotificationManager.IMPORTANCE_LOW).apply {
@@ -237,14 +294,8 @@ class NavigationService : Service() {
     }
 
     private fun notification(title: String, text: String): Notification {
-        val open = PendingIntent.getActivity(
-            this, 0, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
-            PendingIntent.FLAG_IMMUTABLE,
-        )
-        val stop = PendingIntent.getService(
-            this, 2, Intent(this, NavigationService::class.java).setAction(ACTION_STOP),
-            PendingIntent.FLAG_IMMUTABLE,
-        )
+        val open = openApp()
+        val stop = stopNavigation()
         // On Android Auto too: the next turn as a card while another app is on the car screen (shown
         // once as a heads-up when navigation starts); a tap opens MapAround there, in navigation.
         // An app can't put itself on the car screen; this is how the driver gets there in one tap.
@@ -277,6 +328,12 @@ class NavigationService : Service() {
         private const val ACTION_STOP = "app.maparound.navigation.STOP"
         private const val CHANNEL = "navigation"
         private const val NOTIFICATION_ID = 44
+
+        /** Turn alerts (for watches): their channel, notification, how long one stays, its buzz. */
+        private const val ALERT_CHANNEL = "turn_alerts"
+        private const val ALERT_ID = 46
+        private const val ALERT_TIMEOUT_MS = 60_000L
+        private val ALERT_VIBRATION = longArrayOf(0, 180, 120, 180)
 
         /** Starts the service if Android allows it now (it does while the app or the car screen is in use). */
         fun start(context: Context) {

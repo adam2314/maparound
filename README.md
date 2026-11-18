@@ -161,6 +161,12 @@ on Windows, prefix the commands with `MSYS_NO_PATHCONV=1`.
   15 s. A foreground service (`NavigationService`) keeps the fixes coming with the screen off and
   shows the next turn in its notification; the voice is Android's TextToSpeech, as navigation
   guidance (music ducks). Navigation ends two minutes after you arrive.
+  **On a watch:** every instruction (`NavigationSession.announcements`, also with the voice off) is
+  posted as a short notification of its own, "Turn alerts", while MapAround isn't on screen: watches
+  show the phone's notifications but not ongoing ones such as the next-turn one, so this makes any
+  watch that mirrors notifications (Wear OS, Galaxy Watch, Garmin, Suunto, Amazfit…) buzz at each
+  turn, on leaving the route and on arriving. It vibrates (no sound), replaces the one before, goes
+  after a minute, and is turned off like any notification category in Android's settings.
   **Navigate** on a route in Library: a planned route is calculated again along its stops (its
   turns); a recorded or imported track (or a route that can't be calculated) is followed as it is
   (`NavigationSession.follow`): its bends of 60° or more after smoothing to 12 m
