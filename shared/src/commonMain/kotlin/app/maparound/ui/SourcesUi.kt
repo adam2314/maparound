@@ -97,7 +97,8 @@ internal fun SourcesPage() {
             SourceKind.RELIEF_3D -> false
             SourceKind.PARTY -> !party.watchOnly
             // Where there's a data view.
-            SourceKind.GPS_TRACES -> app.maparound.stats.LocalStats.current != null
+            SourceKind.GPS_TRACES, SourceKind.RAIN_RADAR, SourceKind.WEATHER, SourceKind.STREET_PHOTOS, SourceKind.BUSES, SourceKind.CAMERAS ->
+                app.maparound.stats.LocalStats.current != null
             else -> true
         }
     }
@@ -117,7 +118,11 @@ internal fun SourcesPage() {
         for (k in kinds) {
             when (k) {
                 SourceKind.STREAMED_MAPS -> OnOff(title(k), T.settings.streamedMapsNote, streamMaps) { prefs.setStreamMaps(it) }
-                SourceKind.WIKIPEDIA -> OnOff(title(k), T.settings.wikipediaNote, !Sources.isOff(k)) {
+                SourceKind.WIKIPEDIA, SourceKind.RAIN_RADAR -> OnOff(
+                    title(k),
+                    if (k == SourceKind.WIKIPEDIA) T.settings.wikipediaNote else T.live.radarSourceNote,
+                    !Sources.isOff(k),
+                ) {
                     prefs.setSource(k, if (it) SourceSetting.Default else SourceSetting.Off)
                 }
                 else -> Line(title(k), now(k, baseLayer, custom, elevation, relief != null, partyServer, regions)) { editing = k }
@@ -159,6 +164,11 @@ private fun title(k: SourceKind): String = when (k) {
     SourceKind.WIKIPEDIA -> T.settings.wikipedia
     SourceKind.PARTY -> T.settings.partyServer
     SourceKind.GPS_TRACES -> T.stats.gpsTraces
+    SourceKind.RAIN_RADAR -> T.live.rainRadar
+    SourceKind.WEATHER -> T.live.weather
+    SourceKind.STREET_PHOTOS -> T.live.streetPhotos
+    SourceKind.BUSES -> T.live.buses
+    SourceKind.CAMERAS -> T.live.camerasLayer
 }
 
 /** A server's name from its address ("brouter.de"). */

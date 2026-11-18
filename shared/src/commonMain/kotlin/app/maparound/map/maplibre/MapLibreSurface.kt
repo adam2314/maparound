@@ -47,7 +47,8 @@ class MapLibreSurface(
     private var lastStyle: String? = null
     private var base: BaseMap? = null
     private var trailOverlay = false
-    private var dataOverlay: OnlineSource? = null
+    private var dataRasters: List<OnlineSource> = emptyList()
+    private var photoTiles: String? = null
 
     init {
         native.setCallbacks(object : NativeMapCallbacks {
@@ -183,7 +184,7 @@ class MapLibreSurface(
     /** The style for what's shown now, applied when it changed. */
     fun rebuild() {
         val b = base
-        applyStyle(styleFor((b as? BaseMap.Offline)?.theme).build(b, tiles, trailOverlay, dataOverlay = dataOverlay))
+        applyStyle(styleFor((b as? BaseMap.Offline)?.theme).build(b, tiles, trailOverlay, dataRasters = dataRasters, photoTiles = photoTiles))
     }
 
     private fun applyStyle(json: String) {
@@ -278,10 +279,15 @@ class MapLibreSurface(
         native.setGeoJson(MapStyle.DATA_ZONES, zones ?: GeoJson.collection(emptyList()))
     }
 
-    override fun setDataOverlay(source: OnlineSource?) {
-        if (source == dataOverlay) return
-        dataOverlay = source
+    override fun setDataTiles(rasters: List<OnlineSource>, photoTiles: String?) {
+        if (rasters == dataRasters && photoTiles == this.photoTiles) return
+        dataRasters = rasters
+        this.photoTiles = photoTiles
         rebuild()
+    }
+
+    override fun setDataPoints(source: String, geoJson: String?) {
+        native.setGeoJson(source, geoJson ?: GeoJson.empty)
     }
 
     override fun setPlaces(places: List<PlaceMarker>) {

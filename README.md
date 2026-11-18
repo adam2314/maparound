@@ -785,7 +785,13 @@ The app's privacy policy (also for the stores) is [docs/privacy.md](docs/privacy
   seas' (from OpenStreetMap data, © OpenStreetMap contributors, ODbL), simplified to about 2 km and
   packed into `webApp/.../resources/timezones.bin` by `tools/timezones/make_timezones.py`; the GPS
   traces are OpenStreetMap's public ones (gps.tile.openstreetmap.org, © OpenStreetMap
-  contributors).
+  contributors). Live layers, read when shown and not kept: the rain radar from
+  [RainViewer](https://www.rainviewer.com) (with credit), the weather from
+  [Open-Meteo](https://open-meteo.com) (CC BY 4.0; its free API is for non-commercial use), street
+  photos from [Panoramax](https://panoramax.fr) (each photo's own licence, mostly CC BY-SA 4.0), and
+  Israel's buses from the Ministry of Transport's real-time feed via the Public Knowledge
+  Workshop's [Open Bus](https://open-bus-stride-api.hasadna.org.il/docs); the cameras are
+  OpenStreetMap's (© OpenStreetMap contributors, ODbL), read through Overpass.
 - **Built-in world map** (Android), drawn at the overview zooms and outside the downloaded maps: [Natural Earth](https://www.naturalearthdata.com) (public domain) at 1:10m: land, minor islands, lakes, rivers, populated places, marine area names and land boundary lines, and the 1:50m countries for country names. Packed into `app/src/main/assets/world.bin` by `tools/world/make_world.py` and `borders.bin` by `tools/borders/make_borders.py`.
 - **Map regions** (which map is made for a place): the outlines of [Geofabrik](https://download.geofabrik.de)'s download regions (from OpenStreetMap data, © OpenStreetMap contributors, ODbL), simplified to about a kilometre and packed into `app/src/main/assets/regions.bin` by `tools/regions/make_regions.py`.
 - **Terrain**: [Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) on AWS Open Data, © Mapzen and its sources (SRTM, GMTED, ETOPO1 and others; see the dataset's attribution page).

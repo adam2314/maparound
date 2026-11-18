@@ -51,8 +51,10 @@ class MapStyle(
         tiles: TileService,
         trailOverlay: Boolean = false,
         forTextures: Boolean = false,
-        /** A raster layer of the data view's (GPS traces), drawn over its colours. */
-        dataOverlay: OnlineSource? = null,
+        /** The data view's raster layers (GPS traces, rain radar), drawn over its colours in this order. */
+        dataRasters: List<OnlineSource> = emptyList(),
+        /** The data view's street photos: their vector tiles' address ({z}/{x}/{y}), or null. */
+        photoTiles: String? = null,
     ): String = buildJsonObject {
         val tilesBaseUrl = tiles.baseUrl
         put("version", 8)
@@ -160,17 +162,24 @@ class MapStyle(
                 put("paint", obj("raster-fade-duration" to 0))
             }
         }
-        if (dataOverlay != null && !forTextures) {
-            sources[DATA_RASTER] = rasterSource(dataOverlay)
-        }
         if (!forTextures) {
+            for (src in dataRasters) sources[dataRasterId(src)] = rasterSource(src)
+            if (photoTiles != null) {
+                sources[DATA_PHOTOS] = buildJsonObject {
+                    put("type", "vector")
+                    putJsonArray("tiles") { add(JsonPrimitive(photoTiles)) }
+                    put("minzoom", 0)
+                    put("maxzoom", app.maparound.stats.StreetPhotos.TILES_MAX_ZOOM)
+                    put("attribution", "Photos: Panoramax contributors")
+                }
+            }
             for (id in OVERLAY_SOURCES) {
                 sources[id] = buildJsonObject {
                     put("type", "geojson")
                     put("data", JsonObject(mapOf("type" to JsonPrimitive("FeatureCollection"), "features" to JsonArray(emptyList()))))
                 }
             }
-            layers += overlayLayers()
+            layers += overlayLayers(dataRasters)
         } else {
             layers.removeAll { (it as JsonObject).type() == "symbol" }
         }
@@ -192,9 +201,10 @@ class MapStyle(
         ))
     }
 
-    private fun overlayLayers(): List<JsonObject> = listOf(
+    private fun overlayLayers(dataRasters: List<OnlineSource>): List<JsonObject> = listOf(
         // The data view (the web app): the time zones, or the countries coloured by a figure until
-        // zoom 7; a raster over them (GPS traces); Israel's localities from 6; the zones' offsets.
+        // zoom 7; rasters over them (GPS traces, rain radar); street photos; Israel's localities
+        // from 6; buses; the weather's points; the zones' offsets.
         layer("${TAP_PREFIX}data-zones", "fill") {
             put("source", DATA_ZONES)
             put("maxzoom", 11)
@@ -219,9 +229,47 @@ class MapStyle(
                 "fill-outline-color" to "rgba(255,255,255,0.9)",
             ))
         },
-        layer(DATA_RASTER, "raster") {
-            put("source", DATA_RASTER)
-            put("paint", obj("raster-fade-duration" to 0))
+    ) + dataRasters.map { src ->
+        layer(dataRasterId(src), "raster") {
+            put("source", dataRasterId(src))
+            put("paint", obj("raster-fade-duration" to 0, "raster-opacity" to if (src.id.startsWith("rain_radar")) 0.75 else 1.0))
+        }
+    } + listOf(
+        // Street photos (Panoramax): where there are some, zoomed out; the ways they were taken
+        // along; each photo (tapped: "data:p:" and its id, the tiles' own key).
+        layer("data-photos-grid", "circle") {
+            put("source", DATA_PHOTOS)
+            put("source-layer", "grid")
+            put("maxzoom", 7)
+            put("filter", arr(">", arr("get", "coef"), 0))
+            put("paint", obj(
+                "circle-radius" to arr("interpolate", arr("linear"), arr("zoom"), 1, 2.5, 6, 5),
+                "circle-color" to arr("interpolate", arr("linear"), arr("get", "coef"), 0, "#FFA726", 0.5, "#E65100", 1, "#3E2723"),
+                "circle-opacity" to 0.8,
+            ))
+        },
+        layer("data-photos-sequences", "line") {
+            put("source", DATA_PHOTOS)
+            put("source-layer", "sequences")
+            put("minzoom", 6)
+            put("layout", ROUND)
+            put("paint", obj(
+                "line-color" to "#FF6F00",
+                "line-width" to arr("interpolate", arr("linear"), arr("zoom"), 6, 1.0, 10, 2.0, 14, 3.5, 17, 4.5),
+                "line-opacity" to 0.9,
+            ))
+        },
+        layer("${TAP_PREFIX}data-photos", "circle") {
+            put("source", DATA_PHOTOS)
+            put("source-layer", "pictures")
+            put("minzoom", app.maparound.stats.StreetPhotos.PHOTOS_ZOOM.toDouble())
+            put("metadata", obj("mr:tap" to app.maparound.stats.StreetPhotos.TAP, "mr:tapKey" to "id"))
+            put("paint", obj(
+                "circle-color" to "#FF6F00",
+                "circle-radius" to arr("interpolate", arr("linear"), arr("zoom"), 15, 4.0, 17, 7.0, 20, 10.0),
+                "circle-stroke-color" to "#FFFFFF",
+                "circle-stroke-width" to 1.5,
+            ))
         },
         layer("${TAP_PREFIX}data-localities", "circle") {
             put("source", DATA_LOCALITIES)
@@ -238,6 +286,91 @@ class MapStyle(
                 "circle-stroke-color" to "#FFFFFF",
                 "circle-stroke-width" to 0.8,
             ))
+        },
+        // Buses where they are now: a dot, and the line's number closer in.
+        layer("${TAP_PREFIX}data-buses", "circle") {
+            put("source", DATA_BUSES)
+            put("paint", obj(
+                "circle-color" to "#2E7D32",
+                "circle-radius" to arr("interpolate", arr("linear"), arr("zoom"), 9, 2.5, 13, 5.5, 16, 8.0),
+                "circle-stroke-color" to "#FFFFFF",
+                "circle-stroke-width" to 1.2,
+            ))
+        },
+        layer("data-buses-label", "symbol") {
+            put("source", DATA_BUSES)
+            put("minzoom", 12)
+            put("layout", obj(
+                "text-field" to arr("get", "label"),
+                "text-font" to arr("Noto Sans Bold"),
+                "text-size" to 11,
+                "text-anchor" to "top",
+                "text-offset" to arr(0, 0.6),
+                "text-padding" to 2,
+            ))
+            put("paint", obj("text-color" to "#1B5E20", "text-halo-color" to "rgba(255,255,255,0.95)", "text-halo-width" to 1.6))
+        },
+        // Cameras (OpenStreetMap's): a dot in their kind's colour, a speed camera's limit closer in.
+        layer("${TAP_PREFIX}data-cameras", "circle") {
+            put("source", DATA_CAMERAS)
+            put("paint", obj(
+                "circle-color" to arr("get", "color"),
+                "circle-radius" to arr("interpolate", arr("linear"), arr("zoom"), 9, 3.5, 14, 6.0, 17, 8.0),
+                "circle-stroke-color" to "#FFFFFF",
+                "circle-stroke-width" to 1.5,
+            ))
+        },
+        layer("data-cameras-label", "symbol") {
+            put("source", DATA_CAMERAS)
+            put("minzoom", 11)
+            put("filter", arr("!=", arr("get", "label"), ""))
+            put("layout", obj(
+                "text-field" to arr("get", "label"),
+                "text-font" to arr("Noto Sans Bold"),
+                "text-size" to 11,
+                "text-anchor" to "top",
+                "text-offset" to arr(0, 0.7),
+                "text-padding" to 2,
+            ))
+            put("paint", obj("text-color" to "#B71C1C", "text-halo-color" to "rgba(255,255,255,0.95)", "text-halo-width" to 1.6))
+        },
+        // The weather at points over the view: a dot in its class's colour, its value above it.
+        layer("${TAP_PREFIX}data-weather", "circle") {
+            put("source", DATA_WEATHER)
+            put("paint", obj(
+                "circle-color" to arr("get", "color"),
+                "circle-radius" to 6.5,
+                "circle-stroke-color" to "#FFFFFF",
+                "circle-stroke-width" to 1.5,
+            ))
+        },
+        // The wind's arrow, over its dot, pointing where it blows.
+        layer("data-weather-arrow", "symbol") {
+            put("source", DATA_WEATHER)
+            put("filter", arr("has", "rot"))
+            put("layout", obj(
+                "text-field" to "↑",
+                "text-font" to arr("Noto Sans Bold"),
+                "text-size" to 17,
+                "text-rotate" to arr("get", "rot"),
+                "text-rotation-alignment" to "map",
+                "text-allow-overlap" to true,
+                "text-ignore-placement" to true,
+            ))
+            put("paint", obj("text-color" to "#1B1B1B", "text-halo-color" to "rgba(255,255,255,0.95)", "text-halo-width" to 1.5))
+        },
+        layer("data-weather-label", "symbol") {
+            put("source", DATA_WEATHER)
+            put("layout", obj(
+                "text-field" to arr("get", "label"),
+                "text-font" to arr("Noto Sans Bold"),
+                "text-size" to 13,
+                "text-anchor" to "bottom",
+                "text-offset" to arr(0, -0.8),
+                "text-padding" to 1,
+                "text-allow-overlap" to true,
+            ))
+            put("paint", obj("text-color" to "#1B1B1B", "text-halo-color" to "rgba(255,255,255,0.95)", "text-halo-width" to 1.8))
         },
         layer("data-zones-label", "symbol") {
             put("source", DATA_ZONES)
@@ -383,8 +516,14 @@ class MapStyle(
         const val DATA_COUNTRIES = "mr-data-countries"
         const val DATA_LOCALITIES = "mr-data-localities"
         const val DATA_ZONES = "mr-data-zones"
-        const val DATA_RASTER = "mr-data-raster"
-        val OVERLAY_SOURCES = listOf(DATA_ZONES, DATA_COUNTRIES, DATA_LOCALITIES, GRID, TRACKS, RECORDING, PARTY_TRAIL, ROUTE, TOOLS, PLACES, PARTY, ME, PIN)
+        const val DATA_PHOTOS = "mr-data-photos"
+        const val DATA_BUSES = "mr-data-buses"
+        const val DATA_WEATHER = "mr-data-weather"
+        const val DATA_CAMERAS = "mr-data-cameras"
+
+        /** A data view raster's source and layer. */
+        fun dataRasterId(src: OnlineSource) = "mr-data-raster-${src.id}"
+        val OVERLAY_SOURCES = listOf(DATA_ZONES, DATA_COUNTRIES, DATA_LOCALITIES, DATA_BUSES, DATA_CAMERAS, DATA_WEATHER, GRID, TRACKS, RECORDING, PARTY_TRAIL, ROUTE, TOOLS, PLACES, PARTY, ME, PIN)
 
         /** Colour around the maps (no data). */
         const val OUTSIDE = "#EDEADA"

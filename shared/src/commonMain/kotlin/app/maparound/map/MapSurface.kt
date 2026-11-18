@@ -191,8 +191,14 @@ interface MapSurface : ZoomTarget {
      */
     fun setStats(countries: String?, localities: String?, zones: String? = null) {}
 
-    /** A raster layer over the data view's colours (GPS traces), or none. */
-    fun setDataOverlay(source: OnlineSource?) {}
+    /**
+     * The data view's tile layers: rasters over its colours, in this order (GPS traces, rain
+     * radar), and street photos' vector tiles ([photoTiles]: their address, or null).
+     */
+    fun setDataTiles(rasters: List<OnlineSource>, photoTiles: String?) {}
+
+    /** The data view's points in one of its GeoJSON sources (buses, weather); null: none. */
+    fun setDataPoints(source: String, geoJson: String?) {}
 
     fun onResume()
     fun onPause()

@@ -102,6 +102,21 @@ enum class SourceKind(
     /** The data view's GPS traces (the web app): OpenStreetMap's public ones. */
     GPS_TRACES(SourceGroup.DATA, listOf(TileSources.GPS_TRACES), AddressKind.TILES, canBeOff = true),
 
+    /** The data view's rain radar: RainViewer's pictures. */
+    RAIN_RADAR(SourceGroup.DATA, listOf(app.maparound.stats.RainRadar.FRAMES), AddressKind.NONE, canBeOff = true),
+
+    /** The data view's weather: Open-Meteo, or the user's own Open-Meteo server. */
+    WEATHER(SourceGroup.DATA, listOf(app.maparound.stats.Weather.OPEN_METEO), canBeOff = true),
+
+    /** The data view's street photos: Panoramax's catalogue, or one Panoramax server. */
+    STREET_PHOTOS(SourceGroup.DATA, listOf(app.maparound.stats.StreetPhotos.PANORAMAX), canBeOff = true),
+
+    /** The data view's buses in Israel: the Open Bus project's API. */
+    BUSES(SourceGroup.DATA, listOf(app.maparound.stats.Buses.OPEN_BUS), canBeOff = true),
+
+    /** The data view's cameras: OpenStreetMap's, from Overpass servers (the user's first). */
+    CAMERAS(SourceGroup.DATA, listOf("https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter"), canBeOff = true, customFirst = true),
+
     /** Where parties meet online: kept by the party. */
     PARTY(SourceGroup.PARTY, PartyRelays.WEBSOCKET, AddressKind.MQTT),
 }
@@ -243,13 +258,16 @@ object Sources {
             AddressKind.TILES, AddressKind.RELIEF -> tileAt(address, lat, lon, 12)
             AddressKind.ELEVATION -> ElevationSources.tileUrl(address, app.maparound.terrain.DemIndex.nameFor(kotlin.math.floor(lat).toInt(), kotlin.math.floor(lon).toInt()))
             AddressKind.URL -> when (kind) {
-                SourceKind.TRAILS_DATA -> "$address?data=" + "[out:json];out;".encodeUrl()
+                SourceKind.TRAILS_DATA, SourceKind.CAMERAS -> "$address?data=" + "[out:json];out;".encodeUrl()
                 SourceKind.SEARCH -> if (address.contains("nominatim", ignoreCase = true) || address.trimEnd('/').endsWith("/search")) {
                     "${address.trimEnd('/').removeSuffix("/search")}/search?format=jsonv2&limit=1&q=a"
                 } else {
                     "${address.trimEnd('/')}/?limit=1&q=a"
                 }
                 SourceKind.ROUTING -> "${address.trimEnd('/')}?lonlats=${fmt(lon)},${fmt(lat)}|${fmt(lon + 0.001)},${fmt(lat + 0.001)}&profile=trekking&alternativeidx=0&format=geojson"
+                SourceKind.WEATHER -> app.maparound.stats.Weather.nowUrl(address, listOf(lat to lon))
+                SourceKind.STREET_PHOTOS -> "${address.trimEnd('/')}/search?limit=1&bbox=${fmt(lon - 0.05)},${fmt(lat - 0.05)},${fmt(lon + 0.05)},${fmt(lat + 0.05)}"
+                SourceKind.BUSES -> app.maparound.stats.Buses.snapshotsUrl(address)
                 else -> address
             }
             AddressKind.MQTT, AddressKind.NONE -> return Check(true, 0)

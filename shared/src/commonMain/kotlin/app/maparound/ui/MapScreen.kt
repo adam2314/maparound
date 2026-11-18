@@ -112,6 +112,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -565,6 +566,12 @@ fun MapScreen(
     val stats = LocalStats.current
     var dataView by rememberSaveable { mutableStateOf(false) }
     var dataLayers by remember { mutableStateOf(DataLayers()) }
+    // The data view's explorer, in its drawer: opens with the view.
+    var explorerOpen by rememberSaveable { mutableStateOf(false) }
+    var mapWidth by remember { mutableStateOf(0.dp) }
+    val narrowScreen = mapWidth < NARROW_SCREEN
+    val explorerWidth = minOf(EXPLORER_WIDTH, mapWidth * 0.88f)
+    val explorerBeside = dataView && explorerOpen && !narrowScreen
     val countryIndicator = dataLayers.country.takeUnless { dataLayers.timeZones }
     val localityIndicator = dataLayers.locality
     var hiddenCountryClasses by remember { mutableStateOf(emptySet<Int>()) }
@@ -580,7 +587,12 @@ fun MapScreen(
     // GPS traces over the data view's colours (their source can be turned off in Settings → Sources).
     val gpsTraces = TileSources.gpsTraces
     val dataOverlay = gpsTraces?.takeIf { dataView && dataLayers.gpsTraces }
-    LaunchedEffect(dataOverlay) { controller.setDataOverlay(dataOverlay) }
+    // The live layers: the rain radar, the weather at points, street photos, buses.
+    val live = rememberLiveLayers(controller, stats, dataView, dataLayers)
+    val radarSource = live.radar?.takeIf { dataView && dataLayers.rainRadar }?.let(app.maparound.stats.RainRadar::source)
+    val dataRasters = listOfNotNull(dataOverlay, radarSource)
+    val photoTiles = stats?.photoTiles?.takeIf { dataView && dataLayers.photos }
+    LaunchedEffect(dataRasters, photoTiles) { controller.setDataTiles(dataRasters, photoTiles) }
     // The time zones' offsets are worked out again every quarter of an hour (clocks change).
     var zonesQuarter by remember { mutableStateOf(0L) }
     LaunchedEffect(stats, dataView, dataLayers.timeZones) {
@@ -599,6 +611,19 @@ fun MapScreen(
             dataZoom = controller.zoomLevel()
             delay(400)
         }
+    }
+    /** New data layers picked: the hidden classes of what changed come back; Israel's picked from afar: there. */
+    fun pickDataLayers(new: DataLayers) {
+        if (new.country != dataLayers.country || new.timeZones != dataLayers.timeZones) {
+            hiddenCountryClasses = emptySet()
+            hiddenZoneClasses = emptySet()
+        }
+        if (new.weather != dataLayers.weather) live.hiddenWeather = emptySet()
+        if (new.locality != dataLayers.locality) {
+            hiddenLocalityClasses = emptySet()
+            if (new.locality != null && dataZoom < LOCALITIES_ZOOM) controller.animateTo(31.6, 35.0, minZoom = 7)
+        }
+        dataLayers = new
     }
     LaunchedEffect(stats, dataView, countryIndicator) {
         if (stats != null && dataView && countryIndicator != null) stats.loadFigures(countryIndicator, currentYear())
@@ -649,7 +674,7 @@ fun MapScreen(
     // Back closes what's open over the map, the top one first (search, the 3D view, sheets and
     // dialogs close themselves); with nothing open it leaves the app. Not while navigating.
     val somethingOpen = pin != null || selectedPlace != null || selectedParty != null || showMe ||
-        dataSelected != null || dataView || tools.active || (planner.active && !nav.active) || replay != null
+        dataSelected != null || dataView || explorerOpen || tools.active || (planner.active && !nav.active) || replay != null
     PlatformBackHandler(enabled = somethingOpen) {
         when {
             replay != null -> PartyReplay.close()
@@ -657,6 +682,7 @@ fun MapScreen(
             selectedPlace != null -> selectedPlace = null
             selectedParty != null -> selectedParty = null
             showMe -> showMe = false
+            explorerOpen -> explorerOpen = false
             dataSelected != null -> dataSelected = null
             dataView -> dataView = false
             tools.active -> ToolsSession.close()
@@ -989,7 +1015,8 @@ fun MapScreen(
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
+    val density = LocalDensity.current
+    Box(Modifier.fillMaxSize().onSizeChanged { mapWidth = with(density) { it.width.toDp() } }) {
         mapView(controller, Modifier.fillMaxSize())
         // The scale, in the top corner away from the buttons (the compass goes under it).
         if (scene3d == null) ScaleLine(controller, Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 12.dp))
@@ -1105,7 +1132,8 @@ fun MapScreen(
             }
         }
 
-        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
+        // Beside the explorer's drawer on a wide screen.
+        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(start = if (explorerBeside) explorerWidth else 0.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
         Column(Modifier.weight(1f).padding(start = 8.dp, bottom = 8.dp)) {
             // Navigating: how fast we're going.
@@ -1205,15 +1233,25 @@ fun MapScreen(
                     }) else null,
                 )
             }
-            if (dataView && stats != null && pin == null) {
+            if (dataView && stats != null && pin == null && !(explorerOpen && narrowScreen)) {
                 // A tapped country or locality, else what colours the map.
                 val key = dataSelected
                 val country = key?.takeIf { it.startsWith(StatsLayers.TAP_COUNTRY) }?.let { statsCountries?.get(it.removePrefix(StatsLayers.TAP_COUNTRY)) }
                 val locality = key?.takeIf { it.startsWith(StatsLayers.TAP_LOCALITY) }
                     ?.let { k -> statsLocalities?.firstOrNull { it.code.toString() == k.removePrefix(StatsLayers.TAP_LOCALITY) } }
                 val zone = key?.takeIf { it.startsWith(TimeZones.TAP_ZONE) }?.removePrefix(TimeZones.TAP_ZONE)
+                val weatherAt = key?.takeIf { it.startsWith(app.maparound.stats.Weather.TAP) }?.let(app.maparound.stats.Weather::placeOf)
+                val photo = key?.takeIf { it.startsWith(app.maparound.stats.StreetPhotos.TAP) }?.removePrefix(app.maparound.stats.StreetPhotos.TAP)
+                val bus = key?.takeIf { it.startsWith(app.maparound.stats.Buses.TAP) }?.removePrefix(app.maparound.stats.Buses.TAP)?.toLongOrNull()
+                    ?.let { ride -> live.buses.firstOrNull { it.rideId == ride } }
+                val camera = key?.takeIf { it.startsWith(app.maparound.stats.Cameras.TAP) }?.removePrefix(app.maparound.stats.Cameras.TAP)
+                    ?.let { id -> live.cameras.firstOrNull { it.id == id } }
                 val showLocalities = dataZoom >= LOCALITIES_ZOOM
                 when {
+                    camera != null -> CameraCard(camera, onClose = { dataSelected = null })
+                    weatherAt != null -> WeatherCard(weatherAt.first, weatherAt.second, stats, onClose = { dataSelected = null })
+                    photo != null -> PhotoCard(photo, stats, onClose = { dataSelected = null })
+                    bus != null -> BusCard(bus, live.routes[bus.lineRef], stats, onClose = { dataSelected = null })
                     zone != null -> ZoneCard(zone, stats::zoneOffset, onClose = { dataSelected = null })
                     country != null -> CountryCard(country, statsFigures, onClose = { dataSelected = null })
                     locality != null -> LocalityCard(
@@ -1228,20 +1266,6 @@ fun MapScreen(
                     else -> DataViewPanel(
                         showLocalities = showLocalities,
                         layers = dataLayers,
-                        onLayers = { new ->
-                            if (new.country != dataLayers.country || new.timeZones != dataLayers.timeZones) {
-                                hiddenCountryClasses = emptySet()
-                                hiddenZoneClasses = emptySet()
-                            }
-                            if (new.locality != dataLayers.locality) {
-                                hiddenLocalityClasses = emptySet()
-                                // Israel's way of colouring picked from afar: there.
-                                if (new.locality != null && !showLocalities) controller.animateTo(31.6, 35.0, minZoom = 7)
-                            }
-                            dataLayers = new
-                        },
-                        hasTimeZones = stats.hasTimeZones,
-                        hasGpsTraces = gpsTraces != null,
                         hidden = when {
                             showLocalities -> hiddenLocalityClasses
                             dataLayers.timeZones -> hiddenZoneClasses
@@ -1254,12 +1278,18 @@ fun MapScreen(
                                 else -> hiddenCountryClasses = hiddenCountryClasses.toggled(c)
                             }
                         },
+                        hiddenWeather = live.hiddenWeather,
+                        onToggleWeather = { c -> live.hiddenWeather = live.hiddenWeather.toggled(c) },
+                        hiddenCameras = live.hiddenCameras,
+                        onToggleCameras = { c -> live.hiddenCameras = live.hiddenCameras.toggled(c) },
+                        notes = liveNotes(live, dataLayers, dataZoom, stats),
                         status = statsStatus,
                         onGoTo = {
                             if (showLocalities) controller.moveTo(MapPos(30.0, 20.0, 2))
                             else controller.animateTo(31.6, 35.0, minZoom = 7)
                         },
-                        onClose = { dataView = false; dataSelected = null },
+                        onExplore = { explorerOpen = true },
+                        onClose = { dataView = false; dataSelected = null; explorerOpen = false },
                     )
                 }
             }
@@ -1273,7 +1303,7 @@ fun MapScreen(
                     if (dataView && stats != null) T.stats.credits else null,
                     if (dataView && stats != null && dataLayers.timeZones) T.stats.zonesCredit else null,
                     dataOverlay?.attribution,
-                ).joinToString(" · "),
+                ).plus(if (dataView && stats != null) liveCredits(dataLayers) else emptyList()).joinToString(" · "),
                 style = MaterialTheme.typography.labelSmall,
                 maxLines = if (dataView && stats != null) 4 else 3,
                 overflow = TextOverflow.Ellipsis,
@@ -1366,6 +1396,28 @@ fun MapScreen(
             )
         }
         }
+        if (stats != null) DataExplorerDrawer(
+            open = dataView && explorerOpen,
+            narrow = narrowScreen,
+            width = explorerWidth,
+            layers = dataLayers,
+            offers = DataOffers(
+                timeZones = stats.hasTimeZones,
+                gpsTraces = gpsTraces != null,
+                radar = !Sources.isOff(app.maparound.sources.SourceKind.RAIN_RADAR),
+                weather = !Sources.isOff(app.maparound.sources.SourceKind.WEATHER),
+                photos = !Sources.isOff(app.maparound.sources.SourceKind.STREET_PHOTOS),
+                buses = stats.hasBuses,
+                cameras = !Sources.isOff(app.maparound.sources.SourceKind.CAMERAS),
+            ),
+            onLayers = { pickDataLayers(it) },
+            onClose = { explorerOpen = false },
+            onLeave = {
+                dataView = false
+                dataSelected = null
+                explorerOpen = false
+            },
+        )
     }
 
     shareTarget?.let { (la, lo, label) -> PointShareSheet(la, lo, label, onDismiss = { shareTarget = null }) }
@@ -1505,6 +1557,7 @@ fun MapScreen(
             dataView = if (stats != null) dataView else null,
             onDataView = {
                 dataView = it
+                explorerOpen = it
                 dataSelected = null
                 showLayers = false
             },
@@ -2364,6 +2417,9 @@ private const val FIRST_FIX_ZOOM = 12
 
 /** The data view shows Israel's localities from this zoom (the app's: MapLibre's 6), the countries below it. */
 private const val LOCALITIES_ZOOM = 7.0
+
+/** Narrower than this, the explorer's drawer goes over the map (a phone); else beside it. */
+private val NARROW_SCREEN = 600.dp
 
 /** How often the time zones' offsets are worked out again. */
 private const val ZONES_REFRESH_MS = 15 * 60_000L

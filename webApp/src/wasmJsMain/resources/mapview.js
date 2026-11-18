@@ -1388,7 +1388,18 @@
       if (!layers.length) return '';
       const r = 10;
       const f = map.queryRenderedFeatures([[x - r, y - r], [x + r, y + r]], { layers: layers });
-      for (const it of f) if (it.properties && it.properties.tap) return String(it.properties.tap);
+      // A layer of tiles that aren't ours says in its metadata how to make the key: a prefix and
+      // the property after it (street photos: "data:p:" and their "id").
+      const keys = {};
+      for (const l of map.getStyle().layers) {
+        const m = l.metadata;
+        if (m && m['mr:tap'] && m['mr:tapKey']) keys[l.id] = m;
+      }
+      for (const it of f) {
+        if (it.properties && it.properties.tap) return String(it.properties.tap);
+        const m = it.layer && keys[it.layer.id];
+        if (m && it.properties && it.properties[m['mr:tapKey']] != null) return m['mr:tap'] + it.properties[m['mr:tapKey']];
+      }
       return '';
     },
   };

@@ -8,7 +8,7 @@ import kotlin.math.roundToLong
 /** The data view (the web app): countries and Israel's localities coloured by their figures. */
 open class StatsTexts {
     open val dataView = "Data view"
-    open val dataViewSubtitle = "Countries and Israel's localities by their figures, time zones, GPS traces"
+    open val dataViewSubtitle = "Countries and Israel's localities by their figures, time zones, weather and rain radar, street photos, buses now, GPS traces"
     open val leaveDataView = "Leave the data view"
     open val countries = "Countries"
     open val localities = "Israel's localities"
@@ -105,6 +105,21 @@ open class StatsTexts {
     open val timeZonesKeywords = "clock hour utc gmt daylight saving summer time dst offset"
     open val gpsKeywords = "heat map heatmap tracks traces activity hiking where people go"
     open val offsetsNow = "Hours from UTC, now"
+    open val explorerSubtitle = "The world through its numbers: pick what to show"
+    open val onTheMap = "On the map"
+    open val nothingOnTheMap = "Nothing on the map yet: pick a layer below."
+    open val clearAll = "Clear all"
+    open val takeOff = "Take off the map"
+    open val showTheMap = "Show the map"
+    /** Where each layer's data comes from, under its name. */
+    open fun countrySource(i: CountryIndicator) = if (i == CountryIndicator.GDP) "World Bank, via Our World in Data" else "UN, via Our World in Data"
+    open fun localitySource(i: LocalityIndicator) = when {
+        i.fromAges -> "Population Authority · data.gov.il"
+        i == LocalityIndicator.CLUSTER -> "CBS socio-economic clusters (2019)"
+        else -> "Central Bureau of Statistics · data.gov.il"
+    }
+    open val timeZonesSource = "Built in, works offline · timezone-boundary-builder"
+    open val gpsTracesSource = "OpenStreetMap · where people walked, rode and drove"
     open val zonesCredit = "time zones: timezone-boundary-builder (© OpenStreetMap contributors)"
 
     // ---- a tapped time zone ----
@@ -137,7 +152,7 @@ open class StatsTexts {
 
 object StatsTextsHe : StatsTexts() {
     override val dataView = "תצוגת נתונים"
-    override val dataViewSubtitle = "מדינות ויישובי ישראל לפי הנתונים שלהם, אזורי זמן, מסלולי GPS"
+    override val dataViewSubtitle = "מדינות ויישובי ישראל לפי הנתונים שלהם, אזורי זמן, מזג אוויר ומכ״ם גשם, תמונות רחוב, אוטובוסים עכשיו, מסלולי GPS"
     override val leaveDataView = "יציאה מתצוגת הנתונים"
     override val countries = "מדינות"
     override val localities = "יישובי ישראל"
@@ -220,6 +235,20 @@ object StatsTextsHe : StatsTexts() {
     override val timeZonesKeywords = "שעון שעה שעות UTC GMT שעון קיץ חורף הפרש time zones"
     override val gpsKeywords = "מפת חום הקלטות מסלולים טיולים פעילות heat map gps traces"
     override val offsetsNow = "שעות מ־UTC, עכשיו"
+    override val explorerSubtitle = "העולם דרך המספרים שלו: מה להציג"
+    override val onTheMap = "על המפה"
+    override val nothingOnTheMap = "עדיין אין כלום על המפה: אפשר לבחור שכבה למטה."
+    override val clearAll = "ניקוי הכול"
+    override val takeOff = "הסרה מהמפה"
+    override val showTheMap = "הצגת המפה"
+    override fun countrySource(i: CountryIndicator) = if (i == CountryIndicator.GDP) "הבנק העולמי, דרך Our World in Data" else "האו״ם, דרך Our World in Data"
+    override fun localitySource(i: LocalityIndicator) = when {
+        i.fromAges -> "רשות האוכלוסין · data.gov.il"
+        i == LocalityIndicator.CLUSTER -> "הלמ״ס: אשכולות חברתיים־כלכליים (2019)"
+        else -> "הלמ״ס · data.gov.il"
+    }
+    override val timeZonesSource = "מובנה, עובד גם בלי חיבור · timezone-boundary-builder"
+    override val gpsTracesSource = "OpenStreetMap · איפה אנשים הלכו, רכבו ונסעו"
     override val zonesCredit = "אזורי זמן: timezone-boundary-builder (© תורמי OpenStreetMap)"
 
     override val atSea = "בים"

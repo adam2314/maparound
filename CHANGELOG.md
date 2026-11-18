@@ -113,6 +113,30 @@
 - **GPS traces** (Movement): OpenStreetMap's public GPS traces over the map, to see where people
   actually walk, ride and drive. It's in Settings → Sources, where it can be turned off or pointed
   at other tiles.
+- **Weather** in the data view: the **rain radar** (RainViewer, the past ten minutes, a new picture
+  every ten), and the **temperature** or **wind now** at points over the view (Open-Meteo), in °C or
+  °F and your speed unit. Tapping a point shows its forecast: now, the next hours, seven days,
+  sunrise and sunset, by the clocks there.
+- **Street photos** (Look around): Panoramax's open street-level photos, as lines where they were
+  taken and dots up close. Tapping one shows the photo (all-round ones can be looked around by
+  dragging), its date, author and licence, with **Open in Panoramax** and **Street View here**
+  (a link to Google Street View at that spot).
+- **Buses now** (Movement, Israel): every bus where it is now, from the Ministry of Transport's
+  real-time feed via the Open Bus project, a minute or two behind, with each line's number up close.
+  Tapping one shows its line, operator, where it's going, its speed and when it was there.
+- **Cameras** (a new branch): **Cameras on the map**, the speed cameras, security cameras and
+  webcams OpenStreetMap's volunteers have mapped (red, purple, blue; a speed camera's limit up
+  close), from zoom 10. Tapping one shows its limit, which way it faces, what it watches and who
+  runs it, with its webcam's page and its OpenStreetMap page. When OpenStreetMap's servers are busy
+  it says so and tries again by itself. **Live webcams** (Windy) is there as coming soon.
+- **The explorer has a drawer of its own**, opening when the data view is switched on (and from
+  the panel's **Data layers**): a search box, what's on the map as chips (tap one to take it off,
+  or **Clear all**), and the tree, each layer with where its data comes from; round buttons for
+  one-of-a-kind layers, check boxes for those that go over the others. On a phone it covers the
+  map until **Show the map**; on a wider screen it stays open beside the map. The panel over the
+  map now shows only the legends and notes of what's on.
+- The new sources are in Settings → Sources (the radar can be turned off; the weather, photos and buses can
+  also be pointed at another server).
 
 ## 0.5.3 (beta, version code 9)
 

@@ -1,8 +1,9 @@
 # The data view
 
 The **data view** turns the map into a way to explore places through their numbers: how many people
-live there, how old they are, how rich, how high, how long they live, what time it is there, and
-where people go. It's in the web app, under **Layers → Data view**.
+live there, how old they are, how rich, how high, how long they live, what time it is there, what
+the weather is doing, what the streets look like, and where people and buses go. It's in the web
+app, under **Layers → Data view**.
 
 **The goal:** more data to explore the world. The first version covers every country and one
 country in depth (Israel, down to each of its localities). This page describes what's there, where
@@ -12,21 +13,43 @@ the data comes from, how it's built, how to add more, and where it goes next.
 
 ### The explorer
 
-The panel opens on a tree of everything the view can show:
+The explorer is a drawer of its own along the screen's start edge (the left; the right in Hebrew).
+It opens when the data view is switched on, and again from the **Data layers** button on the
+view's panel. On a phone it covers most of the map, over a dimmed strip that closes it, with
+**Show the map** at its foot; on a wider screen (600 dp and more) it stays open beside the map,
+which can be used meanwhile, and the panel and credits move over to its side.
+
+From the top:
+- **Search.** Finds a layer by its name, its branch, where its data comes from, or words about it
+  ("clock", "UTC", "heat map", "rain", "שעון"), in English or Hebrew.
+- **On the map.** What's shown now, as chips: tapping one (or its ✕) takes it off; **Clear all**
+  takes everything off.
+- **The tree** of everything the view can show, each layer with where its data comes from under
+  its name. A round button means one of a kind (one country figure, or the time zones; one way to
+  colour the localities; temperature or wind); a check box, one that goes over the others.
+- **Leave the data view** at its foot.
+
+The tree's branches:
 
 | Branch | Layers |
 |---|---|
 | World | the five country figures (one at a time) |
 | Israel | the eleven ways to colour its localities |
 | Time | Time zones (instead of a country figure) |
-| Movement | GPS traces (over any of the others) |
+| Weather | Rain radar, Temperature now, Wind now |
+| Look around | Street photos |
+| Movement | GPS traces (over any of the others), Buses now (Israel) |
+| Cameras | Cameras on the map; Live webcams (coming soon) |
 
-- **Search.** The box above the tree finds a layer by its name, its branch, or words about it
-  ("clock", "UTC", "heat map", "שעון"), in English or Hebrew.
-- **On and off.** Picking a layer shows it and folds the tree into its legend; picking the one
-  that's on turns it off, so the countries or the localities can be hidden altogether.
+- **On and off.** Picking a layer shows it; picking the one that's on turns it off, so the
+  countries or the localities can be hidden altogether. The panel over the map shows the legends
+  and notes of what's on.
+- **Over the map.** The weather, the photos and the buses are drawn over the map itself: turning
+  one on takes away the colours under it (countries, time zones, localities), which can be picked
+  again. Several of them can be on at once, with each one's note under the legend.
 - **Folding.** Branches of up to five layers start open; a longer one (Israel) starts folded and
-  shows how many of its layers are on.
+  shows how many of its layers are on. The drawer remembers what was opened and searched while
+  it's closed.
 - Picking one of Israel's layers from far away flies the map there.
 
 ### Countries (zoomed out)
@@ -99,6 +122,73 @@ map and the view's colours and under Israel's localities. The denser the lines, 
 that way; their colours show the direction of travel. It's in **Settings → Sources** (Data view), so
 it can be turned off or replaced with other tiles.
 
+### Rain radar
+
+RainViewer's radar picture of the past ten minutes over the map, a new one every ten minutes (the
+panel says when it's from). Light blue is light rain, dark blue heavy, yellow to red very heavy.
+RainViewer serves its pictures to zoom 7 only (deeper tiles say "Zoom Level Not Supported"), so
+from the app's zoom 8 they're enlarged: good for where the rain is, not for which street.
+
+### Weather now
+
+The temperature or the wind at points over the view, about forty of them on a lattice of whole
+steps of latitude and longitude, so moving the map asks only for the points it brings in, and
+each point is kept for a quarter of an hour (Open-Meteo's forecasts now are per quarter hour).
+Temperatures are coloured in eight classes from below −10° to 35° and over, the wind in five
+from calm to gale; tapping a class hides those points, as in the other legends.
+
+Temperatures are in °F where heights are in feet (the US's units), else °C; wind speeds in the
+speed unit chosen (Settings → Units & formats), with the compass point the wind comes from.
+
+Tapping a point opens its forecast: the weather now (what it's like, feels like, wind and gusts,
+humidity, clouds), the next 24 hours every three (temperature, chance of rain), the next seven
+days (what they're like, low and high, rain), and today's sunrise and sunset, all by the clocks
+there (Open-Meteo works out the place's time zone).
+
+### Street photos
+
+Panoramax's photos (the open, federated catalogue of street-level pictures, some all the way
+round): zoomed out, dots where there are some; from the app's zoom 7, orange lines along the ways
+they were taken; from zoom 16, a dot for each photo. Tapping one shows it with its date, author,
+licence and server; tapping the picture shows it over the whole screen (an all-round one at the
+screen's height, dragged sideways to look around). **Open in Panoramax** opens it in Panoramax's
+own viewer, which turns all-round photos and walks along their sequence.
+
+**Street View here** opens Google Street View at that place, looking the same way, as a plain
+Google Maps link: Google's terms don't allow its pictures on other maps, and its API needs a paid
+key, so the app links to it and shows none of it.
+
+### Buses now (Israel)
+
+Israel's buses where they are, from the Ministry of Transport's real-time feed (SIRI) as the
+Public Knowledge Workshop's **Open Bus** project republishes it: a snapshot a minute, about a
+minute or two behind. From the app's zoom 11 on Israel (closer in, with each line's number), the
+view and a margin around it are asked for every minute and when the map moves further. A bus is
+shown at its last position in the newest snapshot that's been read in full, and only if that
+position is at most four minutes older than the snapshot (older ones are rides that have ended).
+
+Tapping a bus shows its line and operator, where it goes and where from (city and stop, from the
+day's timetable, GTFS), its speed and heading, when it was there, and its number. The lines are
+looked up once a day for the lines seen.
+
+### Cameras
+
+**Cameras on the map:** the cameras OpenStreetMap's volunteers have mapped, read for the area on
+screen (from the app's zoom 10) through an Overpass server: speed cameras (red, with the limit they
+enforce up close), security cameras (purple) and webcams (blue). The legend filters them by kind.
+Tapping one shows what it is, its name, the speed limit (in the speed unit chosen), which way it
+faces, what it watches (a public place, outdoors, indoors, traffic), whether it reads number plates,
+who runs it, and links to its webcam's page and to its page on OpenStreetMap.
+
+Coverage is what volunteers have mapped: about 190 speed cameras and 240 security cameras in
+Israel, more in many European and US cities, and few webcams. An area is asked for once a day,
+with a margin around the view (out to whole twentieths of a degree), and kept in memory. Overpass
+servers get busy: when they turn the request away, the panel says so and the app asks again after
+5 s, then 10, 20, up to two minutes, as Overpass asks clients to.
+
+**Live webcams** (coming soon): webcams' pictures now, from Windy's Webcams API. It needs a key
+(free, from a Windy account); the explorer shows it greyed, as coming soon, until then.
+
 ### In both levels
 
 - **The legend filters.** Tapping a class hides those countries or places; tapping it again brings
@@ -118,11 +208,26 @@ it can be turned off or replaced with other tiles.
 | Socio-economic clusters (2019) | *social_economic_cluster* on data.gov.il | marked open | CKAN API | small |
 | Time zones | [timezone-boundary-builder](https://github.com/evansiroky/timezone-boundary-builder) 2026f, *timezones-with-oceans* | ODbL (from OpenStreetMap: © OpenStreetMap contributors) | bundled: `webApp/.../resources/timezones.bin` | 0.3 MB |
 | GPS traces | [OpenStreetMap](https://www.openstreetmap.org/traces)'s public GPS traces, as tiles from `gps.tile.openstreetmap.org` | © OpenStreetMap contributors; OpenStreetMap's tile usage policy | map tiles, as the map shows them | per tile |
+| Rain radar | [RainViewer](https://www.rainviewer.com/api.html) | free for personal and community projects, with credit ("Radar © RainViewer") | its list of pictures (`weather-maps.json`), then map tiles to zoom 7 | about 1 kB, then per tile |
+| Weather now and forecasts | [Open-Meteo](https://open-meteo.com) | data CC BY 4.0; its free API is for non-commercial use (under 10,000 requests a day) | its forecast API: the points over the view in one request, a forecast when one is tapped | a few kB |
+| Street photos | [Panoramax](https://panoramax.fr) (`api.panoramax.xyz`, the catalogue of all its servers) | each photo's own, mostly CC BY-SA 4.0 or Etalab 2.0 (shown with it) | vector map tiles to zoom 15; a tapped photo's details and pictures | per tile; about 0.5 MB a photo |
+| Cameras | [OpenStreetMap](https://www.openstreetmap.org) (`man_made=surveillance`, `highway=speed_camera`, webcam links), through Overpass (overpass-api.de, then overpass.private.coffee; or your own) | ODbL (© OpenStreetMap contributors) | an Overpass query for the area on screen, kept a day | a few to some tens of kB |
+| Buses now | [Open Bus](https://open-bus-stride-api.hasadna.org.il/docs) (the Public Knowledge Workshop), from the Ministry of Transport's SIRI and GTFS | the Ministry's open data, republished; credit given | its API: the newest snapshot, the buses in the area, the lines seen | 0.1–1 MB a minute, by the area |
 
 All the online sources allow a web page to read them directly (CORS `*`), so the browser fetches
 them itself; no server is involved.
 
 **Left out, and why:**
+- **Planes:** adsb.lol and OpenSky both answer, but neither lets another site read them in the
+  browser (no CORS for other sites), so planes need a small relay server. OpenSky also limits
+  anonymous use to about 400 requests a day.
+- **Mapillary:** needs an access key (free, but registered); Panoramax doesn't.
+- **Google Street View inside the app:** not allowed by Google's terms on a non-Google map; the
+  photo card links to it instead.
+- **Boats (AIS):** aisstream.io's key must stay on a server, so boats need a relay too.
+- **Traffic cameras' pictures:** no open source covers Israel (Netivei Israel's cameras have no open
+  feed); OpenTrafficCamMap (MIT) is US-only and its pictures come from servers browsers can't read
+  from another site. Windy's webcams are the planned way to see pictures.
 - **The World Bank's own API:** its terms allow non-commercial use only and forbid derivative works,
   which doesn't fit a GPL app, and it didn't answer when tested. Its development indicators reach
   us through Our World in Data instead.
@@ -144,9 +249,15 @@ All the logic is shared Kotlin; only the web app switches it on.
 | Classes and layers | `shared/.../stats/StatsLayers.kt` | Each figure's classes, colours and legend labels, and the GeoJSON for the map: countries with a `color` per feature, localities with `color` and a radius `r`. |
 | Loading and cache | `shared/.../stats/StatsData.kt` | Downloads each source the first time it's needed and keeps it for a week in the app's files (`/data/stats` on the web); offline, it uses the kept copy however old. |
 | Time zones | `shared/.../stats/TimeZones.kt` | Reads `timezones.bin`; finds the zone at a place (outer rings and their holes: Lesotho is a hole in South Africa's zone); the offsets' classes and colours; the next clock change (a day at a time, then halving to the minute); and the GeoJSON: each zone's area and a label point in its biggest part. |
-| Map layers | `MapStyle.kt` | Three GeoJSON sources: the time zones (a fill, white borders, and labels from the zoom their size allows), a fill for the countries (to MapLibre's zoom 7) and circles for the localities (from 6); and a raster source for the GPS traces, between the fills and the circles. The ids of what can be tapped start with `tap-`, so a tap reports the feature's `tap` key (`data:c:ISR`, `data:l:3000`, `data:z:Asia/Jerusalem`). |
-| Screen | `ui/DataViewUi.kt`, `ui/MapScreen.kt` | The explorer (tree, search, legend, level button), the country, locality and time-zone cards, and the Layers switch. |
-| Texts | `i18n/StatsTexts.kt` | English and Hebrew. |
+| Weather | `shared/.../stats/Weather.kt` | The lattice of points over a view, Open-Meteo's answers (now, forecast), the classes and colours, °C or °F, the points' GeoJSON, what a weather code says; and `RainRadar`: RainViewer's pictures as a map layer. |
+| Street photos | `shared/.../stats/StreetPhotos.kt` | Panoramax's tiles and a photo's details (pictures, date, author, licence, all-round or not), its viewer's link and Street View's. |
+| Buses | `shared/.../stats/Buses.kt` | Open Bus's newest snapshot, the buses in an area (each ride's last position), the lines from the timetable (number, operator, from and to), Israel's day, the GeoJSON. |
+| Cameras | `shared/.../stats/Cameras.kt` | The Overpass query and its answer (kind, limit, direction as degrees or a compass point, webcam link), the area asked for around a view, the GeoJSON. |
+| Live layers on screen | `ui/DataLiveUi.kt` | Keeps the radar, the weather points and the buses up to date while they're on (asking again when the view moves); their notes and credits; the weather, photo and bus cards. |
+| Map layers | `MapStyle.kt` | Three GeoJSON sources: the time zones (a fill, white borders, and labels from the zoom their size allows), a fill for the countries (to MapLibre's zoom 7) and circles for the localities (from 6); rasters for the GPS traces and the rain radar, and Panoramax's vector tiles, between the fills and the
+circles; the buses and the weather's points over them. The ids of what can be tapped start with `tap-`, so a tap reports the feature's `tap` key (`data:c:ISR`, `data:l:3000`, `data:z:Asia/Jerusalem`). |
+| Screen | `ui/DataViewUi.kt`, `ui/MapScreen.kt` | The explorer's drawer (`DataExplorerDrawer`: search, what's on, the tree), the panel (`DataViewPanel`: legend, notes, level button), the country, locality and time-zone cards, and the Layers switch. |
+| Texts | `i18n/StatsTexts.kt`, `i18n/LiveTexts.kt` | English and Hebrew. |
 | Outlines file | `tools/stats/make_countries.py` | Builds `countries.json` from Natural Earth: ISO code, English and Hebrew names, the outline simplified to about 1.5 km. |
 | Time zones file | `tools/timezones/make_timezones.py` | Builds `timezones.bin` from timezone-boundary-builder's GeoJSON: each zone's IANA name and polygons, simplified to about 2 km (smaller islands and slivers left out), as varint deltas. |
 
@@ -157,16 +268,23 @@ outlines file from their assets.
 Tests: `shared/src/commonTest/.../stats/StatsTest.kt` covers the grid conversion, the tables, the
 CSV, the classes and the layers; `TimeZonesTest.kt` the time zones' file, lookup (with holes),
 classes, labels, GeoJSON and clock changes; `androidUnitTest/.../TimeZonesFileTest.kt` the real
-file (known places, Israel's next change, every zone known to Java's time-zone rules).
+file (known places, Israel's next change, every zone known to Java's time-zone rules);
+`LiveDataTest.kt` the weather's lattice, Open-Meteo's, RainViewer's, Panoramax's, Open Bus's and
+Overpass's answers (from real ones), the weather's classes and units, the buses' lines and places,
+and the cameras' kinds, directions and area.
 
 ## Adding data
 
 ### Another layer in the explorer
 
 Add a leaf to its branch in `Explorer` (`ui/DataViewUi.kt`), or a new branch, with its title and
-the words that should find it (in `StatsTexts`, English and Hebrew); keep its state in
-`DataLayers`. Draw it in `MapStyle.overlayLayers` and fill it from `MapScreen`'s data-view effect.
-An online source goes in `SourceKind` (group `DATA`) so Settings → Sources lists it.
+the words that should find it (in `StatsTexts` or `LiveTexts`, English and Hebrew); keep its state
+in `DataLayers`. Draw it in `MapStyle.overlayLayers` and fill it from `MapScreen`'s data-view
+effect, or, for data about now, from `rememberLiveLayers` (`ui/DataLiveUi.kt`) through
+`setDataPoints` (points) or `setDataTiles` (tiles). A layer over tiles that aren't ours is tapped
+through its metadata (`"mr:tap"`: the key's prefix, `"mr:tapKey"`: the property after it), as the
+street photos are. An online source goes in `SourceKind` (group `DATA`) so Settings → Sources lists
+it, can turn it off, and (where it has an address) point it at another server.
 
 ### Updating the time zones
 
@@ -232,7 +350,9 @@ the research request).
 
 **5. Data that fits a hiking and off-road app.** Protected areas, climate normals (temperature and
 rain by month), daylight (sunrise and sunset by place and date, worked out on the device like the
-time zones' clocks). Licences vary here: the main world protected-areas database restricts
+time zones' clocks), the rain radar's past two hours as an animation, Israel's own weather
+stations and radar (the Israel Meteorological Service gives a token on request), planes and boats
+through a small relay, and Windy's live webcams once there's a key. Licences vary here: the main world protected-areas database restricts
 commercial use, for example. Check each one before using it.
 
 **6. Android and iPhone.** The code is shared; provide `StatsData` on each.
