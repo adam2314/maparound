@@ -83,8 +83,22 @@ not ongoing) and by unit tests; **still to check on a paired watch**, Wear OS em
 - Known limit: starting a recording from the watch while MapAround is in the background on the
   phone may be refused by Android (starting location work from the background); stopping works.
 
-**Next slices:** the tile and the watch-face (Ongoing Activity) while navigating; the route view;
-the party (members, SOS) and the compass to a point; the complication.
+**Slice 2, built (2026-11-18):**
+- `WatchStore`: the phone's latest state on the watch, kept across restarts, shared by the screen,
+  the tile and the watch face; `WatchDataService` gets it while the app isn't on screen.
+- **Tile** (`MapAroundTile`, ProtoLayout): navigating, the turn's arrow (the same shapes as a PNG),
+  its distance, the instruction, what's left and arrival; recording, its distance and climb; else
+  "Open MapAround on your phone". A tap opens the app. Asked to update on each change; the watch
+  decides how often it does.
+- **Ongoing Activity** (`WatchOngoing`): while navigating or recording, the app's icon on the watch
+  face and a line of status: the turn and its distance; the recording's time (ticking by itself)
+  and distance. Silent (the turn alerts buzz). Needs notifications allowed on the watch (asked for
+  when the app opens).
+- Checked on the Wear OS 5 emulator with the samples: the tile (navigating, recording) and the
+  watch's notification.
+
+**Next slices:** the route view; the party (members, SOS) and the compass to a point; the
+complication.
 
 A `wear/` module in this repo: the same package (`app.maparound`), Wear OS 3 and later
 (API 30+), Compose for Wear OS. It reuses `:shared` (geo math, GPX, the party's protocol, texts in

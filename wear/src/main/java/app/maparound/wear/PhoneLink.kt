@@ -4,7 +4,6 @@ import android.content.Context
 import android.net.Uri
 import app.maparound.watch.WatchCommand
 import app.maparound.watch.WatchProtocol
-import app.maparound.watch.WatchState
 import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.DataEvent
@@ -13,9 +12,6 @@ import com.google.android.gms.wearable.DataItem
 import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -26,10 +22,6 @@ class PhoneLink(context: Context) : DataClient.OnDataChangedListener {
     private val app = context.applicationContext
     private val data = Wearable.getDataClient(app)
 
-    private val _state = MutableStateFlow<WatchState?>(null)
-
-    /** What the phone says; null until it has said anything (no phone app, or not yet). */
-    val state: StateFlow<WatchState?> = _state.asStateFlow()
 
     /** Listens for changes, after reading what's there now. */
     suspend fun listen() {
@@ -60,7 +52,7 @@ class PhoneLink(context: Context) : DataClient.OnDataChangedListener {
 
     private fun read(item: DataItem) {
         val bytes = DataMapItem.fromDataItem(item).dataMap.getByteArray(WatchProtocol.STATE_KEY) ?: return
-        WatchProtocol.decode(bytes)?.let { _state.value = it }
+        WatchProtocol.decode(bytes)?.let { WatchStore.update(app, it) }
     }
 
     /** Sends [command] to the phone app; false when no phone with it is in reach. */

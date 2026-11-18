@@ -66,9 +66,17 @@ class WearActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val demo = Demo.of(intent?.getStringExtra("demo"))
+        // A sample goes where the phone's state goes, so the tile and the watch face show it too.
+        if (intent?.hasExtra("demo") == true) WatchStore.update(this, demo)
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
+        }
+        WatchStore.current(this)
         setContent {
-            val live by link.state.collectAsState()
-            WearApp(demo ?: live) { command ->
+            val state by WatchStore.state.collectAsState()
+            WearApp(state) { command ->
                 if (demo != null) return@WearApp
                 lifecycleScope.launch {
                     if (!link.send(command)) Toast.makeText(this@WearActivity, T.watch.phoneNotReachable, Toast.LENGTH_SHORT).show()
@@ -79,6 +87,8 @@ class WearActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Shown again on the watch face (it may have been refused before notifications were allowed).
+        WatchOngoing.show(this, WatchStore.current(this))
         lifecycleScope.launch { link.listen() }
     }
 
