@@ -984,13 +984,15 @@ fun MapScreen(
                     Text(if (lit) "2D" else "3D", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                 }
             }
-            // The zoom, with the scale on its thumb.
+            // The zoom slider.
             zoom?.let { ZoomScale(it, Modifier.padding(top = 4.dp), bottomLimit = bottomLimit) }
         }
     }
 
     Box(Modifier.fillMaxSize()) {
         mapView(controller, Modifier.fillMaxSize())
+        // The scale, in the top corner away from the buttons (the compass goes under it).
+        if (scene3d == null) ScaleLine(controller, Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 12.dp))
 
         if (onOpenOffline != null && showingOffline && localMaps.isEmpty() && streamed.isEmpty() && !planner.active && !tools.active && !nav.active) {
             ElevatedCard(

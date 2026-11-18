@@ -527,7 +527,7 @@ Library) chooses: the device's language, English or עברית. The language cha
   `I18n.language` is snapshot state, so they redraw in a new language. Hebrew is gender-neutral
   (actions as nouns and infinitives).
 - **Right to left**: the app root sets Compose's layout direction from the language, so screens
-  mirror on every platform (the map's buttons and zoom slider go left, its compass right).
+  mirror on every platform (the map's buttons and zoom slider go left, its scale line and compass right).
   Coordinates and other runs that must read left to right are wrapped in Unicode isolates
   (`ltr()`) where they're shown, never in what's copied or shared. Units, dates and directions
   are translated (ק״מ, דק׳, 3 בנוב׳, צפון־מזרח).

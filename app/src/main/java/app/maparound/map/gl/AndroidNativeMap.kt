@@ -85,10 +85,10 @@ class AndroidNativeMap(
                 isTiltGesturesEnabled = false
                 isLogoEnabled = false
                 isAttributionEnabled = false
-                // In the top corner away from the buttons (the scale is the app's zoom slider's).
+                // In the top corner away from the buttons, under the scale (ScaleLine: 12 + 40 dp).
                 compassGravity = Gravity.TOP or side
-                if (rtl) setCompassMargins(0, (12 * density).toInt(), (12 * density).toInt(), 0)
-                else setCompassMargins((12 * density).toInt(), (12 * density).toInt(), 0, 0)
+                if (rtl) setCompassMargins(0, (60 * density).toInt(), (12 * density).toInt(), 0)
+                else setCompassMargins((12 * density).toInt(), (60 * density).toInt(), 0, 0)
             }
             // Fewer lower-zoom tiles fetched ahead: the app makes its tiles on the phone.
             m.prefetchZoomDelta = 2

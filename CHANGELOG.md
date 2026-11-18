@@ -82,6 +82,13 @@
 - **A member's card on the map fits narrow screens**: its buttons (History, Route here, Share) go
   on to a second line instead of off the edge.
 
+### The map
+- **The scale is a line in the corner again**, as before the zoom slider: in the top corner away
+  from the buttons, a round distance above the line and another below it (the chosen units'
+  first), each with its tick, black on a white halo. The zoom slider keeps a plain thumb. The
+  compass (Android's, and the 3D view's) sits under the scale. On Android, iPhone and the web, in
+  2D and 3D.
+
 ### The web app
 - **The 3D view turns around the place you right-click.** A right-button drag (or ctrl, shift or
   alt + drag) turns and tilts the camera around the spot it starts on, which stays under the

@@ -196,9 +196,14 @@ fun Scene3DScreen(
                     .padding(horizontal = 12.dp, vertical = 6.dp),
             )
         }
-        // Turned away from north: a compass on the other side; a tap faces north.
+        // The scale in the top corner away from the buttons, as on the 2D map.
+        control?.let { ScaleLine(it, Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 12.dp)) }
+        // Turned away from north: a compass on the other side, under the scale; a tap faces north.
         if (turned) {
-            Tip(T.map.faceNorth) { SmallFloatingActionButton(onClick = { control?.faceNorth() }, modifier = Modifier.align(Alignment.TopStart).padding(12.dp)) {
+            Tip(T.map.faceNorth) { SmallFloatingActionButton(
+                onClick = { control?.faceNorth() },
+                modifier = Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 12.dp + SCALE_HEIGHT + 8.dp),
+            ) {
                 Icon(Icons.Filled.Explore, contentDescription = T.map.faceNorth)
             } }
         }
