@@ -33,7 +33,7 @@ fun PointShareSheet(lat: Double, lon: Double, label: String?, onDismiss: () -> U
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(bottom = 24.dp)) {
             Text(
-                label ?: ltr(Fmt.latLon(lat, lon)),
+                label ?: ltr(Fmt.point(lat, lon)),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(start = 24.dp, bottom = 8.dp),
             )
@@ -46,7 +46,7 @@ fun PointShareSheet(lat: Double, lon: Double, label: String?, onDismiss: () -> U
             Option(Icons.AutoMirrored.Filled.OpenInNew, T.map.openElsewhere, T.map.openElsewhereHint) {
                 onDismiss(); platform.openPointElsewhere(lat, lon, label)
             }
-            Option(Icons.Filled.ContentCopy, T.map.copyCoordinates, ltr(Fmt.latLon(lat, lon))) {
+            Option(Icons.Filled.ContentCopy, T.map.copyCoordinates, ltr(Fmt.point(lat, lon))) {
                 onDismiss(); clipboard.setText(AnnotatedString(SharedLinks.pointText(lat, lon, label)))
             }
         }

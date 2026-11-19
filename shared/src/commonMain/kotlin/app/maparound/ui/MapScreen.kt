@@ -294,7 +294,8 @@ fun MapScreen(
             if (view != null && view != last) {
                 last = view
                 val mpd = controller.metresPerDp()
-                val grid = withContext(Dispatchers.Default) { app.maparound.tools.MapGrid.make(gridFormat, view, mpd) }
+                val at = controller.position().let { GeoPoint(it.lat, it.lon) }
+                val grid = withContext(Dispatchers.Default) { app.maparound.tools.MapGrid.make(gridFormat, view, mpd, at) }
                 controller.setGrid(grid)
             }
             delay(GRID_CHECK_MS)
@@ -1744,9 +1745,8 @@ private fun PinCard(
 ) {
     val clipboard = LocalClipboardManager.current
     val platform = LocalPlatform.current
-    val format by LocalPrefs.current.coordFormat.collectAsState()
-    val primary = app.maparound.tools.Coords.format(pin, format) ?: Fmt.latLon(pin.lat, pin.lon)
-    val secondary = if (format == app.maparound.tools.CoordFormat.DD) Fmt.dms(pin.lat, pin.lon) else Fmt.latLon(pin.lat, pin.lon)
+    // In the coordinate format chosen (tapping it opens the converter with every other).
+    val primary = Fmt.point(pin.lat, pin.lon)
     Card(Modifier.widthIn(max = 360.dp).padding(bottom = 6.dp)) {
         Column(Modifier.padding(start = 16.dp, top = 8.dp, end = 4.dp, bottom = 4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1766,7 +1766,6 @@ private fun PinCard(
                         ltr(primary),
                         style = if (label == null) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium,
                     )
-                    Text(ltr(secondary), style = MaterialTheme.typography.bodySmall)
                 }
                 Tip(T.common.close) { IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = T.common.close) } }
             }
@@ -1774,7 +1773,7 @@ private fun PinCard(
                 val from = GeoPoint(myLocation.lat, myLocation.lon)
                 val bearing = Geodesy.bearing(from, pin).toFloat()
                 Text(
-                    T.map.fromYou(Fmt.distance(Geo.distance(from, pin).toFloat()), bearing.roundToInt(), Fmt.cardinal(bearing)),
+                    T.map.fromYou(Fmt.distance(Geo.distance(from, pin).toFloat()), Fmt.heading(bearing)),
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }

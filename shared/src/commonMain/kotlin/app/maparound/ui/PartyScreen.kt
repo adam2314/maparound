@@ -449,7 +449,7 @@ private fun InParty(
                         val named = meet.label.isNotBlank() && meet.label !in listOf(Texts.English, Texts.Hebrew).map { it.party.meetingPoint }
                         Text(if (named) T.party.meetingPointNamed(meet.label) else T.party.meetingPoint)
                     },
-                    supportingContent = { Text(distanceText(s.myPosition, meet.lat, meet.lon) ?: ltr(Fmt.latLon(meet.lat, meet.lon))) },
+                    supportingContent = { Text(distanceText(s.myPosition, meet.lat, meet.lon) ?: ltr(Fmt.point(meet.lat, meet.lon))) },
                     trailingContent = {
                         Row {
                             Tip(T.party.routeToMeetingPoint) { IconButton(onClick = { onRouteTo(GeoPoint(meet.lat, meet.lon)) }) { Icon(Icons.Filled.Route, contentDescription = T.party.routeToMeetingPoint) } }

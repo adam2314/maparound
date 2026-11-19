@@ -638,7 +638,7 @@ fun LocalityCard(l: Locality, onPin: () -> Unit, onClose: () -> Unit) {
             l.arabs?.let { (100.0 * it / l.population).toInt() }?.takeIf { it >= 1 }?.let { Text(T.stats.arabsShare(it), style = MaterialTheme.typography.bodySmall) }
             val facts = listOfNotNull(
                 l.founded?.let(T.stats::foundedIn),
-                l.altitudeM?.let(T.stats::altitudeOf),
+                l.altitudeM?.let { T.stats.altitudeOf(Fmt.height(it)) },
                 l.cluster?.let(T.stats::clusterOf),
             )
             if (facts.isNotEmpty()) Text(facts.joinToString(" · "), style = MaterialTheme.typography.bodySmall)

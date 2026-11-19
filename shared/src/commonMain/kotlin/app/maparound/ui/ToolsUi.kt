@@ -186,7 +186,7 @@ private fun toolsSummary(s: ToolsSession.State, format: CoordFormat): String {
             s.mode == Mode.SIGHT -> s.los?.let { los ->
                 (if (los.targetVisible) T.tools.bInSight else T.tools.bHidden) + " · " + Fmt.distance(los.distanceM.toFloat())
             } ?: "…"
-            else -> Geodesy.bearing(a, b).let { az -> "${Fmt.distance(Geo.distance(a, b).toFloat())} · ${deg(az)} ${Fmt.cardinal(az.toFloat())}" }
+            else -> Geodesy.bearing(a, b).let { az -> "${Fmt.distance(Geo.distance(a, b).toFloat())} · ${Fmt.heading(az.toFloat())}" }
         }
         Mode.VIEW -> when {
             a == null -> T.tools.chipTapMap(T.tools.observer)
@@ -263,10 +263,15 @@ private fun MeasureBody(state: ToolsSession.State, myLocation: GeoFix?) {
         val mag = (az - declinationAt(sensors, a) + 360) % 360
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(Fmt.distance(dist.toFloat()), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text("${deg(az)} ${Fmt.cardinal(az.toFloat())}", style = MaterialTheme.typography.headlineSmall)
+            Text(Fmt.heading(az.toFloat()), style = MaterialTheme.typography.headlineSmall)
         }
         Text(
-            T.tools.magneticMilsBack(deg(mag), Geodesy.mils(az), deg(back)),
+            // Mils besides, unless directions are shown in mils already.
+            T.tools.magneticMilsBack(
+                Fmt.heading(mag.toFloat()),
+                Geodesy.mils(az).takeIf { app.maparound.i18n.Units.current.direction != app.maparound.i18n.DirectionFormat.MILS },
+                Fmt.heading(back.toFloat()),
+            ),
             style = MaterialTheme.typography.bodyMedium,
         )
         val ga = state.aGround
@@ -293,7 +298,6 @@ private fun MeasureBody(state: ToolsSession.State, myLocation: GeoFix?) {
     }
 }
 
-private fun deg(v: Double) = "${((v.roundToInt() % 360) + 360) % 360}°"
 private fun signed(v: Int) = if (v > 0) "+$v" else "$v"
 
 @Composable
@@ -399,7 +403,7 @@ private fun SightBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTerra
                     fontWeight = FontWeight.Bold,
                 )
                 Spacer(Modifier.weight(1f))
-                Text("${Fmt.distance(los.distanceM.toFloat())} · ${deg(Geodesy.bearing(a, b))}", style = MaterialTheme.typography.bodyMedium)
+                Text("${Fmt.distance(los.distanceM.toFloat())} · ${Fmt.heading(Geodesy.bearing(a, b).toFloat())}", style = MaterialTheme.typography.bodyMedium)
             }
             val o = los.obstacle
             Text(
@@ -437,7 +441,7 @@ private fun RadioResult(los: LineOfSight, a: GeoPoint, b: GeoPoint) {
         Icon(Icons.Filled.CellTower, contentDescription = null, tint = color)
         Text(title, style = MaterialTheme.typography.titleMedium, color = color, fontWeight = FontWeight.Bold)
         Spacer(Modifier.weight(1f))
-        Text("${Fmt.distance(los.distanceM.toFloat())} · ${deg(Geodesy.bearing(a, b))}", style = MaterialTheme.typography.bodyMedium)
+        Text("${Fmt.distance(los.distanceM.toFloat())} · ${Fmt.heading(Geodesy.bearing(a, b).toFloat())}", style = MaterialTheme.typography.bodyMedium)
     }
     // The tightest point's distance from A.
     val where = t?.let { Fmt.distance(it.distanceM.toFloat()) } ?: ""
@@ -449,13 +453,13 @@ private fun RadioResult(los: LineOfSight, a: GeoPoint, b: GeoPoint) {
             f.clearance > 0 -> T.tools.fresnelPartly(where, percent(f.clearance), extra)
             else -> {
                 val above = -f.clearance * f.radiusAt(t.distanceM, los.distanceM)
-                T.tools.fresnelAbove(where, above.roundToInt(), extra)
+                T.tools.fresnelAbove(where, Fmt.height(above), extra)
             }
         },
         style = MaterialTheme.typography.bodyMedium,
     )
     Text(
-        T.tools.pathLoss(f.totalLossDb.roundToInt(), f.freeSpaceLossDb.roundToInt(), extra.takeIf { it > 0 }, f.midRadiusM.roundToInt()),
+        T.tools.pathLoss(f.totalLossDb.roundToInt(), f.freeSpaceLossDb.roundToInt(), extra.takeIf { it > 0 }, Fmt.height(f.midRadiusM)),
         style = MaterialTheme.typography.bodyMedium,
     )
     SightProfile(los, Modifier.fillMaxWidth().height(130.dp))
@@ -548,7 +552,7 @@ private fun HigherGroundHint(state: ToolsSession.State) {
     val ground = state.aGround ?: return
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            T.tools.higherGround((z - ground).roundToInt(), Geo.distance(a, p).roundToInt()),
+            T.tools.higherGround(Fmt.height(z - ground), Fmt.distance(Geo.distance(a, p).toFloat())),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),

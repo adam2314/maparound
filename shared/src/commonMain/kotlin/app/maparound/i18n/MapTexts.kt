@@ -62,7 +62,8 @@ open class MapTexts {
     open fun myLocationWithin(accuracy: String?) = if (accuracy == null) "My location" else "My location (±$accuracy)"
 
     /** "1.2 km from you · 45° NE" */
-    open fun fromYou(distance: String, degrees: Int, direction: String) = "$distance from you · $degrees° $direction"
+    /** "2.4 km from you · NE 47°" ([direction] as directions are shown). */
+    open fun fromYou(distance: String, direction: String) = "$distance from you · $direction"
     open val whatsHere = "What's here?"
     open val wikipedia = "Wikipedia"
     open val routeHere = "Route here"
@@ -368,7 +369,7 @@ object MapTextsHe : MapTexts() {
     }
 
     override fun myLocationWithin(accuracy: String?) = if (accuracy == null) "המיקום שלי" else "המיקום שלי (±$accuracy)"
-    override fun fromYou(distance: String, degrees: Int, direction: String) = "$distance ממך · $degrees° $direction"
+    override fun fromYou(distance: String, direction: String) = "$distance ממך · $direction"
     override val whatsHere = "מה יש כאן?"
     override val wikipedia = "ויקיפדיה"
     override val routeHere = "מסלול לכאן"

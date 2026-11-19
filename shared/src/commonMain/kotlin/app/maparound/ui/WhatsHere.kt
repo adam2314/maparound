@@ -113,7 +113,7 @@ fun WhatsHereSheet(
                     Text(poi?.title ?: T.map.whatsHereTitle, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 Text(
-                    listOfNotNull(poi?.details, ltr(Fmt.latLon(point.lat, point.lon))).joinToString(" · "),
+                    listOfNotNull(poi?.details, ltr(Fmt.point(point.lat, point.lon))).joinToString(" · "),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp),

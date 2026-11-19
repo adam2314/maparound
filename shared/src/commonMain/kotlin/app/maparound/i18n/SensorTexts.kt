@@ -99,14 +99,14 @@ open class SensorTexts {
     open val waitingForGps = "Waiting for GPS… go outside with a view of the sky."
     open fun gpsFixLost(seconds: Long) = "GPS fix lost $seconds s ago"
 
-    /** Direction of travel: "heading 45° NE". */
-    open fun heading(degrees: Int, cardinal: String) = "heading $degrees° $cardinal"
+    /** Direction of travel: "heading NE 45°" ([direction] as directions are shown). */
+    open fun heading(direction: String) = "heading $direction"
 
-    /** "pace 12:30 /km", [value] from [perKm]. */
+    /** "pace 12:30 /km", [value] from [perUnit]. */
     open fun pace(value: String) = "pace $value"
 
-    /** Minutes and seconds per kilometre: "12:30 /km". */
-    open fun perKm(minSec: String) = "$minSec /km"
+    /** Minutes and seconds per [unit] (km, mi, NM): "12:30 /km". */
+    open fun perUnit(minSec: String, unit: String) = "$minSec /$unit"
     open val stopped = "stopped"
     open val trip = "Trip"
     open val distance = "Distance"
@@ -114,8 +114,9 @@ open class SensorTexts {
     open val averageWhileMoving = "Average while moving"
     open val movingTime = "Moving time"
     open val totalTime = "Total time"
-    open val tripHint =
-        "Counts while MapAround is open. Below 1.8 km/h counts as stopped. To keep a full log, record a track on the map."
+    /** [stopped]: the speed below which it counts as stopped ("1.8 km/h"). */
+    open fun tripHint(stopped: String) =
+        "Counts while MapAround is open. Below $stopped counts as stopped. To keep a full log, record a track on the map."
     open val speedLast10Minutes = "Speed, last 10 minutes"
 
     // ---- motion ----
@@ -286,9 +287,9 @@ object SensorTextsHe : SensorTexts() {
     override val groundSpeedGps = "מהירות קרקע (GPS)"
     override val waitingForGps = "בהמתנה ל־GPS… כדאי לצאת למקום פתוח עם שמיים גלויים."
     override fun gpsFixLost(seconds: Long) = "קליטת ה־GPS אבדה לפני $seconds שנ׳"
-    override fun heading(degrees: Int, cardinal: String) = "כיוון ${ltr("$degrees°")} $cardinal"
+    override fun heading(direction: String) = "כיוון $direction"
     override fun pace(value: String) = "קצב $value"
-    override fun perKm(minSec: String) = "$minSec לק״מ"
+    override fun perUnit(minSec: String, unit: String) = "$minSec ל$unit"
     override val stopped = "ללא תנועה"
     override val trip = "טיול"
     override val distance = "מרחק"
@@ -296,8 +297,8 @@ object SensorTextsHe : SensorTexts() {
     override val averageWhileMoving = "ממוצע בתנועה"
     override val movingTime = "זמן בתנועה"
     override val totalTime = "זמן כולל"
-    override val tripHint =
-        "נמדד כל עוד MapAround פתוחה. מתחת ל־1.8 קמ״ש נחשב עמידה במקום. לתיעוד מלא, אפשר להקליט מסלול במפה."
+    override fun tripHint(stopped: String) =
+        "נמדד כל עוד MapAround פתוחה. מתחת ל־${ltr(stopped)} נחשב עמידה במקום. לתיעוד מלא, אפשר להקליט מסלול במפה."
     override val speedLast10Minutes = "מהירות, 10 הדקות האחרונות"
 
     override val noMotionSensors = "אין חיישני תנועה"

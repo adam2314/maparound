@@ -110,7 +110,7 @@ fun SpeedScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
                         !fresh && s.fixAtElapsedMs == 0L -> T.sensors.waitingForGps
                         !fresh -> T.sensors.gpsFixLost((now - s.fixAtElapsedMs) / 1000)
                         else -> listOfNotNull(
-                            s.courseDeg?.let { T.sensors.heading(it.roundToInt(), Fmt.cardinal(it)) },
+                            s.courseDeg?.let { T.sensors.heading(Fmt.heading(it)) },
                             s.speedAccuracyMps?.let { "±${fmtSpeed(it.toDouble(), unit)} ${unit.label}" },
                             speed?.takeIf { it in 0.3..8.0 }?.let { T.sensors.pace(pace(it)) },
                         ).joinToString(" · ").ifEmpty { T.sensors.stopped }
@@ -142,7 +142,7 @@ fun SpeedScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
                 InfoRow(T.sensors.movingTime, Fmt.clock(s.movingMs / 1000))
                 InfoRow(T.sensors.totalTime, Fmt.clock(s.elapsedMs / 1000))
                 Text(
-                    T.sensors.tripHint,
+                    T.sensors.tripHint("${fmtSpeed(STOPPED_MPS, unit)} ${unit.label}"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 6.dp),
@@ -164,11 +164,19 @@ internal fun fmtSpeed(mps: Double, unit: SpeedUnit): String {
     return if (v < 10) localFixed(v, 1) else v.roundToInt().toString()
 }
 
-/** Minutes per kilometre, e.g. "12:30 /km". */
+/** Minutes per kilometre, mile or nautical mile (as distances are shown), e.g. "12:30 /km". */
 private fun pace(mps: Double): String {
-    val secPerKm = (1000 / mps).roundToInt()
-    return T.sensors.perKm("${secPerKm / 60}:${padded(secPerKm % 60, 2)}")
+    val (metres, unit) = when (app.maparound.i18n.Units.current.distance) {
+        app.maparound.i18n.DistanceUnit.METRIC -> 1000.0 to T.common.unitKm
+        app.maparound.i18n.DistanceUnit.IMPERIAL -> Fmt.MILE_M to T.common.unitMi
+        app.maparound.i18n.DistanceUnit.NAUTICAL -> Fmt.NAUTICAL_MILE_M to T.common.unitNm
+    }
+    val sec = (metres / mps).roundToInt()
+    return T.sensors.perUnit("${sec / 60}:${padded(sec % 60, 2)}", unit)
 }
+
+/** Slower than this (1.8 km/h) counts as stopped (the trip's moving time). */
+private const val STOPPED_MPS = 0.5
 
 @Composable
 private fun SpeedChart(history: List<Pair<Long, Float>>, unit: SpeedUnit, now: Long, modifier: Modifier) {

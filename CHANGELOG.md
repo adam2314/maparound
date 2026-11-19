@@ -33,6 +33,18 @@
   They apply on the map's cards, the party, the tools, Library, Speed, the satellites screen, the
   scale line (in the chosen unit only), charts, the car screen, and navigation's spoken instructions
   ("In 350 feet").
+- **Your formats everywhere.** Each of these now follows Settings → Units & formats:
+  - **Coordinates:** in the format chosen alone, on the pin card (it showed decimal degrees or DMS
+    besides; tapping it still opens the converter with every format), in What's here, the weather
+    card, the meeting point, the satellites screen and the share sheet's **Copy coordinates**.
+  - **Directions:** as chosen (compass points, degrees, both or mils) on the pin card ("from you"),
+    in the measuring and line-of-sight tools, and in Speed's course; the measuring tool's
+    magnetic and back bearings too, with mils besides unless directions are in mils already. The
+    compass's big readout is in mils when directions are.
+  - **Heights and lengths:** in a locality's altitude and the line-of-sight and radio
+    explanations (they were in metres).
+  - **Speed:** the pace is per mile or nautical mile when distances are, and "stopped" says its
+    speed in your unit.
 - **How long the screen stays on**, with the app open and while navigating: the phone's own setting,
   2, 5, 10 or 30 minutes after the last touch, or always on. As before until changed: the phone's
   setting with the app open, always on while navigating. (It never goes off sooner than the phone's
@@ -126,6 +138,15 @@
   on to a second line instead of off the edge.
 
 ### The map
+- **Coordinate grids no longer freeze the app.** On a tilted map (navigating, or tilted by hand),
+  the view reaches toward the horizon, and the grid kept widening its spacing to cover all of it.
+  A UTM, MGRS or national grid's numbers that far from its area grew without bound, so the grid
+  never finished: the phone heated up, ran out of memory and the app closed. That happened on
+  Android, iPhone and the web. Degree grids did the same with the world's copies side by side,
+  and the Web Mercator grid over the whole world. Every grid now draws only around the map's
+  centre, at its scale's spacing. Projected grids stay where they apply (UTM to within reach of
+  its zone). A grid's lines are counted out, so nothing can run on. A test now runs every grid
+  over hundreds of views: tilted, zoomed in to 24, the poles, the date line, the world.
 - **The scale is a line in the corner again**, as before the zoom slider: in the top corner away
   from the buttons, one round distance above the line, in the distance unit chosen only (km and
   m; miles, and feet close in; nautical miles), with a tick at each end, black on a white halo. The zoom slider keeps a plain thumb. The

@@ -80,7 +80,8 @@ open class StatsTexts {
     open fun residents(n: Int) = "${group(n.toDouble())} residents"
     open fun arabsShare(pct: Int) = "Arab residents: $pct%"
     open fun foundedIn(year: Int) = "Founded in $year"
-    open fun altitudeOf(m: Int) = "Altitude: ${ltr("$m m")}"
+    /** [height] as heights are shown ("812 m", "2664 ft"). */
+    open fun altitudeOf(height: String) = "Altitude: ${ltr(height)}"
     open fun clusterOf(c: Int) = "Socio-economic cluster: $c of 10"
     open val byAge = "Residents by age"
     open val ageGroups = listOf("0–5", "6–18", "19–45", "46–55", "56–64", "65+")
@@ -244,7 +245,7 @@ object StatsTextsHe : StatsTexts() {
     override fun residents(n: Int) = "${ltr(group(n.toDouble()))} תושבים"
     override fun arabsShare(pct: Int) = "תושבים ערבים: ${ltr("$pct%")}"
     override fun foundedIn(year: Int) = "נוסד ב־$year"
-    override fun altitudeOf(m: Int) = "גובה: ${ltr("$m מ'")}"
+    override fun altitudeOf(height: String) = "גובה: ${ltr(height)}"
     override fun clusterOf(c: Int) = "אשכול חברתי־כלכלי: $c מתוך 10"
     override val byAge = "תושבים לפי גיל"
     override fun asOf(year: Int) = "($year)"

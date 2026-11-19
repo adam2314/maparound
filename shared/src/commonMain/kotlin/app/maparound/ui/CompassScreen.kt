@@ -104,7 +104,9 @@ fun CompassScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            heading?.let { ltr("${it.roundToInt() % 360}°") } ?: "—",
+            heading?.let {
+                if (app.maparound.i18n.Units.current.direction == app.maparound.i18n.DirectionFormat.MILS) Fmt.heading(it) else ltr("${it.roundToInt() % 360}°")
+            } ?: "—",
             style = MaterialTheme.typography.displayLarge,
             fontWeight = FontWeight.Bold,
         )

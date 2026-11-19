@@ -33,6 +33,8 @@ data class UnitSystem(
     val direction: DirectionFormat = DirectionFormat.COMPASS,
     val time: TimeFormat = TimeFormat.H24,
     val date: DateOrder = DateOrder.DAY_MONTH,
+    /** How coordinates are written (its own setting: Settings → Units & formats, or the converter). */
+    val coords: app.maparound.tools.CoordFormat = app.maparound.tools.CoordFormat.DD,
 ) {
     companion object {
         /** Where miles, feet and mph are the everyday units. */

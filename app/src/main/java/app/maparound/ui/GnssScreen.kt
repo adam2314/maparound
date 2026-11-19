@@ -174,8 +174,7 @@ private fun FixCard(state: GnssState, nowNanos: Long) {
             }
             Spacer(Modifier.height(8.dp))
             if (loc != null) {
-                InfoRow(T.sensors.position, ltr(Fmt.latLon(loc.latitude, loc.longitude)))
-                InfoRow("", ltr(Fmt.dms(loc.latitude, loc.longitude)))
+                InfoRow(T.sensors.position, ltr(Fmt.point(loc.latitude, loc.longitude)))
                 loc.bestAltitude()?.let { alt ->
                     val msl = Build.VERSION.SDK_INT >= 34 && loc.hasMslAltitude()
                     InfoRow(T.sensors.altitude, T.sensors.altitudeValue(Fmt.height(alt), msl))

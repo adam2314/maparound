@@ -24,7 +24,9 @@ open class ToolsTexts {
     open val measureTapB = "Now tap B. Further taps move the picked point (tap A or B to pick it); drag a point to move it."
 
     /** Under the distance and azimuth: "Magnetic 123° · 2187 mil · back 303°". */
-    open fun magneticMilsBack(magnetic: String, mils: Int, back: String) = "Magnetic $magnetic · $mils mil · back $back"
+    /** [mils]: null when directions are shown in mils already. */
+    open fun magneticMilsBack(magnetic: String, mils: Int?, back: String) =
+        "Magnetic $magnetic" + (if (mils != null) " · $mils mil" else "") + " · back $back"
 
     /**
      * "Height 120 → 340 m · Δ +220 m · +4.5°", and " · slant 2.8 km" when [slant] isn't null.
@@ -84,15 +86,15 @@ open class ToolsTexts {
             "Expect about $extraDb dB of extra loss."
 
     /** [at]: the tightest point's distance from A. */
-    open fun fresnelAbove(at: String, aboveM: Int, extraDb: Int) =
-        "The ground $at from A rises $aboveM m above the direct line between the antennas. " +
+    open fun fresnelAbove(at: String, above: String, extraDb: Int) =
+        "The ground $at from A rises $above above the direct line between the antennas. " +
             "Expect about $extraDb dB of extra loss (diffraction over it); the signal may still get through."
 
     /** [terrainDb]: null when the terrain adds no loss. */
-    open fun pathLoss(totalDb: Int, freeSpaceDb: Int, terrainDb: Int?, midRadiusM: Int) =
+    open fun pathLoss(totalDb: Int, freeSpaceDb: Int, terrainDb: Int?, midRadius: String) =
         "Path loss about $totalDb dB: free space $freeSpaceDb dB" +
             (if (terrainDb != null) " + terrain $terrainDb dB" else "") +
-            ". The first Fresnel zone is $midRadiusM m in radius halfway."
+            ". The first Fresnel zone is $midRadius in radius halfway."
     open val radioNote = "Bare terrain, with radio's 4/3 Earth radius; trees, buildings, antenna gain and cable loss aren't " +
         "included. Terrain loss is the tightest point as a single knife edge (ITU-R P.526)."
     open val otherFrequency = "Other frequency…"
@@ -104,8 +106,8 @@ open class ToolsTexts {
     open val band5800 = "5.8 GHz (Wi-Fi, video)"
 
     // ---- higher ground near A ----
-    open fun higherGround(higherM: Int, awayM: Int) =
-        "Ground $higherM m higher is $awayM m away and may block the view (terrain data rounds off summits)."
+    open fun higherGround(higher: String, away: String) =
+        "Ground $higher higher is $away away and may block the view (terrain data rounds off summits)."
     open val moveAUp = "Move A up"
 
     // ---- terrain needed ----
@@ -204,8 +206,8 @@ object ToolsTextsHe : ToolsTexts() {
 
     override val measureTapA = "יש להקיש על המפה כדי להציב את A, הנקודה שממנה מודדים."
     override val measureTapB = "עכשיו יש להקיש כדי להציב את B. הקשות נוספות מזיזות את הנקודה שנבחרה (הקשה על A או B בוחרת בה); אפשר גם לגרור נקודה."
-    override fun magneticMilsBack(magnetic: String, mils: Int, back: String) =
-        "מגנטי $magnetic · $mils אלפיות · אזימוט חוזר $back"
+    override fun magneticMilsBack(magnetic: String, mils: Int?, back: String) =
+        "מגנטי $magnetic" + (if (mils != null) " · $mils אלפיות" else "") + " · אזימוט חוזר $back"
     override fun heightChange(from: String, to: String, delta: String, angle: String, slant: String?) =
         "גובה $from ← $to · ${ltr("Δ $delta")} · ${ltr("$angle°")}" +
             (if (slant != null) " · מרחק אלכסוני $slant" else "")
@@ -248,13 +250,13 @@ object ToolsTextsHe : ToolsTexts() {
     override fun fresnelPartly(at: String, percent: String, extraDb: Int) =
         "הקרקע במרחק $at מ־A נכנסת לאזור פרנל: רק $percent ממנו פנוי. " +
             "צפויה הנחתה נוספת של כ־${ltr("$extraDb dB")}."
-    override fun fresnelAbove(at: String, aboveM: Int, extraDb: Int) =
-        "הקרקע במרחק $at מ־A מתנשאת $aboveM מ׳ מעל הקו הישר בין האנטנות. " +
+    override fun fresnelAbove(at: String, above: String, extraDb: Int) =
+        "הקרקע במרחק $at מ־A מתנשאת ${ltr(above)} מעל הקו הישר בין האנטנות. " +
             "צפויה הנחתה נוספת של כ־${ltr("$extraDb dB")} (עקיפה מעל המכשול); ייתכן שהאות עדיין יעבור."
-    override fun pathLoss(totalDb: Int, freeSpaceDb: Int, terrainDb: Int?, midRadiusM: Int) =
+    override fun pathLoss(totalDb: Int, freeSpaceDb: Int, terrainDb: Int?, midRadius: String) =
         "הנחתת מסלול של כ־${ltr("$totalDb dB")}: מרחב חופשי ${ltr("$freeSpaceDb dB")}" +
             (if (terrainDb != null) " + פני השטח ${ltr("$terrainDb dB")}" else "") +
-            ". רדיוס אזור פרנל הראשון באמצע הדרך: $midRadiusM מ׳."
+            ". רדיוס אזור פרנל הראשון באמצע הדרך: ${ltr(midRadius)}."
     override val radioNote = "לפי פני השטח בלבד, ברדיוס כדור ארץ אפקטיבי של 4/3 כמקובל ברדיו; עצים, מבנים, הגבר אנטנות " +
         "והפסדי כבלים לא נלקחים בחשבון. הנחתת פני השטח מחושבת בנקודה הצרה ביותר כשפת סכין יחידה (ITU-R P.526)."
     override val otherFrequency = "תדר אחר…"
@@ -264,8 +266,8 @@ object ToolsTextsHe : ToolsTexts() {
     override val bandMarineVhf = "VHF ימי"
     override val band5800 = "5.8 GHz (Wi-Fi, וידאו)"
 
-    override fun higherGround(higherM: Int, awayM: Int) =
-        "במרחק $awayM מ׳ יש קרקע גבוהה יותר ב־$higherM מ׳ שעלולה להסתיר את הנוף (נתוני הגובה מעגלים פסגות)."
+    override fun higherGround(higher: String, away: String) =
+        "במרחק ${ltr(away)} יש קרקע גבוהה יותר ב־${ltr(higher)} שעלולה להסתיר את הנוף (נתוני הגובה מעגלים פסגות)."
     override val moveAUp = "העלאת A"
 
     override fun gettingTerrain(done: Int, total: Int) =

@@ -406,7 +406,7 @@ fun WeatherCard(lat: Double, lon: Double, stats: StatsData, onClose: () -> Unit)
         Column(Modifier.padding(start = 16.dp, end = 4.dp, bottom = 12.dp)) {
             CardTitle(
                 l.weatherHere,
-                listOfNotNull(ltr(Fmt.latLon(lat, lon)), f?.elevationM?.let { l.atHeight(Fmt.height(it)) }).joinToString(" · "),
+                listOfNotNull(ltr(Fmt.point(lat, lon)), f?.elevationM?.let { l.atHeight(Fmt.height(it)) }).joinToString(" · "),
                 onClose,
             )
             if (f == null) {

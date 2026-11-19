@@ -110,6 +110,14 @@ object Fmt {
 
     fun latLon(lat: Double, lon: Double): String = "${fixed(lat, 5)}, ${fixed(lon, 5)}"
 
+    /**
+     * A point as the user chose to see coordinates (Settings → Units & formats: degrees, UTM, MGRS,
+     * a national grid, a Plus Code…), in degrees where that format doesn't reach (another
+     * country's grid).
+     */
+    fun point(lat: Double, lon: Double): String =
+        app.maparound.tools.Coords.format(app.maparound.routing.GeoPoint(lat, lon), Units.current.coords) ?: latLon(lat, lon)
+
     fun dms(lat: Double, lon: Double): String = "${dmsPart(lat, "N", "S")}  ${dmsPart(lon, "E", "W")}"
 
     private fun dmsPart(value: Double, pos: String, neg: String): String {

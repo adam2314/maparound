@@ -338,8 +338,10 @@ class Prefs(
     /** What the user chose (null: the device's). */
     val unitChoice: StateFlow<UnitChoice> = _unitChoice.asStateFlow()
 
-    /** The units and formats in use: the ones chosen, the device's for the rest. */
-    private val _units = MutableStateFlow(_unitChoice.value.resolve(Units.device))
+    /** The units and formats in use: the ones chosen, the device's for the rest, and the coordinates' format. */
+    private val _units = MutableStateFlow(
+        _unitChoice.value.resolve(Units.device).copy(coords = CoordFormat.entries.firstOrNull { it.name == sp.getString(K_COORD_FORMAT) } ?: CoordFormat.DD),
+    )
     val units: StateFlow<UnitSystem> = _units.asStateFlow()
 
     init {
@@ -354,7 +356,7 @@ class Prefs(
         putOrRemove(K_DIRECTION_FORMAT, c.direction?.name)
         putOrRemove(K_TIME_FORMAT, c.time?.name)
         putOrRemove(K_DATE_ORDER, c.date?.name)
-        _units.value = c.resolve(Units.device)
+        _units.value = c.resolve(Units.device).copy(coords = _units.value.coords)
         onUnits(_units.value)
         _speedUnit.value = _units.value.speed
     }
@@ -439,6 +441,9 @@ class Prefs(
     fun setCoordFormat(value: CoordFormat) {
         _coordFormat.value = value
         sp.putString(K_COORD_FORMAT, value.name)
+        // Coordinates everywhere ([app.maparound.ui.Fmt.point]) follow.
+        _units.value = _units.value.copy(coords = value)
+        onUnits(_units.value)
     }
 }
 
