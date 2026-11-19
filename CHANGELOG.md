@@ -56,7 +56,8 @@
   map link: **MapAround's** (it opens the place or the line itself, in the app or in any browser), no
   Google Maps or OpenStreetMap ones. Settings → Sharing chooses another instead: Google Maps (a
   planned route as directions), OpenStreetMap (a planned route on BRouter-Web), or all of them, as
-  before.
+  before. A shared point's coordinates are in the format chosen (Settings → Units & formats), as on
+  its pin; opened in MapAround, a point without a name doesn't take them for one.
 - **Sources**: every online service the app uses, in one list: the map list, the online map,
   satellite imagery, marked trails (online and to download), elevation, online routing and its
   data, search, Wikipedia and photos, the party's server, and (on the web) the data view's GPS
