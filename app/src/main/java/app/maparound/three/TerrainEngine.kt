@@ -12,44 +12,71 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+import kotlin.math.floor
 import app.maparound.data.file
 
 /**
- * Loads 3D tiles in the background, most important first: the map picture and terrain mesh (on
- * the globe) for each tile, buildings (from the offline maps) for nearby street-level tiles, and
- * the names to stand up over the terrain. Results queue up for the GL thread to upload.
+ * Loads 3D tiles in the background, most important first: each tile's terrain mesh (on the globe,
+ * quick: from the elevation files) and its map picture (slow: drawn by MapLibre) apart, so the
+ * ground has its shape long before its picture comes (see [TileLook]); buildings (from the offline
+ * maps) for nearby street-level tiles; and the names to stand up over the terrain. Results queue up
+ * for the GL thread to upload. Where no elevation has been downloaded, the shape comes from
+ * [relief] (small image tiles), so distant mountains aren't flat.
  */
-class TerrainEngine(val textures: TileTextures, private val onReady: () -> Unit) {
-    class LoadedTile(val id: TileId, val mesh: GlobeTileMesh, val bitmap: Bitmap?)
+class TerrainEngine(val textures: TileTextures, private val relief: OnlineRelief? = null, private val onReady: () -> Unit) {
+    class LoadedMesh(val id: TileId, val mesh: GlobeTileMesh)
+    class LoadedPicture(val id: TileId, val bitmap: Bitmap?)
 
     /** Buildings of a zoom-16 tile: vertices in metres east/north/up of [center] (see [Buildings]). */
     class LoadedBuildings(val id: TileId, val center: Vec3, val lat: Double, val lon: Double, val vertices: FloatArray, val count: Int)
 
-    val readyTiles = ConcurrentLinkedQueue<LoadedTile>()
+    val readyMeshes = ConcurrentLinkedQueue<LoadedMesh>()
+    val readyPictures = ConcurrentLinkedQueue<LoadedPicture>()
     val readyBuildings = ConcurrentLinkedQueue<LoadedBuildings>()
 
     private val dem: DemIndex? = DemIndex(AppGraph.terrain.demDir.path).takeUnless { it.isEmpty }
-    val hasTerrain: Boolean get() = dem != null
-    val elevation = Elevation { lat, lon -> dem?.elevation(lat, lon) ?: Float.NaN }
+
+    /** Whether a downloaded 1° cell holds [lat], [lon] (its heights then win: finer, and with the coast). */
+    private fun downloaded(lat: Double, lon: Double): Boolean = dem?.covers(floor(lat).toInt(), floor(lon).toInt()) == true
+
+    /** The heights a tile's shape is made of: the downloaded cells', else the relief's at [reliefZoom] (fetched if need be). */
+    private fun elevationFor(reliefZoom: Int) = Elevation { lat, lon ->
+        when {
+            downloaded(lat, lon) -> dem!!.elevation(lat, lon)
+            relief != null -> relief.at(lat, lon, reliefZoom)
+            else -> Float.NaN
+        }
+    }
 
     private val mapFiles = AppGraph.mapFiles.files.value.map { it.file }.filterNot { MapNames.isWorld(it.name) }
     val hasBuildings: Boolean get() = mapFiles.isNotEmpty()
     private var buildingStores: List<MapFile>? = null // only touched by the building worker
     private var labelStores: List<MapFile>? = null // only touched by the label worker
 
-    private val tileQueue = WorkQueue<TileId>("3d-tiles", textures.threads, ::loadTile)
+    private val meshQueue = WorkQueue<TileId>("3d-meshes", MESH_THREADS, ::loadMesh)
+    private val pictureQueue = WorkQueue<TileId>("3d-pictures", textures.threads, ::loadPicture)
     private val buildingQueue = WorkQueue<TileId>("3d-buildings", 1, ::loadBuildings)
     private val labelQueue = WorkQueue<TileId>("3d-labels", 1, ::loadLabels)
 
     /** Names per tile, once loaded. */
     private val labels = ConcurrentHashMap<TileId, List<Label3D>>()
 
-    /** Ground height (no exaggeration), 0 where unknown. */
-    fun groundAt(lat: Double, lon: Double): Float = elevation.at(lat, lon).takeUnless { it.isNaN() } ?: 0f
+    /**
+     * Ground height (no exaggeration), 0 where unknown: the downloaded cells', else the relief's in
+     * memory (never waits: the GL thread asks).
+     */
+    fun groundAt(lat: Double, lon: Double): Float {
+        val h = if (downloaded(lat, lon)) dem!!.elevation(lat, lon) else relief?.peek(lat, lon) ?: Float.NaN
+        return h.takeUnless { it.isNaN() } ?: 0f
+    }
 
-    /** What the view needs now: tile → priority (lower loads first). Replaces the previous wish list. */
-    fun want(tiles: Map<TileId, Double>, buildings: Map<TileId, Double>, labelTiles: Map<TileId, Double>) {
-        tileQueue.setWanted(tiles)
+    /**
+     * What the view needs now: tile → priority (lower loads first), for the shapes, the pictures,
+     * the buildings and the names. Replaces the previous wish lists.
+     */
+    fun want(meshes: Map<TileId, Double>, pictures: Map<TileId, Double>, buildings: Map<TileId, Double>, labelTiles: Map<TileId, Double>) {
+        meshQueue.setWanted(meshes)
+        pictureQueue.setWanted(pictures)
         buildingQueue.setWanted(buildings)
         labelQueue.setWanted(labelTiles.filterKeys { !labels.containsKey(it) })
     }
@@ -57,28 +84,35 @@ class TerrainEngine(val textures: TileTextures, private val onReady: () -> Unit)
     /** The names loaded for a tile, or null. */
     fun labelsOf(id: TileId): List<Label3D>? = labels[id]
 
-    /** The GL side dropped a tile; it may be loaded again later. */
-    fun forgetTile(id: TileId) = tileQueue.forget(id)
+    /** The GL side dropped a tile's shape or picture; it may be loaded again later. */
+    fun forgetMesh(id: TileId) = meshQueue.forget(id)
+    fun forgetPicture(id: TileId) = pictureQueue.forget(id)
     fun forgetBuildings(id: TileId) = buildingQueue.forget(id)
 
-    val pending: Int get() = tileQueue.pending + buildingQueue.pending
+    val pending: Int get() = meshQueue.pending + pictureQueue.pending + buildingQueue.pending
 
-    /** Whether the tile's picture and mesh have loaded (and not been dropped since). */
-    fun tileLoaded(id: TileId): Boolean = tileQueue.isDone(id)
+    /** Whether the tile's shape and picture have loaded (and not been dropped since). */
+    fun tileLoaded(id: TileId): Boolean = meshQueue.isDone(id) && pictureQueue.isDone(id)
 
     fun close() {
-        tileQueue.close()
+        meshQueue.close()
+        pictureQueue.close()
         buildingQueue.close()
         labelQueue.close()
         runCatching { textures.close() }
+        relief?.close()
         buildingStores?.forEach { runCatching { it.close() } }
         labelStores?.forEach { runCatching { it.close() } }
     }
 
-    private fun loadTile(id: TileId) {
-        val mesh = GlobeMesh.build(elevation, id)
+    private fun loadMesh(id: TileId) {
+        readyMeshes += LoadedMesh(id, GlobeMesh.build(elevationFor(ReliefTiles.zoomFor(id)), id))
+        onReady()
+    }
+
+    private fun loadPicture(id: TileId) {
         val bitmap = textures.load(id) ?: if (textures.needsPicture) throw IllegalStateException("no picture") else null
-        readyTiles += LoadedTile(id, mesh, bitmap)
+        readyPictures += LoadedPicture(id, bitmap)
         onReady()
     }
 
@@ -154,6 +188,14 @@ class TerrainEngine(val textures: TileTextures, private val onReady: () -> Unit)
         // Keep memory bounded: forget names of tiles far from what's wanted (they load again).
         if (labels.size > 600) labels.keys.take(labels.size - 500).forEach { labels.remove(it) }
         onReady()
+    }
+
+    private companion object {
+        /**
+         * Threads building shapes: a tile takes a few milliseconds of elevation reads, or waits for
+         * a relief tile from the internet (the others go on meanwhile).
+         */
+        const val MESH_THREADS = 4
     }
 
     /**

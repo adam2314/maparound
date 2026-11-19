@@ -44,6 +44,51 @@ data class TileId(val z: Int, val x: Int, val y: Int) {
     }
 }
 
+/**
+ * What a drawn tile wears: the picture [pic] (its own, or an ancestor's while its own loads; null
+ * for none yet), crossfading from [from] (what it wore before; null: from blank) since [since]
+ * (0: not fading).
+ */
+data class Wearing(val pic: TileId?, val from: TileId?, val since: Long)
+
+/**
+ * The 3D view's tiles are two things loaded apart: the ground's shape (quick, from the elevation
+ * files) and the map picture draped on it (slow, drawn by the map renderer). A tile is drawn in its
+ * own shape as soon as that's in, wearing the matching part of its nearest ancestor's picture until
+ * its own comes, which then fades in over it.
+ */
+object TileLook {
+    /** The picture [t] wears: its own, else its nearest ancestor's that [loaded] has; null when none. */
+    fun picture(t: TileId, loaded: (TileId) -> Boolean): TileId? = generateSequence(t) { it.parent }.firstOrNull(loaded)
+
+    /** Where [t] lies in [ancestor]'s picture: u and v of its corner, then its width and height there (its own: 0, 0, 1, 1). */
+    fun uvIn(t: TileId, ancestor: TileId): FloatArray {
+        val k = t.z - ancestor.z
+        require(k >= 0 && ancestor.contains(t)) { "$ancestor doesn't contain $t" }
+        val s = 1f / (1 shl k)
+        return floatArrayOf((t.x - (ancestor.x shl k)) * s, (t.y - (ancestor.y shl k)) * s, s, s)
+    }
+
+    /**
+     * What a tile wears this frame, wanting [pic], given what it wore last frame ([last]: its own,
+     * or its parent's when it has just replaced its parent; null for neither): the same, carrying
+     * on; or a crossfade from what was shown to [pic], starting [now]. A fade over after [fadeNs]
+     * is dropped.
+     */
+    fun wear(pic: TileId?, last: Wearing?, now: Long, fadeNs: Long): Wearing {
+        val settled = last?.let { if (it.since != 0L && now - it.since >= fadeNs) it.copy(from = null, since = 0L) else it }
+        return when {
+            settled == null -> Wearing(pic, null, 0L)
+            settled.pic == pic -> settled
+            else -> Wearing(pic, settled.pic, now)
+        }
+    }
+
+    /** How far a crossfade or growth started at [since] is at [now] (0 to 1); 1 when [since] is 0. */
+    fun progress(since: Long, now: Long, durationNs: Long): Float =
+        if (since == 0L) 1f else ((now - since).toDouble() / durationNs).coerceIn(0.0, 1.0).toFloat().let { it * it * (3 - 2 * it) }
+}
+
 /** The tiles to show: [leaves] at the wanted detail, plus every ancestor in [nodes] (drawn while children load). */
 class TileSelection(val roots: List<TileId>, val leaves: Set<TileId>, val nodes: Set<TileId>)
 

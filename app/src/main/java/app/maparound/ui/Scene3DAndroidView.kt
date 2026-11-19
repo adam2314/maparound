@@ -36,6 +36,11 @@ import app.maparound.map.satelliteSource
 import app.maparound.terrain.GeoBounds
 import app.maparound.three.Camera3D
 import app.maparound.three.GlTileTextures
+import java.io.File
+import app.maparound.data.ElevationSources
+import app.maparound.three.OnlineRelief
+import app.maparound.three.FallbackTileTextures
+import app.maparound.three.CachedTileTextures
 import app.maparound.three.Scene3DView
 import app.maparound.three.TerrainEngine
 import kotlinx.coroutines.delay
@@ -221,9 +226,25 @@ private fun makeEngine(ctx: Context, satellite: Boolean): Engine3D {
     }
     val style = GlStyles.styleFor((base as? BaseMap.Offline)?.theme).build(base, service, forTextures = true)
     val maxZoom = online?.maxZoom?.coerceAtMost(18) ?: 17
-    val textures = GlTileTextures(ctx, style, maxZoom)
+    // An online map that isn't the world's (a region's, swisstopo, or IGN's imagery) hasn't got every
+    // tile: the world's (OSM France, or Esri's imagery) where it hasn't.
+    val world = TileSources.builtIn.first { it.id == if (satellite) "esri_imagery" else TileSources.DEFAULT_ID }
+    val worldStyle = online?.takeIf { it.id != world.id }?.let {
+        GlStyles.styleFor(null).build(BaseMap.Online(world), service, forTextures = true)
+    }
+    val drawn = GlTileTextures(ctx, style, maxZoom)
+    // Kept on disk by style (its tiles' addresses carry their data's version): seen before, shown at once.
+    val textures = CachedTileTextures(
+        if (worldStyle == null) drawn else FallbackTileTextures(drawn) { GlTileTextures.createFrom(ctx, worldStyle, maxZoom) },
+        File(ctx.cacheDir, "3d-pictures"),
+        style + "\n" + worldStyle.orEmpty(),
+        incomplete = { GlTiles.incompleteTiles },
+    )
+    // Relief where no elevation has been downloaded: the 3D relief source (Settings → Sources).
+    val reliefSource = prefs.terrain3dSource.value
+    val relief = OnlineRelief(File(ctx.cacheDir, "3d-relief"), reliefSource?.template ?: ElevationSources.DEFAULT_3D, reliefSource?.mapbox == true)
     lateinit var e3: Engine3D
-    e3 = Engine3D(TerrainEngine(textures) { e3.view?.requestRender() })
+    e3 = Engine3D(TerrainEngine(textures, relief) { e3.view?.requestRender() })
     return e3
 }
 

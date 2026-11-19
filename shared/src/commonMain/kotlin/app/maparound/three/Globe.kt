@@ -9,6 +9,7 @@ import kotlin.math.atan
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.exp
+import kotlin.math.floor
 import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
@@ -308,10 +309,16 @@ class GlobeTileMesh(val center: Vec3, val vertices: FloatArray, val n: Int, val 
 object GlobeMesh {
     /**
      * Floats per vertex: position on the ellipsoid relative to the tile's centre (3), the up
-     * direction (3), ground height (1), slope east and north (2: -dh/dx, -dh/dy), u, v (2). The
-     * shader puts a vertex at position + up × height × exaggeration.
+     * direction (3), ground height (1), slope east and north (2: -dh/dx, -dh/dy), u, v (2), and
+     * the height its parent tile's mesh has there (1). The shader puts a vertex at position + up ×
+     * height × exaggeration; a tile replacing its coarser parent grows from the parent's heights
+     * to its own, so the ground's shape eases in instead of jumping. Its edges don't grow (their
+     * "parent" height is their own): they always meet the neighbours, growing or not.
      */
-    const val STRIDE = 11
+    const val STRIDE = 12
+
+    /** Tiles from this zoom have terrain (bigger ones are flat: the elevation files cover small areas). */
+    const val TERRAIN_FROM_ZOOM = 7
 
     /** Grid size for a tile: finer for the big curved tiles of the globe and for nearby detail. */
     fun gridSize(z: Int): Int = if (z >= 12 || z <= 5) 33 else 17
@@ -331,7 +338,7 @@ object GlobeMesh {
         var lo = Float.MAX_VALUE
         var any = false
         // Big tiles have no terrain worth sampling (and the elevation files only cover small areas).
-        val sample = t.z >= 7
+        val sample = t.z >= TERRAIN_FROM_ZOOM
         for (r in 0 until m) for (c in 0 until m) {
             val v = if (sample) dem.at(lats[r], lons[c]) else Float.NaN
             h[r * m + c] = v
@@ -345,8 +352,9 @@ object GlobeMesh {
 
         val centerLat = latOfMerc((my0 + my1) / 2)
         val center = Wgs84.ecef(centerLat, (t.west + t.east) / 2, 0.0)
+        val parent = parentHeights(dem, t, n)
         val out = FloatArray(STRIDE * TileMesh.vertexCount(n))
-        fun put(i: Int, lat: Double, lon: Double, height: Float, sx: Float, sy: Float, u: Float, v: Float) {
+        fun put(i: Int, lat: Double, lon: Double, height: Float, sx: Float, sy: Float, u: Float, v: Float, from: Float) {
             val p = Wgs84.ecef(lat, lon, 0.0) - center
             val up = Wgs84.up(lat, lon)
             val o = i * STRIDE
@@ -355,6 +363,7 @@ object GlobeMesh {
             out[o + 6] = height
             out[o + 7] = sx; out[o + 8] = sy
             out[o + 9] = u; out[o + 10] = v
+            out[o + 11] = from
         }
         val lonStepM = toRadians(lonStep) * Wgs84.R
         for (r in 0 until n) for (c in 0 until n) {
@@ -365,7 +374,8 @@ object GlobeMesh {
             val dy = toRadians(lats[rr - 1] - lats[rr + 1]) * Wgs84.R
             val dhdx = (h[rr * m + cc + 1] - h[rr * m + cc - 1]) / dx
             val dhdy = (h[(rr - 1) * m + cc] - h[(rr + 1) * m + cc]) / dy
-            put(r * n + c, lats[rr], lons[cc], h[rr * m + cc], (-dhdx).toFloat(), (-dhdy).toFloat(), c / (n - 1f), r / (n - 1f))
+            val edge = r == 0 || c == 0 || r == n - 1 || c == n - 1
+            put(r * n + c, lats[rr], lons[cc], h[rr * m + cc], (-dhdx).toFloat(), (-dhdy).toFloat(), c / (n - 1f), r / (n - 1f), if (edge) h[rr * m + cc] else parent[r * n + c])
         }
         // Skirts: copies of the four edges, lowered.
         val drop = (TileId.sizeM(t.z, (t.north + t.south) / 2) * 0.04).toFloat().coerceIn(5f, 50_000f)
@@ -375,9 +385,55 @@ object GlobeMesh {
             val r = src / n
             val c = src % n
             val o = src * STRIDE
-            put(k++, lats[r + 1], lons[c + 1], out[o + 6] - drop, out[o + 7], out[o + 8], out[o + 9], out[o + 10])
+            put(k++, lats[r + 1], lons[c + 1], out[o + 6] - drop, out[o + 7], out[o + 8], out[o + 9], out[o + 10], out[o + 11] - drop)
         }
         return GlobeTileMesh(center, out, n, any)
+    }
+
+    /**
+     * At each of [t]'s n × n grid points, the height its parent's mesh has there: the parent's grid
+     * sampled as the parent samples it (the quarter [t] is), between its points along the same
+     * triangles the parent is drawn with. Flat (0) where the parent has no terrain.
+     */
+    fun parentHeights(dem: Elevation, t: TileId, n: Int): FloatArray {
+        val p = t.parent ?: return FloatArray(n * n)
+        if (p.z < TERRAIN_FROM_ZOOM) return FloatArray(n * n)
+        val np = gridSize(p.z)
+        val half = (np - 1) / 2 // the parent's grid cells across a quarter
+        val w = half + 1
+        val r0 = (t.y - 2 * p.y) * half
+        val c0 = (t.x - 2 * p.x) * half
+        val my0 = mercY(p.north)
+        val step = (mercY(p.south) - my0) / (np - 1)
+        val lonStep = (p.east - p.west) / (np - 1)
+        val g = FloatArray(w * w)
+        var lo = Float.MAX_VALUE
+        for (r in 0 until w) {
+            val lat = latOfMerc(my0 + (r0 + r) * step).coerceIn(-89.9, 89.9)
+            for (c in 0 until w) {
+                val v = dem.at(lat, p.west + (c0 + c) * lonStep)
+                g[r * w + c] = v
+                if (!v.isNaN() && v < lo) lo = v
+            }
+        }
+        if (lo == Float.MAX_VALUE) lo = 0f
+        for (i in g.indices) if (g[i].isNaN()) g[i] = lo
+        val out = FloatArray(n * n)
+        for (r in 0 until n) for (c in 0 until n) {
+            val gx = c.toDouble() / (n - 1) * half
+            val gy = r.toDouble() / (n - 1) * half
+            val i = floor(gx).toInt().coerceAtMost(half - 1)
+            val j = floor(gy).toInt().coerceAtMost(half - 1)
+            val fx = (gx - i).toFloat()
+            val fy = (gy - j).toFloat()
+            val a = g[j * w + i]
+            val b = g[j * w + i + 1]
+            val d = g[(j + 1) * w + i]
+            val e = g[(j + 1) * w + i + 1]
+            // The parent's cell is two triangles split from its top-right to its bottom-left (see TileMesh.indices).
+            out[r * n + c] = if (fx + fy <= 1f) a + fx * (b - a) + fy * (d - a) else e + (1 - fx) * (d - e) + (1 - fy) * (b - e)
+        }
+        return out
     }
 
     private const val RM = 6_378_137.0

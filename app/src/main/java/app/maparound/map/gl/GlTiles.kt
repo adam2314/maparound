@@ -213,6 +213,15 @@ object GlTiles {
     /** How soon a tile made without a streamed map's data is asked for again, in seconds. */
     private const val RETRY_S = 20
 
+    /**
+     * Tiles answered so far that aren't what they'll be (made without a streamed map's data, or
+     * failed): a picture drawn while this went up may be missing something, so it isn't kept.
+     */
+    private val incomplete = java.util.concurrent.atomic.AtomicLong()
+
+    /** See [incomplete]. */
+    val incompleteTiles: Long get() = incomplete.get()
+
     /** Answers MapLibre's requests for the app's own tiles; passes the rest on with the app's User-Agent. */
     private object Answer : Interceptor {
         override fun intercept(chain: Interceptor.Chain): Response {
@@ -230,12 +239,14 @@ object GlTiles {
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "No tile for $path", e)
+                incomplete.incrementAndGet()
                 null
             }
             val builder = Response.Builder().request(request).protocol(Protocol.HTTP_1_1)
             return if (answer == null) {
                 builder.code(404).message("Not Found").body(ByteArray(0).toResponseBody(null)).build()
             } else {
+                if (answer.temporary) incomplete.incrementAndGet()
                 // Tile URLs carry a key of their data, so a tile never changes: MapLibre may keep it.
                 // One made without a streamed map it couldn't read (no signal) is asked for again soon.
                 builder.code(200).message("OK")

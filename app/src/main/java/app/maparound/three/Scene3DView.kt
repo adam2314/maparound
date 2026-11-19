@@ -77,7 +77,7 @@ fun TerrainEngine.prepareIntro(start: Camera3D, aspect: Float, exaggeration: Flo
     for (t in down.sel.leaves) put(t, 0, down.tiles)
     for (t in ahead.sel.leaves) t.parent?.takeIf { it in ahead.sel.nodes }?.let { put(it, 1, ahead.tiles) }
     for (t in ahead.sel.leaves) put(t, 2, ahead.tiles)
-    want(order, down.buildings + ahead.buildings, down.labels + ahead.labels)
+    want(order, order, down.buildings + ahead.buildings, down.labels + ahead.labels)
     return IntroPlan(down.sel, ahead.sel)
 }
 
@@ -431,10 +431,23 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
         turnStart = -1L
     }
 
-    private class GpuTile(val vbo: Int, val tex: Int, val n: Int, val center: Vec3, var used: Long, val fadeFrom: Long)
+    /**
+     * A tile's shape on the GPU. From when it's first drawn it [grows] from its parent's heights (it
+     * replaces a coarser tile there) or [fadesIn] from the haze (nothing was drawn there).
+     */
+    private class GpuMesh(val vbo: Int, val n: Int, val center: Vec3, var used: Long, val grows: Boolean, val fadesIn: Boolean) {
+        var shownSince = 0L
+    }
+
+    /** A tile's map picture on the GPU (0: none, drawn blank). */
+    private class GpuPicture(val tex: Int, var used: Long)
     private class GpuBuildings(val vbo: Int, val vertexCount: Int, val center: Vec3, val basis: FloatArray, var used: Long)
 
-    private val tiles = HashMap<TileId, GpuTile>()
+    private val meshes = HashMap<TileId, GpuMesh>()
+    private val pictures = HashMap<TileId, GpuPicture>()
+
+    /** What each tile drawn last frame wore (see [TileLook.wear]). */
+    private var wearing = HashMap<TileId, Wearing>()
     private val buildings = HashMap<TileId, GpuBuildings>()
     private val indexBuffers = HashMap<Int, Pair<Int, Int>>() // grid size -> (buffer, index count)
     private var terrainProgram = 0
@@ -545,6 +558,9 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
     /** Last frame's tiles: one split then stays split a little further out (no flipping while moving). */
     private var lastSelection: TileSelection? = null
 
+    /** Tiles around the view (what a turn or a pan shows next), loaded after the view's own; worked out every few frames. */
+    private var margin: Map<TileId, Double> = emptyMap()
+
     /** Moves the target so the ground follows the finger. */
     fun pan(dx: Float, dy: Float, viewPx: Float) {
         val (la, lo) = globeCamera(exaggeration).panned(dx.toDouble(), dy.toDouble(), FOV.toDouble(), viewPx.toDouble())
@@ -612,9 +628,12 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         // A new GL context: everything uploaded before is gone, the programs too.
         uniforms.clear()
-        tiles.keys.forEach(engine::forgetTile)
+        meshes.keys.forEach(engine::forgetMesh)
+        pictures.keys.forEach(engine::forgetPicture)
         buildings.keys.forEach(engine::forgetBuildings)
-        tiles.clear()
+        meshes.clear()
+        pictures.clear()
+        wearing = HashMap()
         buildings.clear()
         indexBuffers.clear()
         terrainProgram = program(TERRAIN_VS, TERRAIN_FS)
@@ -659,7 +678,7 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
             // Held for the intro: all that's loaded goes up now; the turn starts when nothing's left.
             if (introSince == 0L) introSince = now
             upload(now, all = true)
-            if (engine.readyTiles.isEmpty() || now - introSince > INTRO_HOLD_NS) {
+            if ((engine.readyMeshes.isEmpty() && engine.readyPictures.isEmpty()) || now - introSince > INTRO_HOLD_NS) {
                 introTo = null
                 turnTo(intro.yaw, intro.pitch, Scene3DView.INTRO_SECONDS)
             }
@@ -685,8 +704,12 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
         val labelTiles = w.labels
         // Waiting to turn into the view: what it will show keeps loading too.
         val ahead = intro?.let { introWishes(engine, it, e, aspect, buildingsOn) }
+        if (frameNo % MARGIN_EVERY == 1L) margin = if (intro != null) emptyMap() else marginWishes(engine, cam, e, aspect, sel)
+        // The view's own first (its priorities win over the margin's).
+        val wanted = margin + w.tiles + ahead?.tiles.orEmpty()
         engine.want(
-            (w.tiles + ahead?.tiles.orEmpty()).filterKeys { it !in tiles },
+            wanted.filterKeys { it !in meshes },
+            wanted.filterKeys { it !in pictures },
             (wantBuildings + ahead?.buildings.orEmpty()).filterKeys { it !in buildings },
             labelTiles + ahead?.labels.orEmpty(),
         )
@@ -699,28 +722,32 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
         GLES30.glUseProgram(terrainProgram)
         val light = lightDirection(cam)
         uniforms(terrainProgram, viewProj, e, light, alt)
-        GLES30.glUniform1i(u(terrainProgram, "uTex"), 0)
-        GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
+        GLES30.glUniform1i(u(terrainProgram, "uTexA"), 0)
+        GLES30.glUniform1i(u(terrainProgram, "uTexB"), 1)
+        // Each spot in the finest shape that's in (pictures don't hold the shape back).
         val drawable = HashMap<TileId, Boolean>()
         fun canDraw(t: TileId): Boolean = drawable.getOrPut(t) {
-            if (t in sel.leaves) t in tiles
-            else t.children.filter { it in sel.nodes }.let { kids -> kids.isNotEmpty() && kids.all(::canDraw) } || t in tiles
+            if (t in sel.leaves) t in meshes
+            else t.children.filter { it in sel.nodes }.let { kids -> kids.isNotEmpty() && kids.all(::canDraw) } || t in meshes
         }
-        var fading = false
+        val worn = HashMap<TileId, Wearing>()
+        var animating = false
         fun draw(t: TileId) {
             if (t in sel.leaves) {
-                tiles[t]?.let { fading = drawTile(it, eye, now) || fading }
+                meshes[t]?.let { animating = drawTile(t, it, eye, now, worn) || animating }
                 return
             }
             val kids = t.children.filter { it in sel.nodes }
             when {
                 kids.isNotEmpty() && kids.all(::canDraw) -> kids.forEach(::draw)
-                t in tiles -> fading = drawTile(tiles[t]!!, eye, now) || fading
+                t in meshes -> animating = drawTile(t, meshes[t]!!, eye, now, worn) || animating
                 else -> kids.forEach(::draw)
             }
         }
         sel.roots.filter { it in sel.nodes }.forEach(::draw)
-        (0..4).forEach { GLES30.glDisableVertexAttribArray(it) }
+        wearing = worn
+        (0..5).forEach { GLES30.glDisableVertexAttribArray(it) }
+        GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
 
         if (buildingsOn) {
             GLES30.glUseProgram(buildingProgram)
@@ -747,12 +774,12 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
         }
 
         // Not while the intro waits: what it turns to isn't in this frame's tiles yet.
-        if (introTo == null) evict(sel)
+        if (introTo == null) evict(sel.nodes + margin.keys)
         val loading = engine.pending
         status = if (loading > 0) T.map.loadingTiles(loading) else ""
         onFrame?.invoke(FrameState(eye, viewProj, e, viewWidth, viewHeight, alt, d, labelTiles.keys.toList()))
-        // More to show: motion, tiles fading in, or more finished tiles than one frame uploads.
-        again = again || fading || !engine.readyTiles.isEmpty() || !engine.readyBuildings.isEmpty()
+        // More to show: motion, tiles growing or fading in, or more finished ones than one frame uploads.
+        again = again || animating || !engine.readyMeshes.isEmpty() || !engine.readyPictures.isEmpty() || !engine.readyBuildings.isEmpty()
         if (again) requestMore?.invoke()
     }
 
@@ -784,16 +811,44 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
         GLES30.glDepthMask(true)
     }
 
-    /** Draws a tile; true while it's still fading in. */
-    private fun drawTile(t: GpuTile, eye: Vec3, now: Long): Boolean {
-        t.used = frameNo
-        val (ibo, count) = indexBuffer(t.n)
-        val off = t.center - eye
-        val fade = if (t.fadeFrom == 0L) 1f else ((now - t.fadeFrom) / 1e9f / FADE_SECONDS).coerceIn(0f, 1f)
+    /**
+     * Draws tile [id] in its own shape [m], wearing its picture or, until that comes, the matching
+     * part of its nearest ancestor's; a change of picture crossfades. What it wore goes in [worn].
+     * True while it still grows, fades in or crossfades.
+     */
+    private fun drawTile(id: TileId, m: GpuMesh, eye: Vec3, now: Long, worn: HashMap<TileId, Wearing>): Boolean {
+        m.used = frameNo
+        if (m.shownSince == 0L) m.shownSince = now
+        val grow = if (m.grows) TileLook.progress(m.shownSince, now, MORPH_NS) else 1f
+        val fade = if (m.fadesIn) TileLook.progress(m.shownSince, now, FADE_NS) else 1f
+        // Last frame's look: its own, or its parent's when it has just replaced it.
+        val pic = TileLook.picture(id) { it in pictures }
+        val look = TileLook.wear(pic, wearing[id] ?: id.parent?.let { wearing[it] }, now, FADE_NS)
+        worn[id] = look
+        val b = pic?.let { pictures[it] }
+        val from = look.from?.takeIf { it.contains(id) }
+        val a = from?.let { pictures[it] }
+        // A crossfade from a picture that's gone since (or from one that isn't this tile's): none.
+        val mix = if (look.since == 0L || (look.from != null && a == null)) 1f else TileLook.progress(look.since, now, FADE_NS)
+        b?.used = frameNo
+        a?.used = frameNo
+        GLES30.glActiveTexture(GLES30.GL_TEXTURE1)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, b?.tex?.takeIf { it != 0 } ?: blankTexture)
+        val uvB = pic?.let { TileLook.uvIn(id, it) } ?: WHOLE
+        GLES30.glUniform4f(u(terrainProgram, "uUvB"), uvB[0], uvB[1], uvB[2], uvB[3])
+        GLES30.glUniform1f(u(terrainProgram, "uMix"), mix)
+        if (mix < 1f) {
+            GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
+            GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, a?.tex?.takeIf { it != 0 } ?: blankTexture)
+            val uvA = from?.let { TileLook.uvIn(id, it) } ?: WHOLE
+            GLES30.glUniform4f(u(terrainProgram, "uUvA"), uvA[0], uvA[1], uvA[2], uvA[3])
+        }
+        val (ibo, count) = indexBuffer(m.n)
+        val off = m.center - eye
         GLES30.glUniform3f(u(terrainProgram, "uOffset"), off.x.toFloat(), off.y.toFloat(), off.z.toFloat())
         GLES30.glUniform1f(u(terrainProgram, "uFade"), fade)
-        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, if (t.tex != 0) t.tex else blankTexture)
-        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, t.vbo)
+        GLES30.glUniform1f(u(terrainProgram, "uMorph"), grow)
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, m.vbo)
         val stride = GlobeMesh.STRIDE * 4
         GLES30.glEnableVertexAttribArray(0)
         GLES30.glVertexAttribPointer(0, 3, GLES30.GL_FLOAT, false, stride, 0)
@@ -805,9 +860,11 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
         GLES30.glVertexAttribPointer(3, 2, GLES30.GL_FLOAT, false, stride, 28)
         GLES30.glEnableVertexAttribArray(4)
         GLES30.glVertexAttribPointer(4, 2, GLES30.GL_FLOAT, false, stride, 36)
+        GLES30.glEnableVertexAttribArray(5)
+        GLES30.glVertexAttribPointer(5, 1, GLES30.GL_FLOAT, false, stride, 44)
         GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, ibo)
         GLES30.glDrawElements(GLES30.GL_TRIANGLES, count, GLES30.GL_UNSIGNED_SHORT, 0)
-        return fade < 1f
+        return grow < 1f || fade < 1f || mix < 1f
     }
 
     private fun indexBuffer(n: Int): Pair<Int, Int> = indexBuffers.getOrPut(n) {
@@ -821,18 +878,26 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
     }
 
     /**
-     * Moves finished tiles to the GPU, a few milliseconds' worth a frame (textures are the slow
-     * part): one long frame shows as a stutter, more frames each a little longer don't.
+     * Moves finished shapes and pictures to the GPU, a few milliseconds' worth a frame (pictures are
+     * the slow part): one long frame shows as a stutter, more frames each a little longer don't.
      */
     private fun upload(now: Long, all: Boolean = false) {
         val until = System.nanoTime() + UPLOAD_BUDGET_NS
+        // [all]: everything finished now, shown at once (before the intro's turn: a single longer frame).
+        var shapes = 0
+        while (all || (shapes < 24 && (shapes == 0 || System.nanoTime() < until))) {
+            val m = engine.readyMeshes.poll() ?: break
+            shapes++
+            meshes.remove(m.id)?.let { GLES30.glDeleteBuffers(1, intArrayOf(it.vbo), 0) }
+            // Where a coarser shape was it grows from that; where none was it fades in from the haze.
+            val coveredBefore = generateSequence(m.id.parent) { it.parent }.any { it in meshes }
+            meshes[m.id] = GpuMesh(buffer(m.mesh.vertices), m.mesh.n, m.mesh.center, frameNo, grows = coveredBefore && !all, fadesIn = !coveredBefore && !all)
+        }
         var uploaded = 0
-        // [all]: every finished tile now, shown at once (before the intro's turn: a single longer frame).
         while (all || (uploaded < 6 && (uploaded == 0 || System.nanoTime() < until))) {
-            val t = engine.readyTiles.poll() ?: break
+            val t = engine.readyPictures.poll() ?: break
             uploaded++
-            tiles.remove(t.id)?.let(::free)
-            val vbo = buffer(t.mesh.vertices)
+            pictures.remove(t.id)?.let { if (it.tex != 0) GLES30.glDeleteTextures(1, intArrayOf(it.tex), 0) }
             var tex = 0
             t.bitmap?.let { bmp ->
                 val ids = IntArray(1)
@@ -848,9 +913,8 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
                 if (anisotropy > 1f) GLES30.glTexParameterf(GLES30.GL_TEXTURE_2D, 0x84FE, anisotropy) // GL_TEXTURE_MAX_ANISOTROPY_EXT
                 bmp.recycle()
             }
-            // Fade in only where nothing was shown before (a finer tile simply replaces its parent).
-            val coveredBefore = generateSequence(t.id.parent) { it.parent }.any { it in tiles }
-            tiles[t.id] = GpuTile(vbo, tex, t.mesh.n, t.mesh.center, frameNo, if (coveredBefore || all) 0L else now)
+            // The tiles wearing an ancestor's picture here crossfade to it as they're drawn (TileLook.wear).
+            pictures[t.id] = GpuPicture(tex, frameNo)
         }
         repeat(4) {
             val b = engine.readyBuildings.poll() ?: return@repeat
@@ -869,19 +933,22 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
         }
     }
 
-    private fun free(t: GpuTile) {
-        GLES30.glDeleteBuffers(1, intArrayOf(t.vbo), 0)
-        if (t.tex != 0) GLES30.glDeleteTextures(1, intArrayOf(t.tex), 0)
-    }
-
-    /** Keeps GPU memory bounded: drops the least recently drawn tiles that aren't needed now. */
-    private fun evict(sel: TileSelection) {
-        if (tiles.size > MAX_TILES) {
-            val drop = tiles.entries.filter { it.key !in sel.nodes }.sortedBy { it.value.used }.take(tiles.size - MAX_TILES)
-            for ((id, t) in drop) {
-                free(t)
-                tiles.remove(id)
-                engine.forgetTile(id)
+    /** Keeps GPU memory bounded: drops the least recently drawn shapes and pictures that aren't [needed] now. */
+    private fun evict(needed: Set<TileId>) {
+        if (meshes.size > MAX_MESHES) {
+            val drop = meshes.entries.filter { it.key !in needed }.sortedBy { it.value.used }.take(meshes.size - MAX_MESHES)
+            for ((id, m) in drop) {
+                GLES30.glDeleteBuffers(1, intArrayOf(m.vbo), 0)
+                meshes.remove(id)
+                engine.forgetMesh(id)
+            }
+        }
+        if (pictures.size > MAX_PICTURES) {
+            val drop = pictures.entries.filter { it.key !in needed }.sortedBy { it.value.used }.take(pictures.size - MAX_PICTURES)
+            for ((id, p) in drop) {
+                if (p.tex != 0) GLES30.glDeleteTextures(1, intArrayOf(p.tex), 0)
+                pictures.remove(id)
+                engine.forgetPicture(id)
             }
         }
         if (buildings.size > MAX_BUILDING_TILES) {
@@ -944,8 +1011,8 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
         /** The longest the intro waits for loaded tiles to reach the GPU before it turns anyway. */
         private const val INTRO_HOLD_NS = 1_500_000_000L
 
-        /** The view-projection matrix of [cam] in a view of [aspect], clip planes as frames set them. */
-        fun projection(engine: TerrainEngine, cam: GlobeCamera, e: Float, aspect: Float): FloatArray {
+        /** The view-projection matrix of [cam] in a view of [aspect] ([fov] high), clip planes as frames set them. */
+        fun projection(engine: TerrainEngine, cam: GlobeCamera, e: Float, aspect: Float, fov: Float = FOV): FloatArray {
             val eye = cam.eye
             val eyeGeo = Wgs84.geodetic(eye)
             val alt = eyeGeo[2]
@@ -955,7 +1022,7 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
             val near = min(aboveGround * 0.3, d * 0.1).coerceIn(0.5, 500_000.0)
             val horizon = sqrt(max(alt, 0.0) * (2 * Wgs84.R + max(alt, 0.0))) + sqrt(2 * Wgs84.R * MAX_TERRAIN_M * e)
             val far = max((horizon + d) * 1.2, near * 100)
-            val proj = Mat4.perspective(FOV.toDouble(), aspect.toDouble(), near, far)
+            val proj = Mat4.perspective(fov.toDouble(), aspect.toDouble(), near, far)
             return Mat4.multiply(proj, cam.viewMatrix())
         }
 
@@ -984,6 +1051,23 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
             return Wishes(sel, tiles, buildings, labels)
         }
 
+        /**
+         * The tiles around the view [cam] shows ([sel]): a wider view's, a little coarser, nearest
+         * first, as many as there's room for on the GPU beside the view's own; each after all of
+         * the view's (its priority).
+         */
+        fun marginWishes(engine: TerrainEngine, cam: GlobeCamera, e: Float, aspect: Float, sel: TileSelection): Map<TileId, Double> {
+            val room = minOf(MARGIN_MAX, MAX_PICTURES - sel.nodes.size - 10)
+            if (room <= 0) return emptyMap()
+            val wide = projection(engine, cam, e, aspect * MARGIN_WIDER, FOV * MARGIN_WIDER)
+            val around = GlobeTileSelector.select(cam.eye, wide, engine.textures.maxZoom, detail = 1.0, maxLeaves = 90, maxHeight = (MAX_TERRAIN_M * e).toDouble())
+            return around.nodes.filter { it !in sel.nodes }
+                .map { it to distTo(it, cam.eye) }
+                .sortedBy { it.second }
+                .take(room)
+                .associate { (t, d) -> t to MARGIN_PRIORITY + t.z * 1e9 + d }
+        }
+
         /** What the view [c] needs (where the intro turns to), for a view of [aspect]. */
         fun introWishes(engine: TerrainEngine, c: Camera3D, e: Float, aspect: Float, buildingsOn: Boolean): Wishes {
             val d = c.distance.coerceIn(MIN_DISTANCE, MAX_DISTANCE).toDouble()
@@ -999,11 +1083,28 @@ private class Renderer3D(private val engine: TerrainEngine, start: Camera3D) : G
 
         /** Far enough to see the whole planet. */
         const val MAX_DISTANCE = 22_000_000f
-        private const val MAX_TILES = 220
+        /** Shapes kept on the GPU (about 60 kB each) and pictures (about 0.7 MB each). */
+        private const val MAX_MESHES = 460
+        private const val MAX_PICTURES = 260
+
+        /** The margin: at most this many tiles, from a view this much wider each way, worked out every this many frames. */
+        private const val MARGIN_MAX = 60
+        private const val MARGIN_WIDER = 1.5f
+        private const val MARGIN_EVERY = 12L
+
+        /** Above any of the view's own priorities (zoom × 1e9 + metres; the intro's groups × 1e12). */
+        private const val MARGIN_PRIORITY = 1e15
         private const val MAX_BUILDING_TILES = 40
         private const val MAX_TERRAIN_M = 9_000f
         private const val LABEL_ZOOM = 14
-        private const val FADE_SECONDS = 0.35f
+        /** A picture's crossfade, and a tile's fade in from the haze where nothing was. */
+        private const val FADE_NS = 350_000_000L
+
+        /** A finer shape growing from its parent's. */
+        private const val MORPH_NS = 450_000_000L
+
+        /** A tile's own picture: all of it. */
+        private val WHOLE = floatArrayOf(0f, 0f, 1f, 1f)
         private const val ZOOM_SECONDS = 0.35f
 
         /** How fast the ground the camera turns around follows the ground under it (seconds). */
@@ -1025,15 +1126,19 @@ layout(location = 1) in vec3 aUp;
 layout(location = 2) in float aH;
 layout(location = 3) in vec2 aSlope;
 layout(location = 4) in vec2 aUv;
+layout(location = 5) in float aParentH;
 uniform mat4 uViewProj;
 uniform vec3 uOffset;
 uniform float uExag;
+uniform float uMorph;
 out vec2 vUv;
 out vec3 vNormal;
 out vec3 vUp;
 out vec3 vPos;
 void main() {
-    vec3 p = uOffset + aPos + aUp * (aH * uExag);
+    // Growing from the parent tile's heights to its own.
+    float h = mix(aParentH, aH, uMorph);
+    vec3 p = uOffset + aPos + aUp * (h * uExag);
     vec3 east = normalize(vec3(-aUp.y, aUp.x, 0.0) + vec3(1e-7, 0.0, 0.0));
     vec3 north = cross(aUp, east);
     vNormal = aUp + uExag * (aSlope.x * east + aSlope.y * north);
@@ -1049,7 +1154,11 @@ in vec2 vUv;
 in vec3 vNormal;
 in vec3 vUp;
 in vec3 vPos;
-uniform sampler2D uTex;
+uniform sampler2D uTexA;
+uniform sampler2D uTexB;
+uniform vec4 uUvA;
+uniform vec4 uUvB;
+uniform float uMix;
 uniform vec3 uLight;
 uniform float uHazeDist;
 uniform float uHazeMax;
@@ -1061,7 +1170,10 @@ out vec4 fragColor;
 void main() {
     vec3 n = normalize(vNormal);
     float light = 0.72 + 0.38 * dot(n, uLight);
-    vec3 c = texture(uTex, vUv).rgb * clamp(light, 0.45, 1.1);
+    // Its picture (or the part of an ancestor's it lies in), crossfading from the one worn before.
+    vec3 t = texture(uTexB, uUvB.xy + vUv * uUvB.zw).rgb;
+    if (uMix < 1.0) t = mix(texture(uTexA, uUvA.xy + vUv * uUvA.zw).rgb, t, uMix);
+    vec3 c = t * clamp(light, 0.45, 1.1);
     float d = length(vPos);
     c = mix(c, uHaze, uHazeMax * (1.0 - exp(-d / uHazeDist)));
     // The atmosphere, seen edge-on at the globe's rim.

@@ -128,4 +128,59 @@ class GlobeTest {
         // Small numbers near the centre (float precision).
         assertTrue(abs(v[0]) < 2_000 && abs(v[1]) < 2_000 && abs(v[2]) < 2_000)
     }
+
+    /** Rolling ground: no two neighbours alike, no straight runs (so any misplaced sample shows). */
+    private val hills = Elevation { lat, lon -> (1000 + 400 * kotlin.math.sin(lat * 37.0) * kotlin.math.cos(lon * 23.0) + 90 * kotlin.math.sin(lon * 151.0)).toFloat() }
+
+    private fun height(m: GlobeTileMesh, r: Int, c: Int) = m.vertices[(r * m.n + c) * GlobeMesh.STRIDE + 6]
+    private fun parentHeight(m: GlobeTileMesh, r: Int, c: Int) = m.vertices[(r * m.n + c) * GlobeMesh.STRIDE + 11]
+
+    @Test
+    fun aFinerTileGrowsFromItsParentsShape() {
+        // Same grid size (zoom 14 in 13): every other point is one of the parent's, the ones between
+        // halfway along the parent's edges and its cells' diagonals.
+        for (t in TileId(13, TileId.xOf(9.52, 13), TileId.yOf(47.14, 13)).children) {
+            val parent = GlobeMesh.build(hills, t.parent!!)
+            val child = GlobeMesh.build(hills, t)
+            val half = (parent.n - 1) / 2
+            val r0 = (t.y - 2 * t.parent!!.y) * half
+            val c0 = (t.x - 2 * t.parent!!.x) * half
+            // Inside (its edges don't grow, see below).
+            for (i in 1 until half) for (j in 1 until half) {
+                assertEquals(height(parent, r0 + i, c0 + j), parentHeight(child, 2 * i, 2 * j), 0.01f)
+            }
+            // Between two of the parent's points along a row: halfway between their heights.
+            assertEquals((height(parent, r0 + 1, c0 + 1) + height(parent, r0 + 1, c0 + 2)) / 2, parentHeight(child, 2, 3), 0.01f)
+            // Across a cell, on its diagonal (top-right to bottom-left): halfway between those two.
+            assertEquals((height(parent, r0 + 1, c0 + 2) + height(parent, r0 + 2, c0 + 1)) / 2, parentHeight(child, 3, 3), 0.01f)
+            // Its own heights are its own: they differ from the parent's between the parent's points.
+            assertTrue(abs(height(child, 3, 3) - parentHeight(child, 3, 3)) > 0.01f)
+            // Its edges stay where they end up, meeting the neighbours whatever they show.
+            for (k in 0 until child.n) for ((r, c) in listOf(0 to k, child.n - 1 to k, k to 0, k to child.n - 1)) {
+                assertEquals(height(child, r, c), parentHeight(child, r, c), 0f)
+            }
+        }
+        // Zoom 12 in 11: the parent's grid is coarser (17 points), every fourth point is one of its.
+        val t = TileId(12, TileId.xOf(9.52, 12), TileId.yOf(47.14, 12))
+        val parent = GlobeMesh.build(hills, t.parent!!)
+        val child = GlobeMesh.build(hills, t)
+        assertEquals(17, parent.n)
+        assertEquals(33, child.n)
+        val r0 = (t.y - 2 * t.parent!!.y) * 8
+        val c0 = (t.x - 2 * t.parent!!.x) * 8
+        for (i in 1 until 8) for (j in 1 until 8) assertEquals(height(parent, r0 + i, c0 + j), parentHeight(child, 4 * i, 4 * j), 0.01f)
+        // The skirt hangs below the parent's heights too.
+        val skirt = child.n * child.n * GlobeMesh.STRIDE
+        assertTrue(child.vertices[skirt + 11] < parentHeight(child, 0, 0))
+    }
+
+    @Test
+    fun underAFlatParentItGrowsFromZero() {
+        // Zoom 7 is the first with terrain: its parent (6) is flat.
+        val t = TileId(7, TileId.xOf(9.52, 7), TileId.yOf(47.14, 7))
+        val m = GlobeMesh.build(hills, t)
+        assertTrue(m.hasTerrain)
+        assertEquals(0f, parentHeight(m, 5, 5), 0f)
+        assertTrue(height(m, 5, 5) > 100f)
+    }
 }

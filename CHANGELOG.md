@@ -65,6 +65,27 @@
   none, then on along it. Far from it with no route there, it says how far and picks it up when you
   get there.
 
+### 3D on Android: solid ground
+- **The ground keeps its shape while it loads.** A tile's terrain and its map picture now load
+  apart: the terrain takes a fraction of a second, the picture longer. Moving to a new area, the
+  mountains are there at once in their own shape, wearing a softer picture until the sharp one
+  comes. Before, they slumped into coarse blobs (or went flat) and rose again level by level.
+- **No more popping.** A sharper picture fades in over the softer one, and a more detailed tile
+  grows out of the coarser one's shape, each in about a third of a second. Tile edges stay where
+  they are, so neighbours always meet.
+- **Places seen before show at once.** The map pictures the 3D view draws are kept on the phone
+  (up to 150 MB, by map style, for a month). Reopening the 3D view over the same area, its first
+  view was ready in about half a second instead of one and a half.
+- **Ground around the view loads too**, after what's in view, so turning shows loaded ground
+  sooner.
+- **Distant mountains have relief.** Where no elevation has been downloaded (beyond the area
+  around you, or before the download is done), the 3D view uses small relief tiles from the 3D
+  relief source in Settings → Sources (Terrain Tiles by default, about 100 kB each, kept on the
+  phone).
+- **A regional map has no holes when you zoom out.** With swisstopo, IGN or another regional map
+  (or the automatic one in those countries), tiles that server hasn't got (the whole world, or
+  past its border) show OpenStreetMap France (Esri for satellite) instead of staying blank.
+
 ### 2D and 3D, on the phone and the car
 - **The 3D button says 2D or 3D**, where it goes. While navigating it switches navigation's view
   between tilted, the way ahead up (3D), and flat, north up (2D); otherwise it opens the 3D view, and

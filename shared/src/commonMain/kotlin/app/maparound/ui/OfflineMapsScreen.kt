@@ -784,8 +784,9 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
 }
 
 /**
- * Where the elevation data comes from: the 1° tiles' address and, in the web app ([web]), the 3D
- * view's image tiles. Saving the defaults (or "Use the default") gives null: the defaults.
+ * Where the elevation data comes from: the 1° tiles' address and the 3D view's relief tiles (the
+ * web app's, and the apps' where no elevation is downloaded; [web] adds what web pages may read).
+ * Saving the defaults (or "Use the default") gives null: the defaults.
  */
 @Composable
 internal fun ElevationSourceDialog(
@@ -820,7 +821,8 @@ internal fun ElevationSourceDialog(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                if (web) {
+                // The 3D view's relief: the web app's, and the apps' where no elevation is downloaded.
+                run {
                     Text(T.offline.terrain3dText, style = small)
                     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                         OutlinedTextField(
@@ -842,10 +844,10 @@ internal fun ElevationSourceDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = ok != null && (!web || ok3d != null),
+                enabled = ok != null && ok3d != null,
                 onClick = {
                     val t = ok?.takeIf { it != ElevationSources.DEFAULT_TILES }
-                    val t3 = if (!web) tiles3d else ok3d?.let { Terrain3dSource(it, mapbox) }?.takeIf { it.template != ElevationSources.DEFAULT_3D || it.mapbox }
+                    val t3 = ok3d?.let { Terrain3dSource(it, mapbox) }?.takeIf { it.template != ElevationSources.DEFAULT_3D || it.mapbox }
                     onSave(t, t3)
                 },
             ) { Text(T.common.save) }

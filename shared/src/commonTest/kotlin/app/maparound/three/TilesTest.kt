@@ -83,4 +83,47 @@ class TilesTest {
             assertEquals(v[a + 2], w[b + 2], 0.01f)
         }
     }
+
+    @Test
+    fun aTileWearsItsOwnPictureOrItsNearestAncestors() {
+        val t = TileId(6, 3, 5)
+        val loaded = mutableSetOf(TileId(2, 0, 0))
+        assertEquals(TileId(2, 0, 0), TileLook.picture(t) { it in loaded })
+        loaded += TileId(5, 1, 2)
+        assertEquals(TileId(5, 1, 2), TileLook.picture(t) { it in loaded })
+        loaded += t
+        assertEquals(t, TileLook.picture(t) { it in loaded })
+        assertEquals(null, TileLook.picture(TileId(6, 40, 40)) { it in loaded })
+
+        // Where it lies in them: its own is all of it; its parent's a quarter; two levels up a sixteenth.
+        assertTrue(floatArrayOf(0f, 0f, 1f, 1f).contentEquals(TileLook.uvIn(t, t)))
+        assertTrue(floatArrayOf(0.5f, 0.5f, 0.5f, 0.5f).contentEquals(TileLook.uvIn(t, TileId(5, 1, 2))))
+        assertTrue(floatArrayOf(0.75f, 0.25f, 0.25f, 0.25f).contentEquals(TileLook.uvIn(TileId(6, 3, 1), TileId(4, 0, 0))))
+        assertFalse(runCatching { TileLook.uvIn(t, TileId(5, 0, 0)) }.isSuccess)
+    }
+
+    @Test
+    fun aNewPictureCrossfadesInOverWhatWasWorn() {
+        val fade = 350L
+        val parent = TileId(5, 1, 2)
+        val own = TileId(6, 3, 5)
+        // First drawn: no fade.
+        val first = TileLook.wear(parent, null, 1_000, fade)
+        assertEquals(Wearing(parent, null, 0L), first)
+        // Same picture: carries on.
+        assertEquals(first, TileLook.wear(parent, first, 1_100, fade))
+        // Its own comes: a crossfade from the parent's, from now.
+        val crossing = TileLook.wear(own, first, 1_200, fade)
+        assertEquals(Wearing(own, parent, 1_200), crossing)
+        assertEquals(crossing, TileLook.wear(own, crossing, 1_300, fade))
+        // Over: settled on its own.
+        assertEquals(Wearing(own, null, 0L), TileLook.wear(own, crossing, 1_600, fade))
+        // From nothing (blank) to a picture: a crossfade from blank.
+        assertEquals(Wearing(parent, null, 2_000), TileLook.wear(parent, Wearing(null, null, 0L), 2_000, fade))
+
+        assertEquals(1f, TileLook.progress(0L, 5_000, fade), 0f)
+        assertEquals(0f, TileLook.progress(1_000, 1_000, fade), 0f)
+        assertEquals(0.5f, TileLook.progress(1_000, 1_175, fade), 1e-6f)
+        assertEquals(1f, TileLook.progress(1_000, 9_000, fade), 0f)
+    }
 }

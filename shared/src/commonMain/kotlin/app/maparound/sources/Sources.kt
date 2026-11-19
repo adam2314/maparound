@@ -84,7 +84,7 @@ enum class SourceKind(
     /** Elevation tiles (contours, hill shading, line of sight, 3D): kept as their own setting. */
     ELEVATION(SourceGroup.TERRAIN, listOf(ElevationSources.DEFAULT_TILES), AddressKind.ELEVATION),
 
-    /** The web app's 3D relief: kept as its own setting. */
+    /** The 3D view's relief tiles (the web app's; the apps' where no elevation is downloaded): kept as their own setting. */
     RELIEF_3D(SourceGroup.TERRAIN, listOf(ElevationSources.DEFAULT_3D), AddressKind.RELIEF),
 
     /** Routes calculated online (where routing data isn't downloaded; the web app always). */
