@@ -290,6 +290,14 @@ class MapLibreSurface(
         native.setGeoJson(source, geoJson ?: GeoJson.empty)
     }
 
+    private var weatherSpec: String? = null
+
+    override fun setWeatherMap(spec: String?) {
+        if (spec == weatherSpec) return
+        weatherSpec = spec
+        native.setWeatherMap(spec)
+    }
+
     override fun setPlaces(places: List<PlaceMarker>) {
         native.setGeoJson(MapStyle.PLACES, GeoJson.collection(places.map { p ->
             GeoJson.point(p.lat, p.lon, mapOf("icon" to MarkerIcons.place(p.color, p.emoji, p.label), "tap" to "$TAP_PLACE${p.id}"))

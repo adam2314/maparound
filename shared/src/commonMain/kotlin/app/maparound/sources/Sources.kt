@@ -105,6 +105,9 @@ enum class SourceKind(
     /** The data view's rain radar: RainViewer's pictures. */
     RAIN_RADAR(SourceGroup.DATA, listOf(app.maparound.stats.RainRadar.FRAMES), AddressKind.NONE, canBeOff = true),
 
+    /** The data view's weather maps: NOAA's GFS as MapAround's pipeline publishes it, or a copy elsewhere. */
+    WEATHER_MAPS(SourceGroup.DATA, listOf(app.maparound.stats.WeatherMap.BASE), canBeOff = true),
+
     /** The data view's weather: Open-Meteo, or the user's own Open-Meteo server. */
     WEATHER(SourceGroup.DATA, listOf(app.maparound.stats.Weather.OPEN_METEO), canBeOff = true),
 
@@ -268,6 +271,7 @@ object Sources {
                 SourceKind.WEATHER -> app.maparound.stats.Weather.nowUrl(address, listOf(lat to lon))
                 SourceKind.STREET_PHOTOS -> "${address.trimEnd('/')}/search?limit=1&bbox=${fmt(lon - 0.05)},${fmt(lat - 0.05)},${fmt(lon + 0.05)},${fmt(lat + 0.05)}"
                 SourceKind.BUSES -> app.maparound.stats.Buses.snapshotsUrl(address)
+                SourceKind.WEATHER_MAPS -> address.trimEnd('/') + "/" + app.maparound.stats.WeatherMap.MANIFEST
                 else -> address
             }
             AddressKind.MQTT, AddressKind.NONE -> return Check(true, 0)

@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import kotlin.math.roundToInt
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -86,11 +88,19 @@ class LiveLayers {
     var cameraState by mutableStateOf(LoadState.LOADING)
     var hiddenCameras by mutableStateOf(emptySet<Int>())
 
+    /** The weather maps: the model's run, the hour shown (its index), whether it couldn't be had. */
+    var weatherRun by mutableStateOf<app.maparound.stats.WeatherRun?>(null)
+    var weatherStep by mutableStateOf(0)
+    var weatherRunFailed by mutableStateOf(false)
+
     enum class LoadState { LOADING, ZOOM_IN, FAILED, SHOWN }
 }
 
 /** Buses show from this zoom (the app's): a city or so. */
 private const val BUS_ZOOM = 11.0
+
+/** The weather maps' list of hours is checked again this often (a new model run every 6 hours). */
+private const val WEATHER_RUN_CHECK_MS = 30 * 60_000L
 
 /** Cameras show from this zoom (the app's): a region or so, asked for from OpenStreetMap. */
 private const val CAMERAS_ZOOM = 10.0
@@ -209,6 +219,29 @@ fun rememberLiveLayers(map: MapSurface, stats: StatsData?, dataView: Boolean, la
             delay(1_000)
         }
     }
+    // The weather maps: the latest run (checked again every half hour), the hour nearest now at
+    // first; what to draw goes to the map as one spec.
+    val weatherMapsOn = stats != null && dataView && layers.weatherMaps
+    LaunchedEffect(stats, weatherMapsOn) {
+        if (stats == null || !weatherMapsOn) {
+            live.weatherRunFailed = false
+            return@LaunchedEffect
+        }
+        while (true) {
+            val run = stats.weatherRun()
+            if (run != null && run.runMillis != live.weatherRun?.runMillis) {
+                live.weatherRun = run
+                live.weatherStep = app.maparound.stats.WeatherMap.nearest(run, nowMillis())
+            }
+            live.weatherRunFailed = run == null && live.weatherRun == null
+            delay(WEATHER_RUN_CHECK_MS)
+        }
+    }
+    val weatherSpec = live.weatherRun?.takeIf { weatherMapsOn }?.let { run ->
+        stats?.weatherMapsBase?.let { base -> app.maparound.stats.WeatherMap.spec(base, run, live.weatherStep, layers.weatherMap, layers.windAnimation) }
+    }
+    LaunchedEffect(weatherSpec) { map.setWeatherMap(weatherSpec) }
+
     val camerasOn = stats != null && dataView && layers.cameras
     LaunchedEffect(stats, camerasOn) {
         if (stats == null || !camerasOn) {
@@ -290,6 +323,12 @@ fun liveNotes(live: LiveLayers, layers: DataLayers, zoom: Double, stats: StatsDa
                     if (live.buses.isEmpty()) l.noBuses else l.busesAt(live.buses.size, deviceClock(stats, live.busesAt))
             },
         )
+        if (layers.weatherMaps) add(
+            live.weatherRun?.let { r ->
+                val t = Instant.fromEpochMilliseconds(r.runMillis).toLocalDateTime(TimeZone.UTC)
+                l.weatherMapsNote(Fmt.clock(t.hour, t.minute, null))
+            } ?: if (live.weatherRunFailed) l.couldntGet else l.gettingWeatherMaps,
+        )
         if (layers.cameras) add(
             when (live.cameraState) {
                 LiveLayers.LoadState.LOADING -> l.gettingCameras
@@ -310,6 +349,7 @@ fun liveCredits(layers: DataLayers): List<String> {
         l.photosCredits.takeIf { layers.photos },
         l.busesCredits.takeIf { layers.buses },
         l.camerasCredits.takeIf { layers.cameras },
+        l.weatherMapsCredits.takeIf { layers.weatherMaps },
     )
 }
 
@@ -608,3 +648,37 @@ fun CameraCard(c: Cameras.Camera, onClose: () -> Unit) {
         }
     }
 }
+
+/**
+ * The weather map's hour: a slider over the forecast's hours (every 3, the next 48), with the day
+ * and time shown (by the device's clock) and how far from now.
+ */
+@Composable
+fun WeatherTimeRow(live: LiveLayers, stats: StatsData) {
+    val run = live.weatherRun ?: return
+    val steps = run.steps
+    if (steps.isEmpty()) return
+    val i = live.weatherStep.coerceIn(steps.indices)
+    val at = steps[i].timeMillis
+    val offset = stats.zoneOffset(null, at) ?: 0
+    val t = Instant.fromEpochMilliseconds(at + offset * 1000L).toLocalDateTime(TimeZone.UTC)
+    val hours = ((at - nowMillis()) / 3_600_000.0).let { kotlin.math.round(it).toInt() }
+    Row(Modifier.fillMaxWidth().padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            listOf(
+                "${T.live.weekdays[t.date.dayOfWeek.ordinal]} ${Fmt.clock(t.hour, t.minute, null)}",
+                if (kotlin.math.abs(hours) <= 1) T.live.now else T.live.hoursFromNow(hours),
+            ).joinToString(" · "),
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.width(150.dp),
+        )
+        androidx.compose.material3.Slider(
+            value = i.toFloat(),
+            onValueChange = { live.weatherStep = it.roundToInt().coerceIn(steps.indices) },
+            valueRange = 0f..(steps.size - 1).toFloat(),
+            steps = (steps.size - 2).coerceAtLeast(0),
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+

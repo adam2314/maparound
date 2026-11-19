@@ -146,20 +146,26 @@ object StatsLayers {
     }
 
     /**
-     * The countries ([outlines]: their features' JSON by ISO code) coloured by [values] of
-     * [indicator], without the classes in [hidden] (unknown: -1).
+     * The countries coloured by [values] of [indicator] ("role": "country"), without the classes in
+     * [hidden] (unknown: -1), and each one's name at its label point ("role": "label", "name", in
+     * Hebrew when [he], from zoom "minz", the big ones placed first by "rank").
      */
-    fun countries(outlines: Map<String, String>, indicator: CountryIndicator, values: Map<String, Figure>, hidden: Set<Int>): String {
+    fun countries(countries: Map<String, Country>, indicator: CountryIndicator, values: Map<String, Figure>, hidden: Set<Int>, he: Boolean = false): String {
         val classes = indicator.classes
         val sb = StringBuilder("""{"type":"FeatureCollection","features":[""")
         var first = true
-        for ((iso, geometry) in outlines) {
+        for ((iso, country) in countries) {
             val c = values[iso]?.let { indicator.classOf(it.value) } ?: -1
             if (c in hidden) continue
             if (!first) sb.append(',')
             first = false
-            sb.append("""{"type":"Feature","geometry":""").append(geometry)
-                .append(""","properties":{"tap":"$TAP_COUNTRY$iso","color":"${if (c < 0) NO_DATA else classes[c].color}"}}""")
+            sb.append("""{"type":"Feature","geometry":""").append(country.geometry)
+                .append(""","properties":{"role":"country","tap":"$TAP_COUNTRY$iso","color":"${if (c < 0) NO_DATA else classes[c].color}"}}""")
+            val (lon, lat) = country.label ?: continue
+            sb.append(""",{"type":"Feature","geometry":{"type":"Point","coordinates":[""")
+                .append(round6(lon)).append(',').append(round6(lat))
+                .append("""]},"properties":{"role":"label","name":""").append(kotlinx.serialization.json.JsonPrimitive(country.name(he)).toString())
+                .append(""","minz":""").append(country.labelZoom).append(""","rank":""").append(country.labelZoom).append("}}")
         }
         return sb.append("]}").toString()
     }

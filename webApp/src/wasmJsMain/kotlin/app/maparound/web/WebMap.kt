@@ -44,6 +44,7 @@ private fun mlSetRtl(rtl: Boolean): Unit = js("{ MapAroundMap.setRtl(rtl); }")
 
 private fun mlSetStyle(json: String): Unit = js("{ MapAroundMap.setStyle(json); }")
 private fun mlSetGeoJson(id: String, json: String): Unit = js("{ MapAroundMap.setGeoJson(id, json); }")
+private fun mlSetWeather(json: String): Unit = js("{ MapAroundMap.setWeather(json); }")
 private fun mlCamera(): String = js("MapAroundMap.camera()")
 private fun mlHeight(): Double = js("MapAroundMap.height()")
 private fun mlBounds(): String = js("MapAroundMap.bounds()")
@@ -87,6 +88,7 @@ class WebNativeMap(style: String, symbolsUrl: String, tiles: (String) -> JsAny?)
 
     override fun setStyle(json: String) = mlSetStyle(json)
     override fun setGeoJson(sourceId: String, json: String) = mlSetGeoJson(sourceId, json)
+    override fun setWeatherMap(spec: String?) = mlSetWeather(spec.orEmpty())
 
     override fun camera(): NativeCamera {
         val v = mlCamera().split(',').map { it.toDoubleOrNull() ?: 0.0 }

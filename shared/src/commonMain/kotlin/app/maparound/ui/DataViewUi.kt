@@ -114,6 +114,10 @@ data class DataLayers(
     val rainRadar: Boolean = false,
     /** What the weather's points show; null: none. */
     val weather: WeatherLayer? = null,
+    /** What colours the weather map (NOAA's forecast); null: none. One of a kind with [weather]. */
+    val weatherMap: app.maparound.stats.WeatherMapField? = null,
+    /** The wind as moving particles. */
+    val windAnimation: Boolean = false,
     val photos: Boolean = false,
     val buses: Boolean = false,
     val cameras: Boolean = false,
@@ -123,6 +127,9 @@ data class DataLayers(
      * (countries, time zones, localities) go, so the map shows through; they can be picked again.
      */
     fun withOverlay(change: DataLayers.() -> DataLayers): DataLayers = change(this).copy(country = null, timeZones = false, locality = null)
+
+    /** Whether the weather maps are on (a field, or the wind's particles). */
+    val weatherMaps: Boolean get() = weatherMap != null || windAnimation
 
     /** Whether anything colours the world or Israel's localities. */
     val coloured: Boolean get() = country != null || timeZones || locality != null
@@ -134,6 +141,7 @@ data class DataOffers(
     val gpsTraces: Boolean = false,
     val radar: Boolean = false,
     val weather: Boolean = false,
+    val weatherMaps: Boolean = false,
     val photos: Boolean = false,
     val buses: Boolean = false,
     val cameras: Boolean = false,
@@ -182,11 +190,27 @@ private fun branches(layers: DataLayers, offers: DataOffers, onPick: (DataLayers
             if (offers.radar) add(Leaf(l.rainRadar, l.radarSource, layers.rainRadar, false, "${l.weatherKeywords} ${l.radarKeywords}") {
                 onPick(if (layers.rainRadar) layers.copy(rainRadar = false) else layers.withOverlay { copy(rainRadar = true) })
             })
+            if (offers.weatherMaps) {
+                add(Leaf(l.windAnimation, l.weatherMapsSource, layers.windAnimation, false, "${l.weatherKeywords} ${l.windKeywords} ${l.weatherMapsKeywords}") {
+                    onPick(if (layers.windAnimation) layers.copy(windAnimation = false) else layers.withOverlay { copy(windAnimation = true) })
+                })
+                for (f in app.maparound.stats.WeatherMapField.entries) add(Leaf(
+                    f.title, l.weatherMapsSource, layers.weatherMap == f, true,
+                    "${l.weatherKeywords} ${l.weatherMapsKeywords} " + when (f) {
+                        app.maparound.stats.WeatherMapField.TEMPERATURE -> l.temperatureKeywords
+                        app.maparound.stats.WeatherMapField.CLOUDS -> l.cloudsKeywords
+                        app.maparound.stats.WeatherMapField.PRECIP -> l.radarKeywords
+                    },
+                ) {
+                    // One colour field at a time: the map's or the points'.
+                    onPick(if (layers.weatherMap == f) layers.copy(weatherMap = null) else layers.withOverlay { copy(weatherMap = f, weather = null) })
+                })
+            }
             if (offers.weather) for (w in WeatherLayer.entries) add(Leaf(
                 w.title, l.weatherSource, layers.weather == w, true,
                 "${l.weatherKeywords} ${if (w == WeatherLayer.TEMPERATURE) l.temperatureKeywords else l.windKeywords}",
             ) {
-                onPick(if (layers.weather == w) layers.copy(weather = null) else layers.withOverlay { copy(weather = w) })
+                onPick(if (layers.weather == w) layers.copy(weather = null) else layers.withOverlay { copy(weather = w, weatherMap = null) })
             })
         }
         if (weather.isNotEmpty()) add(Branch("weather", l.weather, Icons.Filled.Cloud, weather))
@@ -432,6 +456,8 @@ fun DataViewPanel(
     onGoTo: () -> Unit,
     onExplore: () -> Unit,
     onClose: () -> Unit,
+    /** The weather map's time, when it's on. */
+    weatherTime: @Composable () -> Unit = {},
 ) {
     val s = T.stats
     Surface(
@@ -450,7 +476,9 @@ fun DataViewPanel(
                 showLocalities && locality != null -> s.localities to locality.title
                 zones -> s.time to s.timeZones
                 !showLocalities && country != null -> s.countries to country.title
+                layers.weatherMap != null -> l.weather to layers.weatherMap.title
                 layers.weather != null -> l.weather to layers.weather.title
+                layers.windAnimation -> l.weather to l.windAnimation
                 layers.rainRadar -> l.weather to l.rainRadar
                 layers.buses -> s.movement to l.buses
                 layers.cameras -> l.cameras to l.camerasLayer
@@ -486,6 +514,8 @@ fun DataViewPanel(
                 }
                 layers.coloured -> Hint(null, if (showLocalities) s.countries else s.localities, onGoTo)
             }
+            layers.weatherMap?.let { f -> Legend(app.maparound.stats.WeatherMap.legend(f), emptySet(), {}, noData = false) }
+            if (layers.weatherMaps) weatherTime()
             layers.weather?.let { w ->
                 if (layers.coloured) Text(w.title, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 4.dp))
                 Legend(Weather.classes(w), hiddenWeather, onToggleWeather, noData = false)
@@ -535,26 +565,59 @@ private fun Legend(classes: List<StatClass>, hidden: Set<Int>, onToggle: (Int) -
     }
 }
 
-/** A tapped country: its name and the figures loaded so far. */
+/**
+ * A tapped country: its flag and name, its area, capital and languages, the figures loaded so far,
+ * and its Wikipedia article.
+ */
 @Composable
-fun CountryCard(country: Country, figures: Map<CountryIndicator, Map<String, Figure>>, onClose: () -> Unit) {
+fun CountryCard(country: Country, figures: Map<CountryIndicator, Map<String, Figure>>, flagUrl: String?, onClose: () -> Unit) {
+    val platform = app.maparound.ui.LocalPlatform.current
     Card(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
         Column(Modifier.padding(start = 16.dp, end = 4.dp, bottom = 12.dp)) {
+            val he = I18n.language == app.maparound.i18n.Language.HE
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    if (I18n.language == app.maparound.i18n.Language.HE && country.nameHe.isNotBlank()) country.nameHe else country.nameEn,
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f),
-                )
+                val size = country.flag
+                if (flagUrl != null && size != null) {
+                    // As tall as the name, as wide as its own shape (Switzerland's square, Qatar's long), with a thin edge for white ones.
+                    val w = (FLAG_HEIGHT.value * size.first / size.second).coerceIn(FLAG_HEIGHT.value * 0.8f, FLAG_HEIGHT.value * 2.6f)
+                    RemoteImage(
+                        flagUrl,
+                        null,
+                        Modifier.padding(end = 10.dp).height(FLAG_HEIGHT).width(w.dp)
+                            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant),
+                        androidx.compose.ui.layout.ContentScale.FillBounds,
+                    )
+                }
+                Text(country.name(he), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                 Tip(T.common.close) { IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = T.common.close) } }
             }
+            // What it is: its size (in the unit lengths are in), capital and languages.
+            val facts = listOfNotNull(
+                country.areaKm2?.let(T.stats::areaOf),
+                country.capitals.takeIf { it.isNotEmpty() }?.let { cs -> T.stats.capitalsOf(cs.map { if (he) it.second else it.first }) },
+                country.languages.takeIf { it.isNotEmpty() }?.let { ls ->
+                    // The most spoken (worldwide, so not a ranking within the country), by name.
+                    T.stats.languagesOf(ls.take(MAX_LANGUAGES).map { if (he) it.second else it.first }.sorted(), ls.size - minOf(ls.size, MAX_LANGUAGES))
+                },
+            )
+            for (f in facts) Text(f, style = MaterialTheme.typography.bodyMedium)
+            if (facts.isNotEmpty()) Spacer(Modifier.height(6.dp))
             for (i in CountryIndicator.entries) {
                 val f = figures[i]?.get(country.iso) ?: continue
                 Text("${i.title}: ${i.format(f.value)} ${T.stats.asOf(f.year)}", style = MaterialTheme.typography.bodyMedium)
             }
+            country.wikipediaUrl(he)?.let { url ->
+                TextButton(onClick = { platform.openUrl(url) }, modifier = Modifier.padding(top = 2.dp)) { Text(T.map.wikipedia) }
+            }
         }
     }
 }
+
+/** A country's card names this many of its languages (the most spoken), then how many more. */
+private const val MAX_LANGUAGES = 5
+
+/** A country's flag on its card: as tall as this. */
+private val FLAG_HEIGHT = 26.dp
 
 /** A tapped locality: what it is, its people (by age), and a way to pin it (for What's here, Wikipedia…). */
 @Composable

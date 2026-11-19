@@ -223,6 +223,7 @@ class MapStyle(
         layer("${TAP_PREFIX}data-countries", "fill") {
             put("source", DATA_COUNTRIES)
             put("maxzoom", 7)
+            put("filter", eq("role", "country"))
             put("paint", obj(
                 "fill-color" to arr("get", "color"),
                 "fill-opacity" to arr("interpolate", arr("linear"), arr("zoom"), 2, 0.8, 6.5, 0.45),
@@ -371,6 +372,25 @@ class MapStyle(
                 "text-allow-overlap" to true,
             ))
             put("paint", obj("text-color" to "#1B1B1B", "text-halo-color" to "rgba(255,255,255,0.95)", "text-halo-width" to 1.8))
+        },
+        // The countries' names (in the app's language), each from the zoom its size allows.
+        layer("data-countries-label", "symbol") {
+            put("source", DATA_COUNTRIES)
+            put("maxzoom", 7)
+            put("filter", arr("all", eq("role", "label"), arr(">=", arr("zoom"), arr("get", "minz"))))
+            put("layout", obj(
+                "symbol-sort-key" to arr("get", "rank"),
+                "text-field" to arr("get", "name"),
+                "text-font" to arr("Noto Sans Bold"),
+                "text-size" to arr("interpolate", arr("linear"), arr("zoom"), 1, 10, 6, 14),
+                "text-max-width" to 7,
+                "text-padding" to 4,
+            ))
+            put("paint", obj(
+                "text-color" to "#1B1B1B",
+                "text-halo-color" to "rgba(255,255,255,0.9)",
+                "text-halo-width" to 1.6,
+            ))
         },
         layer("data-zones-label", "symbol") {
             put("source", DATA_ZONES)

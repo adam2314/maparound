@@ -14,8 +14,72 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okio.Path.Companion.toPath
 
-/** A country's outline (GeoJSON geometry) and names. */
-class Country(val iso: String, val nameEn: String, val nameHe: String, val geometry: String)
+/**
+ * A country's outline (GeoJSON geometry), names, where its name goes on the map, and what its card
+ * says (Wikidata's, in tools/stats/make_countries.py): its area, capitals and official languages,
+ * each named (English, Hebrew), the languages most spoken first.
+ */
+class Country(
+    val iso: String,
+    val nameEn: String,
+    val nameHe: String,
+    val geometry: String,
+    /** Where its name goes (Natural Earth's point), or null for none. */
+    val label: Pair<Double, Double>? = null,
+    /** The (MapLibre) zoom its name shows from: the big ones first. */
+    val labelZoom: Double = 4.0,
+    val areaKm2: Double? = null,
+    val capitals: List<Pair<String, String>> = emptyList(),
+    val languages: List<Pair<String, String>> = emptyList(),
+    /** Its Wikipedia articles' titles (English, Hebrew; "" where there's none), or null. */
+    val wikipedia: Pair<String, String>? = null,
+    /** Its flag's picture size in pixels (the app's flags/<ISO>.png), or null for none. */
+    val flag: Pair<Int, Int>? = null,
+) {
+    /** Its name in Hebrew ([he]) where it has one, else in English. */
+    fun name(he: Boolean): String = if (he && nameHe.isNotBlank()) nameHe else nameEn
+
+    /** Its Wikipedia article: the Hebrew one when [he] and there is one, else the English. */
+    fun wikipediaUrl(he: Boolean): String? {
+        val (en, heTitle) = wikipedia ?: return null
+        return when {
+            he && heTitle.isNotBlank() -> app.maparound.search.Wikipedia.articleUrl("he", heTitle)
+            en.isNotBlank() -> app.maparound.search.Wikipedia.articleUrl("en", en)
+            heTitle.isNotBlank() -> app.maparound.search.Wikipedia.articleUrl("he", heTitle)
+            else -> null
+        }
+    }
+
+    companion object {
+        /** One country from the file's entry ([o]: "en", "he", "g", "lp", "lz", "km2", "cap", "lang", "wp", "fl"). */
+        fun of(iso: String, o: kotlinx.serialization.json.JsonObject): Country {
+            fun names(k: String) = (o[k] as? kotlinx.serialization.json.JsonArray).orEmpty().mapNotNull { e ->
+                val a = e as? kotlinx.serialization.json.JsonArray ?: return@mapNotNull null
+                val en = (a.getOrNull(0) as? kotlinx.serialization.json.JsonPrimitive)?.content ?: return@mapNotNull null
+                en to ((a.getOrNull(1) as? kotlinx.serialization.json.JsonPrimitive)?.content ?: en)
+            }
+            fun num(k: String) = (o[k] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toDoubleOrNull()
+            fun nums(k: String) = (o[k] as? kotlinx.serialization.json.JsonArray)?.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.content?.toDoubleOrNull() }
+            val lp = nums("lp")
+            val fl = nums("fl")?.takeIf { it.size == 2 && it.all { v -> v > 0 } }
+            val wp = (o["wp"] as? kotlinx.serialization.json.JsonArray)?.map { (it as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty() }
+            return Country(
+                iso = iso,
+                nameEn = o["en"]?.jsonPrimitive?.content.orEmpty(),
+                nameHe = o["he"]?.jsonPrimitive?.content.orEmpty(),
+                geometry = o["g"].toString(),
+                // Natural Earth's zooms are for 256-pixel tiles, MapLibre's for 512: one less.
+                label = lp?.takeIf { it.size == 2 }?.let { it[0] to it[1] },
+                labelZoom = ((num("lz") ?: 5.0) - 1).coerceAtLeast(0.0),
+                areaKm2 = num("km2"),
+                capitals = names("cap"),
+                languages = names("lang"),
+                wikipedia = wp?.takeIf { it.size == 2 && it.any(String::isNotBlank) }?.let { it[0] to it[1] },
+                flag = fl?.let { it[0].toInt() to it[1].toInt() },
+            )
+        }
+    }
+}
 
 /**
  * The data view's data: the countries' outlines (the app's own file, from Natural Earth), their
@@ -33,7 +97,12 @@ class StatsData(
      * own); null when it isn't known. The web app's comes from the browser.
      */
     private val zoneOffset: (zone: String?, epochMillis: Long) -> Int? = { _, _ -> null },
+    /** Where the countries' flags are (the app's own files, "<ISO>.png"), or null where there are none. */
+    private val flags: String? = null,
 ) {
+    /** A country's flag's address, or null when it has none. */
+    fun flagUrl(c: Country): String? = if (c.flag == null) null else flags?.let { "$it${c.iso}.png" }
+
     private val _countries = MutableStateFlow<Map<String, Country>?>(null)
     val countries: StateFlow<Map<String, Country>?> = _countries.asStateFlow()
 
@@ -63,10 +132,7 @@ class StatsData(
         if (_countries.value != null) return@withLock
         runCatching {
             val root = json.parseToJsonElement(outlines()).jsonObject
-            _countries.value = root.mapValues { (iso, v) ->
-                val o = v.jsonObject
-                Country(iso, o["en"]?.jsonPrimitive?.content.orEmpty(), o["he"]?.jsonPrimitive?.content.orEmpty(), o["g"].toString())
-            }
+            _countries.value = root.mapValues { (iso, v) -> Country.of(iso, v.jsonObject) }
         }
     }
 
@@ -235,6 +301,26 @@ class StatsData(
         camerasById.values.filter { Cameras.inside(it, view) }
     }
 
+    /** The weather maps' latest run, and when it was asked for. */
+    private var weatherRun: Pair<Long, WeatherRun>? = null
+
+    /**
+     * The weather maps' latest run (its manifest), asked for again after [WEATHER_RUN_FRESH_MS];
+     * null when they're off or it couldn't be had (the last one got, then, if any).
+     */
+    suspend fun weatherRun(): WeatherRun? {
+        val base = app.maparound.sources.Sources.address(app.maparound.sources.SourceKind.WEATHER_MAPS) ?: return null
+        val now = clock()
+        weatherRun?.takeIf { now - it.first < WEATHER_RUN_FRESH_MS }?.let { return it.second }
+        val got = fetch(base.trimEnd('/') + "/" + WeatherMap.MANIFEST)?.let(WeatherMap::parse)
+        if (got != null) weatherRun = now to got
+        return got ?: weatherRun?.second
+    }
+
+    /** Where the weather maps' pictures are (the source's address), or null when they're off. */
+    val weatherMapsBase: String?
+        get() = app.maparound.sources.Sources.address(app.maparound.sources.SourceKind.WEATHER_MAPS)
+
     /** [url]'s text, or null when it couldn't be had. */
     private suspend fun fetch(url: String, timeoutMs: Int = 30_000): String? = try {
         httpGetAsync(url, timeoutMs).decodeToString().takeIf { it.isNotBlank() }
@@ -256,6 +342,9 @@ class StatsData(
         /** OpenStreetMap's cameras change slowly: an area is asked for again after a day. */
         const val CAMERAS_FRESH_MS = 24 * 3_600_000L
         const val CAMERAS_KEPT = 20_000
+
+        /** A new model run every 6 hours: the list is asked for again after half an hour. */
+        const val WEATHER_RUN_FRESH_MS = 30 * 60_000L
     }
 }
 

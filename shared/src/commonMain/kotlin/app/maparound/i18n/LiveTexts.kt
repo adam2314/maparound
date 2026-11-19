@@ -23,6 +23,22 @@ open class LiveTexts {
     open val photosSource = "Panoramax · open street-level photos"
     open val busesSource = "Open Bus · live, a minute or two behind"
 
+    open val windAnimation = "Wind, moving"
+    open val weatherMaps = "Weather maps"
+    open val weatherMapsSource = "NOAA's forecast · the next 48 hours"
+    open val weatherMapsKeywords = "weather maps forecast gfs noaa animation particles flow"
+    open val cloudsKeywords = "clouds cloud cover overcast sunny sky"
+    open fun weatherMapTitle(f: app.maparound.stats.WeatherMapField) = when (f) {
+        app.maparound.stats.WeatherMapField.TEMPERATURE -> "Temperature map"
+        app.maparound.stats.WeatherMapField.CLOUDS -> "Clouds"
+        app.maparound.stats.WeatherMapField.PRECIP -> "Rain and snow (forecast)"
+    }
+    open val gettingWeatherMaps = "Getting the forecast…"
+    open fun weatherMapsNote(run: String) = "NOAA's GFS model, run at $run UTC. Tap the map for the forecast there."
+    open val now = "now"
+    /** How far the weather map's hour is from now: "+6 h", "−3 h". */
+    open fun hoursFromNow(h: Int) = ltr(if (h > 0) "+$h h" else "−${-h} h")
+    open val weatherMapsCredits = "weather maps: NOAA GFS"
     open val cameras = "Cameras"
     open val camerasLayer = "Cameras on the map"
     open val camerasSource = "OpenStreetMap · speed, security and webcams"
@@ -133,6 +149,21 @@ object LiveTextsHe : LiveTexts() {
     override val windKeywords = "רוח רוחות משבים סערה wind"
     override val photosKeywords = "תמונות צילומים סטריט וויו פנורמה 360 panoramax street view photos"
     override val busesKeywords = "אוטובוס אוטובוסים תחבורה ציבורית קו קווים זמן אמת איפה האוטובוס bus"
+    override val windAnimation = "רוח, בתנועה"
+    override val weatherMaps = "מפות מזג אוויר"
+    override val weatherMapsSource = "התחזית של ${ltr("NOAA")} · 48 השעות הקרובות"
+    override val weatherMapsKeywords = "מפות מזג אוויר מפה תחזית אנימציה זרימה gfs noaa maps forecast"
+    override val cloudsKeywords = "עננים עננות מעונן שמש שמיים clouds"
+    override fun weatherMapTitle(f: app.maparound.stats.WeatherMapField) = when (f) {
+        app.maparound.stats.WeatherMapField.TEMPERATURE -> "מפת טמפרטורה"
+        app.maparound.stats.WeatherMapField.CLOUDS -> "עננים"
+        app.maparound.stats.WeatherMapField.PRECIP -> "גשם ושלג (תחזית)"
+    }
+    override val gettingWeatherMaps = "מוריד את התחזית…"
+    override fun weatherMapsNote(run: String) = "מודל GFS של NOAA, ריצה ב־${ltr(run)} UTC. הקשה על המפה מציגה את התחזית שם."
+    override val now = "עכשיו"
+    override fun hoursFromNow(h: Int) = if (h > 0) "בעוד $h שע׳" else "לפני ${-h} שע׳"
+    override val weatherMapsCredits = "מפות מזג אוויר: NOAA GFS"
     override val cameras = "מצלמות"
     override val camerasLayer = "מצלמות על המפה"
     override val camerasSource = "OpenStreetMap · מהירות, אבטחה ומצלמות רשת"

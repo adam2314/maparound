@@ -783,7 +783,10 @@ The app's privacy policy (also for the stores) is [docs/privacy.md](docs/privacy
 - **The web app's data view** ([docs/data-view.md](docs/data-view.md): what it shows, how to add data,
   what's next): the countries' outlines are Natural Earth's 1:50m countries (public
   domain), simplified to about 1.5 km by `tools/stats/make_countries.py` into
-  `webApp/.../resources/countries.json`; the countries' figures come from
+  `webApp/.../resources/countries.json`, with each country's area, capitals, official languages and
+  Wikipedia articles from [Wikidata](https://www.wikidata.org) (CC0), and its flag from
+  [Wikimedia Commons](https://commons.wikimedia.org) (public domain or CC0, one CC BY 2.5; each
+  credited in `webApp/.../resources/flags/LICENCES.md`); the countries' figures come from
   [Our World in Data](https://ourworldindata.org) (CC BY 4.0, and their sources' terms), Israel's
   localities from [data.gov.il](https://data.gov.il): the Central Bureau of Statistics' list of
   localities and the 2019 socio-economic clusters (open licence), and the Population and
@@ -795,7 +798,10 @@ The app's privacy policy (also for the stores) is [docs/privacy.md](docs/privacy
   traces are OpenStreetMap's public ones (gps.tile.openstreetmap.org, © OpenStreetMap
   contributors). Live layers, read when shown and not kept: the rain radar from
   [RainViewer](https://www.rainviewer.com) (with credit), the weather from
-  [Open-Meteo](https://open-meteo.com) (CC BY 4.0; its free API is for non-commercial use), street
+  [Open-Meteo](https://open-meteo.com) (CC BY 4.0; its free API is for non-commercial use), the
+  weather maps from NOAA's [GFS](https://www.nco.ncep.noaa.gov/pmb/products/gfs/) forecast (public
+  domain), made into pictures every six hours by MapAround's pipeline and drawn with a technique
+  after [webgl-wind](https://github.com/mapbox/webgl-wind) (ISC), street
   photos from [Panoramax](https://panoramax.fr) (each photo's own licence, mostly CC BY-SA 4.0), and
   Israel's buses from the Ministry of Transport's real-time feed via the Public Knowledge
   Workshop's [Open Bus](https://open-bus-stride-api.hasadna.org.il/docs); the cameras are

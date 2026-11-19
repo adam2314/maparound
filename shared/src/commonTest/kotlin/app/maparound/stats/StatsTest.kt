@@ -119,9 +119,72 @@ class StatsTest {
         // No ages: "no data" (-1), hidden with it.
         assertFalse("data:l:1" in StatsLayers.localities(listOf(l.copy(ages = null)), LocalityIndicator.ELDERLY, setOf(-1)))
 
-        val countries = StatsLayers.countries(
-            mapOf("ISR" to """{"type":"Point","coordinates":[35,31]}"""), CountryIndicator.POPULATION, mapOf("ISR" to Figure(9.8e6, 2023)), emptySet(),
-        )
+        val israel = Country("ISR", "Israel", "ישראל", """{"type":"Point","coordinates":[35,31]}""", label = 34.85 to 30.91, labelZoom = 2.0)
+        val countries = StatsLayers.countries(mapOf("ISR" to israel), CountryIndicator.POPULATION, mapOf("ISR" to Figure(9.8e6, 2023)), emptySet())
         assertTrue("\"tap\":\"data:c:ISR\"" in countries && "\"color\":\"#7fcdbb\"" in countries, countries)
+        // Its name at its label point, in the app's language, from its zoom.
+        assertTrue("\"coordinates\":[34.85,30.91]},\"properties\":{\"role\":\"label\",\"name\":\"Israel\",\"minz\":2.0" in countries, countries)
+        assertTrue("\"name\":\"ישראל\"" in StatsLayers.countries(mapOf("ISR" to israel), CountryIndicator.POPULATION, emptyMap(), emptySet(), he = true))
+        // Hidden with its colour; none without a label point; a name with quotes stays JSON.
+        assertFalse("ISR" in StatsLayers.countries(mapOf("ISR" to israel), CountryIndicator.POPULATION, mapOf("ISR" to Figure(9.8e6, 2023)), setOf(CountryIndicator.POPULATION.classOf(9.8e6))))
+        assertFalse("\"label\"" in StatsLayers.countries(mapOf("ISR" to Country("ISR", "Israel", "", "{}")), CountryIndicator.POPULATION, emptyMap(), emptySet()))
+        val quoted = StatsLayers.countries(mapOf("USA" to Country("USA", "", "ארה\"ב", "{}", label = 0.0 to 0.0)), CountryIndicator.POPULATION, emptyMap(), emptySet(), he = true)
+        assertTrue("\"name\":\"ארה\\\"ב\"" in quoted, quoted)
+        kotlinx.serialization.json.Json.parseToJsonElement(quoted)
+    }
+
+    @Test
+    fun aCountrysFacts() {
+        val entry = kotlinx.serialization.json.Json.parseToJsonElement(
+            """{"en":"South Africa","he":"דרום אפריקה","g":{"type":"Point","coordinates":[24,-29]},"lp":[23.67,-29.71],"lz":1.7,"km2":1220813,
+               "cap":[["Bloemfontein","בלומפונטיין"],["Cape Town","קייפטאון"],["Pretoria","פרטוריה"]],"lang":[["English","אנגלית"],["Zulu","זולו"]],
+               "wp":["South Africa","דרום אפריקה"],"fl":[160,107]}""",
+        ) as kotlinx.serialization.json.JsonObject
+        val c = Country.of("ZAF", entry)
+        assertEquals("South Africa", c.name(he = false))
+        assertEquals("דרום אפריקה", c.name(he = true))
+        assertEquals(23.67 to -29.71, c.label)
+        near(0.7, c.labelZoom, 1e-9) // Natural Earth's zoom, one less for MapLibre's
+        assertEquals(1220813.0, c.areaKm2)
+        assertEquals(listOf("Bloemfontein", "Cape Town", "Pretoria"), c.capitals.map { it.first })
+        assertEquals("זולו", c.languages[1].second)
+        assertEquals(160 to 107, c.flag)
+        assertEquals("https://en.wikipedia.org/wiki/South_Africa", c.wikipediaUrl(he = false))
+        assertEquals("https://he.wikipedia.org/wiki/" + "%D7%93%D7%A8%D7%95%D7%9D_%D7%90%D7%A4%D7%A8%D7%99%D7%A7%D7%94", c.wikipediaUrl(he = true))
+        // Only an English article: that one in Hebrew too.
+        assertEquals("https://en.wikipedia.org/wiki/Niue", Country("NIU", "Niue", "ניואה", "{}", wikipedia = "Niue" to "").wikipediaUrl(he = true))
+        // The flag's address where the app has flags and the country has one.
+        assertEquals("flags/ZAF.png", StatsData("/tmp/stats", outlines = { "{}" }, flags = "flags/").flagUrl(c))
+        assertNull(StatsData("/tmp/stats", outlines = { "{}" }).flagUrl(c))
+        // An entry with only its names and outline.
+        val bare = Country.of("ATA", kotlinx.serialization.json.Json.parseToJsonElement("""{"en":"Antarctica","he":"","g":{}}""") as kotlinx.serialization.json.JsonObject)
+        assertNull(bare.label)
+        assertNull(bare.areaKm2)
+        assertTrue(bare.capitals.isEmpty() && bare.languages.isEmpty())
+        assertNull(bare.flag)
+        assertNull(bare.wikipediaUrl(he = true))
+        assertNull(StatsData("/tmp/stats", outlines = { "{}" }, flags = "flags/").flagUrl(bare))
+        assertEquals("Antarctica", bare.name(he = true))
+
+        val t = app.maparound.i18n.T.stats
+        assertEquals("Area: 20,770 km²", t.areaOf(20770.0))
+        assertEquals("Area: 0.49 km²", t.areaOf(0.49))
+        assertEquals("Area: 2.1 km²", t.areaOf(2.08))
+        assertEquals("Capitals: Bloemfontein, Cape Town, Pretoria", t.capitalsOf(c.capitals.map { it.first }))
+        assertEquals("Capital: Jerusalem", t.capitalsOf(listOf("Jerusalem")))
+        assertEquals("Language: Hebrew", t.languagesOf(listOf("Hebrew"), 0))
+        assertEquals("Languages: English, Zulu and 10 more", t.languagesOf(listOf("English", "Zulu"), 10))
+        try {
+            app.maparound.i18n.Units.set(app.maparound.i18n.UnitSystem(distance = app.maparound.i18n.DistanceUnit.IMPERIAL))
+            assertEquals("Area: 8,019 sq mi", t.areaOf(20770.0))
+            app.maparound.i18n.Units.set(app.maparound.i18n.UnitSystem(distance = app.maparound.i18n.DistanceUnit.NAUTICAL))
+            assertEquals("Area: 6,056 sq nmi", t.areaOf(20770.0))
+            I18n.apply("he")
+            assertEquals("שטח: 6,056 מייל ימי רבוע", app.maparound.i18n.T.stats.areaOf(20770.0))
+            assertEquals("שפות: עברית ועוד 1", app.maparound.i18n.T.stats.languagesOf(listOf("עברית"), 1))
+        } finally {
+            app.maparound.i18n.Units.set(app.maparound.i18n.UnitSystem())
+            I18n.apply("en")
+        }
     }
 }

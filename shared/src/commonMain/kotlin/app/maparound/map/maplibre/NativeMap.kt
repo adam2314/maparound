@@ -26,6 +26,9 @@ interface NativeMap {
     /** What's in view: south, west, north, east (all of it when turned or tilted); null when unknown. */
     fun visibleBounds(): DoubleArray? = null
 
+    /** The weather map (the web app: weather.js): its spec as JSON ([app.maparound.stats.WeatherMap.spec]), or null for none. */
+    fun setWeatherMap(spec: String?) {}
+
     fun moveCamera(lat: Double, lon: Double, zoom: Double, animated: Boolean)
 
     /** Shows the area, with some padding. */

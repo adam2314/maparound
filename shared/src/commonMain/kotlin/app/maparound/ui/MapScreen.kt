@@ -630,7 +630,7 @@ fun MapScreen(
     }
     LaunchedEffect(
         dataView, statsCountries, statsFigures, countryIndicator, hiddenCountryClasses, statsLocalities, localityIndicator,
-        hiddenLocalityClasses, statsZones, dataLayers.timeZones, hiddenZoneClasses, zonesQuarter,
+        hiddenLocalityClasses, statsZones, dataLayers.timeZones, hiddenZoneClasses, zonesQuarter, app.maparound.i18n.I18n.language,
     ) {
         if (!dataView) {
             controller.setStats(null, null, null)
@@ -639,7 +639,7 @@ fun MapScreen(
         val countriesJson = countryIndicator?.let { indicator ->
             statsCountries?.let { cs ->
                 withContext(Dispatchers.Default) {
-                    StatsLayers.countries(cs.mapValues { it.value.geometry }, indicator, statsFigures[indicator].orEmpty(), hiddenCountryClasses)
+                    StatsLayers.countries(cs, indicator, statsFigures[indicator].orEmpty(), hiddenCountryClasses, he = app.maparound.i18n.I18n.language == app.maparound.i18n.Language.HE)
                 }
             }
         }
@@ -763,6 +763,12 @@ fun MapScreen(
                 }
                 PlannerSession.state.value.active && !NavigationSession.state.value.active -> {
                     PlannerSession.add(point)
+                    true
+                }
+                // The weather map on: the forecast where it was tapped.
+                dataView && stats != null && dataLayers.weatherMaps -> {
+                    val r = { v: Double -> kotlin.math.round(v * 1e4) / 1e4 }
+                    dataSelected = app.maparound.stats.Weather.TAP + "${r(point.lat)},${r(point.lon)}"
                     true
                 }
                 else -> false
@@ -1253,7 +1259,7 @@ fun MapScreen(
                     photo != null -> PhotoCard(photo, stats, onClose = { dataSelected = null })
                     bus != null -> BusCard(bus, live.routes[bus.lineRef], stats, onClose = { dataSelected = null })
                     zone != null -> ZoneCard(zone, stats::zoneOffset, onClose = { dataSelected = null })
-                    country != null -> CountryCard(country, statsFigures, onClose = { dataSelected = null })
+                    country != null -> CountryCard(country, statsFigures, stats.flagUrl(country), onClose = { dataSelected = null })
                     locality != null -> LocalityCard(
                         locality,
                         onPin = {
@@ -1280,6 +1286,7 @@ fun MapScreen(
                         },
                         hiddenWeather = live.hiddenWeather,
                         onToggleWeather = { c -> live.hiddenWeather = live.hiddenWeather.toggled(c) },
+                        weatherTime = { WeatherTimeRow(live, stats) },
                         hiddenCameras = live.hiddenCameras,
                         onToggleCameras = { c -> live.hiddenCameras = live.hiddenCameras.toggled(c) },
                         notes = liveNotes(live, dataLayers, dataZoom, stats),
@@ -1409,6 +1416,7 @@ fun MapScreen(
                 photos = !Sources.isOff(app.maparound.sources.SourceKind.STREET_PHOTOS),
                 buses = stats.hasBuses,
                 cameras = !Sources.isOff(app.maparound.sources.SourceKind.CAMERAS),
+                weatherMaps = !Sources.isOff(app.maparound.sources.SourceKind.WEATHER_MAPS),
             ),
             onLayers = { pickDataLayers(it) },
             onClose = { explorerOpen = false },

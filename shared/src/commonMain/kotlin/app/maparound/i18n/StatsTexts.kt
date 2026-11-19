@@ -19,7 +19,7 @@ open class StatsTexts {
     open val gettingCountries = "Getting the countries' figures…"
     open val gettingLocalities = "Getting Israel's localities…"
     open val couldntGet = "Couldn't get the data. Online?"
-    open val credits = "data: CBS, Population Authority (data.gov.il) · Our World in Data · Natural Earth"
+    open val credits = "data: CBS, Population Authority (data.gov.il) · Our World in Data · Natural Earth · Wikidata"
 
     open fun countryIndicator(i: CountryIndicator) = when (i) {
         CountryIndicator.POPULATION -> "Population"
@@ -86,6 +86,37 @@ open class StatsTexts {
     open val ageGroups = listOf("0–5", "6–18", "19–45", "46–55", "56–64", "65+")
     open fun asOf(year: Int) = "($year)"
     open val pinIt = "Pin it"
+
+    // ---- a tapped country ----
+    /** Square units: of kilometres, miles or nautical miles, as lengths are shown. */
+    open fun areaUnit(u: DistanceUnit) = when (u) {
+        DistanceUnit.METRIC -> "km²"
+        DistanceUnit.IMPERIAL -> "sq mi"
+        DistanceUnit.NAUTICAL -> "sq nmi"
+    }
+    open fun area(v: String) = "Area: $v"
+    open fun capitals(names: String, n: Int) = (if (n > 1) "Capitals: " else "Capital: ") + names
+    open fun languages(names: String, n: Int, more: Int) = (if (n + more > 1) "Languages: " else "Language: ") + names + if (more > 0) " and $more more" else ""
+
+    /** "Area: 20,770 km²" (or square miles, by Settings → Units & formats). */
+    fun areaOf(km2: Double): String {
+        val u = Units.current.distance
+        val v = km2 * when (u) {
+            DistanceUnit.METRIC -> 1.0
+            DistanceUnit.IMPERIAL -> 1 / 2.589988110336
+            DistanceUnit.NAUTICAL -> 1 / 3.429904
+        }
+        val n = when {
+            v < 1 -> (v * 100).roundToLong().let { "0.${it.toString().padStart(2, '0')}" }
+            v < 10 -> decimal(v)
+            else -> group(v)
+        }
+        return area("$n ${areaUnit(u)}")
+    }
+
+    fun capitalsOf(names: List<String>) = capitals(names.joinToString(", "), names.size)
+
+    fun languagesOf(names: List<String>, more: Int) = languages(names.joinToString(", "), names.size, more)
 
     // ---- the explorer ----
     open val layers = "Data layers"
@@ -163,7 +194,7 @@ object StatsTextsHe : StatsTexts() {
     override val gettingCountries = "מוריד את נתוני המדינות…"
     override val gettingLocalities = "מוריד את יישובי ישראל…"
     override val couldntGet = "לא ניתן להוריד את הנתונים. יש חיבור?"
-    override val credits = "נתונים: הלמ\"ס, רשות האוכלוסין (data.gov.il) · Our World in Data · Natural Earth"
+    override val credits = "נתונים: הלמ\"ס, רשות האוכלוסין (data.gov.il) · Our World in Data · Natural Earth · Wikidata"
 
     override fun countryIndicator(i: CountryIndicator) = when (i) {
         CountryIndicator.POPULATION -> "אוכלוסייה"
@@ -218,6 +249,15 @@ object StatsTextsHe : StatsTexts() {
     override val byAge = "תושבים לפי גיל"
     override fun asOf(year: Int) = "($year)"
     override val pinIt = "סימון במפה"
+
+    override fun areaUnit(u: DistanceUnit) = when (u) {
+        DistanceUnit.METRIC -> "קמ״ר"
+        DistanceUnit.IMPERIAL -> "מייל רבוע"
+        DistanceUnit.NAUTICAL -> "מייל ימי רבוע"
+    }
+    override fun area(v: String) = "שטח: $v"
+    override fun capitals(names: String, n: Int) = (if (n > 1) "ערי בירה: " else "בירה: ") + names
+    override fun languages(names: String, n: Int, more: Int) = (if (n + more > 1) "שפות: " else "שפה: ") + names + if (more > 0) " ועוד $more" else ""
 
     override val layers = "שכבות נתונים"
     override val findData = "חיפוש נתונים"

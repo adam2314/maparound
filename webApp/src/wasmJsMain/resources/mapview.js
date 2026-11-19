@@ -1190,6 +1190,10 @@
     setStyle(json) {
       map.setStyle(JSON.parse(json), { diff: false });
     },
+    /** The weather map (weather.js): a JSON spec, or "" for none. */
+    setWeather(json) {
+      if (map && window.MapAroundWeather) MapAroundWeather.set(map, json ? JSON.parse(json) : null);
+    },
     setGeoJson(id, json) {
       const data = JSON.parse(json);
       geo.set(id, data);

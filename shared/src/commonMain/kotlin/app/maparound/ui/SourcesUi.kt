@@ -97,7 +97,7 @@ internal fun SourcesPage() {
             SourceKind.RELIEF_3D -> false
             SourceKind.PARTY -> !party.watchOnly
             // Where there's a data view.
-            SourceKind.GPS_TRACES, SourceKind.RAIN_RADAR, SourceKind.WEATHER, SourceKind.STREET_PHOTOS, SourceKind.BUSES, SourceKind.CAMERAS ->
+            SourceKind.GPS_TRACES, SourceKind.RAIN_RADAR, SourceKind.WEATHER, SourceKind.STREET_PHOTOS, SourceKind.BUSES, SourceKind.CAMERAS, SourceKind.WEATHER_MAPS ->
                 app.maparound.stats.LocalStats.current != null
             else -> true
         }
@@ -169,6 +169,7 @@ private fun title(k: SourceKind): String = when (k) {
     SourceKind.STREET_PHOTOS -> T.live.streetPhotos
     SourceKind.BUSES -> T.live.buses
     SourceKind.CAMERAS -> T.live.camerasLayer
+    SourceKind.WEATHER_MAPS -> T.live.weatherMaps
 }
 
 /** A server's name from its address ("brouter.de"). */

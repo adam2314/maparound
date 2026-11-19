@@ -139,6 +139,20 @@
   every ten), and the **temperature** or **wind now** at points over the view (Open-Meteo), in °C or
   °F and your speed unit. Tapping a point shows its forecast: now, the next hours, seven days,
   sunrise and sunset, by the clocks there.
+- **Countries named on the map**, in the app's language (Hebrew or English): the big ones from far
+  out, the small ones as you zoom in. Tapping a country now also shows its **flag**, its **area**
+  (km², square miles or square nautical miles, as your distance unit), its **capital** and its
+  **official languages**, and a **Wikipedia** link (Hebrew Wikipedia when the app is in Hebrew).
+  These come from Wikidata and Wikimedia Commons and are built in, so they work offline.
+- **Weather maps** (Weather), like a weather site's:
+  - **Wind, moving:** streams of particles follow NOAA's forecast wind across the map.
+  - **Temperature**, **clouds** or **rain and snow:** shown as smooth colours, with a legend.
+  - **A slider** steps through the next 48 hours, every three, starting at the hour nearest now.
+  - **Tapping the map** opens the forecast there.
+
+  The graphics card draws them from NOAA's GFS model (public domain), which MapAround's own
+  pipeline turns into pictures every six hours. They're in Settings → Sources, where they can be
+  turned off or pointed elsewhere.
 - **Street photos** (Look around): Panoramax's open street-level photos, as lines where they were
   taken and dots up close. Tapping one shows the photo (all-round ones can be looked around by
   dragging), its date, author and licence, with **Open in Panoramax** and **Street View here**

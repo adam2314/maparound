@@ -200,6 +200,9 @@ interface MapSurface : ZoomTarget {
     /** The data view's points in one of its GeoJSON sources (buses, weather); null: none. */
     fun setDataPoints(source: String, geoJson: String?) {}
 
+    /** The data view's weather map (the web app): its spec, or null for none. */
+    fun setWeatherMap(spec: String?) {}
+
     fun onResume()
     fun onPause()
     fun destroy()

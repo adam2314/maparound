@@ -26,7 +26,8 @@ From the top:
   takes everything off.
 - **The tree** of everything the view can show, each layer with where its data comes from under
   its name. A round button means one of a kind (one country figure, or the time zones; one way to
-  colour the localities; temperature or wind); a check box, one that goes over the others.
+  colour the localities; one weather colour, a map's or the points'); a check box, one that goes over
+  the others.
 - **Leave the data view** at its foot.
 
 The tree's branches:
@@ -36,7 +37,7 @@ The tree's branches:
 | World | the five country figures (one at a time) |
 | Israel | the eleven ways to colour its localities |
 | Time | Time zones (instead of a country figure) |
-| Weather | Rain radar, Temperature now, Wind now |
+| Weather | Rain radar, Wind (moving), Temperature map, Clouds, Rain and snow (forecast), Temperature now, Wind now |
 | Look around | Street photos |
 | Movement | GPS traces (over any of the others), Buses now (Israel) |
 | Cameras | Cameras on the map; Live webcams (coming soon) |
@@ -68,8 +69,48 @@ to dark in seven classes.
 Each figure is the latest year with a value. Projections are left out: the population-density and
 median-age charts run to 2100.
 
-Tapping a country opens a card with its name (Hebrew or English) and every figure loaded so far,
-each with its year.
+Each country is named on the map in the app's language (Hebrew or English), at Natural Earth's
+label point, which is placed by hand: France's name sits in France, not in its overseas parts. Big
+countries are named from far out and small ones as you zoom in (Natural Earth's own zoom for each,
+one less for MapLibre's bigger tiles). Where names would overlap, the bigger country's is shown.
+A few of Natural Earth's names are changed in `make_countries.py`:
+- China and the United States get their short names.
+- Northern Cyprus loses "Turkish Republic of".
+- Palestine is "פלסטין" in Hebrew rather than Natural Earth's "ארץ ישראל", which names the land,
+  not the state.
+
+Tapping a country opens a card with:
+- its **flag** and name;
+- its **area**, in km², square miles or square nautical miles, following the distance unit in
+  Settings → Units & formats;
+- its **capital** (or capitals: South Africa has three);
+- its **official languages**, the five most spoken worldwide, by name, then how many more
+  (Zimbabwe has sixteen);
+- every figure loaded so far, each with its year;
+- **Wikipedia**, which opens its article: the Hebrew one when the app is in Hebrew and there is one,
+  else the English.
+
+The flags are the app's own files (`webApp/.../resources/flags/<ISO>.png`), each country's flag on
+Wikidata as Wikimedia Commons renders it, 160 pixels wide, about 4 kB each. A card loads only its
+own flag, and the app keeps it for offline use. Only flags under a free licence are included:
+- 228 are public domain, 6 are CC0, and 1 is CC BY 2.5 (Saint Barthélemy's, credited);
+- `flags/LICENCES.md` names each flag's file, author and licence;
+- Oman's flag is left out: it's under Oman's own government licence.
+
+The area, capitals and languages are Wikidata's (CC0), bundled with the outlines, so they work
+offline:
+- **Area:** the country's total area, the largest of its figures that cover the whole country.
+- **Capitals:** the current ones.
+- **Languages:** those of the whole country. Where there are none (Belgium's are each a region's),
+  those of its parts.
+
+A few gaps and oddities are filled by hand in `make_countries.py`:
+- the United States' English (its statement is deprecated on Wikidata);
+- Uruguay's Spanish;
+- China's Mandarin (Wikidata says "Putonghua");
+- Antigua's capital and language;
+- Palestine's facts are the State of Palestine's, with Ramallah, the seat of its government, as its
+  capital.
 
 ### Israel's localities (zoomed in, from the app's zoom 7)
 
@@ -145,6 +186,56 @@ humidity, clouds), the next 24 hours every three (temperature, chance of rain), 
 days (what they're like, low and high, rain), and today's sunrise and sunset, all by the clocks
 there (Open-Meteo works out the place's time zone).
 
+### Weather maps
+
+NOAA's GFS forecast drawn over the whole map, the way weather sites show it:
+- **Wind, moving** (a check box, over any of the others): thousands of particles drifting with the
+  forecast wind 10 m above the ground, each leaving a fading trail, so stronger wind makes faster,
+  longer streaks. They're white over a colour field, and dark over clouds and on the plain map. After
+  the map moves, a new set of particles fills the view.
+- **Temperature map**, **Clouds**, **Rain and snow (forecast)** (one at a time, instead of the
+  temperature or wind points):
+  - the temperature 2 m above the ground, from −50° to 50° (purple, blue, green, yellow, dark red);
+  - the total cloud cover, from clear to white;
+  - the forecast rain or snow rate, from light blue at 0.1 mm/h to red at 20.
+
+  The colours blend smoothly between the model's points (every half degree, about 55 km), so they
+  show the weather's shape, not a street's.
+- **The hour.** A slider under the legend runs through the next 48 hours, every three, starting at
+  the hour nearest now. Its label gives the day and time by your clock, and how far that is from now.
+- **Tapping the map** opens the forecast there (Open-Meteo's, as for a weather point).
+- The panel names the run ("NOAA's GFS model, run at 06:00 UTC"). NOAA makes a new run every six
+  hours, and while the layer is on the app checks for it every half hour.
+
+**How it's made.** MapAround's pipeline (`weather.py` in the my-pipeline repository) runs on GitHub
+Actions at 04:40, 10:40, 16:40 and 22:40 UTC. It downloads the newest complete GFS run from NOAA's
+NOMADS server at 0.5°, using NOMADS's filter so that only the fields it needs come down. For each
+hour it writes two PNG pictures of the whole world, 720 × 361, a pixel per half degree from 180°W
+and 90°N:
+
+| Picture | Red | Green | Blue |
+|---|---|---|---|
+| `wt_fNNN.png` | wind east (u), −40 to 40 m/s | wind north (v), −40 to 40 m/s | temperature 2 m up, −50 to 50 °C |
+| `cp_fNNN.png` | cloud cover, 0–100 % | √(rain rate), 0–20 mm/h (the root, so light rain shows) | sea-level pressure, 950–1050 hPa (not shown yet) |
+
+`manifest.json` lists the run, the grid, the ranges and the hours. The files go on the repository's
+`weather` branch, replaced at each run with no history kept. Browsers read them from
+raw.githubusercontent.com, which lets other sites read its files (GitHub's release downloads don't).
+A picture is about 0.3 MB, so each hour shown is about 0.6 MB, and the browser keeps the last eight
+pictures.
+
+The web map draws them with WebGL (`webApp/.../resources/weather.js`), as a MapLibre custom layer
+under the labels:
+- **The field:** the picture, coloured by the scale in a shader.
+- **The wind's particles:**
+  - their positions are kept in a texture, in its colours;
+  - the graphics card moves them with the wind every frame;
+  - they're drawn into a trail texture that fades a little every frame, and that is laid over the
+    map.
+
+The technique is Vladimir Agafonkin's [webgl-wind](https://github.com/mapbox/webgl-wind) (ISC
+licence).
+
 ### Street photos
 
 Panoramax's photos (the open, federated catalogue of street-level pictures, some all the way
@@ -201,7 +292,9 @@ servers get busy: when they turn the request away, the panel says so and the app
 
 | Data | Publisher | Licence | How it's read | Size, first use |
 |---|---|---|---|---|
-| Country outlines | [Natural Earth](https://www.naturalearthdata.com), 1:50m Admin 0 | public domain | bundled: `webApp/.../resources/countries.json` | 0.9 MB (about 0.25 MB compressed) |
+| Country outlines, names and label points | [Natural Earth](https://www.naturalearthdata.com), 1:50m Admin 0 | public domain | bundled: `webApp/.../resources/countries.json` | 0.9 MB (about 0.25 MB compressed) |
+| Countries' area, capitals, official languages and Wikipedia articles | [Wikidata](https://www.wikidata.org) (P2046, P36, P37, the sitelinks; matched by Natural Earth's Wikidata id) | CC0 | bundled, in the same file | about 40 kB |
+| Countries' flags | [Wikimedia Commons](https://commons.wikimedia.org), each country's flag on Wikidata (P41) | public domain, CC0 or CC BY (`flags/LICENCES.md`) | bundled: `webApp/.../resources/flags/`, one loaded when its card opens | about 4 kB each, 1 MB in all |
 | Country figures | [Our World in Data](https://ourworldindata.org) grapher CSVs | CC BY 4.0, and each source's own terms | downloaded per figure, when chosen | 0.3–2.2 MB each |
 | Localities of Israel | Central Bureau of Statistics (הלמ"ס), *localities-in-israel* on [data.gov.il](https://data.gov.il) | marked open | CKAN API: the dataset's newest table | about 1.5 MB |
 | Residents by age group | Population and Immigration Authority, *residents_in_israel_by_communities_and_age_groups* | **none stated on the portal** | CKAN API, newest table (updated monthly) | about 0.3 MB |
@@ -209,6 +302,7 @@ servers get busy: when they turn the request away, the panel says so and the app
 | Time zones | [timezone-boundary-builder](https://github.com/evansiroky/timezone-boundary-builder) 2026f, *timezones-with-oceans* | ODbL (from OpenStreetMap: © OpenStreetMap contributors) | bundled: `webApp/.../resources/timezones.bin` | 0.3 MB |
 | GPS traces | [OpenStreetMap](https://www.openstreetmap.org/traces)'s public GPS traces, as tiles from `gps.tile.openstreetmap.org` | © OpenStreetMap contributors; OpenStreetMap's tile usage policy | map tiles, as the map shows them | per tile |
 | Rain radar | [RainViewer](https://www.rainviewer.com/api.html) | free for personal and community projects, with credit ("Radar © RainViewer") | its list of pictures (`weather-maps.json`), then map tiles to zoom 7 | about 1 kB, then per tile |
+| Weather maps | [NOAA](https://www.nco.ncep.noaa.gov/pmb/products/gfs/)'s GFS model at 0.5°, made into pictures by MapAround's pipeline (`raw.githubusercontent.com/adam2314/my-pipeline/weather/`, or your own in Settings → Sources) | public domain (US government work); credited | `manifest.json`, then two pictures for each hour shown | about 1 kB, then about 0.6 MB an hour |
 | Weather now and forecasts | [Open-Meteo](https://open-meteo.com) | data CC BY 4.0; its free API is for non-commercial use (under 10,000 requests a day) | its forecast API: the points over the view in one request, a forecast when one is tapped | a few kB |
 | Street photos | [Panoramax](https://panoramax.fr) (`api.panoramax.xyz`, the catalogue of all its servers) | each photo's own, mostly CC BY-SA 4.0 or Etalab 2.0 (shown with it) | vector map tiles to zoom 15; a tapped photo's details and pictures | per tile; about 0.5 MB a photo |
 | Cameras | [OpenStreetMap](https://www.openstreetmap.org) (`man_made=surveillance`, `highway=speed_camera`, webcam links), through Overpass (overpass-api.de, then overpass.private.coffee; or your own) | ODbL (© OpenStreetMap contributors) | an Overpass query for the area on screen, kept a day | a few to some tens of kB |
@@ -250,15 +344,18 @@ All the logic is shared Kotlin; only the web app switches it on.
 | Loading and cache | `shared/.../stats/StatsData.kt` | Downloads each source the first time it's needed and keeps it for a week in the app's files (`/data/stats` on the web); offline, it uses the kept copy however old. |
 | Time zones | `shared/.../stats/TimeZones.kt` | Reads `timezones.bin`; finds the zone at a place (outer rings and their holes: Lesotho is a hole in South Africa's zone); the offsets' classes and colours; the next clock change (a day at a time, then halving to the minute); and the GeoJSON: each zone's area and a label point in its biggest part. |
 | Weather | `shared/.../stats/Weather.kt` | The lattice of points over a view, Open-Meteo's answers (now, forecast), the classes and colours, °C or °F, the points' GeoJSON, what a weather code says; and `RainRadar`: RainViewer's pictures as a map layer. |
+| Weather maps | `shared/.../stats/WeatherMap.kt` | The pipeline's manifest (run, hours, grid, ranges), the hour nearest now, each field's colour scale and legend, and the spec the web map draws from. |
+| Weather maps' drawing | `webApp/.../resources/weather.js` | The WebGL layer: the field coloured by its scale, and the wind's particles with their trails. Web only. |
+| Weather maps' pictures | `weather.py` in the my-pipeline repository | Picks the newest complete GFS run, downloads its fields for each hour, and writes the PNGs and `manifest.json` (its workflow publishes them every six hours). |
 | Street photos | `shared/.../stats/StreetPhotos.kt` | Panoramax's tiles and a photo's details (pictures, date, author, licence, all-round or not), its viewer's link and Street View's. |
 | Buses | `shared/.../stats/Buses.kt` | Open Bus's newest snapshot, the buses in an area (each ride's last position), the lines from the timetable (number, operator, from and to), Israel's day, the GeoJSON. |
 | Cameras | `shared/.../stats/Cameras.kt` | The Overpass query and its answer (kind, limit, direction as degrees or a compass point, webcam link), the area asked for around a view, the GeoJSON. |
-| Live layers on screen | `ui/DataLiveUi.kt` | Keeps the radar, the weather points and the buses up to date while they're on (asking again when the view moves); their notes and credits; the weather, photo and bus cards. |
+| Live layers on screen | `ui/DataLiveUi.kt` | Keeps the radar, the weather points and the buses up to date while they're on (asking again when the view moves), and the weather maps' run and hour (with the hour's slider); their notes and credits; the weather, photo and bus cards. |
 | Map layers | `MapStyle.kt` | Three GeoJSON sources: the time zones (a fill, white borders, and labels from the zoom their size allows), a fill for the countries (to MapLibre's zoom 7) and circles for the localities (from 6); rasters for the GPS traces and the rain radar, and Panoramax's vector tiles, between the fills and the
 circles; the buses and the weather's points over them. The ids of what can be tapped start with `tap-`, so a tap reports the feature's `tap` key (`data:c:ISR`, `data:l:3000`, `data:z:Asia/Jerusalem`). |
 | Screen | `ui/DataViewUi.kt`, `ui/MapScreen.kt` | The explorer's drawer (`DataExplorerDrawer`: search, what's on, the tree), the panel (`DataViewPanel`: legend, notes, level button), the country, locality and time-zone cards, and the Layers switch. |
 | Texts | `i18n/StatsTexts.kt`, `i18n/LiveTexts.kt` | English and Hebrew. |
-| Outlines file | `tools/stats/make_countries.py` | Builds `countries.json` from Natural Earth: ISO code, English and Hebrew names, the outline simplified to about 1.5 km. |
+| Countries file | `tools/stats/make_countries.py` | Builds `countries.json` from Natural Earth (ISO code, English and Hebrew names, the outline simplified to about 1.5 km, the label point and its zoom) and Wikidata's query service (area, capitals and official languages, named in English and Hebrew, the languages most spoken first; Wikipedia titles); `--no-wikidata` builds it offline without them. With `--flags <folder>` it also writes the flags from Commons (free licences only) and their `LICENCES.md`. |
 | Time zones file | `tools/timezones/make_timezones.py` | Builds `timezones.bin` from timezone-boundary-builder's GeoJSON: each zone's IANA name and polygons, simplified to about 2 km (smaller islands and slivers left out), as varint deltas. |
 
 The view appears only where the app provides `LocalStats` (the web app, in `WebApp.kt` and
@@ -271,7 +368,9 @@ classes, labels, GeoJSON and clock changes; `androidUnitTest/.../TimeZonesFileTe
 file (known places, Israel's next change, every zone known to Java's time-zone rules);
 `LiveDataTest.kt` the weather's lattice, Open-Meteo's, RainViewer's, Panoramax's, Open Bus's and
 Overpass's answers (from real ones), the weather's classes and units, the buses' lines and places,
-and the cameras' kinds, directions and area.
+and the cameras' kinds, directions and area; `WeatherMapTest.kt` the weather maps' manifest, the
+hour nearest now, the spec and the legends. In my-pipeline, `test_weather.py` covers splitting
+NOAA's GRIB files and packing the pictures.
 
 ## Adding data
 
@@ -345,7 +444,6 @@ the research request).
 **4. Israel in more depth.** Still on data.gov.il, with each dataset's licence checked:
 - municipal indices (education, budgets and more, about 1.4 million rows, so filter them before
   loading)
-- the CBS's statistical areas, for neighbourhoods within cities
 - election results by locality
 
 **5. Data that fits a hiking and off-road app.** Protected areas, climate normals (temperature and

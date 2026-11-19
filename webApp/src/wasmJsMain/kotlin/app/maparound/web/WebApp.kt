@@ -99,6 +99,7 @@ class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: Str
         outlines = { app.maparound.shared.net.httpGetAsync("${base}countries.json", 60_000).decodeToString() },
         zones = { app.maparound.shared.net.httpGetAsync("${base}timezones.bin", 60_000) },
         zoneOffset = { zone, ms -> app.maparound.shared.util.browserZoneOffsetSeconds(zone, ms) },
+        flags = "${base}flags/",
     )
     /** Elevation data for line of sight and viewshed, fetched as they need it. */
     val terrain = WebTerrain(demDir) { prefs.elevationSource.value }
