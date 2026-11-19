@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MapAround · מפות אופליין לטיולים, לרכיבה ולשטח</title>
+  <!-- The Hebrew home page, the twin of ../index.html: keep the two in step. Its pages are relative
+       to /he/, so the shared files are under ../ (assets, the web app, the privacy policy). -->
+  <meta name="description" content="מפות טופוגרפיות אופליין, תכנון מסלולים וניווט פנייה אחר פנייה, שבילים מסומנים, והמיקום של כל הקבוצה בזמן אמת, גם בלי קליטה דרך מכשירי קשר LoRa. בלי חשבון, בלי פרסומות, בלי מעקב.">
+  <meta name="theme-color" content="#1b6b4a">
+  <link rel="icon" href="../assets/icon-64.png" sizes="64x64" type="image/png">
+  <link rel="apple-touch-icon" href="../assets/icon-192.png">
+  <link rel="alternate" hreflang="en" href="https://maparound.app/">
+  <link rel="alternate" hreflang="he" href="https://maparound.app/he/">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="he_IL">
+  <meta property="og:title" content="MapAround: מפות אופליין לטיולים, לרכיבה ולשטח">
+  <meta property="og:description" content="מפות טופוגרפיות אופליין, מסלולים וניווט, שבילים מסומנים, והמיקום של הקבוצה גם בלי קליטה.">
+  <meta property="og:image" content="https://maparound.app/store/feature-graphic.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="../assets/icon-192.png" alt="" width="36" height="36">MapAround</a>
+    <nav class="site-nav" aria-label="ראשי">
+      <a class="wide" href="#features">תכונות</a>
+      <a class="wide" href="#party">טיול בקבוצה</a>
+      <a href="../app/">אפליקציית הרשת</a>
+      <a href="support">תמיכה</a>
+      <a class="wide" href="https://github.com/adam2314/maparound">GitHub</a>
+      <a href="../" lang="en" hreflang="en">English</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="contours" aria-hidden="true"></div>
+    <div class="wrap">
+      <div>
+        <span class="eyebrow">טיולים · רכיבה · שטח</span>
+        <h1>מפות שממשיכות לעבוד <span class="trail">גם בלי קליטה.</span></h1>
+        <p class="lede">מורידים את המפה של כל מדינה, מתכננים מסלול והולכים בו פנייה אחר פנייה בלי קליטה, ורואים איפה כל אחד מהקבוצה נמצא, גם מחוץ לכיסוי הסלולרי, דרך מכשירי קשר LoRa.</p>
+        <div class="cta">
+          <!-- Closed beta on Google Play: the testers' group, then Play (beta.md). -->
+          <a class="btn btn-primary" href="beta">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v9.59l3.3-3.3a1 1 0 1 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.42l3.3 3.3V4a1 1 0 0 1 1-1zM5 19h14a1 1 0 1 1 0 2H5a1 1 0 1 1 0-2z"/></svg>
+            אנדרואיד: הצטרפות לבטא
+          </a>
+          <a class="btn btn-ghost" href="../app/">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 4v10h16V8H4zm2-3a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm3 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></svg>
+            פתיחה בדפדפן
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/adam2314/maparound">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M8.7 16.3 4.4 12l4.3-4.3-1.4-1.4L1.6 12l5.7 5.7 1.4-1.4zm6.6 0 4.3-4.3-4.3-4.3 1.4-1.4 5.7 5.7-5.7 5.7-1.4-1.4z"/></svg>
+            קוד המקור
+          </a>
+        </div>
+        <ul class="facts">
+          <li>עובדת אופליין</li>
+          <li>בלי חשבון, פרסומות או מעקב</li>
+          <li>קוד פתוח (GPL-3.0)</li>
+          <li>בעברית וב־<span lang="en">English</span></li>
+        </ul>
+      </div>
+      <div class="hero-phone">
+        <div class="phone"><img src="../assets/map.webp" alt="המפה הטופוגרפית של MapAround באגמי טריסטאינה שבאנדורה, עם קווי גובה ושביל הליכה מסומן" width="720" height="1280"></div>
+        <span class="tag">לא צריך קליטה</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section feature" id="features">
+    <div class="wrap">
+      <div class="visual pair">
+        <div class="phone"><img src="../assets/route.webp" alt="תכנון מסלול: טיול של 3.7 ק״מ עם 575 מ׳ טיפוס, הזמן ופרופיל גובה" width="720" height="1280" loading="lazy"></div>
+        <div class="phone"><img src="../assets/navigate.webp" alt="ניווט פנייה אחר פנייה: שמאלה בעוד 350 מ׳, ועוד 2.6 ק״מ ושעה ו־44 דקות עד הסוף" width="720" height="1280" loading="lazy"></div>
+      </div>
+      <div>
+        <span class="kicker">תכנון וניווט</span>
+        <h2>מתכננים את הטיול. ואז פשוט הולכים בו.</h2>
+        <p>כמה הקשות על המפה, ו־MapAround מוצאת את הדרך בשבילים ובדרכים, בטלפון עצמו כשנתוני הניתוב הורדו.</p>
+        <ul class="ticks">
+          <li>פרופילים להליכה, לאופניים ולרכב, או קווים ישרים למדידה</li>
+          <li>מרחק, טיפוס, זמן משוער ופרופיל גובה</li>
+          <li>ניווט פנייה אחר פנייה עם הנחיות קוליות, גם כשהמסך כבוי</li>
+          <li>מסלול חדש כשיוצאים מהמסלול, ו־Android Auto ברכב</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section feature flip" id="party">
+    <div class="wrap">
+      <div class="visual pair">
+        <div class="phone"><img src="../assets/party-map.webp" alt="קבוצה על המפה: שלושה מטיילים, רכב 4×4, נקודת מפגש והמסלול המתוכנן" width="720" height="1280" loading="lazy"></div>
+        <div class="phone"><img src="../assets/party-list.webp" alt="מסך הקבוצה: כפתור SOS, החיבורים והמשתתפים עם המרחק והסוללה של כל אחד" width="720" height="1280" loading="lazy"></div>
+      </div>
+      <div>
+        <span class="kicker">טיול בקבוצה</span>
+        <h2>יודעים איפה כולם, גם בלי קליטה.</h2>
+        <p>יוצרים קבוצה ומזמינים את כולם עם קוד QR. כל אחד מופיע על המפה עם סמל וצבע משלו, דרך האינטרנט או דרך מכשירי קשר LoRa של Meshtastic שמחוברים בבלוטות׳.</p>
+        <ul class="ticks">
+          <li>טלפון שיש לו גם אינטרנט וגם מכשיר קשר מעביר את ההודעות בין השניים</li>
+          <li>התרעות SOS, נקודת מפגש והודעות קצרות</li>
+          <li>הצפנה מקצה לקצה: רק הקבוצה שלכם יכולה לקרוא</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section feature">
+    <div class="wrap">
+      <div class="visual pair">
+        <div class="phone"><img src="../assets/3d-topo.webp" alt="תצוגת תלת־ממד של ההרים, עם המפה הטופוגרפית פרושה על פני השטח" width="720" height="1280" loading="lazy"></div>
+        <div class="phone"><img src="../assets/satellite.webp" alt="צילומי לוויין מתחת לשבילים, לקווי הגובה ולשמות של המפה האופליין" width="720" height="1280" loading="lazy"></div>
+      </div>
+      <div>
+        <span class="kicker">המפה שלכם</span>
+        <h2>קוראים את השטח לפני שמגיעים אליו.</h2>
+        <p>מפות OpenStreetMap חינמיות של כל מדינה בסגנון טופוגרפי מפורט, עם קווי גובה, הצללת תבליט ושבילי ההליכה המסומנים בצבעים שלהם.</p>
+        <ul class="ticks">
+          <li>הקשה על פסגה, בקתה או מעיין: מה זה, הערך בוויקיפדיה ותמונות שצולמו בסביבה</li>
+          <li>מקרא לכל מפה, שנוצר מהסגנון עצמו</li>
+          <li>תצוגת תלת־ממד עם תבליט השטח והמבנים</li>
+          <li>צילומי לוויין מתחת לשבילים ולשמות של המפה האופליין</li>
+          <li>מפות לאומיות (swisstopo, ‏IGN, ‏Kartverket, ‏USGS ועוד) ושרתי אריחים משלכם</li>
+          <li>גיליונות טופוגרפיים סרוקים ומאגרי אריחים: MBTiles, ‏SQLiteDB, ‏TwoNav .rmap</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section feature flip">
+    <div class="wrap">
+      <div class="visual" style="display:flex;justify-content:center">
+        <div class="phone"><img src="../assets/gps.webp" alt="מסך ה־GPS: קליטה בתלת־ממד, הלוויינים שבטווח ושבשימוש, המיקום והדיוק שלו, ומפת השמיים" width="720" height="1280" loading="lazy"></div>
+      </div>
+      <div>
+        <span class="kicker">כלים לשטח</span>
+        <h2>כל המכשירים, בלי לסחוב אותם.</h2>
+        <p>הכול עובד מהחיישנים של הטלפון ומנתוני השטח שעליו.</p>
+        <ul class="ticks">
+          <li>אזימוט ומרחק, קו ראייה ושדה ראייה</li>
+          <li>תכנון קישור רדיו: אזור פרנל והנחתת מסלול ל־LoRa, ‏VHF, ‏PMR446 ועוד</li>
+          <li>קואורדינטות ב־DMS, ‏UTM, ‏MGRS, רשת ישראל החדשה (ITM), ‏Plus Codes ו־Maidenhead</li>
+          <li>מצפן עם צפון אמיתי, מד מהירות, ברומטר ומפת לווייני ה־GPS</li>
+          <li>מד שיפוע ומד כוחות G לרכבי שטח</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>וגם הדברים הקטנים</h2>
+        <p>תכונות קטנות שעושות את ההבדל בשביל.</p>
+      </div>
+      <div class="cards">
+        <div class="card"><h3>הקלטת מסלול</h3><p>מקליטים איפה הייתם עם ה־GPS, גם כשהמסך כבוי, ורואים מרחק וטיפוס.</p></div>
+        <div class="card"><h3>המקומות שלכם</h3><p>שומרים חניוני לילה, מעיינות, תצפיות וחניות עם הערה, ומוצאים אותם לפי המרחק.</p></div>
+        <div class="card"><h3>ייבוא וייצוא GPX</h3><p>מייבאים מסלולים, הקלטות ונקודות מאפליקציות אחרות, ומייצאים את שלכם.</p></div>
+        <div class="card"><h3>חיפוש אופליין</h3><p>יישובים, פסגות, מעיינות, רחובות ושבילים מתוך המפות שהורדו, בלי אינטרנט.</p></div>
+        <div class="card"><h3>שיתוף נקודה</h3><p>שולחים כל נקודה או מסלול כקישור או כקובץ GPX, ופותחים קישורים וקואורדינטות שאחרים שולחים.</p></div>
+        <div class="card"><h3>בלי שירותי Google</h3><p>MapAround לא תלויה בשירותי Google Play, ולכן היא עובדת גם בטלפונים בלי שירותי Google.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="privacy-band">
+        <div>
+          <h2>הטיולים שלכם נשארים שלכם.</h2>
+          <p>המפות, ההקלטות והמקומות שלכם נשארים בטלפון. המפתח לא מפעיל שום שרת ולא מקבל שום מידע שלכם.</p>
+          <a class="btn" href="../privacy" hreflang="en">מדיניות הפרטיות (באנגלית)</a>
+          <a class="btn" href="support">תמיכה ב־MapAround</a>
+        </div>
+        <ul>
+          <li><span aria-hidden="true">✓</span>בלי חשבון</li>
+          <li><span aria-hidden="true">✓</span>בלי פרסומות, בלי ניתוח שימוש ובלי מעקב</li>
+          <li><span aria-hidden="true">✓</span>נתוני הקבוצה מוצפנים מקצה לקצה</li>
+          <li><span aria-hidden="true">✓</span>קוד פתוח ברישיון GPL-3.0</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>MapAround · נתוני המפה © <a href="https://www.openstreetmap.org/copyright">התורמים ל־OpenStreetMap</a></span>
+    <nav aria-label="תחתון">
+      <a href="../privacy" hreflang="en">מדיניות הפרטיות (באנגלית)</a>
+      <a href="support">תמיכה ב־MapAround</a>
+      <a href="https://github.com/adam2314/maparound">קוד המקור</a>
+      <a href="https://github.com/adam2314/maparound/issues">דיווח על בעיה</a>
+    </nav>
+  </div>
+</footer>
+
+</body>
+</html>

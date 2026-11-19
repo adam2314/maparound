@@ -18,7 +18,7 @@ import kotlin.math.roundToInt
 /** Sending points and routes to other apps. */
 object Sharing {
 
-    /** Name, coordinates, Google Maps and OpenStreetMap links: opens for anyone, in any app. */
+    /** Name, coordinates and the map link chosen (Settings → Sharing): opens for anyone, in any app. */
     fun sharePointText(context: Context, lat: Double, lon: Double, label: String?) {
         val send = Intent(Intent.ACTION_SEND)
             .setType("text/plain")

@@ -38,8 +38,15 @@ data class ToolLine(val points: List<GeoPoint>, val visible: Boolean?)
 
 /** What the map shows underneath everything else. */
 sealed class BaseMap {
-    /** An online tile service. */
-    data class Online(val source: OnlineSource) : BaseMap()
+    /**
+     * An online tile service. A vector one ([OnlineSource.style]) is drawn from its style once it's
+     * read ([vectorStyle]: its JSON), with its labels in [language].
+     */
+    data class Online(
+        val source: OnlineSource,
+        val vectorStyle: String? = null,
+        val language: String = "",
+    ) : BaseMap()
 
     /** The downloaded vector maps, with the style and background chosen in Layers. */
     data class Offline(

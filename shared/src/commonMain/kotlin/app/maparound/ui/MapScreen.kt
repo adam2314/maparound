@@ -263,7 +263,21 @@ fun MapScreen(
     // Where no installed map reaches, maps read over the internet (Android).
     val noStreaming = remember { kotlinx.coroutines.flow.MutableStateFlow(emptyList<app.maparound.map.RemoteMap>()) }
     val streamed by (offline.streamed ?: noStreaming).collectAsState()
-    val baseMap: BaseMap = onlineSource?.let { BaseMap.Online(it) } ?: BaseMap.Offline(
+    // An online vector map's style, read when it's picked (null while it's read); one that can't
+    // be read gives way to the default online map.
+    val vectorStyleUrl = onlineSource?.style
+    val vectorStyle by produceState<Pair<String, String?>?>(null, vectorStyleUrl) {
+        value = vectorStyleUrl?.let { it to app.maparound.map.maplibre.OnlineVectorStyle.load(it) }
+    }
+    val baseMap: BaseMap = onlineSource?.let { src ->
+        val read = vectorStyle?.takeIf { it.first == src.style }
+        when {
+            src.style == null -> BaseMap.Online(src)
+            read == null -> BaseMap.Online(src)
+            read.second == null -> BaseMap.Online(TileSources.builtIn.first { it.id == TileSources.DEFAULT_ID })
+            else -> BaseMap.Online(src, read.second, app.maparound.i18n.I18n.contentLanguage)
+        }
+    } ?: BaseMap.Offline(
         maps = localMaps,
         theme = theme,
         categories = categories,
@@ -588,6 +602,7 @@ fun MapScreen(
     val statsLocalities = stats?.localities?.collectAsState()?.value
     val statsStatus = stats?.status?.collectAsState()?.value.orEmpty()
     val statsZones = stats?.timeZones?.collectAsState()?.value
+    val statsBuilds = stats?.mapBuilds?.collectAsState()?.value
     // GPS traces over the data view's colours (their source can be turned off in Settings → Sources).
     val gpsTraces = TileSources.gpsTraces
     val dataOverlay = gpsTraces?.takeIf { dataView && dataLayers.gpsTraces }
@@ -607,6 +622,10 @@ fun MapScreen(
             delay(ZONES_REFRESH_MS - nowMillis() % ZONES_REFRESH_MS)
         }
     }
+    // How MapAround's maps stand: the list read once a visit, when the layer is first on.
+    LaunchedEffect(stats, dataView, dataLayers.mapBuilds) {
+        if (stats != null && dataView && dataLayers.mapBuilds) stats.loadMapBuilds()
+    }
     LaunchedEffect(stats, dataView) {
         if (stats == null || !dataView) return@LaunchedEffect
         launch { stats.loadCountries() }
@@ -618,7 +637,7 @@ fun MapScreen(
     }
     /** New data layers picked: the hidden classes of what changed come back; Israel's picked from afar: there. */
     fun pickDataLayers(new: DataLayers) {
-        if (new.country != dataLayers.country || new.timeZones != dataLayers.timeZones) {
+        if (new.country != dataLayers.country || new.timeZones != dataLayers.timeZones || new.mapBuilds != dataLayers.mapBuilds) {
             hiddenCountryClasses = emptySet()
             hiddenZoneClasses = emptySet()
         }
@@ -629,12 +648,25 @@ fun MapScreen(
         }
         dataLayers = new
     }
+    // A data view in a link (the web app's `data=` in its address): open, with its layers, the map in view.
+    LaunchedEffect(stats) {
+        if (stats == null) return@LaunchedEffect
+        DataViewLink.pending.collect { name ->
+            val layers = name?.let(DataViewLink::layers) ?: return@collect
+            DataViewLink.pending.value = null
+            pickDataLayers(layers)
+            dataSelected = null
+            explorerOpen = false
+            dataView = true
+        }
+    }
     LaunchedEffect(stats, dataView, countryIndicator) {
         if (stats != null && dataView && countryIndicator != null) stats.loadFigures(countryIndicator, currentYear())
     }
     LaunchedEffect(
         dataView, statsCountries, statsFigures, countryIndicator, hiddenCountryClasses, statsLocalities, localityIndicator,
         hiddenLocalityClasses, statsZones, dataLayers.timeZones, hiddenZoneClasses, zonesQuarter, app.maparound.i18n.I18n.language,
+        statsBuilds, dataLayers.mapBuilds,
     ) {
         if (!dataView) {
             controller.setStats(null, null, null)
@@ -655,7 +687,11 @@ fun MapScreen(
             val offsets = zs.mapNotNull { z -> stats?.zoneOffset(z.name, now)?.let { z.name to it } }.toMap()
             withContext(Dispatchers.Default) { TimeZones.geoJson(zs, offsets, hiddenZoneClasses) }
         }
-        controller.setStats(countriesJson, localitiesJson, zonesJson)
+        // The map builds are drawn as the time zones are (one or the other colours the world).
+        val buildsJson = statsBuilds?.takeIf { dataLayers.mapBuilds }?.let { b ->
+            withContext(Dispatchers.Default) { app.maparound.stats.MapBuilds.geoJson(b, hiddenZoneClasses) }
+        }
+        controller.setStats(countriesJson, localitiesJson, zonesJson ?: buildsJson)
     }
     // The point of interest the pin is on (tapped on the map), while the pin stays there.
     var pinPoi by remember { mutableStateOf<app.maparound.map.MapPoi?>(null) }
@@ -1250,6 +1286,7 @@ fun MapScreen(
                 val locality = key?.takeIf { it.startsWith(StatsLayers.TAP_LOCALITY) }
                     ?.let { k -> statsLocalities?.firstOrNull { it.code.toString() == k.removePrefix(StatsLayers.TAP_LOCALITY) } }
                 val zone = key?.takeIf { it.startsWith(TimeZones.TAP_ZONE) }?.removePrefix(TimeZones.TAP_ZONE)
+                val build = key?.takeIf { it.startsWith(app.maparound.stats.MapBuilds.TAP) }?.removePrefix(app.maparound.stats.MapBuilds.TAP)
                 val weatherAt = key?.takeIf { it.startsWith(app.maparound.stats.Weather.TAP) }?.let(app.maparound.stats.Weather::placeOf)
                 val photo = key?.takeIf { it.startsWith(app.maparound.stats.StreetPhotos.TAP) }?.removePrefix(app.maparound.stats.StreetPhotos.TAP)
                 val bus = key?.takeIf { it.startsWith(app.maparound.stats.Buses.TAP) }?.removePrefix(app.maparound.stats.Buses.TAP)?.toLongOrNull()
@@ -1263,6 +1300,7 @@ fun MapScreen(
                     photo != null -> PhotoCard(photo, stats, onClose = { dataSelected = null })
                     bus != null -> BusCard(bus, live.routes[bus.lineRef], stats, onClose = { dataSelected = null })
                     zone != null -> ZoneCard(zone, stats::zoneOffset, onClose = { dataSelected = null })
+                    build != null && statsBuilds != null -> MapBuildCard(statsBuilds, build, onClose = { dataSelected = null })
                     country != null -> CountryCard(country, statsFigures, stats.flagUrl(country), onClose = { dataSelected = null })
                     locality != null -> LocalityCard(
                         locality,
@@ -1277,12 +1315,15 @@ fun MapScreen(
                         showLocalities = showLocalities,
                         layers = dataLayers,
                         hidden = when {
+                            // The map builds' legend at every zoom; the time zones' (their classes kept alike).
+                            dataLayers.mapBuilds -> hiddenZoneClasses
                             showLocalities -> hiddenLocalityClasses
                             dataLayers.timeZones -> hiddenZoneClasses
                             else -> hiddenCountryClasses
                         },
                         onToggleClass = { c ->
                             when {
+                                dataLayers.mapBuilds -> hiddenZoneClasses = hiddenZoneClasses.toggled(c)
                                 showLocalities -> hiddenLocalityClasses = hiddenLocalityClasses.toggled(c)
                                 dataLayers.timeZones -> hiddenZoneClasses = hiddenZoneClasses.toggled(c)
                                 else -> hiddenCountryClasses = hiddenCountryClasses.toggled(c)
@@ -1293,7 +1334,11 @@ fun MapScreen(
                         weatherTime = { WeatherTimeRow(live, stats) },
                         hiddenCameras = live.hiddenCameras,
                         onToggleCameras = { c -> live.hiddenCameras = live.hiddenCameras.toggled(c) },
-                        notes = liveNotes(live, dataLayers, dataZoom, stats),
+                        notes = liveNotes(live, dataLayers, dataZoom, stats) + listOfNotNull(
+                            statsBuilds?.takeIf { dataLayers.mapBuilds }?.let { b ->
+                                T.stats.buildsSummary(b.built, b.total, b.latest?.let { Fmt.dayMonth(it) }) + " · " + T.stats.tapARegion
+                            },
+                        ),
                         status = statsStatus,
                         onGoTo = {
                             if (showLocalities) controller.moveTo(MapPos(30.0, 20.0, 2))
@@ -1311,8 +1356,10 @@ fun MapScreen(
                     if (showingOffline) backgroundAttribution(background, rasterMaps) else null,
                     if (terrainShown) terrainCredit(elevationSourceNow) else null,
                     if (trailOverlay) TileSources.trailsOverlay.attribution else null,
-                    if (dataView && stats != null) T.stats.credits else null,
+                    // The countries' and localities' sources, while they're shown.
+                    if (dataView && stats != null && (dataLayers.country != null || dataLayers.locality != null)) T.stats.credits else null,
                     if (dataView && stats != null && dataLayers.timeZones) T.stats.zonesCredit else null,
+                    if (dataView && stats != null && dataLayers.mapBuilds) T.stats.buildsCredit else null,
                     dataOverlay?.attribution,
                 ).plus(if (dataView && stats != null) liveCredits(dataLayers) else emptyList()).joinToString(" · "),
                 style = MaterialTheme.typography.labelSmall,
@@ -1421,6 +1468,7 @@ fun MapScreen(
                 buses = stats.hasBuses,
                 cameras = !Sources.isOff(app.maparound.sources.SourceKind.CAMERAS),
                 weatherMaps = !Sources.isOff(app.maparound.sources.SourceKind.WEATHER_MAPS),
+                mapBuilds = stats.hasMapBuilds,
             ),
             onLayers = { pickDataLayers(it) },
             onClose = { explorerOpen = false },

@@ -69,15 +69,16 @@ openstreetmap.org's pin, `mlat=` and `mlon=`:
 | `mlat=…&mlon=…` | A pin. |
 | `#track=…&n=…` | A route or track, as **Embed in a website** makes it. |
 | `gpx=<address>` | A GPX file from a website that allows it. |
-| `layer=<map>` | The map to show: `osmfr` (OpenStreetMap, the default), `opentopomap`, `cyclosm`, `hot`, `esri_topo`, `esri_street`, `esri_imagery` (satellite), `osmde`, and for their own country `swisstopo`, `basemap_at`, `kartverket`, `ign_plan`, `ign_ortho`, `usgs_topo`. |
+| `layer=<map>` | The map to show: `osmfr` (OpenStreetMap, the default), the vector maps `ofm_liberty` and `ofm_positron` (OpenFreeMap's, light grey), `opentopomap`, `cyclosm`, `hot`, `esri_topo`, `esri_street`, `esri_imagery` (satellite), `osmde`, and for their own country `swisstopo`, `basemap_at`, `kartverket`, `ign_plan`, `ign_ortho`, `usgs_topo`. |
 | `trails=0` | Without the waymarked hiking trails drawn over the map (waymarkedtrails.org). |
 | `lang=en` or `lang=he` | The buttons' language; otherwise the visitor's browser's. |
+| `data=maps` | The data view on MapAround's maps: each region coloured by how its map stands (built in the latest monthly run, an older one, none), as on the [support page]({{ '/support' | relative_url }}). |
 
 The options can go after `?` or after `#`, joined with `&`, for example
 `…/app/?embed&layer=opentopomap&trails=0#map=13/31.47/35.38`. Visitors can still choose another map
 in **Map layers**; that choice lasts until the page is left. **Open in MapAround** keeps the
-view, the pin and the track, but not `layer`, `trails` or `lang`: the full app opens with the
-visitor's own settings.
+view, the pin, the track and the data view, but not `layer`, `trails` or `lang`: the full app opens
+with the visitor's own settings.
 
 ## What the visitor's browser does
 

@@ -21,6 +21,11 @@ data class OnlineSource(
     /** Overlay tiles with transparent background. */
     val transparent: Boolean = false,
     val kind: Kind = Kind.STREET,
+    /**
+     * A MapLibre style's address: a vector map drawn from its tiles by the style ([urlTemplate]
+     * unused), where the platform draws others' styles ([TileSources.vectorMaps]).
+     */
+    val style: String? = null,
 ) {
     /** What the map shows (for its icon). */
     enum class Kind { STREET, TOPO, IMAGERY }
@@ -46,7 +51,36 @@ object TileSources {
     private const val OSM = "© OpenStreetMap contributors"
     private const val ESRI = "Tiles © Esri and its data providers, the GIS User Community"
 
-    val builtIn = listOf(
+    /** Whether this platform draws online vector maps from their styles (the web, with MapLibre GL JS). */
+    var vectorMaps: Boolean = false
+
+    /**
+     * Online vector maps: OpenFreeMap's (free, no key; OpenStreetMap's data in OpenMapTiles' layout,
+     * the whole world, updated every week), sharp at every zoom, labels in the app's language.
+     */
+    private val vector = listOf(
+        OnlineSource(
+            id = "ofm_liberty",
+            name = "OpenFreeMap Liberty",
+            urlTemplate = "",
+            maxZoom = 22,
+            attribution = "$OSM · OpenFreeMap © OpenMapTiles",
+            style = "https://tiles.openfreemap.org/styles/liberty",
+        ),
+        OnlineSource(
+            id = "ofm_positron",
+            name = "OpenFreeMap Positron",
+            urlTemplate = "",
+            maxZoom = 22,
+            attribution = "$OSM · OpenFreeMap © OpenMapTiles",
+            style = "https://tiles.openfreemap.org/styles/positron",
+        ),
+    )
+
+    /** The built-in sources: the online vector maps first where the platform draws them, then the raster ones. */
+    val builtIn: List<OnlineSource> get() = if (vectorMaps) vector + raster else raster
+
+    private val raster = listOf(
         OnlineSource(
             id = "osmfr",
             name = "OpenStreetMap France",
@@ -230,6 +264,8 @@ object TileSources {
         "ign_plan" -> T.map.srcIgnPlan
         "ign_ortho" -> T.map.srcIgnOrtho
         "usgs_topo" -> T.map.srcUsgsTopo
+        "ofm_liberty" -> T.map.srcOfmLiberty
+        "ofm_positron" -> T.map.srcOfmPositron
         else -> source.description
     }
 

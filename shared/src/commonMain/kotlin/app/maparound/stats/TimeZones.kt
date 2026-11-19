@@ -231,8 +231,8 @@ object TimeZones {
         return if (best < 0) outer[0] to outer[1] else kotlin.math.round(y).toInt() to kotlin.math.round(bx).toInt()
     }
 
-    /** A ring as GeoJSON ([lon, lat], closed), turned the asked way round. */
-    private fun ring(sb: StringBuilder, r: IntArray, clockwise: Boolean) {
+    /** A ring as GeoJSON ([lon, lat], closed), turned the asked way round (the map builds' too). */
+    internal fun ring(sb: StringBuilder, r: IntArray, clockwise: Boolean) {
         val m = r.size / 2
         // The shoelace sum, with lon as x: positive anticlockwise.
         var area = 0L
@@ -283,7 +283,7 @@ object TimeZones {
 }
 
 /** Ray casting: whether (y, x) is inside [ring] ((lat, lon) pairs). */
-private fun inside(ring: IntArray, y: Int, x: Int): Boolean {
+internal fun inside(ring: IntArray, y: Int, x: Int): Boolean {
     var inside = false
     val m = ring.size / 2
     var j = m - 1

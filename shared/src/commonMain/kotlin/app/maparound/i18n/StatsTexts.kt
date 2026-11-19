@@ -154,6 +154,43 @@ open class StatsTexts {
     open val gpsTracesSource = "OpenStreetMap · where people walked, rode and drove"
     open val zonesCredit = "time zones: timezone-boundary-builder (© OpenStreetMap contributors)"
 
+    // ---- MapAround's maps: how each region's stands ----
+    open val mapAround = "MapAround"
+    open val mapBuilds = "MapAround's maps"
+    open val mapBuildsSource = "Built every month · MapAround's list of maps"
+    open val mapBuildsKeywords = "offline maps download built build monthly regions coverage catalog pipeline"
+    open val gettingMapList = "Getting the list of maps…"
+    open val couldntGetMapList = "Couldn't get the list of maps. Online?"
+    open val buildsCredit = "regions: Geofabrik (© OpenStreetMap contributors)"
+    /** The legend's classes. */
+    open fun buildState(s: app.maparound.stats.BuildState) = when (s) {
+        app.maparound.stats.BuildState.CURRENT -> "Latest build"
+        app.maparound.stats.BuildState.OLD -> "Older build"
+        app.maparound.stats.BuildState.MISSING -> "No map"
+    }
+    /** Under the legend: "321 of 484 maps built · latest build 15 Nov 2026". */
+    open fun buildsSummary(built: Int, total: Int, latest: String?) =
+        "$built of $total maps built" + (latest?.let { " · latest build $it" } ?: "")
+    open val tapARegion = "Tap a region for its map."
+    // A tapped region.
+    open fun builtOn(day: String) = "Up to date: built on $day"
+    open fun olderBuild(day: String) = "An older map, built on $day"
+    open val needsFunding = "No map yet: too big for the free build machines, until there's money for a bigger one"
+    open val buildFailed = "No map: its build failed"
+    open val notListed = "Not in the list of maps"
+    open fun mapSize(size: String) = "Download: $size"
+    /** A country, or group of states, [region] is part of, as one map. */
+    open fun asOneMap(region: String, how: String) = "$region, as one map: $how"
+    open fun buildShort(s: app.maparound.stats.BuildState, why: app.maparound.data.CatalogEntry.Unavailable?) = when {
+        s == app.maparound.stats.BuildState.CURRENT -> "up to date"
+        s == app.maparound.stats.BuildState.OLD -> "an older map"
+        why == app.maparound.data.CatalogEntry.Unavailable.NEEDS_FUNDING -> "too big for the free build machines"
+        why == app.maparound.data.CatalogEntry.Unavailable.NOT_BUILT -> "its build failed"
+        else -> "not in the list"
+    }
+    open val helpFund = "Help fund a bigger machine"
+    open val supportUrl = "https://maparound.app/support"
+
     // ---- a tapped time zone ----
     open val atSea = "At sea"
     open val seaZone = "Nautical time zone"
@@ -291,6 +328,37 @@ object StatsTextsHe : StatsTexts() {
     override val timeZonesSource = "מובנה, עובד גם בלי חיבור · timezone-boundary-builder"
     override val gpsTracesSource = "OpenStreetMap · איפה אנשים הלכו, רכבו ונסעו"
     override val zonesCredit = "אזורי זמן: timezone-boundary-builder (© תורמי OpenStreetMap)"
+
+    override val mapBuilds = "המפות של MapAround"
+    override val mapBuildsSource = "נבנות כל חודש · רשימת המפות של MapAround"
+    override val mapBuildsKeywords = "מפות אופליין הורדה בנייה חודשית אזורים כיסוי offline maps download build"
+    override val gettingMapList = "מוריד את רשימת המפות…"
+    override val couldntGetMapList = "לא ניתן להוריד את רשימת המפות. יש חיבור?"
+    override val buildsCredit = "אזורים: Geofabrik (© תורמי OpenStreetMap)"
+    override fun buildState(s: app.maparound.stats.BuildState) = when (s) {
+        app.maparound.stats.BuildState.CURRENT -> "בנייה אחרונה"
+        app.maparound.stats.BuildState.OLD -> "בנייה קודמת"
+        app.maparound.stats.BuildState.MISSING -> "אין מפה"
+    }
+    override fun buildsSummary(built: Int, total: Int, latest: String?) =
+        "נבנו $built מתוך $total מפות" + (latest?.let { " · הבנייה האחרונה: $it" } ?: "")
+    override val tapARegion = "הקשה על אזור מציגה את המפה שלו."
+    override fun builtOn(day: String) = "עדכנית: נבנתה ב־$day"
+    override fun olderBuild(day: String) = "מפה ישנה יותר, נבנתה ב־$day"
+    override val needsFunding = "עדיין אין מפה: גדולה מדי למכונות הבנייה החינמיות, עד שיהיה מימון למכונה חזקה יותר"
+    override val buildFailed = "אין מפה: הבנייה שלה נכשלה"
+    override val notListed = "לא ברשימת המפות"
+    override fun mapSize(size: String) = "הורדה: ${ltr(size)}"
+    override fun asOneMap(region: String, how: String) = "$region, כמפה אחת: $how"
+    override fun buildShort(s: app.maparound.stats.BuildState, why: app.maparound.data.CatalogEntry.Unavailable?) = when {
+        s == app.maparound.stats.BuildState.CURRENT -> "עדכנית"
+        s == app.maparound.stats.BuildState.OLD -> "מפה ישנה יותר"
+        why == app.maparound.data.CatalogEntry.Unavailable.NEEDS_FUNDING -> "גדולה מדי למכונות הבנייה החינמיות"
+        why == app.maparound.data.CatalogEntry.Unavailable.NOT_BUILT -> "הבנייה שלה נכשלה"
+        else -> "לא ברשימה"
+    }
+    override val helpFund = "לעזור לממן מכונה חזקה יותר"
+    override val supportUrl = "https://maparound.app/he/support"
 
     override val atSea = "בים"
     override val seaZone = "אזור זמן ימי"

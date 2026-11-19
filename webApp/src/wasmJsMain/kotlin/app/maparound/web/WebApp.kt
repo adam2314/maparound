@@ -100,6 +100,9 @@ class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: Str
         zones = { app.maparound.shared.net.httpGetAsync("${base}timezones.bin", 60_000) },
         zoneOffset = { zone, ms -> app.maparound.shared.util.browserZoneOffsetSeconds(zone, ms) },
         flags = "${base}flags/",
+        // How MapAround's maps stand: its list of maps (the user's address first, Settings → Sources) on the regions' outlines.
+        mapList = { MapAroundCatalog(useMapsforge = false).fetchText() },
+        regionOutlines = { app.maparound.shared.net.httpGetAsync("${base}regions.bin", 60_000) },
     )
     /** Elevation data for line of sight and viewshed, fetched as they need it. */
     val terrain = WebTerrain(demDir) { prefs.elevationSource.value }

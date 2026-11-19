@@ -53,6 +53,21 @@ open class SettingsTexts {
         "How long the screen stays on after you last touch it. It doesn't go off sooner than the phone's own " +
             "setting; Always on uses more battery. The Speed screen always keeps it on."
 
+    // ---- sharing ----
+    open val sharing = "Sharing"
+    open fun shareLinkSummary(link: String) = "Link: $link"
+    open val shareLink = "The link in what you share"
+    open val shareLinkNote =
+        "A point, a place, a route or a track, and the GPX files sent with them, carry this link and no other."
+    open val linkMapAround = "MapAround"
+    open val linkMapAroundHint = "Opens the place or the route itself, in the app or in any browser"
+    open val linkGoogle = "Google Maps"
+    open val linkGoogleHint = "A planned route as directions between its points; a track at its start"
+    open val linkOsm = "OpenStreetMap"
+    open val linkOsmHint = "A planned route on BRouter-Web, OpenStreetMap's map; a track at its start"
+    open val linkAll = "All of them"
+    open val linkAllHint = "MapAround, Google Maps and OpenStreetMap"
+
     // ---- the online sources ----
     open val sourcesNote =
         "Every online service MapAround uses. Set your own server for one, or turn it off; otherwise the app's own " +
@@ -123,6 +138,15 @@ object SettingsTextsHe : SettingsTexts() {
     override val howOthersSeeYouNext = "איך האחרים רואים אותך, בקבוצה הזו ובבאות."
     override val serverForParties = "לקבוצה הזו ולחדשות. ההזמנות כוללות אותו."
     override val screen = "מסך"
+    override val sharing = "שיתוף"
+    override fun shareLinkSummary(link: String) = "קישור: $link"
+    override val shareLink = "הקישור במה שמשתפים"
+    override val shareLinkNote = "נקודה, מקום, מסלול או הקלטה, וקובצי ה־GPX שנשלחים איתם, נושאים את הקישור הזה ולא אחר."
+    override val linkMapAroundHint = "פותח את המקום או את המסלול עצמו, באפליקציה או בכל דפדפן"
+    override val linkGoogleHint = "מסלול מתוכנן כהוראות דרך בין הנקודות שלו; הקלטה בנקודת ההתחלה שלה"
+    override val linkOsmHint = "מסלול מתוכנן ב־BRouter-Web, על המפה של OpenStreetMap; הקלטה בנקודת ההתחלה שלה"
+    override val linkAll = "כולם"
+    override val linkAllHint = "MapAround,‏ Google Maps ו־OpenStreetMap"
     override fun screenSummary(open: String, navigating: String) = "פתוחה: $open · בניווט: $navigating"
     override val screenWhileOpen = "כש־MapAround פתוחה"
     override val screenWhileNavigating = "בזמן ניווט"

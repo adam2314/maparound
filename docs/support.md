@@ -26,21 +26,16 @@ extra. They pay for two things that make MapAround better for everyone:
 
 Monthly or once, through GitHub Sponsors.
 
-## What it pays for
+## The maps now
 
-| What | Cost | Why |
-|---|---|---|
-| **A better web experience** | | |
-| Hosting the maps for the browser | about $2–18 a month | The maps where the web app may read them (Cloudflare R2): the current ones, and up to a year of earlier ones to fall back on. |
-| A domain of its own | about $15 a year | maparound.app: a short address of its own for the website, the web app and invites. |
-| **Building the offline maps** | | |
-| Building the biggest countries | about $10–30 a month (estimate) | France, Germany, Great Britain, Poland, the Alps, Japan, India, China, Indonesia, Brazil and the United States are too big for the free build machines; a bigger rented machine for a few hours each month builds them. Until then their regions (states, provinces) can be downloaded. |
-| **On the phones** | | |
-| Apple developer account | $99 a year | To put MapAround on the iPhone (the App Store and TestFlight). |
-| Google Play developer account | $25 once (paid) | To publish on Google Play. |
+Every region's map, as the monthly builds left it: **green**, built in the latest run; **orange**,
+a map from an earlier month; **red**, no map yet. Tap a region for its map, and for its country as
+one map: the biggest countries need a bigger machine to be built whole.
 
-Altogether about **$25–55 a month**, depending on how much map history is kept and how long the
-big countries take to build. The estimates become figures once the first runs show them.
+<!-- The web app's map with its data view on MapAround's maps (data=maps), read from the map list
+     as the app reads it, over OpenFreeMap's light grey vector map. -->
+<iframe src="{{ '/app/' | relative_url }}?embed&amp;data=maps&amp;layer=ofm_positron&amp;trails=0#map=2/20/15"
+        title="MapAround's maps, region by region" width="100%" height="480" style="border:0;border-radius:12px" loading="lazy"></iframe>
 
 ## Other ways to help
 

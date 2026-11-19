@@ -1,6 +1,7 @@
 package app.maparound.web
 
 import app.maparound.ui.UserActivity
+import app.maparound.ui.DataViewLink
 import app.maparound.map.satelliteSource
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
@@ -103,6 +104,17 @@ private fun embedOptions(app: WebApp) {
         ?.let(app.prefs::setBaseLayer)
     addressParam("trails")?.let { app.prefs.setTrails(it != "0" && it != "false") }
     addressParam("lang")?.let(Language::of)?.let { app.prefs.setLanguage(it.code) }
+}
+
+/**
+ * A data view in the page's address, `data=<name>` (`data=maps`: how MapAround's maps stand, as the
+ * support page embeds it): the map opens with it. The embedded map keeps it in its address (for
+ * "Open in MapAround"); the app takes it out.
+ */
+private fun dataViewFromAddress(embedded: Boolean) {
+    val name = addressParam("data")?.takeIf { it.isNotEmpty() } ?: return
+    if (!embedded) removeFromAddress("data")
+    DataViewLink.pending.value = name
 }
 
 /**
@@ -232,6 +244,8 @@ private fun onPageHide(f: () -> Unit): Unit = js(
 @OptIn(ExperimentalComposeUiApi::class)
 fun main() {
     MainScope().launch {
+        // MapLibre GL JS draws online vector maps from their styles (OpenFreeMap's).
+        TileSources.vectorMaps = true
         // Embedded in another website: the map alone, its files and settings in memory only.
         val embedded = embeddedFromAddress()
         // The app's own files, all asked for at once (not one after another): the style, the
@@ -259,6 +273,7 @@ fun main() {
             launch { regions?.await()?.let { bytes -> MapRegions.source = { bytes } } }
         }
         pinFromAddress()
+        dataViewFromAddress(embedded)
         if (!embedded) inviteFromAddress(app)
         linkFromAddress(app)
         onAddressChange {

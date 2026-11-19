@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.LocationCity
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Route
@@ -56,6 +57,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import app.maparound.i18n.ltr
 import app.maparound.shared.util.nowMillis
 import app.maparound.stats.TimeZones
+import app.maparound.stats.BuildState
+import app.maparound.stats.MapBuilds
+import app.maparound.stats.MapBuildsData
+import app.maparound.data.CatalogEntry
+import kotlinx.coroutines.flow.MutableStateFlow
 import app.maparound.stats.Weather
 import app.maparound.stats.WeatherLayer
 import kotlinx.coroutines.delay
@@ -121,18 +127,36 @@ data class DataLayers(
     val photos: Boolean = false,
     val buses: Boolean = false,
     val cameras: Boolean = false,
+    /** How MapAround's maps stand, region by region, colour the world (instead of a figure or the time zones). */
+    val mapBuilds: Boolean = false,
 ) {
     /**
      * One of the layers over the map (the weather, photos, buses) turned on: the colours under it
-     * (countries, time zones, localities) go, so the map shows through; they can be picked again.
+     * (countries, time zones, localities, the map builds) go, so the map shows through; they can be
+     * picked again.
      */
-    fun withOverlay(change: DataLayers.() -> DataLayers): DataLayers = change(this).copy(country = null, timeZones = false, locality = null)
+    fun withOverlay(change: DataLayers.() -> DataLayers): DataLayers =
+        change(this).copy(country = null, timeZones = false, locality = null, mapBuilds = false)
 
     /** Whether the weather maps are on (a field, or the wind's particles). */
     val weatherMaps: Boolean get() = weatherMap != null || windAnimation
 
     /** Whether anything colours the world or Israel's localities. */
-    val coloured: Boolean get() = country != null || timeZones || locality != null
+    val coloured: Boolean get() = country != null || timeZones || locality != null || mapBuilds
+}
+
+/**
+ * A data view to open from a link: the web app's `data=<name>` in its address (`data=maps`: how
+ * MapAround's maps stand, as the support page embeds it). The map screen opens it once it's there.
+ */
+object DataViewLink {
+    val pending = MutableStateFlow<String?>(null)
+
+    /** The layers a link's name stands for, or null. */
+    fun layers(name: String): DataLayers? = when (name) {
+        "maps" -> DataLayers(country = null, locality = null, mapBuilds = true)
+        else -> null
+    }
 }
 
 /** What the data view can offer: the layers there's data for, whose source isn't off. */
@@ -145,6 +169,7 @@ data class DataOffers(
     val photos: Boolean = false,
     val buses: Boolean = false,
     val cameras: Boolean = false,
+    val mapBuilds: Boolean = false,
 )
 
 /**
@@ -175,15 +200,23 @@ private fun branches(layers: DataLayers, offers: DataOffers, onPick: (DataLayers
     return buildList {
         add(Branch("world", s.world, Icons.Filled.Public, CountryIndicator.entries.map { i ->
             val on = layers.country == i && !layers.timeZones
-            Leaf(i.title, s.countrySource(i), on, true, s.countriesKeywords) { onPick(layers.copy(country = if (on) null else i, timeZones = false)) }
+            Leaf(i.title, s.countrySource(i), on, true, s.countriesKeywords) { onPick(layers.copy(country = if (on) null else i, timeZones = false, mapBuilds = false)) }
         }))
         add(Branch("israel", s.israel, Icons.Filled.LocationCity, LocalityIndicator.entries.map { i ->
             val on = layers.locality == i
-            Leaf(i.title, s.localitySource(i), on, true, s.localitiesKeywords) { onPick(layers.copy(locality = if (on) null else i)) }
+            Leaf(i.title, s.localitySource(i), on, true, s.localitiesKeywords) { onPick(layers.copy(locality = if (on) null else i, mapBuilds = false)) }
         }))
         if (offers.timeZones) add(Branch("time", s.time, Icons.Filled.Schedule, listOf(
             Leaf(s.timeZones, s.timeZonesSource, layers.timeZones, true, s.timeZonesKeywords) {
-                onPick(if (layers.timeZones) layers.copy(timeZones = false) else layers.copy(timeZones = true, country = null))
+                onPick(if (layers.timeZones) layers.copy(timeZones = false) else layers.copy(timeZones = true, country = null, mapBuilds = false))
+            },
+        )))
+        if (offers.mapBuilds) add(Branch("maparound", s.mapAround, Icons.Filled.Map, listOf(
+            Leaf(s.mapBuilds, s.mapBuildsSource, layers.mapBuilds, true, s.mapBuildsKeywords) {
+                onPick(
+                    if (layers.mapBuilds) layers.copy(mapBuilds = false)
+                    else layers.copy(mapBuilds = true, country = null, timeZones = false, locality = null),
+                )
             },
         )))
         val weather = buildList {
@@ -473,6 +506,7 @@ fun DataViewPanel(
             val country = layers.country
             val l = T.live
             val (group, title) = when {
+                layers.mapBuilds -> s.mapAround to s.mapBuilds
                 showLocalities && locality != null -> s.localities to locality.title
                 zones -> s.time to s.timeZones
                 !showLocalities && country != null -> s.countries to country.title
@@ -499,6 +533,8 @@ fun DataViewPanel(
                 Tip(s.leaveDataView) { IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = s.leaveDataView) } }
             }
             when {
+                // At every zoom: a region's map, close up too.
+                layers.mapBuilds -> Legend(MapBuilds.classes, hidden, onToggleClass, noData = false)
                 showLocalities && locality != null -> {
                     Legend(locality.classes, hidden, onToggleClass)
                     Hint(s.sizeIsPopulation, s.countries, onGoTo)
@@ -742,6 +778,59 @@ fun ZoneCard(zone: String, offsetAt: (zone: String?, epochMillis: Long) -> Int?,
         }
     }
 }
+
+/**
+ * A tapped region of the map builds: its name, how its MapAround map stands (when it was built, its
+ * size), how the country or group of states it's part of stands as one map, and, where one is too
+ * big for the free build machines, the way to help fund a bigger one.
+ */
+@Composable
+fun MapBuildCard(data: MapBuildsData, path: String, onClose: () -> Unit) {
+    val platform = app.maparound.ui.LocalPlatform.current
+    val region = data.region(path) ?: return
+    val b = data.builds[path]
+    val s = T.stats
+    val wholes = data.wholesAround(region).mapNotNull { w -> data.builds[w.path]?.let { w to it } }
+    Card(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+        Column(Modifier.padding(start = 16.dp, end = 4.dp, bottom = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.padding(end = 10.dp).size(14.dp)
+                        .background(hexColor(MapBuilds.colors[(b?.state ?: BuildState.MISSING).ordinal]), CircleShape)
+                        .border(1.dp, Color.White, CircleShape),
+                )
+                Text(region.label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Tip(T.common.close) { IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = T.common.close) } }
+            }
+            Text(
+                when {
+                    b == null -> s.notListed
+                    b.state == BuildState.CURRENT -> b.builtAt?.let { s.builtOn(buildDay(it)) } ?: s.buildState(BuildState.CURRENT)
+                    b.state == BuildState.OLD -> b.builtAt?.let { s.olderBuild(buildDay(it)) } ?: s.buildState(BuildState.OLD)
+                    b.why == CatalogEntry.Unavailable.NEEDS_FUNDING -> s.needsFunding
+                    b.why == CatalogEntry.Unavailable.NOT_BUILT -> s.buildFailed
+                    else -> s.notListed
+                },
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            b?.sizeBytes?.takeIf { b.state != BuildState.MISSING }?.let { Text(s.mapSize(Fmt.fileSize(it)), style = MaterialTheme.typography.bodySmall) }
+            for ((w, wb) in wholes) {
+                Text(
+                    s.asOneMap(w.title, s.buildShort(wb.state, wb.why)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+            val funding = (listOfNotNull(b) + wholes.map { it.second }).any { it.why == CatalogEntry.Unavailable.NEEDS_FUNDING }
+            if (funding) TextButton(onClick = { platform.openUrl(s.supportUrl) }, modifier = Modifier.padding(top = 2.dp)) { Text(s.helpFund) }
+        }
+    }
+}
+
+/** A build's day ("15 Nov 2026", in the date order chosen). */
+private fun buildDay(epochMillis: Long): String =
+    Fmt.day(Instant.fromEpochMilliseconds(epochMillis).toLocalDateTime(TimeZone.UTC).date, withYear = true)
 
 /** A length of time in seconds as hours and minutes ("1 h", "5 h 30 min"). */
 private fun span(seconds: Int): String = T.stats.hoursMinutes(seconds / 3600, seconds % 3600 / 60)

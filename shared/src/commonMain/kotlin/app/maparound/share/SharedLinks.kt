@@ -18,7 +18,15 @@ sealed class Shared {
     data class Track(val name: String?, val points: List<GeoPoint>) : Shared()
 }
 
+/**
+ * The map link that goes with what's shared (a point, a place, a route or track, a GPX file's text):
+ * only the one chosen (Settings → Sharing), MapAround's unless another is, or all of them.
+ */
+enum class ShareLink { MAPAROUND, GOOGLE, OSM, ALL }
+
 object SharedLinks {
+    /** The link shared: the user's choice (Settings → Sharing), set by the settings at start. */
+    var shareLink: ShareLink = ShareLink.MAPAROUND
 
     // ---- reading -------------------------------------------------------------------------------
 
@@ -234,12 +242,15 @@ object SharedLinks {
             (if (via.isNotEmpty()) "&waypoints=" + via.replace("|", "%7C") else "") + "&travelmode=$mode"
     }
 
-    /** Text for sharing a point: name, coordinates and links that open anywhere. */
-    fun pointText(lat: Double, lon: Double, label: String?): String = buildString {
+    /**
+     * Text for sharing a point: name, coordinates and the map link chosen ([link]: MapAround's
+     * unless another is), or all of them.
+     */
+    fun pointText(lat: Double, lon: Double, label: String?, link: ShareLink = shareLink): String = buildString {
         label?.takeIf { it.isNotBlank() }?.let { appendLine(it) }
         appendLine("${f(lat)}, ${f(lon)}")
-        appendLine("Google Maps: ${googleLink(lat, lon)}")
-        appendLine("OpenStreetMap: ${osmLink(lat, lon)}")
-        append("MapAround: ${webAppLink(lat, lon)}")
-    }
+        if (link == ShareLink.GOOGLE || link == ShareLink.ALL) appendLine("Google Maps: ${googleLink(lat, lon)}")
+        if (link == ShareLink.OSM || link == ShareLink.ALL) appendLine("OpenStreetMap: ${osmLink(lat, lon)}")
+        if (link == ShareLink.MAPAROUND || link == ShareLink.ALL) appendLine("MapAround: ${webAppLink(lat, lon)}")
+    }.trimEnd()
 }

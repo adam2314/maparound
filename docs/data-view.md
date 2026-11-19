@@ -37,6 +37,7 @@ The tree's branches:
 | World | the five country figures (one at a time) |
 | Israel | the eleven ways to colour its localities |
 | Time | Time zones (instead of a country figure) |
+| MapAround | MapAround's maps (instead of a country figure) |
 | Weather | Rain radar, Wind (moving), Temperature map, Clouds, Rain and snow (forecast), Temperature now, Wind now |
 | Look around | Street photos |
 | Movement | GPS traces (over any of the others), Buses now (Israel) |
@@ -155,6 +156,36 @@ map follows a change while it's open.
 The clocks come from the browser's own time-zone rules (`Intl`; the Kotlin date library has no
 time-zone data on the web): the web app hands them to the view (`browserZoneOffsetSeconds`, given
 to `StatsData` in `WebApp.kt`).
+
+### MapAround's maps
+
+How MapAround's own offline maps stand, region by region, as the monthly builds left them:
+- **green**, built in the latest run;
+- **orange**, an older map: built 20 days or more before the latest one (an earlier month's, kept
+  while the latest build of it failed), or 45 days ago or more (the builds stopped);
+- **red**, no map: too big for the free build machines (*needs funding* in the list), its build
+  failed with no earlier one, or not in the list at all.
+
+The regions are the download list's (Geofabrik's: countries, and the states or provinces of the
+big ones), from the app's own `regions.bin`. Only the finest are drawn: a region that smaller ones
+cover for half or more of it (France by its regions, the United States' groups of states, the Alps
+by their countries) is shown through them, so the colours don't pile up; Switzerland, with
+Liechtenstein in it, is drawn. On the app's regions those wholes are 58–100 % covered (less where
+their outline reaches further out to sea), the others at most 14 %, and 456 of the 475 regions are
+drawn. A region the list has in two parts, both sides of the date line (`new-zealand-1` and `-2`),
+takes the worse of them.
+
+Tapping a region opens a card: its name, how its map stands (the day it was built, or why there's
+none), its download size, and how the country or group of states it's part of stands as one map
+("US Midwest, as one map: too big for the free build machines"). Where one of them needs a bigger
+machine, **Help fund a bigger machine** opens the support page.
+
+The panel says how many of the list's maps there are to download and the latest build's day. The
+list is read when the layer is first on, once a visit (from the address in Settings → Sources, Map
+list, else MapAround's).
+
+**On a website.** `data=maps` in the web app's address opens the map with this layer on (see
+[The map in your website](guide/embed)); the support page embeds it so.
 
 ### GPS traces
 
@@ -300,6 +331,7 @@ servers get busy: when they turn the request away, the panel says so and the app
 | Residents by age group | Population and Immigration Authority, *residents_in_israel_by_communities_and_age_groups* | **none stated on the portal** | CKAN API, newest table (updated monthly) | about 0.3 MB |
 | Socio-economic clusters (2019) | *social_economic_cluster* on data.gov.il | marked open | CKAN API | small |
 | Time zones | [timezone-boundary-builder](https://github.com/evansiroky/timezone-boundary-builder) 2026f, *timezones-with-oceans* | ODbL (from OpenStreetMap: © OpenStreetMap contributors) | bundled: `webApp/.../resources/timezones.bin` | 0.3 MB |
+| MapAround's maps | MapAround's list of maps (`catalog.json` on my-pipeline's `catalog` branch, from raw.githubusercontent.com), and the regions' outlines (Geofabrik's, from OpenStreetMap data) | the list: MapAround's; the outlines: © OpenStreetMap contributors (ODbL) | the list when the layer is first on; the outlines bundled: the app's `regions.bin` | about 0.15 MB, then 0.2 MB |
 | GPS traces | [OpenStreetMap](https://www.openstreetmap.org/traces)'s public GPS traces, as tiles from `gps.tile.openstreetmap.org` | © OpenStreetMap contributors; OpenStreetMap's tile usage policy | map tiles, as the map shows them | per tile |
 | Rain radar | [RainViewer](https://www.rainviewer.com/api.html) | free for personal and community projects, with credit ("Radar © RainViewer") | its list of pictures (`weather-maps.json`), then map tiles to zoom 7 | about 1 kB, then per tile |
 | Weather maps | [NOAA](https://www.nco.ncep.noaa.gov/pmb/products/gfs/)'s GFS model at 0.5°, made into pictures by MapAround's pipeline (`raw.githubusercontent.com/adam2314/my-pipeline/weather/`, or your own in Settings → Sources) | public domain (US government work); credited | `manifest.json`, then two pictures for each hour shown | about 1 kB, then about 0.6 MB an hour |
@@ -342,6 +374,7 @@ All the logic is shared Kotlin; only the web app switches it on.
 | Country figures | `shared/.../stats/CountryStats.kt` | Reads an Our World in Data CSV and keeps the latest year with a value per ISO 3166 code, up to this year. |
 | Classes and layers | `shared/.../stats/StatsLayers.kt` | Each figure's classes, colours and legend labels, and the GeoJSON for the map: countries with a `color` per feature, localities with `color` and a radius `r`. |
 | Loading and cache | `shared/.../stats/StatsData.kt` | Downloads each source the first time it's needed and keeps it for a week in the app's files (`/data/stats` on the web); offline, it uses the kept copy however old. |
+| Map builds | `shared/.../stats/MapBuilds.kt` | How each region's map stands from the list (a region in parts takes the worse), which regions are drawn (those smaller ones don't cover for half or more), the regions a region is part of, and the GeoJSON (each region's outer rings with their holes, drawn by the time zones' layers). |
 | Time zones | `shared/.../stats/TimeZones.kt` | Reads `timezones.bin`; finds the zone at a place (outer rings and their holes: Lesotho is a hole in South Africa's zone); the offsets' classes and colours; the next clock change (a day at a time, then halving to the minute); and the GeoJSON: each zone's area and a label point in its biggest part. |
 | Weather | `shared/.../stats/Weather.kt` | The lattice of points over a view, Open-Meteo's answers (now, forecast), the classes and colours, °C or °F, the points' GeoJSON, what a weather code says; and `RainRadar`: RainViewer's pictures as a map layer. |
 | Weather maps | `shared/.../stats/WeatherMap.kt` | The pipeline's manifest (run, hours, grid, ranges), the hour nearest now, each field's colour scale and legend, and the spec the web map draws from. |
@@ -366,6 +399,9 @@ Tests: `shared/src/commonTest/.../stats/StatsTest.kt` covers the grid conversion
 CSV, the classes and the layers; `TimeZonesTest.kt` the time zones' file, lookup (with holes),
 classes, labels, GeoJSON and clock changes; `androidUnitTest/.../TimeZonesFileTest.kt` the real
 file (known places, Israel's next change, every zone known to Java's time-zone rules);
+`MapBuildsTest.kt` the map builds' states (older runs, stopped builds, regions in parts), which
+regions are drawn, the rings as polygons and the GeoJSON, and `MapBuildsFileTest.kt` which of the
+app's real regions are drawn, and how quickly;
 `LiveDataTest.kt` the weather's lattice, Open-Meteo's, RainViewer's, Panoramax's, Open Bus's and
 Overpass's answers (from real ones), the weather's classes and units, the buses' lines and places,
 and the cameras' kinds, directions and area; `WeatherMapTest.kt` the weather maps' manifest, the

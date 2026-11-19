@@ -65,7 +65,15 @@ class MapStyle(
         layers += layer("canvas", "background") { put("paint", obj("background-color" to OUTSIDE)) }
         when (base) {
             null -> Unit
-            is BaseMap.Online -> {
+            // An online vector map (someone else's style, the web's): its layers under ours; until
+            // its style is read, nothing.
+            is BaseMap.Online -> if (base.source.style != null) {
+                base.vectorStyle?.let { OnlineVectorStyle.parts(it, base.language) }?.let { v ->
+                    sources += v.sources
+                    layers += v.layers
+                    v.sprite?.let { put("sprite", it) }
+                }
+            } else {
                 sources["online"] = rasterSource(base.source)
                 layers += rasterLayer("online", "online")
             }

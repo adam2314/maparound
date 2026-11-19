@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SquareFoot
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -84,7 +85,7 @@ fun SettingsButton() {
     if (open) SettingsScreen(onDismiss = { open = false })
 }
 
-private enum class SettingsPage { LANGUAGE, UNITS, SCREEN, PARTY, SOURCES }
+private enum class SettingsPage { LANGUAGE, UNITS, SCREEN, PARTY, SHARING, SOURCES }
 
 /**
  * The app's settings in one place, over the whole screen: a list (the language, units and formats,
@@ -124,6 +125,7 @@ fun SettingsScreen(onDismiss: () -> Unit) {
                                 SettingsPage.UNITS -> T.settings.unitsAndFormats
                                 SettingsPage.SCREEN -> T.settings.screen
                                 SettingsPage.PARTY -> T.settings.party
+                                SettingsPage.SHARING -> T.settings.sharing
                                 SettingsPage.SOURCES -> T.settings.sources
                             },
                         )
@@ -140,6 +142,7 @@ fun SettingsScreen(onDismiss: () -> Unit) {
                                 SettingsPage.UNITS -> UnitsPage()
                                 SettingsPage.SCREEN -> ScreenPage()
                                 SettingsPage.PARTY -> PartyPage()
+                                SettingsPage.SHARING -> SharingPage()
                                 SettingsPage.SOURCES -> SourcesPage()
                             }
                         }
@@ -174,6 +177,8 @@ private fun SettingsList(onOpen: (SettingsPage) -> Unit) {
             server?.let(PartyRelays::host) ?: T.party.publicServers,
         ),
     ) { onOpen(SettingsPage.PARTY) }
+    val shareLink by prefs.shareLink.collectAsState()
+    Row_(Icons.Filled.Share, T.settings.sharing, T.settings.shareLinkSummary(shareLinkLabel(shareLink))) { onOpen(SettingsPage.SHARING) }
     Row_(Icons.Filled.Hub, T.settings.sources, sourcesSummary()) { onOpen(SettingsPage.SOURCES) }
     // What donations pay for, on the website.
     HorizontalDivider(Modifier.padding(top = 12.dp, bottom = 4.dp))
@@ -376,6 +381,33 @@ private fun PartyPage() {
             },
             onDismiss = { editServer = false },
         )
+    }
+}
+
+private fun shareLinkLabel(l: app.maparound.share.ShareLink): String = when (l) {
+    app.maparound.share.ShareLink.MAPAROUND -> T.settings.linkMapAround
+    app.maparound.share.ShareLink.GOOGLE -> T.settings.linkGoogle
+    app.maparound.share.ShareLink.OSM -> T.settings.linkOsm
+    app.maparound.share.ShareLink.ALL -> T.settings.linkAll
+}
+
+/**
+ * Sharing: the map link that goes with a shared point, place, route or track, and with its GPX
+ * file; only that one (MapAround's unless another is chosen), or all of them.
+ */
+@Composable
+private fun SharingPage() {
+    val prefs = LocalPrefs.current
+    val chosen by prefs.shareLink.collectAsState()
+    Section(T.settings.shareLink)
+    Note(T.settings.shareLinkNote)
+    for (l in app.maparound.share.ShareLink.entries) {
+        Choice(chosen == l, shareLinkLabel(l), when (l) {
+            app.maparound.share.ShareLink.MAPAROUND -> T.settings.linkMapAroundHint
+            app.maparound.share.ShareLink.GOOGLE -> T.settings.linkGoogleHint
+            app.maparound.share.ShareLink.OSM -> T.settings.linkOsmHint
+            app.maparound.share.ShareLink.ALL -> T.settings.linkAllHint
+        }) { prefs.setShareLink(l) }
     }
 }
 

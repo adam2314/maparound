@@ -15,8 +15,11 @@ import kotlin.math.abs
  */
 class MapRegions private constructor(private val regions: List<Region>) {
 
-    /** One region: its path in the download list ("europe/germany/bayern") and its area. */
-    class Region internal constructor(val path: String, private val rings: List<IntArray>) {
+    /**
+     * One region: its path in the download list ("europe/germany/bayern") and its area: [rings], outer
+     * rings and holes alike (inside is inside an odd number of them), as (lat, lon) pairs in microdegrees.
+     */
+    class Region internal constructor(val path: String, val rings: List<IntArray>) {
         // Its box, in microdegrees.
         private val minLat: Int
         private val maxLat: Int

@@ -10,14 +10,25 @@
 </head>
 <body>
 
+{% comment %} Hebrew pages (lang: he, under he/) get the header and footer in Hebrew, leading to the
+Hebrew home page (he/index.html) and support page. {% endcomment %}
+{% if page.lang == 'he' %}{% assign home = '/he/' | relative_url %}{% assign support = '/he/support' | relative_url %}{% else %}{% assign home = '/' | relative_url %}{% assign support = '/support' | relative_url %}{% endif %}
 <header class="site-header">
   <div class="wrap">
-    <a class="brand" href="{{ '/' | relative_url }}"><img src="{{ '/assets/icon-192.png' | relative_url }}" alt="" width="36" height="36">MapAround</a>
-    <nav class="site-nav" aria-label="Main">
-      <a href="{{ '/' | relative_url }}">Home</a>
-      <a href="{{ '/support' | relative_url }}">Support</a>
+    <a class="brand" href="{{ home }}"><img src="{{ '/assets/icon-192.png' | relative_url }}" alt="" width="36" height="36">MapAround</a>
+    {% if page.lang == 'he' %}
+    <nav class="site-nav" aria-label="ראשי">
+      <a href="{{ home }}">דף הבית</a>
+      <a href="{{ support }}">תמיכה</a>
       <a href="https://github.com/adam2314/maparound">GitHub</a>
     </nav>
+    {% else %}
+    <nav class="site-nav" aria-label="Main">
+      <a href="{{ home }}">Home</a>
+      <a href="{{ support }}">Support</a>
+      <a href="https://github.com/adam2314/maparound">GitHub</a>
+    </nav>
+    {% endif %}
   </div>
 </header>
 
@@ -27,13 +38,23 @@
 
 <footer class="site-footer">
   <div class="wrap">
+    {% if page.lang == 'he' %}
+    <span>MapAround · נתוני המפה © <a href="https://www.openstreetmap.org/copyright">התורמים ל־OpenStreetMap</a></span>
+    <nav aria-label="תחתון">
+      <a href="{{ '/privacy' | relative_url }}" hreflang="en">מדיניות הפרטיות (באנגלית)</a>
+      <a href="{{ support }}">תמיכה ב־MapAround</a>
+      <a href="https://github.com/adam2314/maparound">קוד המקור</a>
+      <a href="https://github.com/adam2314/maparound/issues">דיווח על בעיה</a>
+    </nav>
+    {% else %}
     <span>MapAround · Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a></span>
     <nav aria-label="Footer">
       <a href="{{ '/privacy' | relative_url }}">Privacy policy</a>
-      <a href="{{ '/support' | relative_url }}">Support MapAround</a>
+      <a href="{{ support }}">Support MapAround</a>
       <a href="https://github.com/adam2314/maparound">Source code</a>
       <a href="https://github.com/adam2314/maparound/issues">Report a problem</a>
     </nav>
+    {% endif %}
   </div>
 </footer>
 

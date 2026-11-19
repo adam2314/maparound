@@ -99,6 +99,12 @@ class StatsData(
     private val zoneOffset: (zone: String?, epochMillis: Long) -> Int? = { _, _ -> null },
     /** Where the countries' flags are (the app's own files, "<ISO>.png"), or null where there are none. */
     private val flags: String? = null,
+    /**
+     * MapAround's map list (catalog.json, read now; null when it can't be) and the regions' outlines
+     * (regions.bin, the app's own), for the map builds; null where there are none.
+     */
+    private val mapList: (suspend () -> String?)? = null,
+    private val regionOutlines: (suspend () -> ByteArray?)? = null,
 ) {
     /** A country's flag's address, or null when it has none. */
     fun flagUrl(c: Country): String? = if (c.flag == null) null else flags?.let { "$it${c.iso}.png" }
@@ -117,6 +123,12 @@ class StatsData(
 
     /** Whether there are time zones to show. */
     val hasTimeZones: Boolean get() = zones != null
+
+    private val _mapBuilds = MutableStateFlow<MapBuildsData?>(null)
+    val mapBuilds: StateFlow<MapBuildsData?> = _mapBuilds.asStateFlow()
+
+    /** Whether the map builds can be shown. */
+    val hasMapBuilds: Boolean get() = mapList != null && regionOutlines != null
 
     /** [zone]'s offset from UTC at [epochMillis] (seconds; null zone: the device's), or null. */
     fun zoneOffset(zone: String?, epochMillis: Long): Int? = zoneOffset.invoke(zone, epochMillis)
@@ -140,6 +152,27 @@ class StatsData(
         if (_timeZones.value != null) return@withLock
         val bytes = runCatching { zones?.invoke() }.getOrNull() ?: return@withLock
         _timeZones.value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { TimeZones.decode(bytes) }.takeIf { it.isNotEmpty() }
+    }
+
+    /**
+     * How MapAround's maps stand, region by region: the map list read now (it changes every month,
+     * and is read once a visit), with the regions' outlines.
+     */
+    suspend fun loadMapBuilds() = lock.withLock {
+        if (_mapBuilds.value != null) return@withLock
+        _status.value = app.maparound.i18n.T.stats.gettingMapList
+        val list = runCatching { mapList?.invoke() }.getOrNull()
+        val outlines = runCatching { regionOutlines?.invoke() }.getOrNull()?.let(app.maparound.map.MapRegions::decode)
+        if (list == null || outlines == null) {
+            _status.value = app.maparound.i18n.T.stats.couldntGetMapList
+            return@withLock
+        }
+        _mapBuilds.value = runCatching {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                MapBuilds.of(outlines.all, app.maparound.data.MapAroundCatalog.parse(list), clock())
+            }
+        }.getOrNull()
+        _status.value = if (_mapBuilds.value == null) app.maparound.i18n.T.stats.couldntGetMapList else ""
     }
 
     suspend fun loadFigures(indicator: CountryIndicator, year: Int) = lock.withLock {

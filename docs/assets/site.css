@@ -80,7 +80,7 @@ a:hover { color: var(--brand-strong); }
 .site-header .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 18px; padding-bottom: 18px; }
 .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; font-weight: 750; font-size: 1.15rem; letter-spacing: -0.01em; }
 .brand img { width: 36px; height: 36px; border-radius: 9px; }
-.site-nav { display: flex; gap: 22px; font-size: 0.95rem; }
+.site-nav { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 22px; font-size: 0.95rem; }
 .site-nav a { color: var(--muted); text-decoration: none; }
 .site-nav a:hover { color: var(--ink); }
 
@@ -119,7 +119,7 @@ h1 .trail { color: var(--trail); }
 .phone img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 30px; }
 .hero-phone { justify-self: center; position: relative; }
 .hero-phone .tag {
-  position: absolute; left: -34px; bottom: 70px; display: inline-flex; align-items: center; gap: 8px;
+  position: absolute; inset-inline-start: -34px; bottom: 70px; display: inline-flex; align-items: center; gap: 8px;
   padding: 10px 16px; border-radius: 14px; background: var(--surface); box-shadow: var(--shadow);
   font-weight: 650; font-size: 0.95rem;
 }
@@ -136,12 +136,14 @@ h1 .trail { color: var(--trail); }
 .feature h2, .section-head h2 { font-size: clamp(1.8rem, 3.4vw, 2.6rem); line-height: 1.12; letter-spacing: -0.025em; margin: 0 0 16px; font-weight: 780; }
 .feature p { color: var(--muted); font-size: 1.08rem; margin: 0 0 18px; }
 .ticks { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.ticks li { position: relative; padding-left: 30px; }
+.ticks li { position: relative; padding-inline-start: 30px; }
 .ticks li::before {
-  content: ""; position: absolute; left: 0; top: 0.42em; width: 18px; height: 10px;
+  content: ""; position: absolute; inset-inline-start: 0; top: 0.42em; width: 18px; height: 10px;
   border-left: 2.5px solid var(--brand); border-bottom: 2.5px solid var(--brand); transform: rotate(-45deg) scale(0.8);
 }
 .kicker { font-size: 0.85rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--brand); margin-bottom: 10px; display: block; }
+/* Hebrew (he/index.html): no tracking, which suits Latin capitals but pulls Hebrew letters apart or together. */
+[dir="rtl"] :is(h1, h2, .eyebrow, .kicker) { letter-spacing: 0; }
 
 /* Small cards */
 .section-head { text-align: center; max-width: 640px; margin: 0 auto 44px; }
@@ -204,12 +206,12 @@ h1 .trail { color: var(--trail); }
 /* Narrow screens */
 @media (max-width: 880px) {
   .wrap { padding: 0 16px; }
-  .site-nav { gap: 16px; }
+  .site-nav { gap: 4px 16px; }
   .site-nav .wide { display: none; }
   .hero { padding: 8px 0 64px; }
   .hero .wrap, .feature .wrap, .privacy-band { grid-template-columns: 1fr; }
   .hero .wrap { gap: 44px; }
-  .hero-phone .tag { left: -12px; bottom: 40px; }
+  .hero-phone .tag { inset-inline-start: -12px; bottom: 40px; }
   .section { padding: 64px 0; }
   .feature .wrap { gap: 40px; }
   .feature.flip .visual { order: 0; }
@@ -220,6 +222,16 @@ h1 .trail { color: var(--trail); }
   .pair .phone { width: min(220px, 43vw); padding: 7px; border-radius: 28px; }
   .pair .phone img { border-radius: 22px; }
   .pair .phone:nth-child(2) { margin-top: 36px; }
+}
+
+/* Small phones: the header's links fit beside the name, or wrap to a second row; the privacy policy is
+   also in the footer and the privacy band. */
+@media (max-width: 420px) {
+  .site-header .wrap { gap: 12px; }
+  .brand { gap: 8px; font-size: 1.05rem; }
+  .brand img { width: 32px; height: 32px; }
+  .site-nav { gap: 4px 12px; font-size: 0.9rem; }
+  .site-nav .roomy { display: none; }
 }
 
 @media (min-width: 881px) and (max-width: 1060px) {

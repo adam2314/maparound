@@ -37,7 +37,14 @@ fun PointShareSheet(lat: Double, lon: Double, label: String?, onDismiss: () -> U
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(start = 24.dp, bottom = 8.dp),
             )
-            Option(Icons.Filled.Link, T.map.sendAsLink, T.map.sendAsLinkHint) {
+            // The link chosen in Settings → Sharing, only it (or all of them).
+            val linkHint = when (SharedLinks.shareLink) {
+                app.maparound.share.ShareLink.MAPAROUND -> T.map.sendMapAroundLinkHint
+                app.maparound.share.ShareLink.GOOGLE -> T.map.sendGoogleLinkHint
+                app.maparound.share.ShareLink.OSM -> T.map.sendOsmLinkHint
+                app.maparound.share.ShareLink.ALL -> T.map.sendAsLinkHint
+            }
+            Option(Icons.Filled.Link, T.map.sendAsLink, linkHint) {
                 onDismiss(); platform.sharePointText(lat, lon, label)
             }
             Option(Icons.Filled.Description, T.map.sendAsGpx, T.map.sendAsGpxHint) {

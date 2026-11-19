@@ -66,14 +66,15 @@ lang: he
 | `mlat=…&mlon=…` | סיכה. |
 | `#track=…&n=…` | מסלול, כמו ש**הטמעה באתר** יוצרת אותו. |
 | `gpx=<כתובת>` | קובץ GPX מאתר שמאפשר את זה. |
-| `layer=<מפה>` | המפה שמוצגת: `osmfr` (OpenStreetMap, ברירת המחדל), `opentopomap`, `cyclosm`, `hot`, `esri_topo`, `esri_street`, `esri_imagery` (לוויין), `osmde`, ולארץ שלהן `swisstopo`, `basemap_at`, `kartverket`, `ign_plan`, `ign_ortho`, `usgs_topo`. |
+| `layer=<מפה>` | המפה שמוצגת: `osmfr` (OpenStreetMap, ברירת המחדל), המפות הווקטוריות `ofm_liberty` ו־`ofm_positron` (של OpenFreeMap, באפור בהיר), `opentopomap`, `cyclosm`, `hot`, `esri_topo`, `esri_street`, `esri_imagery` (לוויין), `osmde`, ולארץ שלהן `swisstopo`, `basemap_at`, `kartverket`, `ign_plan`, `ign_ortho`, `usgs_topo`. |
 | `trails=0` | בלי שבילי ההליכה המסומנים שמצוירים מעל המפה (waymarkedtrails.org). |
 | `lang=he` או `lang=en` | השפה של הכפתורים; אחרת השפה של הדפדפן של המבקר. |
+| `data=maps` | תצוגת הנתונים על המפות של MapAround: כל אזור צבוע לפי מצב המפה שלו (נבנתה בבנייה החודשית האחרונה, ישנה יותר, אין), כמו ב[דף התמיכה]({{ '/he/support' | relative_url }}). |
 
 אפשר לשים את האפשרויות אחרי `?` או אחרי `#`, מחוברות ב־`&`, למשל
 `…/app/?embed&layer=opentopomap&trails=0#map=13/31.47/35.38`. המבקרים עדיין יכולים לבחור מפה אחרת
-ב**שכבות מפה**; הבחירה נשמרת עד שעוזבים את הדף. **פתיחה ב־MapAround** שומרת את התצוגה, הסיכה
-והמסלול, אבל לא את `layer`, `trails` ו־`lang`: האפליקציה המלאה נפתחת עם ההגדרות של המבקר עצמו.
+ב**שכבות מפה**; הבחירה נשמרת עד שעוזבים את הדף. **פתיחה ב־MapAround** שומרת את התצוגה, הסיכה,
+המסלול ותצוגת הנתונים, אבל לא את `layer`, `trails` ו־`lang`: האפליקציה המלאה נפתחת עם ההגדרות של המבקר עצמו.
 
 ## מה הדפדפן של המבקר עושה
 

@@ -260,6 +260,7 @@ class Prefs(
         private const val K_TRAILS = "trails"
         private const val K_STREAM_MAPS = "stream_maps"
         private const val K_COORD_FORMAT = "coord_format"
+        private const val K_SHARE_LINK = "share_link"
         private const val K_ELEVATION_SOURCE = "elevation_source"
         private const val K_TERRAIN_3D = "terrain_3d_source"
         private const val K_LEVEL_UP = "level_up"
@@ -444,6 +445,20 @@ class Prefs(
         // Coordinates everywhere ([app.maparound.ui.Fmt.point]) follow.
         _units.value = _units.value.copy(coords = value)
         onUnits(_units.value)
+    }
+
+    // ---- sharing: the map link that goes with what's shared, only it (MapAround's unless another is chosen) ----
+    private val _shareLink = MutableStateFlow(enumOrNull<app.maparound.share.ShareLink>(sp.getString(K_SHARE_LINK)) ?: app.maparound.share.ShareLink.MAPAROUND)
+    val shareLink: StateFlow<app.maparound.share.ShareLink> = _shareLink.asStateFlow()
+
+    init {
+        app.maparound.share.SharedLinks.shareLink = _shareLink.value
+    }
+
+    fun setShareLink(value: app.maparound.share.ShareLink) {
+        _shareLink.value = value
+        sp.putString(K_SHARE_LINK, value.name)
+        app.maparound.share.SharedLinks.shareLink = value
     }
 }
 

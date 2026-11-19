@@ -52,6 +52,11 @@
 - **Party** in Settings: your name and look (also before joining a party: the next one starts with
   them, and a new party's name field is filled in), the server parties meet on (invites include
   it), the online switch and the radio gateway.
+- **Sharing**: a shared point, place, route or track, and the GPX file sent with it, now carries one
+  map link: **MapAround's** (it opens the place or the line itself, in the app or in any browser), no
+  Google Maps or OpenStreetMap ones. Settings → Sharing chooses another instead: Google Maps (a
+  planned route as directions), OpenStreetMap (a planned route on BRouter-Web), or all of them, as
+  before.
 - **Sources**: every online service the app uses, in one list: the map list, the online map,
   satellite imagery, marked trails (online and to download), elevation, online routing and its
   data, search, Wikipedia and photos, the party's server, and (on the web) the data view's GPS
@@ -223,6 +228,20 @@
   map now shows only the legends and notes of what's on.
 - The new sources are in Settings → Sources (the radar can be turned off; the weather, photos and buses can
   also be pointed at another server).
+- **MapAround's maps** (a new branch, MapAround): every region coloured by how its offline map
+  stands: green, built in the latest monthly run; orange, an older map; red, none yet (too big for
+  the free build machines, or its build failed). A country whose regions are maps of their own
+  (France, the United States' states) is shown through them. Tapping a region shows the day its map
+  was built and its size, and how its country stands as one map, with a way to help fund a bigger
+  build machine. `data=maps` in the address opens the map with it, as the **support page** now
+  embeds it, in English and Hebrew.
+- The data view's credits name the countries' and Israel's sources only while those are shown.
+- **Online vector maps** (Layers → Online): OpenFreeMap's **Liberty** and **Positron** (light grey,
+  quiet under routes and the data view), drawn in the browser from OpenStreetMap data updated every
+  week: sharp at every zoom, the names in the app's language (Hebrew names in Hebrew), with
+  MapAround's routes, trails, party and data view over them. Free, with no account or key. If
+  OpenFreeMap can't be reached, OSM France's map shows instead. `layer=ofm_liberty` or
+  `layer=ofm_positron` for an embedded map; the support page's map of the builds is on Positron.
 
 ## 0.5.3 (beta, version code 9)
 
