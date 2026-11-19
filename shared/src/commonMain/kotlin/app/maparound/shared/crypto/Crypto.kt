@@ -23,28 +23,34 @@ expect fun aesGcmOpen(key: ByteArray, nonce: ByteArray, aad: ByteArray, sealed: 
 
 /**
  * AES-GCM (NIST SP 800-38D) on top of [aesEncryptBlocks], for platforms whose public API has AES
- * but not GCM (iOS CommonCrypto). 12-byte nonces and 16-byte tags only.
+ * but not GCM (iOS CommonCrypto), and for tags shorter than javax.crypto allows. 12-byte nonces;
+ * [tagSize] 16 bytes by default, or a truncated tag of 8 to 15 (its first bytes, per SP 800-38D),
+ * which Link v1 uses on every platform.
  */
 object Gcm {
     fun seal(
         key: ByteArray, nonce: ByteArray, aad: ByteArray, plain: ByteArray,
         aes: (ByteArray, ByteArray) -> ByteArray = ::aesEncryptBlocks,
+        tagSize: Int = 16,
     ): ByteArray {
+        require(tagSize in 8..16) { "GCM tag must be 8 to 16 bytes" }
         val k = keystream(key, nonce, plain.size, aes)
         val c = ByteArray(plain.size) { (plain[it].toInt() xor k[32 + it].toInt()).toByte() }
-        return c + tag(k, aad, c)
+        return c + tag(k, aad, c).copyOf(tagSize)
     }
 
     fun open(
         key: ByteArray, nonce: ByteArray, aad: ByteArray, sealed: ByteArray,
         aes: (ByteArray, ByteArray) -> ByteArray = ::aesEncryptBlocks,
+        tagSize: Int = 16,
     ): ByteArray? {
-        if (sealed.size < 16) return null
-        val c = sealed.copyOf(sealed.size - 16)
+        require(tagSize in 8..16) { "GCM tag must be 8 to 16 bytes" }
+        if (sealed.size < tagSize) return null
+        val c = sealed.copyOf(sealed.size - tagSize)
         val k = keystream(key, nonce, c.size, aes)
         val expected = tag(k, aad, c)
         var diff = 0
-        for (i in 0 until 16) diff = diff or (expected[i].toInt() xor sealed[c.size + i].toInt())
+        for (i in 0 until tagSize) diff = diff or (expected[i].toInt() xor sealed[c.size + i].toInt())
         if (diff != 0) return null
         return ByteArray(c.size) { (c[it].toInt() xor k[32 + it].toInt()).toByte() }
     }

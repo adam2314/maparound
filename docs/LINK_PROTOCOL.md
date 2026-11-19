@@ -85,6 +85,17 @@ the hop count.
 The envelope costs 22 bytes per packet: 14 of header and 8 of authentication tag.
 `(sender, time, seq)` is the packet's identity, used to drop duplicates.
 
+**Test vector.** With secret `00 01 … 1f`, sender `01020304`, time 1 800 000 000 and seq
+`0506`, a position at 31.7681, 35.1584 with ±5 m accuracy, 80% battery and heading east (ACC,
+BAT and HDG set; HDG 64) is these 32 bytes:
+
+```
+a2016625010203046b49d20005066f83d166fd9024676a6b89a1be6e1ae0d917
+```
+
+MapAround's codec and an independent WebCrypto build from this spec both produce exactly
+these bytes.
+
 **Receiving** a packet:
 
 1. Check that byte 0 is `0xA2`, that the packet is at least 22 bytes, and that bits 6–7 of
@@ -431,7 +442,9 @@ newer version.
 - **A shape too big for one packet** is split into parts, each its own MARK packet:
   - This only happens on the radio, for long lines and areas. One LoRa packet carries about
     55 to 80 vertices.
-  - Every part has the same version, and part 0 also carries the other registers.
+  - Every part has the same version.
+  - Part 0 also carries the other registers when they leave room for its vertices. Otherwise
+    they go in a packet of their own, or one register per packet if even that doesn't fit.
   - A receiver applies the shape once it has every part of that version.
   - It keeps an incomplete shape for 10 minutes, and asks for the missing parts with WANT.
 - **Sharing a saved place or a track** into the party makes a mark. A track is thinned to
@@ -449,8 +462,10 @@ in each HELLO.
 - **A mark's fingerprint, `fp`,** is FNV-1a-32 over its id bytes, then over each register in
   order: the register's version (u32), its editor (u32) and its payload bytes. A register the
   phone doesn't have counts as version 0, editor 0, with no payload. `fp16` is the low 16 bits.
-- **The summary** is `count` and FNV-1a-32 over all the marks' `fp`, sorted ascending, each
-  written as a big-endian u32. Deleted marks count too. The summary rides in every HELLO.
+- **The summary** is `count` and FNV-1a-32 over all the marks' `fp`, sorted ascending as
+  unsigned numbers, each written as a big-endian u32. Deleted marks count too. The summary
+  rides in every HELLO.
+- **The id bytes** are as in a MARK: `creator u32, counter varint`.
 
 ### DIGEST
 
@@ -459,6 +474,9 @@ summary  count varint, hash u32
 page     u8   bits 0–3 index, bits 4–7 pages − 1
 fp16 …   my marks whose fp mod pages = index, at most 80 per page (a 188-byte packet)
 ```
+
+`fp mod pages` treats `fp` as unsigned. The number of pages is the smallest, up to 16, at which
+no page holds more than 80.
 
 ### WANT
 
