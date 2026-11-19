@@ -74,7 +74,7 @@ class SharedLinksTest {
     @Test
     fun pointTextContainsWorkingLinks() {
         val text = SharedLinks.pointText(32.01512, 34.94208, "Meeting point")
-        assertTrue(text.startsWith("Meeting point\n32.01512, 34.94208"))
+        assertTrue(text, text.startsWith("Meeting point\n" + app.maparound.ui.Fmt.point(32.01512, 34.94208)))
         // Our own share text parses back to the same place (MapAround to MapAround).
         val p = point(text)
         assertAt(p, 32.01512, 34.94208)

@@ -179,6 +179,8 @@ object SharedLinks {
         val first = text.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() } ?: return null
         if (first.contains("://") || first.startsWith("geo:") || first.length > 60) return null
         if (Regex("""-?\d+\.\d+\s*,\s*-?\d+\.\d+""").containsMatchIn(first)) return null
+        // Coordinates in any format (a shared point without a name starts with them: UTM, MGRS…).
+        if (app.maparound.tools.Coords.parse(first) != null) return null
         return first.removeSuffix(":").trim().takeIf { it.isNotEmpty() }
     }
 
@@ -243,12 +245,12 @@ object SharedLinks {
     }
 
     /**
-     * Text for sharing a point: name, coordinates and the map link chosen ([link]: MapAround's
-     * unless another is), or all of them.
+     * Text for sharing a point: name, coordinates (in the format chosen, Settings → Units & formats)
+     * and the map link chosen ([link]: MapAround's unless another is), or all of them.
      */
     fun pointText(lat: Double, lon: Double, label: String?, link: ShareLink = shareLink): String = buildString {
         label?.takeIf { it.isNotBlank() }?.let { appendLine(it) }
-        appendLine("${f(lat)}, ${f(lon)}")
+        appendLine(app.maparound.ui.Fmt.point(lat, lon))
         if (link == ShareLink.GOOGLE || link == ShareLink.ALL) appendLine("Google Maps: ${googleLink(lat, lon)}")
         if (link == ShareLink.OSM || link == ShareLink.ALL) appendLine("OpenStreetMap: ${osmLink(lat, lon)}")
         if (link == ShareLink.MAPAROUND || link == ShareLink.ALL) appendLine("MapAround: ${webAppLink(lat, lon)}")

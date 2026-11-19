@@ -19,12 +19,33 @@ class ShareLinkTest {
     fun mapAroundsAloneByDefault() {
         assertEquals(ShareLink.MAPAROUND, SharedLinks.shareLink)
         val text = SharedLinks.pointText(32.01512, 34.94208, "Spring")
-        assertEquals("Spring\n32.01512, 34.94208\nMapAround: ${SharedLinks.webAppLink(32.01512, 34.94208)}", text)
+        assertEquals("Spring\n${app.maparound.ui.Fmt.point(32.01512, 34.94208)}\nMapAround: ${SharedLinks.webAppLink(32.01512, 34.94208)}", text)
         assertFalse(google in text || osm in text, text)
         // It opens back as the same place, with its name.
         val p = SharedLinks.parse(text) as Shared.Point
         assertEquals(32.01512, p.lat, 1e-6)
         assertEquals("Spring", p.label)
+    }
+
+    @Test
+    fun coordinatesInTheFormatChosen() {
+        val before = app.maparound.i18n.Units.current
+        try {
+            app.maparound.i18n.Units.set(before.copy(coords = app.maparound.tools.CoordFormat.UTM))
+            val text = SharedLinks.pointText(31.7767, 35.2345, null)
+            val utm = app.maparound.ui.Fmt.point(31.7767, 35.2345)
+            assertTrue(utm.startsWith("36R"), utm)
+            assertTrue(text.startsWith("$utm\n"), text)
+            // Read back: the place from the link, and the coordinates aren't taken for its name.
+            val p = SharedLinks.parse(text) as Shared.Point
+            assertEquals(31.7767, p.lat, 1e-6)
+            assertEquals(null, p.label)
+            app.maparound.i18n.Units.set(before.copy(coords = app.maparound.tools.CoordFormat.DMS))
+            assertTrue("31°46′" in SharedLinks.pointText(31.7767, 35.2345, "Gate"), SharedLinks.pointText(31.7767, 35.2345, "Gate"))
+            assertEquals("Gate", (SharedLinks.parse(SharedLinks.pointText(31.7767, 35.2345, "Gate")) as Shared.Point).label)
+        } finally {
+            app.maparound.i18n.Units.set(before)
+        }
     }
 
     @Test
