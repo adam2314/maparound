@@ -416,6 +416,26 @@ class MapStyle(
             put("filter", eq("role", "line"))
             put("paint", obj("line-color" to "rgba(20,20,20,0.55)", "line-width" to 1.1))
         },
+        // A line's value along it, upright, every so often: the map places them as it moves, so
+        // they stay in view and don't jump when the grid is made again.
+        layer("grid-line-label", "symbol") {
+            put("source", GRID)
+            put("filter", arr("all", eq("role", "line"), arr("has", "label")))
+            put("layout", obj(
+                "symbol-placement" to "line",
+                "symbol-spacing" to 320,
+                "text-rotation-alignment" to "viewport",
+                "text-field" to arr("get", "label"),
+                "text-font" to arr("Noto Sans Bold"),
+                "text-size" to 11,
+                "text-padding" to 6,
+            ))
+            put("paint", obj(
+                "text-color" to "#1B1B1B",
+                "text-halo-color" to "rgba(255,255,255,0.92)",
+                "text-halo-width" to 1.6,
+            ))
+        },
         layer("grid-label", "symbol") {
             put("source", GRID)
             put("filter", eq("role", "label"))

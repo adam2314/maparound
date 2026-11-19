@@ -57,7 +57,7 @@ class GridFuzzTest {
                 t.isAlive -> problems += "hangs: $format, ${c.name}"
                 error != null -> problems += "throws: $format, ${c.name}: $error"
                 r == null -> problems += "nothing: $format, ${c.name}"
-                r.lines.size > 2 * 40 + 4 || r.labels.size > 400 -> problems += "too much: $format, ${c.name}: ${r.lines.size} lines, ${r.labels.size} labels"
+                r.lines.size > 700 || r.labels.size > 400 -> problems += "too much: $format, ${c.name}: ${r.lines.size} lines, ${r.labels.size} labels"
                 r.lines.any { l -> l.points.any { !it.lat.isFinite() || !it.lon.isFinite() } } -> problems += "not numbers: $format, ${c.name}"
                 ms > 1_000 -> problems += "slow: $format, ${c.name}: ${ms.toInt()} ms"
             }
@@ -73,7 +73,8 @@ class GridFuzzTest {
         val view = MapGrid.View(46.57, 7.9, 49.3, 8.1)
         val g = MapGrid.make(CoordFormat.UTM, view, mpd, c)
         // Lines 110 m apart or so (100 m), not the 50 km the whole view would need.
-        val spans = g.labels.mapNotNull { it.text.toDoubleOrNull() }.sorted().zipWithNext { a, b -> b - a }.filter { it > 0 }
-        assertTrue(g.lines.isNotEmpty() && spans.isNotEmpty() && spans.min() < 0.5, "${g.lines.size} lines, labels ${g.labels.map { it.text }}")
+        val values = g.lines.mapNotNull { it.label?.replace(',', '.')?.toDoubleOrNull() }.distinct().sorted()
+        val spans = values.zipWithNext { a, b -> b - a }.filter { it > 0 }
+        assertTrue(g.lines.isNotEmpty() && spans.isNotEmpty() && spans.min() < 0.5, "${g.lines.size} lines, values $values")
     }
 }

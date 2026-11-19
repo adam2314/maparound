@@ -254,7 +254,9 @@ class MapLibreSurface(
 
     override fun setGrid(grid: MapGrid.Grid?) {
         val features = ArrayList<JsonObject>()
-        grid?.lines?.forEach { l -> GeoJson.line(l.points, mapOf("role" to "line"))?.let(features::add) }
+        grid?.lines?.forEach { l ->
+            GeoJson.line(l.points, if (l.label == null) mapOf("role" to "line") else mapOf("role" to "line", "label" to l.label))?.let(features::add)
+        }
         grid?.labels?.forEach { l -> features += GeoJson.point(l.at.lat, l.at.lon, mapOf("role" to "label", "label" to l.text)) }
         native.setGeoJson(MapStyle.GRID, GeoJson.collection(features))
     }

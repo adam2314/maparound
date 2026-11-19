@@ -228,3 +228,97 @@ class CachedTileTextures(
         fun sha1(s: String): String = MessageDigest.getInstance("SHA-1").digest(s.toByteArray()).joinToString("") { "%02x".format(it) }
     }
 }
+
+/**
+ * [inner]'s pictures with the coordinate grid of [format] drawn on them (the 2D map's grid,
+ * [app.maparound.tools.MapGrid]): it lies on the terrain and hides behind ridges as the map does.
+ * About three lines across a tile, each tile's lines at its own zoom's spacing (finer ones near
+ * by); their values at the tile's top and left edges, cells' codes in their middles.
+ */
+class GridTileTextures(private val inner: TileTextures, private val format: app.maparound.tools.CoordFormat) : TileTextures by inner {
+    private val line = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        style = android.graphics.Paint.Style.STROKE
+        strokeWidth = 2.6f
+        color = 0xB8141414.toInt()
+    }
+    private val text = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = 19f
+        typeface = android.graphics.Typeface.DEFAULT_BOLD
+        color = 0xFF1B1B1B.toInt()
+    }
+    private val halo = android.graphics.Paint(text).apply {
+        style = android.graphics.Paint.Style.STROKE
+        strokeWidth = 4f
+        color = 0xEBFFFFFF.toInt()
+    }
+
+    override fun load(t: TileId): Bitmap? {
+        val picture = inner.load(t) ?: return null
+        val out = if (picture.isMutable) picture else picture.copy(picture.config ?: Bitmap.Config.RGB_565, true).also { picture.recycle() }
+        runCatching { draw(out, t) }.onFailure { Log.w("GridTileTextures", "No grid on $t: ${it.message}") }
+        return out
+    }
+
+    private fun draw(bmp: Bitmap, t: TileId) {
+        val n = 1 shl t.z
+        val w = bmp.width.toFloat()
+        val h = bmp.height.toFloat()
+        fun x(lon: Double) = (((lon + 180) / 360 * n - t.x) * w).toFloat()
+        fun y(lat: Double): Float {
+            val r = Math.toRadians(lat.coerceIn(-85.0511, 85.0511))
+            return (((1 - kotlin.math.ln(kotlin.math.tan(r) + 1 / kotlin.math.cos(r)) / Math.PI) / 2 * n - t.y) * h).toFloat()
+        }
+        val mid = (t.north + t.south) / 2
+        // A little past the tile, so lines run to its edges.
+        val padLat = (t.north - t.south) * 0.05
+        val padLon = (t.east - t.west) * 0.05
+        val view = app.maparound.tools.MapGrid.View(t.south - padLat, t.west - padLon, t.north + padLat, t.east + padLon)
+        // About three lines across: a tile's metres over the grid's spacing in dp.
+        val mpd = TileId.sizeM(t.z, mid) / (3.2 * app.maparound.tools.MapGrid.SPACING_DP)
+        val grid = app.maparound.tools.MapGrid.make(format, view, mpd, app.maparound.routing.GeoPoint(mid, (t.west + t.east) / 2))
+        val canvas = android.graphics.Canvas(bmp)
+        for (l in grid.lines) {
+            if (l.points.size < 2) continue
+            val path = android.graphics.Path()
+            l.points.forEachIndexed { i, p -> if (i == 0) path.moveTo(x(p.lon), y(p.lat)) else path.lineTo(x(p.lon), y(p.lat)) }
+            canvas.drawPath(path, line)
+            val label = l.label ?: continue
+            // Along the top edge for the lines running north-south, the left edge for the others.
+            val first = l.points.first()
+            val last = l.points.last()
+            val upright = kotlin.math.abs(y(first.lat) - y(last.lat)) > kotlin.math.abs(x(first.lon) - x(last.lon))
+            val at = crossing(l.points.map { x(it.lon) to y(it.lat) }, upright, EDGE_PX) ?: continue
+            val tw = text.measureText(label)
+            val lx = if (upright) at - tw / 2 else EDGE_PX
+            val ly = if (upright) EDGE_PX + text.textSize else at + text.textSize / 3
+            if (lx < 0 || lx + tw > w || ly > h) continue
+            canvas.drawText(label, lx, ly, halo)
+            canvas.drawText(label, lx, ly, text)
+        }
+        for (c in grid.labels) {
+            val tw = text.measureText(c.text)
+            val lx = x(c.at.lon) - tw / 2
+            val ly = y(c.at.lat) + text.textSize / 3
+            canvas.drawText(c.text, lx, ly, halo)
+            canvas.drawText(c.text, lx, ly, text)
+        }
+    }
+
+    /** Where the line (pixels) crosses y = [edge] (an upright line: its x there) or x = [edge] (its y); null if it doesn't. */
+    private fun crossing(pts: List<Pair<Float, Float>>, upright: Boolean, edge: Float): Float? {
+        for ((a, b) in pts.zipWithNext()) {
+            val a0 = if (upright) a.second else a.first
+            val a1 = if (upright) a.first else a.second
+            val b0 = if (upright) b.second else b.first
+            val b1 = if (upright) b.first else b.second
+            if ((a0 - edge) * (b0 - edge) <= 0 && a0 != b0) return a1 + (edge - a0) / (b0 - a0) * (b1 - a1)
+        }
+        return null
+    }
+
+    private companion object {
+        /** The values sit this far in from the tile's edge (pixels). */
+        const val EDGE_PX = 6f
+    }
+}
+

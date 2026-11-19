@@ -288,15 +288,18 @@ fun MapScreen(
             controller.setGrid(null)
             return@LaunchedEffect
         }
-        var last: app.maparound.tools.MapGrid.View? = null
+        var grid: app.maparound.tools.MapGrid.Grid? = null
         while (true) {
             val view = controller.visibleBounds()
-            if (view != null && view != last) {
-                last = view
+            if (view != null) {
                 val mpd = controller.metresPerDp()
                 val at = controller.position().let { GeoPoint(it.lat, it.lon) }
-                val grid = withContext(Dispatchers.Default) { app.maparound.tools.MapGrid.make(gridFormat, view, mpd, at) }
-                controller.setGrid(grid)
+                val shown = grid
+                if (shown == null || !app.maparound.tools.MapGrid.fits(shown, gridFormat, view, mpd, at)) {
+                    val made = withContext(Dispatchers.Default) { app.maparound.tools.MapGrid.make(gridFormat, view, mpd, at) }
+                    grid = made
+                    controller.setGrid(made)
+                }
             }
             delay(GRID_CHECK_MS)
         }
@@ -2413,7 +2416,7 @@ private suspend fun regionsWhenRead(): MapRegions? {
 }
 
 /** How often the grid looks whether the view moved. */
-private const val GRID_CHECK_MS = 400L
+private const val GRID_CHECK_MS = 250L
 
 /** Where the map starts the first time: the whole world. */
 private val WORLD_START = MapPos(30.0, 10.0, 3)

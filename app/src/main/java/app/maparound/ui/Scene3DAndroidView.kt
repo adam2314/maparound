@@ -36,6 +36,7 @@ import app.maparound.map.satelliteSource
 import app.maparound.terrain.GeoBounds
 import app.maparound.three.Camera3D
 import app.maparound.three.GlTileTextures
+import app.maparound.three.GridTileTextures
 import java.io.File
 import app.maparound.data.ElevationSources
 import app.maparound.three.OnlineRelief
@@ -69,6 +70,10 @@ fun Scene3DAndroidView(args: Scene3DViewArgs) {
             terrainVersion = terrain.version
         }
     }
+    // The coordinate grid is drawn into the map's pictures: turning it on or off, or another format, rebuilds the view.
+    val showGrid = AppGraph.prefs.showGrid.collectAsState().value
+    val gridFormat = AppGraph.prefs.coordFormat.collectAsState().value
+    val grid = gridFormat.takeIf { showGrid }
     // Elevation around the camera, fetched as the view moves; cells that didn't come aren't asked again.
     val tried = remember { HashSet<Pair<Int, Int>>() }
 
@@ -102,7 +107,7 @@ fun Scene3DAndroidView(args: Scene3DViewArgs) {
         }
         // The engine reads the relief that's there now; what the view shows first loads.
         args.onPreparing(T.map.loadingRelief)
-        val e3 = makeEngine(context, args.satellite)
+        val e3 = makeEngine(context, args.satellite, grid)
         first.engine = e3
         val plan = e3.engine.prepareIntro(args.camera, size.width.toFloat() / size.height, args.exaggeration, args.buildings)
         val since = System.currentTimeMillis()
@@ -155,11 +160,11 @@ fun Scene3DAndroidView(args: Scene3DViewArgs) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     Box(args.modifier.onSizeChanged { size = it }) {
-    if (ready) key(terrainVersion) {
+    if (ready) key(terrainVersion, grid) {
         AndroidView(
             factory = { ctx ->
                 // The engine that loaded the first view, else a new one (a rebuild, satellite on/off).
-                val e3 = first.engine?.also { first.engine = null } ?: makeEngine(ctx, args.satellite)
+                val e3 = first.engine?.also { first.engine = null } ?: makeEngine(ctx, args.satellite, grid)
                 // A rebuild (new elevation data) carries on where the view was, without the intro.
                 val start = lastCamera
                 Scene3DView(ctx, start ?: args.camera, e3.engine, intro = args.intro && start == null).also {
@@ -199,7 +204,7 @@ private class FirstEngine {
  * The 3D view's engine, drawing the map as the 2D map does: an online layer, or the offline maps
  * with their style, background (satellite / raster map) and trails; the 3D button's satellite instead.
  */
-private fun makeEngine(ctx: Context, satellite: Boolean): Engine3D {
+private fun makeEngine(ctx: Context, satellite: Boolean, grid: app.maparound.tools.CoordFormat?): Engine3D {
     val prefs = AppGraph.prefs
     val online = if (satellite) satelliteSource else TileSources.find(prefs.baseLayer.value, prefs.customSources.value)
     val maps = AppGraph.mapFiles.files.value
@@ -234,10 +239,12 @@ private fun makeEngine(ctx: Context, satellite: Boolean): Engine3D {
     }
     val drawn = GlTileTextures(ctx, style, maxZoom)
     // Kept on disk by style (its tiles' addresses carry their data's version): seen before, shown at once.
+    val pictures = if (worldStyle == null) drawn else FallbackTileTextures(drawn) { GlTileTextures.createFrom(ctx, worldStyle, maxZoom) }
+    // The grid on them, as on the 2D map (kept apart from pictures without it).
     val textures = CachedTileTextures(
-        if (worldStyle == null) drawn else FallbackTileTextures(drawn) { GlTileTextures.createFrom(ctx, worldStyle, maxZoom) },
+        if (grid == null) pictures else GridTileTextures(pictures, grid),
         File(ctx.cacheDir, "3d-pictures"),
-        style + "\n" + worldStyle.orEmpty(),
+        style + "\n" + worldStyle.orEmpty() + "\ngrid=" + grid?.name.orEmpty() + GRID_DRAWING,
         incomplete = { GlTiles.incompleteTiles },
     )
     // Relief where no elevation has been downloaded: the 3D relief source (Settings → Sources).
@@ -253,6 +260,9 @@ private fun makeEngine(ctx: Context, satellite: Boolean): Engine3D {
  * holes, then for that view's finest tiles.
  */
 private const val RELIEF_WAIT_MS = 20_000L
+
+/** Changes when the grid is drawn differently, so pictures kept with the old drawing aren't used. */
+private const val GRID_DRAWING = "/2"
 private const val TILES_WAIT_MS = 8_000L
 private const val FINE_WAIT_MS = 1_500L
 

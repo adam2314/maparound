@@ -308,8 +308,16 @@ internal data class Utm(val zone: Int, val band: Char, val easting: Double, val 
 
         /** UTM covers 80°S–84°N (the poles use UPS, not supported). */
         fun from(p: GeoPoint): Utm? {
-            if (p.lat < -80 || p.lat > 84) return null
+            val zone = zoneOf(p) ?: return null
             val lon = if (p.lon >= 180) p.lon - 360 else p.lon
+            val (e, n) = tm(zone, p.lat >= 0).forward(p.lat, lon)
+            return Utm(zone, bandOf(p.lat), e, n)
+        }
+
+        /** The zone [p] is in (with Norway's and Svalbard's exceptions), or null outside 80°S–84°N. */
+        fun zoneOf(p: GeoPoint): Int? {
+            if (!(p.lat >= -80 && p.lat <= 84)) return null
+            val lon = ((p.lon + 180) % 360 + 360) % 360 - 180
             var zone = floor((lon + 180) / 6).toInt() + 1
             // Norway and Svalbard exceptions.
             if (p.lat >= 56 && p.lat < 64 && lon >= 3 && lon < 12) zone = 32
@@ -320,9 +328,7 @@ internal data class Utm(val zone: Int, val band: Char, val easting: Double, val 
                 lon >= 33 && lon < 42 -> 37
                 else -> zone
             }
-            zone = zone.coerceIn(1, 60)
-            val (e, n) = tm(zone, p.lat >= 0).forward(p.lat, lon)
-            return Utm(zone, bandOf(p.lat), e, n)
+            return zone.coerceIn(1, 60)
         }
 
         private val pattern = Regex("""^(\d{1,2})\s*([C-HJ-NP-X])[\s,]*(\d{1,7}(?:\.\d+)?)\s*(?:M?E)?[\s,]+(\d{1,8}(?:\.\d+)?)\s*(?:M?N)?$""")

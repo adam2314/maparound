@@ -147,6 +147,14 @@
   centre, at its scale's spacing. Projected grids stay where they apply (UTM to within reach of
   its zone). A grid's lines are counted out, so nothing can run on. A test now runs every grid
   over hundreds of views: tilted, zoomed in to 24, the poles, the date line, the world.
+- **The grid holds still and is the same in 2D and 3D.**
+  - **While you pan:** the spacing follows the zoom alone, and a grid covers more than the
+    screen, so small moves keep the same lines. The values are written along the lines, where
+    the map keeps them in place, instead of at the screen's edge, where they jumped.
+  - **UTM zone borders:** each zone's grid runs to its own border, so crossing one shows both
+    instead of a jump. Zoomed out over many zones, the zones and bands themselves ("32T").
+  - **3D on Android:** the grid is drawn into the map on the terrain, hiding behind ridges as
+    the map does. Turning it on or off, or another format, redraws the 3D view where it is.
 - **The scale is a line in the corner again**, as before the zoom slider: in the top corner away
   from the buttons, one round distance above the line, in the distance unit chosen only (km and
   m; miles, and feet close in; nautical miles), with a tick at each end, black on a white halo. The zoom slider keeps a plain thumb. The
