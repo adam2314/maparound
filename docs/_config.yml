@@ -19,6 +19,7 @@ include:
 exclude:
   - IOS_PLAN.md
   - WATCH_PLAN.md
+  - LINK_PROTOCOL.md
   - "store/*.mp4"
 # The Android beta's testers group on Google Groups (beta.md, he/beta.md): joining it, then opting in
 # on Google Play, is how testers get the closed test.
