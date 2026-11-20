@@ -134,6 +134,31 @@
   country where it doesn't reach is drawn in degrees.
 
 ### The party
+- **The party speaks a new language, Link v1** (on Android and the web). A position is 32 bytes
+  instead of 54, so more of them fit a LoRa radio's airtime. **It doesn't speak the old one:**
+  everyone in a party needs this version (the same invite still works). Not yet tried between real
+  phones and radios.
+- **Positions go when they say something new.** From your speed and heading the others' phones
+  carry your marker on; yours sends a position when that guess is off (by 15 m online, as it
+  starts), when you stop or start, when a good fix comes back, and at least every minute (on the
+  radio, every 10), with the way you went since the last one. The pace follows a mode chosen by
+  itself:
+  - **Live**, faster, near another member or the meeting point, in an SOS, or moving while
+    charging;
+  - **Saver**, slower, on a low battery, after 10 minutes standing still, or with no one heard
+    for half an hour;
+  - **Normal** otherwise, a step down when the radio's channel is busy.
+- **Easier on the battery with the screen off.** The party wakes only when something is due
+  instead of every second, takes a GPS fix as often as its mode needs (every 2 s in Live, 5 s
+  moving in Normal, 20 s standing still, none while you're hidden and not in an SOS), and pings
+  the server only when nothing else has gone to it.
+- **Back online, at once.** When the network returns, it reconnects straight away (a growing pause
+  only while the server can't be reached) and sends your name, position and SOS. A meeting point
+  set while offline reaches the server then, as does one the server lost.
+- **An invite can carry several servers**: members connect to all of them, and a phone on two of
+  them joins those on either.
+- On Android, the party reaches the servers over secure WebSockets, as the web app does.
+- For now, members' ways so far (History) aren't kept once the app closes.
 - **Only a real GPS fix goes on the map.** A position less exact than ±20 m (a phone indoors or
   just started, going by Wi-Fi or cell towers) no longer moves a member's marker or goes in their
   history, so it doesn't jump hundreds of metres. It still shows they're there: the members list

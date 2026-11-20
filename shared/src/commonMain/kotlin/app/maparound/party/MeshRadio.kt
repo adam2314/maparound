@@ -37,6 +37,23 @@ interface RadioLinks {
 class RadioUnknown : Exception()
 
 /**
+ * A Meshtastic radio as the party uses it, whatever carries it (the web: [MeshRadio] over Web
+ * Bluetooth; Android: its own Bluetooth code). It tells its [MeshRadio.Listener] what happens.
+ */
+interface PartyRadio {
+    fun start()
+    fun stop()
+
+    /** Broadcasts a party packet (PRIVATE_APP, primary channel). */
+    fun send(payload: ByteArray)
+}
+
+/** The platform's radios: the one at [address] ([name] for the screens), or null when it can't (no permission). */
+fun interface PartyRadios {
+    fun open(address: String, name: String, listener: MeshRadio.Listener): PartyRadio?
+}
+
+/**
  * The party's LoRa radio, shared by the apps that reach it through [RadioLinks] (the web app;
  * Android has MeshtasticTransport): starts a session (want_config), reads what the radio says until
  * it's empty, and again when it says there's more; MapAround's encrypted party packets go out as
@@ -49,7 +66,7 @@ class MeshRadio(
     private val name: String,
     private val listener: Listener,
     private val scope: CoroutineScope,
-) {
+) : PartyRadio {
     interface Listener {
         fun onStatus(status: TransportStatus)
         fun onMyNode(num: Long)
@@ -67,13 +84,13 @@ class MeshRadio(
 
     val isReady: Boolean get() = configured
 
-    fun start() {
+    override fun start() {
         if (!stopped) return
         stopped = false
         connect()
     }
 
-    fun stop() {
+    override fun stop() {
         stopped = true
         job?.cancel()
         job = null
@@ -82,7 +99,7 @@ class MeshRadio(
     }
 
     /** Broadcasts a MapAround party packet over LoRa; queued (the last 10) while (re)connecting. */
-    fun send(payload: ByteArray) {
+    override fun send(payload: ByteArray) {
         val packet = Mesh.sendPacket(payload, Mesh.PORT_PRIVATE, Random.nextInt())
         if (!configured) {
             if (outbox.size >= 10) outbox.removeFirst()

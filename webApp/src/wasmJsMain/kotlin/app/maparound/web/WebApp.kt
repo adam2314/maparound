@@ -3,7 +3,9 @@ package app.maparound.web
 import app.maparound.sources.SourceKind
 import app.maparound.sources.Sources
 import app.maparound.i18n.Units
-import app.maparound.party.OnlineParty
+import app.maparound.party.MeshRadio
+import app.maparound.party.PartyRadios
+import app.maparound.party.link.LinkSession
 import app.maparound.terrain.DemIndex
 import app.maparound.data.MapAroundCatalog
 import app.maparound.data.OfflineData
@@ -38,6 +40,7 @@ import app.maparound.shared.toUint8Array
 import app.maparound.shared.util.urlEncode
 import app.maparound.tools.ToolsSession
 import app.maparound.tracks.TrackRepository
+import kotlinx.coroutines.MainScope
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.double
 import kotlinx.serialization.json.jsonArray
@@ -85,11 +88,12 @@ class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: Str
     val tracks = TrackRepository(WebFiles.ROOT, store("tracks"))
     val sensors = WebSensors()
 
-    /** The party: online, and a LoRa radio where the browser has Bluetooth; our position from the browser's (WebParty.kt). */
-    val party = OnlineParty(
-        store("party"), WebMqttSockets, locations = { sensors.locations() }, battery = { WebBattery.level },
-        radios = WebRadios.takeIf { it.available },
-        historyPath = "${WebFiles.ROOT}/party/history.bin",
+    /** The party (Link v1): online, and a LoRa radio where the browser has Bluetooth; our position from the browser's (WebParty.kt). */
+    val party = LinkSession(
+        store("party"), WebMqttSockets,
+        radios = if (WebRadios.available) PartyRadios { address, name, listener -> MeshRadio(WebRadios, address, name, listener, MainScope()) } else null,
+        battery = { WebBattery.level },
+        locations = { sensors.locations() },
     )
     val searcher = WebSearcher(places, maps)
 
@@ -176,7 +180,6 @@ class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: Str
      */
     fun onHide() {
         map?.let { prefs.saveLastPosition(it.position()) }
-        party.saveHistory()
         WebFiles.flush()
     }
 

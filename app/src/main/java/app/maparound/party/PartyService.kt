@@ -11,6 +11,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.location.Location
+import android.net.ConnectivityManager
+import android.net.Network
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Build
@@ -34,23 +36,24 @@ import kotlinx.coroutines.launch
 
 /**
  * Keeps party sharing alive with the screen off: a location foreground service that feeds GPS
- * fixes to [PartySession] and keeps its transports (MQTT, Bluetooth radio) running.
+ * fixes to [PartySession] (as often as its mode needs) and keeps its connections running.
  */
 class PartyService : Service() {
     private val main = Handler(Looper.getMainLooper())
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var listener: LocationListener? = null
-    private val ticker = object : Runnable {
-        override fun run() {
-            PartySession.tick()
-            main.postDelayed(this, 15_000)
-        }
-    }
+    private var network: ConnectivityManager.NetworkCallback? = null
+    /** The fix interval asked for now (null: none). */
+    private var asked: Long? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (listener != null) return START_STICKY
+        // Started again before it stopped (a party left, another joined): connect the new one.
+        if (listener != null) {
+            PartySession.attach()
+            return START_STICKY
+        }
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             stopSelf()
             return START_NOT_STICKY
@@ -67,7 +70,9 @@ class PartyService : Service() {
         }
         PartySession.attach()
         startLocation()
-        main.postDelayed(ticker, 5_000)
+        watchNetwork()
+        // The session ticks itself, when something is due; GPS as often as its mode needs (none when hidden).
+        scope.launch { PartySession.fixEveryMs.collect(::askForFixes) }
         scope.launch {
             PartySession.state
                 .map { s -> summary(s) }
@@ -89,12 +94,40 @@ class PartyService : Service() {
             override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) = Unit
         }
         listener = l
+        askForFixes(PartySession.fixEveryMs.value)
+    }
+
+    /**
+     * Fixes every [everyMs] (no minimum distance: standing still, a fresh fix still says where I
+     * am), or none.
+     */
+    @SuppressLint("MissingPermission")
+    private fun askForFixes(everyMs: Long?) {
+        val l = listener ?: return
+        if (everyMs == asked) return
+        asked = everyMs
+        val lm = getSystemService(LocationManager::class.java)
+        lm.removeUpdates(l)
+        if (everyMs == null) return
         for (p in listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)) {
-            if (p in lm.allProviders) runCatching { lm.requestLocationUpdates(p, 2_000L, 3f, l, Looper.getMainLooper()) }
+            if (p in lm.allProviders) runCatching { lm.requestLocationUpdates(p, everyMs, 0f, l, Looper.getMainLooper()) }
         }
     }
 
+    /** The servers being waited for are tried as soon as the network is back. */
+    private fun watchNetwork() {
+        val cm = getSystemService(ConnectivityManager::class.java) ?: return
+        val cb = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                main.post { PartySession.networkBack() }
+            }
+        }
+        if (runCatching { cm.registerDefaultNetworkCallback(cb) }.isSuccess) network = cb
+    }
+
     override fun onDestroy() {
+        network?.let { cb -> runCatching { getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(cb) } }
+        network = null
         listener?.let { getSystemService(LocationManager::class.java).removeUpdates(it) }
         listener = null
         main.removeCallbacksAndMessages(null)

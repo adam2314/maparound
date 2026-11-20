@@ -32,14 +32,8 @@ import kotlin.random.Random
 class MeshtasticTransport(
     private val context: Context,
     private val address: String,
-    private val listener: Listener,
-) {
-    interface Listener {
-        fun onStatus(status: TransportStatus)
-        fun onMyNode(num: Long)
-        fun onPartyPacket(payload: ByteArray)
-        fun onNode(num: Long, longName: String?, shortName: String?, position: Mesh.Position?)
-    }
+    private val listener: MeshRadio.Listener,
+) : PartyRadio {
 
     private val main = Handler(Looper.getMainLooper())
     private val adapter = context.getSystemService(BluetoothManager::class.java)?.adapter
@@ -59,13 +53,13 @@ class MeshtasticTransport(
 
     val isReady: Boolean get() = configured
 
-    fun start() {
+    override fun start() {
         if (!stopped) return
         stopped = false
         connect()
     }
 
-    fun stop() {
+    override fun stop() {
         stopped = true
         main.removeCallbacksAndMessages(null)
         bondReceiver?.let { runCatching { context.unregisterReceiver(it) } }
@@ -75,13 +69,15 @@ class MeshtasticTransport(
     }
 
     /** Broadcasts a MapAround party packet over LoRa. Queued while (re)connecting. */
-    fun send(payload: ByteArray) = main.post {
-        val packet = Mesh.sendPacket(payload, Mesh.PORT_PRIVATE, Random.nextInt())
-        if (!configured) {
-            if (outbox.size >= 10) outbox.removeFirst()
-            outbox.addLast(packet)
-        } else {
-            enqueue { write(toRadio!!, packet) }
+    override fun send(payload: ByteArray) {
+        main.post {
+            val packet = Mesh.sendPacket(payload, Mesh.PORT_PRIVATE, Random.nextInt())
+            if (!configured) {
+                if (outbox.size >= 10) outbox.removeFirst()
+                outbox.addLast(packet)
+            } else {
+                enqueue { write(toRadio!!, packet) }
+            }
         }
     }
 

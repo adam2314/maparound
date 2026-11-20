@@ -22,7 +22,7 @@ import app.maparound.shared.toUint8Array
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 
-// The party in the web app is the shared OnlineParty: a full member online, and over a LoRa radio
+// The party in the web app is the shared LinkSession (Link v1): a full member online, and over a LoRa radio
 // where the browser has Bluetooth (WebRadio.kt). Here are the browser's parts: its WebSocket, the
 // battery level, notifications, the invite's QR code and the radio picker.
 

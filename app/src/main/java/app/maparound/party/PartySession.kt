@@ -7,451 +7,132 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.location.Location
-import app.maparound.sensors.toGeoFix
 import android.os.BatteryManager
-import android.os.Handler
-import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import app.maparound.MainActivity
 import app.maparound.R
+import app.maparound.data.SharedPrefsStore
 import app.maparound.i18n.T
+import app.maparound.party.link.LinkSession
+import app.maparound.sensors.toGeoFix
+import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
-import java.security.SecureRandom
+import kotlinx.coroutines.launch
 
 /**
- * The party the user is in, and everything that moves its packets: online (MQTT) and LoRa
- * (Meshtastic radio). Lives for the whole process; [PartyService] keeps it running with the
- * screen off. All state changes happen on the main thread.
+ * The party on Android: the shared [LinkSession] (Link v1), with Android's parts. MQTT over
+ * OkHttp's WebSockets, the Meshtastic radio over Bluetooth ([MeshtasticTransport]), and the
+ * battery. [PartyService] runs it with the screen off. It also posts the notifications (SOS,
+ * messages, meeting point). Lives for the whole process; everything happens on the main thread.
  */
 @SuppressLint("StaticFieldLeak") // holds the application context only
 object PartySession : PartyController {
+    private lateinit var app: Context
+    private lateinit var session: LinkSession
+    private val scope = MainScope()
 
-    private val _state = MutableStateFlow(PartyState())
-
-    /** The last fix from the service, as Android gives it (speed, bearing… for sending). */
-    private var lastLocation: Location? = null
-    override val state: StateFlow<PartyState> = _state.asStateFlow()
+    override val state: StateFlow<PartyState> get() = session.state
     private val _events = MutableSharedFlow<PartyEvent>(extraBufferCapacity = 16)
     override val events: SharedFlow<PartyEvent> = _events.asSharedFlow()
-
-    /** A party link opened from outside the app, waiting for the user to confirm joining. */
-    override val pendingInvite = MutableStateFlow<PartyKey?>(null)
-
-    private val main = Handler(Looper.getMainLooper())
-    private lateinit var app: Context
-    private val prefs by lazy { app.getSharedPreferences("party", Context.MODE_PRIVATE) }
-    private var engine: PartyEngine? = null
-    private var mqtt: MqttTransport? = null
-    private var radio: MeshtasticTransport? = null
-    private var seq = 0L
-    private var seqReserved = 0L
-    private val lastSent = HashMap<Via, SendPolicy.Last>()
-    private val lastHello = HashMap<Via, Long>()
-
-    /** The members' positions so far, kept in the app's files between runs. */
-    private val historyFile by lazy { PartyHistoryFile(java.io.File(app.filesDir, "party/history.bin").path) }
-
-    // ---- setup --------------------------------------------------------------------------------
+    override val pendingInvite: MutableStateFlow<PartyKey?> get() = session.pendingInvite
 
     fun init(context: Context) {
         app = context.applicationContext
-        val key = prefs.getString("link", null)?.let(PartyKey::parse)
-        if (key != null) {
-            val me = PartyMe(prefs.getInt("my_id", 0), prefs.getString("my_name", "")!!, myColor(), prefs.getInt("my_icon", 0))
-            engine = PartyEngine(key, me.id, history = historyFile.load(key))
-            seq = prefs.getLong("seq", 0)
-            reserveSeq()
-            _state.value = PartyState(
-                party = key, me = me,
-                sharing = prefs.getBoolean("sharing", true),
-                onlineEnabled = prefs.getBoolean("online", true),
-                radioName = prefs.getString("radio_name", null),
-                gateway = prefs.getBoolean("gateway", true),
-                mySos = false,
-            )
+        val store = SharedPrefsStore(app, "party")
+        upgrade(store.sp)
+        session = LinkSession(
+            store,
+            OkHttpMqttSockets,
+            radios = { address, _, listener -> if (hasBluetoothPermission()) MeshtasticTransport(app, address, listener) else null },
+            battery = ::battery,
+            charging = ::charging,
+            service = { on ->
+                val intent = Intent(app, PartyService::class.java)
+                runCatching { if (on) ContextCompat.startForegroundService(app, intent) else app.stopService(intent) }
+            },
+            scope = scope,
+        )
+        scope.launch {
+            session.events.collect {
+                _events.emit(it)
+                notifyIfNeeded(it)
+            }
         }
-        _state.value = _state.value.copy(look = keptLook())
     }
 
-    /** My name, colour and icon as kept (also outside a party); null before they were ever set. */
-    private fun keptLook(): PartyMe? =
-        if (!prefs.contains("my_name") && !prefs.contains("my_rgb") && !prefs.contains("my_color")) null
-        else PartyMe(0, prefs.getString("my_name", "").orEmpty(), myColor(), prefs.getInt("my_icon", 0))
+    /** The settings as the versions before Link v1 kept them, as they're kept now. */
+    private fun upgrade(sp: SharedPreferences) = sp.edit {
+        if (sp.contains("radio_address") && !sp.contains("radio_id")) putString("radio_id", sp.getString("radio_address", null))
+        // The first versions kept an index into PartyPalette.LEGACY.
+        if (sp.contains("my_color") && !sp.contains("my_rgb")) putInt("my_rgb", PartyPalette.legacy(sp.getInt("my_color", 0)))
+        remove("radio_address")
+        remove("my_color")
+        remove("seq")
+    }
 
     /**
-     * Called when the app's UI starts: if sharing was on when the app was closed, carry on.
+     * Called when the app's UI starts: if the party was on when the app was closed, carry on.
      * (Not from Application.onCreate: a foreground service may not be started from the background.)
      */
-    fun resumeIfWasActive() {
-        if (engine != null && prefs.getBoolean("active", false) && !_state.value.active) setActive(true)
-    }
+    fun resumeIfWasActive() = session.resumeIfWasActive()
 
-    override fun create(partyName: String, myName: String) = join(PartyKey.create(partyName, defaultServer), myName)
+    override val hasRadio: Boolean get() = true
+    override val defaultServer: String? get() = session.defaultServer
 
-    override val defaultServer: String? get() = prefs.getString("server", null)
-
-    override fun setServer(server: String?) {
-        prefs.edit { if (server == null) remove("server") else putString("server", server) }
-        val key = _state.value.party?.withServer(server) ?: return
-        prefs.edit { putString("link", key.toLink()) }
-        update { it.copy(party = key) }
-        if (_state.value.active) restartTransports()
-    }
-
-    override fun join(key: PartyKey, myName: String) {
-        leaveSilently()
-        // A new id per party; the look (icon, colour) carries over from the last one.
-        val me = PartyMe(
-            SecureRandom().nextInt().let { if (it == 0) 1 else it }, myName.trim().ifEmpty { T.party.defaultMyName },
-            if (prefs.contains("my_rgb") || prefs.contains("my_color")) myColor() else PartyPalette.PRESETS.random(),
-            prefs.getInt("my_icon", 0),
-        )
-        prefs.edit {
-            putString("link", key.toLink())
-            putInt("my_id", me.id)
-            putString("my_name", me.name)
-            putInt("my_rgb", me.color)
-            putLong("seq", 1)
-        }
-        seq = 1
-        reserveSeq()
-        historyFile.delete()
-        engine = PartyEngine(key, me.id)
-        lastSent.clear()
-        lastHello.clear()
-        _state.value = _state.value.copy(party = key, me = me, look = me, members = emptyList(), meshNodes = emptyList(), meeting = null, chat = emptyList(), mySos = false)
-        setActive(true)
-    }
-
-    /** Tells the others, clears our retained state on the broker, stops sharing. */
-    override fun leave() {
-        val e = engine ?: return
-        sendNow(PartyMessage.Leave, transports())
-        // Empty retained messages delete our last position/name/alerts from the broker.
-        val me = hex(e.myId)
-        mqtt?.let { m -> listOf("pos", "hello", "sos", "meet").forEach { m.publish(me, it, ByteArray(0), retained = true) } }
-        main.postDelayed({ leaveSilently() }, 1500)
-    }
-
-    private fun leaveSilently() {
-        setActive(false)
-        engine = null
-        historyFile.delete()
-        prefs.edit { remove("link"); putBoolean("active", false) }
-        _state.value = PartyState(onlineEnabled = _state.value.onlineEnabled, radioName = _state.value.radioName, gateway = _state.value.gateway, look = _state.value.look)
-    }
-
-    /** Starts/stops [PartyService] (sending and receiving). */
-    override fun setActive(on: Boolean) {
-        if (on && engine == null) return
-        prefs.edit { putBoolean("active", on) }
-        val intent = Intent(app, PartyService::class.java)
-        runCatching { if (on) ContextCompat.startForegroundService(app, intent) else app.stopService(intent) }
-    }
-
-    override fun setSharing(on: Boolean) {
-        prefs.edit { putBoolean("sharing", on) }
-        update { it.copy(sharing = on) }
-        if (on) lastSent.clear() // send soon
-    }
-
-    override fun setProfile(name: String, color: Int, icon: Int) {
-        val me = _state.value.me
-        val was = me ?: _state.value.look ?: PartyMe(0, "", color, icon)
-        val updated = was.copy(name = name.trim().ifEmpty { was.name }, color = color, icon = icon)
-        prefs.edit { putString("my_name", updated.name); putInt("my_rgb", updated.color); putInt("my_icon", updated.icon) }
-        if (me == null) {
-            update { it.copy(look = updated) }
-            return
-        }
-        update { it.copy(me = updated, look = updated) }
-        sendHello(force = true)
-    }
-
-    /** My colour (ARGB); the first versions kept an index into [PartyPalette.LEGACY]. */
-    private fun myColor(): Int =
-        if (prefs.contains("my_rgb")) prefs.getInt("my_rgb", PartyPalette.LEGACY[0]) else PartyPalette.legacy(prefs.getInt("my_color", 0))
-
-    override fun setOnlineEnabled(on: Boolean) {
-        prefs.edit { putBoolean("online", on) }
-        update { it.copy(onlineEnabled = on) }
-        if (_state.value.active) restartTransports()
-    }
-
-    override fun setGateway(on: Boolean) {
-        prefs.edit { putBoolean("gateway", on) }
-        update { it.copy(gateway = on) }
-    }
-
-    override fun setRadio(address: String, name: String) {
-        prefs.edit { putString("radio_address", address); putString("radio_name", name) }
-        update { it.copy(radioName = name) }
-        if (_state.value.active) restartTransports()
-    }
-
-    override fun forgetRadio() {
-        prefs.edit { remove("radio_address"); remove("radio_name") }
-        radio?.stop()
-        radio = null
-        update { it.copy(radioName = null, radio = TransportStatus(TransportStatus.State.OFF)) }
-    }
-
-    // ---- actions --------------------------------------------------------------------------------
-
-    override fun sos(active: Boolean, text: String) {
-        update { it.copy(mySos = active) }
-        sendNow(PartyMessage.Sos(active, text), transports())
-        lastSent.clear() // positions with the SOS flag go out right away
-        lastLocation?.let { onLocation(it) }
-    }
-
-    override fun setMeeting(lat: Double, lon: Double, label: String) = sendNow(PartyMessage.Meet(lat, lon, label), transports())
-
-    override fun clearMeeting() = sendNow(PartyMessage.Meet(0.0, 0.0, ""), transports())
-
-    override fun sendText(text: String) {
-        if (text.isBlank()) return
-        sendNow(PartyMessage.Text(text.trim()), transports())
-    }
+    override fun create(partyName: String, myName: String) = session.create(partyName, myName)
+    override fun join(key: PartyKey, myName: String) = session.join(key, myName)
+    override fun setServer(server: String?) = session.setServer(server)
+    override fun leave() = session.leave()
+    override fun setActive(on: Boolean) = session.setActive(on)
+    override fun setSharing(on: Boolean) = session.setSharing(on)
+    override fun setProfile(name: String, color: Int, icon: Int) = session.setProfile(name, color, icon)
+    override fun setOnlineEnabled(on: Boolean) = session.setOnlineEnabled(on)
+    override fun setGateway(on: Boolean) = session.setGateway(on)
+    override fun setRadio(address: String, name: String) = session.setRadio(address, name)
+    override fun forgetRadio() = session.forgetRadio()
+    override fun sos(active: Boolean, text: String) = session.sos(active, text)
+    override fun setMeeting(lat: Double, lon: Double, label: String) = session.setMeeting(lat, lon, label)
+    override fun clearMeeting() = session.clearMeeting()
+    override fun sendText(text: String) = session.sendText(text)
+    override fun history(member: Int): List<HistoryPoint> = session.history(member)
 
     // ---- service hooks ----------------------------------------------------------------------------
 
-    internal fun attach() {
-        update { it.copy(active = true) }
-        restartTransports()
-    }
+    internal fun attach() = session.attach()
 
-    internal fun detach() {
-        saveHistory(force = true)
-        mqtt?.stop()
-        mqtt = null
-        radio?.stop()
-        radio = null
-        update {
-            it.copy(active = false, online = TransportStatus(TransportStatus.State.OFF), radio = TransportStatus(TransportStatus.State.OFF))
-        }
-    }
+    internal fun detach() = session.detach()
 
-    /** Our own position (from the service). Sends it on each transport when due. */
-    internal fun onLocation(location: Location) {
-        lastLocation = location
-        update { it.copy(myPosition = location.toGeoFix()) }
-        if (engine == null) return
-        val s = _state.value
-        if (!s.sharing && !s.mySos) return
-        val now = System.currentTimeMillis()
-        val speedKmh = if (location.hasSpeed()) location.speed * 3.6 else 0.0
-        val due = transports().filter { via ->
-            SendPolicy.due(via, lastSent[via], now, location.latitude, location.longitude, speedKmh, s.mySos)
-        }.toSet()
-        if (due.isEmpty()) return
-        val msg = PartyMessage.Position(
-            lat = location.latitude,
-            lon = location.longitude,
-            altM = if (location.hasAltitude()) location.altitude.toInt() else null,
-            accuracyM = if (location.hasAccuracy()) location.accuracy.toInt() else null,
-            speedKmh = if (location.hasSpeed()) speedKmh.toInt() else null,
-            headingDeg = if (location.hasBearing() && speedKmh > 2) location.bearing.toInt() else null,
-            batteryPct = battery(),
-            sos = s.mySos,
-            driving = speedKmh >= SendPolicy.DRIVING_KMH,
-        )
-        sendNow(msg, due)
-        due.forEach { lastSent[it] = SendPolicy.Last(now, location.latitude, location.longitude) }
-    }
+    internal fun onLocation(location: Location) = session.onFix(location.toGeoFix())
 
-    /** Every few seconds from the service: hellos, and positions when standing still. */
-    internal fun tick() {
-        sendHello(force = false)
-        lastLocation?.let { onLocation(it) }
-        refresh()
-        saveHistory(force = false)
-    }
+    /** How often the service should take a fix (null: none needed). */
+    internal val fixEveryMs: StateFlow<Long?> get() = session.fixEveryMs
 
-    /** The members' positions so far into their file: at most every minute, or now ([force]). */
-    internal fun saveHistory(force: Boolean) {
-        val e = engine ?: return
-        historyFile.save(e.history, e.key, System.currentTimeMillis(), force)
-    }
+    internal fun networkBack() = session.networkBack()
 
-    override fun history(member: Int): List<HistoryPoint> = engine?.history?.of(member).orEmpty()
-
-    // ---- transports --------------------------------------------------------------------------------
-
-    private fun transports(): Set<Via> = buildSet {
-        if (mqtt?.isConnected == true) add(Via.ONLINE)
-        if (radio?.isReady == true) add(Via.LORA)
-    }
-
-    private fun restartTransports() {
-        val e = engine ?: return
-        mqtt?.stop()
-        mqtt = null
-        radio?.stop()
-        radio = null
-        if (_state.value.onlineEnabled) {
-            mqtt = MqttTransport(
-                e.key.tagHex,
-                // The party's own server (over WebSockets, as the web app reaches it), else the public ones.
-                brokers = PartyRelays.apps(_state.value.party?.server),
-                onPacket = { bytes -> main.post { onPacket(bytes, Via.ONLINE) } },
-                onStatus = { st ->
-                    main.post {
-                        update { it.copy(online = st) }
-                        if (st.state == TransportStatus.State.CONNECTED) {
-                            lastHello.remove(Via.ONLINE)
-                            lastSent.remove(Via.ONLINE)
-                            sendHello(force = false)
-                        }
-                    }
-                },
-            ).also { it.start() }
-        } else {
-            update { it.copy(online = TransportStatus(TransportStatus.State.OFF)) }
-        }
-        val address = prefs.getString("radio_address", null)
-        if (address != null && hasBluetoothPermission()) {
-            radio = MeshtasticTransport(app, address, object : MeshtasticTransport.Listener {
-                override fun onStatus(status: TransportStatus) {
-                    update { it.copy(radio = status) }
-                    if (status.state == TransportStatus.State.CONNECTED) {
-                        lastHello.remove(Via.LORA)
-                        lastSent.remove(Via.LORA)
-                        sendHello(force = false)
-                    }
-                }
-
-                override fun onMyNode(num: Long) {
-                    engine?.myMeshNode = num
-                }
-
-                override fun onPartyPacket(payload: ByteArray) = onPacket(payload, Via.LORA)
-
-                override fun onNode(num: Long, longName: String?, shortName: String?, position: Mesh.Position?) {
-                    engine?.meshNode(num, longName, shortName, position)
-                    refresh()
-                }
-            }).also { it.start() }
-        } else if (address != null) {
-            update { it.copy(radio = TransportStatus(TransportStatus.State.ERROR, T.party.bluetoothPermissionNeeded)) }
-        }
-    }
-
-    private fun onPacket(bytes: ByteArray, via: Via) {
-        val e = engine ?: return
-        val accepted = e.receive(bytes, via) ?: run { refresh(); return }
-        // Gateway: relay to the other transport, so radio-only and online-only members meet.
-        if (_state.value.gateway) {
-            for (to in transports()) {
-                if (e.shouldForward(accepted, via, to)) forwardRaw(bytes, accepted, to)
-            }
-        }
-        for (ev in accepted.events) {
-            _events.tryEmit(ev)
-            notifyIfNeeded(ev)
-            if (ev is PartyEvent.Joined) sendHello(force = false, reply = true) // introduce ourselves
-        }
-        refresh()
-    }
-
-    private fun forwardRaw(bytes: ByteArray, accepted: PartyEngine.Accepted, to: Via) {
-        when (to) {
-            Via.ONLINE -> {
-                val (kind, retained) = MqttTransport.kindOf(accepted.received.message)
-                mqtt?.publish(hex(accepted.received.sender), kind, bytes, retained)
-            }
-            Via.LORA -> radio?.send(bytes)
-            Via.NEARBY -> Unit
-        }
-    }
-
-    private fun sendNow(message: PartyMessage, vias: Set<Via>) {
-        val e = engine ?: return
-        val me = _state.value.me ?: return
-        val now = System.currentTimeMillis()
-        val bytes = Envelope.encode(e.key, me.id, nextSeq(), now, message)
-        e.applyOwn(message, now)
-        for (via in vias) {
-            when (via) {
-                Via.ONLINE -> {
-                    val (kind, retained) = MqttTransport.kindOf(message)
-                    mqtt?.publish(hex(me.id), kind, bytes, retained)
-                }
-                Via.LORA -> radio?.send(bytes)
-                Via.NEARBY -> Unit
-            }
-        }
-        refresh()
-    }
-
-    /**
-     * Hello carries name & colour: on connect (retained online), every 10 min online / 30 min over
-     * LoRa, and as a [reply] to newcomers at most every 2 min.
-     */
-    private fun sendHello(force: Boolean, reply: Boolean = false) {
-        val e = engine ?: return
-        val me = _state.value.me ?: return
-        val now = System.currentTimeMillis()
-        val due = transports().filter { via ->
-            val last = lastHello[via]
-            when {
-                force || last == null -> true
-                reply -> now - last > 120_000
-                else -> now - last > if (via == Via.LORA) 30 * 60_000L else 10 * 60_000L
-            }
-        }.toSet()
-        if (due.isEmpty()) return
-        due.forEach { lastHello[it] = now }
-        sendNow(PartyMessage.Hello(me.name, me.color, e.myMeshNode, me.icon), due)
-    }
-
-    private fun nextSeq(): Long {
-        seq++
-        if (seq >= seqReserved) reserveSeq()
-        return seq
-    }
-
-    /** Sequence numbers must never repeat; reserve them in blocks so a crash can't reuse one. */
-    private fun reserveSeq() {
-        seqReserved = seq + 500
-        prefs.edit { putLong("seq", seqReserved) }
-    }
-
-    // ---- state & notifications ---------------------------------------------------------------------
-
-    private fun refresh() {
-        val e = engine ?: return
-        update { s ->
-            s.copy(
-                members = e.members.values.filterNot { it.left }
-                    .sortedWith(compareByDescending<Member> { it.sos }.thenBy { it.displayName.lowercase() }),
-                meshNodes = e.meshNodes.values.filter { it.position != null }.sortedBy { it.name },
-                meeting = e.meeting,
-                chat = e.chat.toList(),
-                historyCounts = e.history.counts,
-            )
-        }
-    }
-
-    private inline fun update(f: (PartyState) -> PartyState) {
-        _state.value = f(_state.value)
-    }
+    // ---- the phone ------------------------------------------------------------------------------------
 
     private fun battery(): Int? =
         app.getSystemService(BatteryManager::class.java)?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)?.takeIf { it in 0..100 }
 
+    private fun charging(): Boolean =
+        app.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            ?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)?.let { it != 0 } == true
+
     private fun hasBluetoothPermission(): Boolean =
         android.os.Build.VERSION.SDK_INT < 31 ||
             ContextCompat.checkSelfPermission(app, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+
+    // ---- notifications ------------------------------------------------------------------------------
 
     private fun notifyIfNeeded(ev: PartyEvent) {
         val (title, text, urgent) = when (ev) {
@@ -486,8 +167,6 @@ object PartySession : PartyController {
             .build()
         runCatching { nm.notify((if (urgent) 1000 else 2000) + (ev.hashCode() and 0xFF), n) }
     }
-
-    fun hex(id: Int): String = String.format("%08x", id)
 
     private const val CHANNEL_SOS = "party_sos"
     private const val CHANNEL_MESSAGES = "party_messages"
