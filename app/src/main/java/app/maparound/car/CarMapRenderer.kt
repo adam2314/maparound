@@ -297,9 +297,10 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
         loc?.bestAltitude()?.let { parts += Fmt.height(it) }
         if (loc != null && loc.hasBearing() && (gpsSpeed ?: 0f) > 1f) parts += Fmt.heading(loc.bearing)
         PlannerSession.state.value.route?.let { parts += T.nav.carRoute(Fmt.distance(it.stats.distanceM.toFloat())) }
-        PartySession.state.value.takeIf { it.active }?.let { p ->
-            val n = p.members.count { it.position != null }
-            parts += if (p.members.any { it.sos }) T.nav.carPartySos else T.nav.carPartyOnMap(n)
+        // Every party that's on: its members on the map, and an SOS in any.
+        PartySession.parties.value.filter { it.active }.takeIf { it.isNotEmpty() }?.let { on ->
+            val members = on.flatMap { it.members }
+            parts += if (members.any { it.sos }) T.nav.carPartySos else T.nav.carPartyOnMap(members.count { it.position != null })
         }
         if (TrackRecorder.state.value.recording) parts += T.nav.carRecording
         if (AppGraph.mapFiles.files.value.isEmpty() && TileSources.find(AppGraph.prefs.baseLayer.value, AppGraph.prefs.customSources.value) == null && !satellite) {

@@ -15,7 +15,7 @@ import app.maparound.i18n.T
 import app.maparound.party.MqttSocket
 import app.maparound.party.MqttSockets
 import app.maparound.party.PartyController
-import app.maparound.party.PartyEvent
+import app.maparound.party.partyNotice
 import app.maparound.party.PartyPlatform
 import app.maparound.shared.toByteArray
 import app.maparound.shared.toUint8Array
@@ -104,12 +104,9 @@ fun notifyPartyEvents(party: PartyController) {
     MainScope().launch {
         party.events.collect { ev ->
             if (!pageHidden() || !notificationsAllowed()) return@collect
-            when (ev) {
-                is PartyEvent.SosRaised -> showNotification(T.party.sosNotificationTitle(ev.member.displayName), ev.text.ifBlank { T.party.sosNeedsHelp }, true)
-                is PartyEvent.TextReceived -> showNotification(ev.member.displayName, ev.text, false)
-                is PartyEvent.MeetingSet -> ev.meeting?.let { showNotification(T.party.newMeetingPoint, it.label.ifBlank { T.party.tapToSeeOnMap }, false) }
-                else -> Unit
-            }
+            // In several parties: whose it is.
+            val n = partyNotice(ev, several = party.parties.value.size > 1) ?: return@collect
+            showNotification(n.title, n.text, n.urgent)
         }
     }
 }

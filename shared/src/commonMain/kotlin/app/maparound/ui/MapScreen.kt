@@ -84,6 +84,8 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -1254,10 +1256,13 @@ fun MapScreen(
                         PlannerSession.close()
                         ToolsSession.open(mode, p)
                     }),
-                    onMeetHere = if (party.active && !partyControl.watchOnly) ({
+                    // The parties that are on: there, one picked (and shown on the Party screen).
+                    meetParties = if (partyControl.watchOnly) emptyList() else parties.ifEmpty { listOf(party) }.filter { it.active }.mapNotNull { it.party },
+                    onMeetHere = { k ->
+                        partyControl.select(k)
                         partyControl.setMeeting(p.lat, p.lon, pinLabel ?: T.map.meetingPoint)
                         pin = null
-                    }) else null,
+                    },
                 )
             }
             if (dataView && stats != null && pin == null && !(explorerOpen && narrowScreen)) {
@@ -1907,7 +1912,9 @@ private fun PinCard(
     onClose: () -> Unit,
     onRoute: (() -> Unit)?,
     onShare: () -> Unit,
-    onMeetHere: (() -> Unit)? = null,
+    /** Sets the meeting point here in one of [meetParties] (the parties that are on; none: no button). */
+    meetParties: List<app.maparound.party.PartyKey> = emptyList(),
+    onMeetHere: (app.maparound.party.PartyKey) -> Unit = {},
     onSavePlace: (() -> Unit)? = null,
     onTool: ((ToolsSession.Mode) -> Unit)? = null,
     /** What the point of interest under the pin is ("Peak · 2085 m"). */
@@ -1987,8 +1994,15 @@ private fun PinCard(
                         Icon(Icons.Filled.Visibility, contentDescription = T.map.whatCanBeSeen)
                     } }
                 }
-                if (onMeetHere != null) {
-                    TextButton(onClick = onMeetHere) { Text(T.map.meetHere) }
+                if (meetParties.isNotEmpty()) {
+                    // Several parties on: which one's meeting point.
+                    var choose by remember { mutableStateOf(false) }
+                    Box {
+                        TextButton(onClick = { if (meetParties.size == 1) onMeetHere(meetParties[0]) else choose = true }) { Text(T.map.meetHere) }
+                        DropdownMenu(expanded = choose, onDismissRequest = { choose = false }) {
+                            for (k in meetParties) DropdownMenuItem(text = { Text(k.name) }, onClick = { choose = false; onMeetHere(k) })
+                        }
+                    }
                 }
             }
         }

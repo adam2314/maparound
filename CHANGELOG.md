@@ -186,6 +186,11 @@
   point and marks** switch and the connections that brought them (always shown if made on this
   phone). Tapping one shows its name, note, length, who changed it last and when, with Route here
   and Share. Making and editing marks comes later.
+- **In several parties, each says whose it is:** notifications (an SOS, a message, a new meeting
+  point) end with their party's name; the party notification while sharing lists every party on,
+  with each one's members; the car screen counts the members of all of them. **Meet here** asks
+  which party when more than one is on. Each party's colour shows on its chip on the Party screen,
+  and tapping its dot in Layers → Overlays picks another.
 - On Android, the party reaches the servers over secure WebSockets, as the web app does.
 - For now, members' ways so far (History) aren't kept once the app closes.
 - **Only a real GPS fix goes on the map.** A position less exact than ±20 m (a phone indoors or

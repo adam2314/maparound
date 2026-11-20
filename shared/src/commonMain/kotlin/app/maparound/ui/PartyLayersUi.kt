@@ -1,7 +1,9 @@
 package app.maparound.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,6 +19,7 @@ import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Router
 import androidx.compose.material.icons.filled.Timeline
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -24,6 +27,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -32,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import app.maparound.i18n.T
 import app.maparound.party.LocalParty
 import app.maparound.party.PartyConnection
+import app.maparound.party.PartyController
 import app.maparound.party.TransportStatus
 import app.maparound.shared.util.nowMillis
 
@@ -50,7 +57,7 @@ internal fun PartyLayerRows() {
         for (p in parties) {
             val key = p.party ?: continue
             SubLayer(
-                lead = { Box(Modifier.size(14.dp).background(Color(p.color), CircleShape)) },
+                lead = { PartyColorDot(p.color) { control.setPartyColor(key, it) } },
                 title = key.name,
                 subtitle = T.map.partyMembersLine(p.members.size, p.members.any { it.sos }),
                 checked = p.layers.members,
@@ -99,6 +106,26 @@ internal fun PartyLayerRows() {
                         checked = common.nodesShown,
                         indent = true,
                     ) { control.setNodesShown(it) }
+                }
+            }
+        }
+    }
+}
+
+/** A party's colour, tapped for the others to choose from. */
+@Composable
+private fun PartyColorDot(color: Int, onPick: (Int) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Box(Modifier.size(18.dp).background(Color(color), CircleShape).clickable { open = true })
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                for (c in PartyController.PARTY_COLORS) {
+                    Box(
+                        Modifier.size(32.dp).background(Color(c), CircleShape)
+                            .then(if (c == color) Modifier.border(3.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier)
+                            .clickable { open = false; onPick(c) },
+                    )
                 }
             }
         }

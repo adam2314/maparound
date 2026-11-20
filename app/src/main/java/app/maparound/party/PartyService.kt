@@ -61,7 +61,7 @@ class PartyService : Service() {
         createChannel()
         try {
             ServiceCompat.startForeground(
-                this, NOTIFICATION_ID, notification(T.party.connecting),
+                this, NOTIFICATION_ID, notification(title(PartySession.parties.value), T.party.connecting),
                 if (Build.VERSION.SDK_INT >= 29) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0,
             )
         } catch (e: Exception) {
@@ -74,10 +74,11 @@ class PartyService : Service() {
         // The session ticks itself, when something is due; GPS as often as its mode needs (none when hidden).
         scope.launch { PartySession.fixEveryMs.collect(::askForFixes) }
         scope.launch {
-            PartySession.state
-                .map { s -> summary(s) }
+            // Every party that's on, in one notification.
+            PartySession.parties
+                .map { all -> title(all) to summary(all) }
                 .distinctUntilChanged()
-                .collect { text -> getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(text)) }
+                .collect { (title, text) -> getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(title, text)) }
         }
         return START_STICKY
     }
@@ -136,14 +137,23 @@ class PartyService : Service() {
         super.onDestroy()
     }
 
-    private fun summary(s: PartyState): String {
+    /** The parties that are on: one, "Party: Hike"; several, "Parties: Hike, Club run". */
+    private fun title(all: List<PartyState>): String {
+        val names = all.filter { it.active }.ifEmpty { all }.mapNotNull { it.party?.name }
+        return if (names.size <= 1) T.party.notificationTitle(names.firstOrNull().orEmpty()) else T.party.notificationTitleMany(names.joinToString(", "))
+    }
+
+    /** Who's there (one party: how many others; several: each one's), how it's connected, hidden, an SOS of mine. */
+    private fun summary(all: List<PartyState>): String {
+        val on = all.filter { it.active }.ifEmpty { all }
+        val first = on.firstOrNull() ?: return T.party.summaryConnecting
         val links = listOfNotNull(
-            Via.ONLINE.label.takeIf { s.online.state == TransportStatus.State.CONNECTED },
-            Via.LORA.label.takeIf { s.radio.state == TransportStatus.State.CONNECTED },
+            Via.ONLINE.label.takeIf { on.any { it.online.state == TransportStatus.State.CONNECTED } },
+            Via.LORA.label.takeIf { first.radio.state == TransportStatus.State.CONNECTED },
         ).ifEmpty { listOf(T.party.summaryConnecting) }.joinToString(" + ")
-        val who = T.party.others(s.members.size)
-        val sharing = if (s.sharing) "" else " · ${T.party.hidden}"
-        return "$who · $links$sharing" + if (s.mySos) " · ${T.party.sosActiveCaps}" else ""
+        val who = if (on.size == 1) T.party.others(first.members.size) else on.joinToString(" · ") { "${it.party?.name}: ${it.members.size}" }
+        val sharing = if (on.any { it.sharing }) "" else " · ${T.party.hidden}"
+        return "$who · $links$sharing" + if (on.any { it.mySos }) " · ${T.party.sosActiveCaps}" else ""
     }
 
     private fun createChannel() {
@@ -156,14 +166,14 @@ class PartyService : Service() {
         )
     }
 
-    private fun notification(text: String): Notification {
+    private fun notification(title: String, text: String): Notification {
         val open = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE,
         )
         return NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_party)
-            .setContentTitle(T.party.notificationTitle(PartySession.state.value.party?.name ?: ""))
+            .setContentTitle(title)
             .setContentText(text)
             .setOngoing(true)
             .setOnlyAlertOnce(true)

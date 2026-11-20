@@ -328,7 +328,9 @@ private fun PartySwitcher(all: List<PartyState>, shown: PartyKey?, onPick: (Part
                 selected = shown?.id?.contentEquals(key.id) == true,
                 onClick = { onPick(key) },
                 label = { Text(key.name, maxLines = 1) },
-                leadingIcon = if (sos) ({ Icon(Icons.Filled.Warning, contentDescription = "SOS", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp)) }) else null,
+                // Its colour on the map; an SOS in it, the warning instead.
+                leadingIcon = if (sos) ({ Icon(Icons.Filled.Warning, contentDescription = "SOS", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp)) })
+                else ({ Box(Modifier.size(12.dp).background(Color(p.color), CircleShape)) }),
             )
         }
         if (onAdd != null) {

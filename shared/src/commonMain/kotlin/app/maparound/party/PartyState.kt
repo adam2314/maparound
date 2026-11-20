@@ -153,6 +153,9 @@ interface PartyController {
     /** The plain Meshtastic nodes the radio hears, on the map or not. */
     fun setNodesShown(shown: Boolean) = Unit
 
+    /** [party]'s colour on this device (one of [PARTY_COLORS]): its markers' ring with several parties. */
+    fun setPartyColor(party: PartyKey, color: Int) = Unit
+
     /** Joins, leaves and SOS alerts, for the UI to announce. */
     val events: SharedFlow<PartyEvent>
 
@@ -200,6 +203,9 @@ interface PartyController {
     companion object {
         /** Parties at once: more crowds the screens, and the radio's airtime is shared by all. */
         const val MAX_PARTIES = 4
+
+        /** The parties' colours on this device: strong, apart from each other and from an SOS's red. */
+        val PARTY_COLORS = listOf(0xFF1E88E5, 0xFFFFB300, 0xFF8E24AA, 0xFF00897B, 0xFFD81B60, 0xFF7CB342).map { it.toInt() }
     }
 }
 

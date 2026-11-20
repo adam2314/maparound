@@ -320,6 +320,7 @@ open class PartyTexts {
 
     // ---- the sharing notification and alert channels (Android) ----
     open fun notificationTitle(name: String) = "Party: $name"
+    open fun notificationTitleMany(names: String) = "Parties: $names"
 
     /** The notification's text before the first status. */
     open val connecting = "Connecting…"
@@ -567,6 +568,7 @@ object PartyTextsHe : PartyTexts() {
     override val searching = "מחפש…"
 
     override fun notificationTitle(name: String) = "קבוצה: $name"
+    override fun notificationTitleMany(names: String) = "קבוצות: $names"
     override val connecting = "מתחבר…"
     override val summaryConnecting = "מתחבר…"
     override fun others(n: Int) = when (n) {

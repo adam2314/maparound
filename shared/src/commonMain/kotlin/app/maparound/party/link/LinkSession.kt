@@ -337,6 +337,13 @@ class LinkSession(
         publish()
     }
 
+    override fun setPartyColor(party: PartyKey, color: Int) {
+        val s = slotOf(party) ?: return
+        store.putInt(s.k(K_PARTY_COLOR), color)
+        s.state = s.state.copy(color = color)
+        publish()
+    }
+
     override fun setNodesShown(shown: Boolean) {
         store.putBoolean(K_SHOW_NODES, shown)
         common = common.copy(nodesShown = shown)
@@ -996,8 +1003,7 @@ class LinkSession(
         private const val K_HIDDEN = "hidden_connections"
         private const val K_SHOW_NODES = "show_nodes"
 
-        /** The parties' colours on this device: strong, apart from each other and from an SOS's red. */
-        val PARTY_COLORS = listOf(0xFF1E88E5, 0xFFFFB300, 0xFF8E24AA, 0xFF00897B, 0xFFD81B60, 0xFF7CB342).map { it.toInt() }
+        private val PARTY_COLORS = PartyController.PARTY_COLORS
 
         // Kept for each party, as `p<n>.<key>` (before several parties: without the prefix).
         private const val K_LINK = "link"

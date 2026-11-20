@@ -96,6 +96,7 @@ object PartySession : PartyController {
     override fun setLayers(party: PartyKey, layers: PartyLayers) = session.setLayers(party, layers)
     override fun setConnectionShown(id: String, shown: Boolean) = session.setConnectionShown(id, shown)
     override fun setNodesShown(shown: Boolean) = session.setNodesShown(shown)
+    override fun setPartyColor(party: PartyKey, color: Int) = session.setPartyColor(party, color)
     override fun setServer(server: String?) = session.setServer(server)
     override fun leave() = session.leave()
     override fun setActive(on: Boolean) = session.setActive(on)
@@ -140,12 +141,8 @@ object PartySession : PartyController {
     // ---- notifications ------------------------------------------------------------------------------
 
     private fun notifyIfNeeded(ev: PartyEvent) {
-        val (title, text, urgent) = when (ev) {
-            is PartyEvent.SosRaised -> Triple(T.party.sosNotificationTitle(ev.member.displayName), ev.text.ifBlank { T.party.sosNeedsHelp }, true)
-            is PartyEvent.TextReceived -> Triple(ev.member.displayName, ev.text, false)
-            is PartyEvent.MeetingSet -> ev.meeting?.let { Triple(T.party.newMeetingPoint, it.label.ifBlank { T.party.tapToSeeOnMap }, false) } ?: return
-            else -> return
-        }
+        // In several parties: whose it is.
+        val (title, text, urgent) = partyNotice(ev, several = session.parties.value.size > 1) ?: return
         val nm = app.getSystemService(NotificationManager::class.java)
         val channel = if (urgent) CHANNEL_SOS else CHANNEL_MESSAGES
         // Each time, so an existing channel takes the name in the app's language now (only that changes).

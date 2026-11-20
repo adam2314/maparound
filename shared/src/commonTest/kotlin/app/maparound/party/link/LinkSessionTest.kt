@@ -457,12 +457,13 @@ class LinkSessionTest {
         a.session.setConnectionShown(LinkSession.PUBLIC, false)
         a.session.setLayers(hike.party!!, PartyLayers(members = false))
         a.session.setNodesShown(false)
+        a.session.setPartyColor(run.party!!, PartyController.PARTY_COLORS[5])
         a.open()
         assertEquals(setOf(LinkSession.PUBLIC), a.state.hiddenConnections)
         assertFalse(a.state.nodesShown)
         assertEquals(PartyLayers(members = false), a.session.parties.value.first().layers)
         assertEquals(PartyLayers(), a.session.parties.value.last().layers)
-        assertEquals(listOf(hike.color, run.color), a.session.parties.value.map { it.color })
+        assertEquals(listOf(hike.color, PartyController.PARTY_COLORS[5]), a.session.parties.value.map { it.color })
     }
 
     @Test
