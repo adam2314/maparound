@@ -1,0 +1,311 @@
+843:/Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAroundShared.framework/Headers/MapAroundShared.h:7204:30: error: expected member name or ';' after declaration specifiers
+852:/Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAroundShared.framework/Headers/MapAroundShared.h:7204:1: error: property requires fields to be named
+858:/Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAroundShared.framework/Headers/MapAroundShared.h:7204:29: error: expected ';' at end of declaration list
+864:/Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAroundShared.framework/Headers/MapAroundShared.h:7204:30: error: expected identifier or '('
+873:/Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAroundShared.framework/Headers/MapAroundShared.h:7810:30: error: expected member name or ';' after declaration specifiers
+882:/Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAroundShared.framework/Headers/MapAroundShared.h:7810:1: error: property requires fields to be named
+888:/Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAroundShared.framework/Headers/MapAroundShared.h:7810:29: error: expected ';' at end of declaration list
+894:/Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAroundShared.framework/Headers/MapAroundShared.h:7810:30: error: expected identifier or '('
+900:/Users/runner/work/maparound/maparound/iosApp/MapAround/MapAroundApp.swift:2:8: error: could not build Objective-C module 'MapAroundShared'
+933:** BUILD FAILED **
+----
+    export SYSTEM_EXTENSIONS_FOLDER_PATH_SHALLOW_BUNDLE_YES\=MapAround.app/SystemExtensions
+    export SYSTEM_KEXT_INSTALL_PATH\=/System/Library/Extensions
+    export SYSTEM_LIBRARY_DIR\=/System/Library
+    export TAPI_DEMANGLE\=YES
+    export TAPI_ENABLE_PROJECT_HEADERS\=NO
+    export TAPI_LANGUAGE\=objective-c
+    export TAPI_LANGUAGE_STANDARD\=compiler-default
+    export TAPI_USE_SRCROOT\=YES
+    export TAPI_VERIFY_MODE\=Pedantic
+    export TARGETED_DEVICE_FAMILY\=1,2
+    export TARGETNAME\=MapAround
+    export TARGET_BUILD_DIR\=/Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator
+    export TARGET_NAME\=MapAround
+    export TARGET_TEMP_DIR\=/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build
+    export TEMP_DIR\=/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build
+    export TEMP_FILES_DIR\=/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build
+    export TEMP_FILE_DIR\=/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build
+    export TEMP_ROOT\=/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex
+    export TEMP_SANDBOX_DIR\=/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/TemporaryTaskSandboxes
+    export TEST_FRAMEWORK_SEARCH_PATHS\=\ /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks\ /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk/Developer/Library/Frameworks
+    export TEST_LIBRARY_SEARCH_PATHS\=\ /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib
+    export TOOLCHAINS\=com.apple.dt.toolchain.XcodeDefault
+    export TOOLCHAIN_DIR\=/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain
+    export TREAT_MISSING_BASELINES_AS_TEST_FAILURES\=NO
+    export TREAT_MISSING_SCRIPT_PHASE_OUTPUTS_AS_ERRORS\=NO
+    export UID\=501
+    export UNINSTALLED_PRODUCTS_DIR\=/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/UninstalledProducts
+    export UNLOCALIZED_RESOURCES_FOLDER_PATH\=MapAround.app
+    export UNLOCALIZED_RESOURCES_FOLDER_PATH_SHALLOW_BUNDLE_NO\=MapAround.app/Resources
+    export UNLOCALIZED_RESOURCES_FOLDER_PATH_SHALLOW_BUNDLE_YES\=MapAround.app
+    export UNSTRIPPED_PRODUCT\=NO
+    export USER\=runner
+    export USER_APPS_DIR\=/Users/runner/Applications
+    export USER_LIBRARY_DIR\=/Users/runner/Library
+    export USE_DYNAMIC_NO_PIC\=YES
+    export USE_HEADERMAP\=YES
+    export USE_HEADER_SYMLINKS\=NO
+    export VALIDATE_DEVELOPMENT_ASSET_PATHS\=YES_ERROR
+    export VALIDATE_PRODUCT\=NO
+    export VALID_ARCHS\=arm64\ arm64e\ x86_64
+    export VERBOSE_PBXCP\=NO
+    export VERSIONPLIST_PATH\=MapAround.app/version.plist
+    export VERSION_INFO_BUILDER\=runner
+    export VERSION_INFO_FILE\=MapAround_vers.c
+    export VERSION_INFO_STRING\=\"@\(\#\)PROGRAM:MapAround\ \ PROJECT:MapAround-\"
+    export WORKSPACE_DIR\=/Users/runner/work/maparound/maparound/iosApp/MapAround.xcodeproj
+    export WRAPPER_EXTENSION\=app
+    export WRAPPER_NAME\=MapAround.app
+    export WRAPPER_SUFFIX\=.app
+    export WRAP_ASSET_PACKS_IN_SEPARATE_DIRECTORIES\=NO
+    export XCODE_APP_SUPPORT_DIR\=/Applications/Xcode_16.4.app/Contents/Developer/Library/Xcode
+    export XCODE_PRODUCT_BUILD_VERSION\=16F6
+    export XCODE_VERSION_ACTUAL\=1640
+    export XCODE_VERSION_MAJOR\=1600
+    export XCODE_VERSION_MINOR\=1640
+    export XPCSERVICES_FOLDER_PATH\=MapAround.app/XPCServices
+    export YACC\=yacc
+    export _DISCOVER_COMMAND_LINE_LINKER_INPUTS\=YES
+    export _DISCOVER_COMMAND_LINE_LINKER_INPUTS_INCLUDE_WL\=YES
+    export _WRAPPER_CONTENTS_DIR_SHALLOW_BUNDLE_NO\=/Contents
+    export _WRAPPER_PARENT_PATH_SHALLOW_BUNDLE_NO\=/..
+    export _WRAPPER_RESOURCES_DIR_SHALLOW_BUNDLE_NO\=/Resources
+    export __DIAGNOSE_DEPRECATED_ARCHS\=YES
+    export __IS_NOT_MACOS\=YES
+    export __IS_NOT_MACOS_macosx\=NO
+    export __IS_NOT_SIMULATOR\=NO
+    export __IS_NOT_SIMULATOR_simulator\=NO
+    export arch\=undefined_arch
+    export variant\=normal
+    /bin/sh -c /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/Script-9C94BF3B69B112225226A178.sh
+Starting a Gradle Daemon (subsequent builds will be faster)
+> Task :shared:checkSandboxAndWriteProtection
+> Task :shared:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :shared:convertXmlValueResourcesForAppleMain NO-SOURCE
+> Task :shared:copyNonXmlValueResourcesForAppleMain NO-SOURCE
+> Task :shared:prepareComposeResourcesTaskForAppleMain NO-SOURCE
+> Task :shared:generateResourceAccessorsForAppleMain SKIPPED
+> Task :shared:convertXmlValueResourcesForCommonMain NO-SOURCE
+> Task :shared:copyNonXmlValueResourcesForCommonMain NO-SOURCE
+> Task :shared:prepareComposeResourcesTaskForCommonMain NO-SOURCE
+> Task :shared:generateResourceAccessorsForCommonMain SKIPPED
+> Task :shared:convertXmlValueResourcesForIosMain NO-SOURCE
+> Task :shared:copyNonXmlValueResourcesForIosMain NO-SOURCE
+> Task :shared:prepareComposeResourcesTaskForIosMain NO-SOURCE
+> Task :shared:generateResourceAccessorsForIosMain SKIPPED
+> Task :shared:convertXmlValueResourcesForIosSimulatorArm64Main NO-SOURCE
+> Task :shared:copyNonXmlValueResourcesForIosSimulatorArm64Main NO-SOURCE
+> Task :shared:prepareComposeResourcesTaskForIosSimulatorArm64Main NO-SOURCE
+> Task :shared:generateResourceAccessorsForIosSimulatorArm64Main SKIPPED
+> Task :shared:convertXmlValueResourcesForNativeMain NO-SOURCE
+> Task :shared:copyNonXmlValueResourcesForNativeMain NO-SOURCE
+> Task :shared:prepareComposeResourcesTaskForNativeMain NO-SOURCE
+> Task :shared:generateResourceAccessorsForNativeMain SKIPPED
+> Task :shared:generateActualResourceCollectorsForIosSimulatorArm64Main SKIPPED
+> Task :shared:generateComposeResClass SKIPPED
+> Task :shared:generateExpectResourceCollectorsForCommonMain SKIPPED
+> Task :shared:compileKotlinIosSimulatorArm64
+/Users/runner/work/maparound/maparound/shared/src/commonMain/kotlin/app/maparound/watch/WatchProtocol.kt:175:39: warning: Condition is always 'true'.
+
+> Task :shared:linkDebugFrameworkIosSimulatorArm64
+warning: The number of threads 4 is more than the number of processors 3
+
+> Task :shared:assembleDebugAppleFrameworkForXcodeIosSimulatorArm64
+> Task :shared:createBuildSystemDirectory
+> Task :shared:symbolicLinkToAssembleDebugAppleFrameworkForXcodeIosSimulatorArm64
+> Task :shared:copyDsymForEmbedAndSignAppleFrameworkForXcode SKIPPED
+> Task :shared:checkCanSyncComposeResourcesForIos
+> Task :shared:iosArm64ResolveResourcesFromDependencies
+> Task :shared:convertXmlValueResourcesForIosArm64Main NO-SOURCE
+> Task :shared:copyNonXmlValueResourcesForIosArm64Main NO-SOURCE
+> Task :shared:prepareComposeResourcesTaskForIosArm64Main NO-SOURCE
+> Task :shared:assembleIosArm64MainResources
+> Task :shared:iosArm64ResolveSelfResourcesCopyHierarchicalMultiplatformResources
+> Task :shared:iosArm64AggregateResources
+> Task :shared:iosSimulatorArm64ResolveResourcesFromDependencies
+> Task :shared:assembleIosSimulatorArm64MainResources
+> Task :shared:iosSimulatorArm64ResolveSelfResourcesCopyHierarchicalMultiplatformResources
+> Task :shared:iosSimulatorArm64AggregateResources
+> Task :shared:syncComposeResourcesForIos
+> Task :shared:embedAndSignAppleFrameworkForXcode SKIPPED
+gradle/actions: Writing build results to /Users/runner/work/_temp/.gradle-actions/build-results/__run_4-1795183476475.json
+[Incubating] Problems report is available at: file:///Users/runner/work/maparound/maparound/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.11.1/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 3m 32s
+16 actionable tasks: 16 executed
+
+Copy /Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAround.app/Frameworks/MapLibre.framework /Users/runner/work/maparound/maparound/iosApp/build/SourcePackages/artifacts/maplibre-gl-native-distribution/MapLibre/MapLibre.xcframework/ios-arm64_x86_64-simulator/MapLibre.framework (in target 'MapAround' from project 'MapAround')
+    cd /Users/runner/work/maparound/maparound/iosApp
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -exclude Headers -exclude PrivateHeaders -exclude Modules -exclude \*.tbd -resolve-src-symlinks -remove-static-executable /Users/runner/work/maparound/maparound/iosApp/build/SourcePackages/artifacts/maplibre-gl-native-distribution/MapLibre/MapLibre.xcframework/ios-arm64_x86_64-simulator/MapLibre.framework /Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAround.app/Frameworks
+
+Ld /Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAround.app/__preview.dylib normal (in target 'MapAround' from project 'MapAround')
+    cd /Users/runner/work/maparound/maparound/iosApp
+    /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios16.0-simulator -dynamiclib -isysroot /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -O0 -L/Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator -F/Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator -F/Users/runner/work/maparound/maparound/shared/build/xcode-frameworks/Debug/iphonesimulator18.5 -install_name @rpath/MapAround.debug.dylib -dead_strip -rdynamic -Xlinker -no_deduplicate -Xlinker -objc_abi_version -Xlinker 2 -Xlinker -dependency_info -Xlinker /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/Objects-normal/arm64/MapAround_dependency_info.dat -o /Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAround.app/__preview.dylib
+
+MkDir /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/assetcatalog_output/unthinned (in target 'MapAround' from project 'MapAround')
+    cd /Users/runner/work/maparound/maparound/iosApp
+    /bin/mkdir -p /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/assetcatalog_output/unthinned
+
+MkDir /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/assetcatalog_output/thinned (in target 'MapAround' from project 'MapAround')
+    cd /Users/runner/work/maparound/maparound/iosApp
+    /bin/mkdir -p /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/assetcatalog_output/thinned
+
+GenerateAssetSymbols /Users/runner/work/maparound/maparound/iosApp/MapAround/Assets.xcassets (in target 'MapAround' from project 'MapAround')
+    cd /Users/runner/work/maparound/maparound/iosApp
+    /Applications/Xcode_16.4.app/Contents/Developer/usr/bin/actool /Users/runner/work/maparound/maparound/iosApp/MapAround/Assets.xcassets --compile /Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAround.app --output-format human-readable-text --notices --warnings --export-dependency-info /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/assetcatalog_dependencies --output-partial-info-plist /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/assetcatalog_generated_info.plist --app-icon AppIcon --compress-pngs --enable-on-demand-resources YES --development-region en --target-device iphone --target-device ipad --minimum-deployment-target 16.0 --platform iphonesimulator --bundle-identifier app.maparound --generate-swift-asset-symbol-extensions NO --generate-swift-asset-symbols /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/DerivedSources/GeneratedAssetSymbols.swift --generate-objc-asset-symbols /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/DerivedSources/GeneratedAssetSymbols.h --generate-asset-symbol-index /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/DerivedSources/GeneratedAssetSymbols-Index.plist
+/* com.apple.actool.compilation-results */
+/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/DerivedSources/GeneratedAssetSymbols-Index.plist
+/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/DerivedSources/GeneratedAssetSymbols.h
+/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/DerivedSources/GeneratedAssetSymbols.swift
+
+
+CpResource /Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAround.app/topo.xml /Users/runner/work/maparound/maparound/app/src/main/assets/themes/topo.xml (in target 'MapAround' from project 'MapAround')
+    cd /Users/runner/work/maparound/maparound/iosApp
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/runner/work/maparound/maparound/app/src/main/assets/themes/topo.xml /Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAround.app
+
+CpResource /Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAround.app/regions.bin /Users/runner/work/maparound/maparound/app/src/main/assets/regions.bin (in target 'MapAround' from project 'MapAround')
+    cd /Users/runner/work/maparound/maparound/iosApp
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/runner/work/maparound/maparound/app/src/main/assets/regions.bin /Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAround.app
+
+CpResource /Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAround.app/Symbols /Users/runner/work/maparound/maparound/iosApp/Symbols (in target 'MapAround' from project 'MapAround')
+    cd /Users/runner/work/maparound/maparound/iosApp
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/runner/work/maparound/maparound/iosApp/Symbols /Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAround.app
+
+CpResource /Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAround.app/Fonts /Users/runner/work/maparound/maparound/iosApp/Fonts (in target 'MapAround' from project 'MapAround')
+    cd /Users/runner/work/maparound/maparound/iosApp
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/runner/work/maparound/maparound/iosApp/Fonts /Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAround.app
+
+CompileMetalFile /Users/runner/work/maparound/maparound/iosApp/MapAround/Terrain.metal (in target 'MapAround' from project 'MapAround')
+    cd /Users/runner/work/maparound/maparound/iosApp
+    /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/metal -c -target air64-apple-ios16.0-simulator -gline-tables-only -frecord-sources -I/Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/include -F/Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator -isysroot /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -fmetal-math-mode\=fast -fmetal-math-fp32-functions\=fast -serialize-diagnostics /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/Metal/Terrain.dia -o /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/Metal/Terrain.air -index-store-path /Users/runner/work/maparound/maparound/iosApp/build/Index.noindex/DataStore -MMD -MT dependencies -MF /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/Metal/Terrain.dat /Users/runner/work/maparound/maparound/iosApp/MapAround/Terrain.metal
+
+CompileAssetCatalogVariant thinned /Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAround.app /Users/runner/work/maparound/maparound/iosApp/MapAround/Assets.xcassets (in target 'MapAround' from project 'MapAround')
+    cd /Users/runner/work/maparound/maparound/iosApp
+    /Applications/Xcode_16.4.app/Contents/Developer/usr/bin/actool /Users/runner/work/maparound/maparound/iosApp/MapAround/Assets.xcassets --compile /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/assetcatalog_output/thinned --output-format human-readable-text --notices --warnings --export-dependency-info /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/assetcatalog_dependencies_thinned --output-partial-info-plist /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/assetcatalog_generated_info.plist_thinned --app-icon AppIcon --compress-pngs --enable-on-demand-resources YES --development-region en --target-device iphone --target-device ipad --minimum-deployment-target 16.0 --platform iphonesimulator
+/* com.apple.actool.compilation-results */
+/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/assetcatalog_generated_info.plist_thinned
+/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/assetcatalog_output/thinned/AppIcon60x60@2x.png
+/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/assetcatalog_output/thinned/AppIcon76x76@2x~ipad.png
+/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/assetcatalog_output/thinned/Assets.car
+
+
+MetalLink /Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAround.app/default.metallib (in target 'MapAround' from project 'MapAround')
+    cd /Users/runner/work/maparound/maparound/iosApp
+    /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/metal -target air64-apple-ios16.0-simulator -frecord-sources -o /Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAround.app/default.metallib /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/Metal/Terrain.air
+
+SwiftDriver MapAround normal arm64 com.apple.xcode.tools.swift.compiler (in target 'MapAround' from project 'MapAround')
+    cd /Users/runner/work/maparound/maparound/iosApp
+    builtin-SwiftDriver -- /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name MapAround -Onone -enforce-exclusivity\=checked @/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/Objects-normal/arm64/MapAround.SwiftFileList -DDEBUG -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -target arm64-apple-ios16.0-simulator -g -module-cache-path /Users/runner/work/maparound/maparound/iosApp/build/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/runner/work/maparound/maparound/iosApp/build/Index.noindex/DataStore -swift-version 5 -I /Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator -F /Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator -F /Users/runner/work/maparound/maparound/shared/build/xcode-frameworks/Debug/iphonesimulator18.5 -c -j3 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/runner/work/maparound/maparound/iosApp/build/SDKStatCaches.noindex/iphonesimulator18.5-22F76-96ae0914227b19deccb34b33ba7b5dea.sdkstatcache -output-file-map /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/Objects-normal/arm64/MapAround-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/Objects-normal/arm64/MapAround.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/runner/work/maparound/maparound/iosApp/build/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/Objects-normal/arm64/MapAround_const_extract_protocols.json -Xcc -iquote -Xcc /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/MapAround-generated-files.hmap -Xcc -I/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/MapAround-own-target-headers.hmap -Xcc -I/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/MapAround-all-target-headers.hmap -Xcc -iquote -Xcc /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/MapAround-project-headers.hmap -Xcc -I/Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/DerivedSources/arm64 -Xcc -I/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/Objects-normal/arm64/MapAround-Swift.h -working-directory /Users/runner/work/maparound/maparound/iosApp -experimental-emit-module-separately -disable-cmo
+
+SwiftEmitModule normal arm64 Emitting\ module\ for\ MapAround (in target 'MapAround' from project 'MapAround')
+EmitSwiftModule normal arm64 (in target 'MapAround' from project 'MapAround')
+    cd /Users/runner/work/maparound/maparound/iosApp
+    
+<module-includes>:1:9: note: in file included from <module-includes>:1:
+#import "Headers/MapAroundShared.h"
+        ^
+/Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAroundShared.framework/Headers/MapAroundShared.h:7204:30: error: expected member name or ';' after declaration specifiers
+@property (readonly) int32_t NAME_MAX __attribute__((swift_name("NAME_MAX")));
+                             ^
+/Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk/usr/include/sys/syslimits.h:95:35: note: expanded from macro 'NAME_MAX'
+#define NAME_MAX                  255   /* max bytes in a file name */
+                                  ^
+<module-includes>:1:9: note: in file included from <module-includes>:1:
+#import "Headers/MapAroundShared.h"
+        ^
+/Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAroundShared.framework/Headers/MapAroundShared.h:7204:1: error: property requires fields to be named
+@property (readonly) int32_t NAME_MAX __attribute__((swift_name("NAME_MAX")));
+^
+<module-includes>:1:9: note: in file included from <module-includes>:1:
+#import "Headers/MapAroundShared.h"
+        ^
+/Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAroundShared.framework/Headers/MapAroundShared.h:7204:29: error: expected ';' at end of declaration list
+@property (readonly) int32_t NAME_MAX __attribute__((swift_name("NAME_MAX")));
+                            ^
+<module-includes>:1:9: note: in file included from <module-includes>:1:
+#import "Headers/MapAroundShared.h"
+        ^
+/Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAroundShared.framework/Headers/MapAroundShared.h:7204:30: error: expected identifier or '('
+@property (readonly) int32_t NAME_MAX __attribute__((swift_name("NAME_MAX")));
+                             ^
+/Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk/usr/include/sys/syslimits.h:95:35: note: expanded from macro 'NAME_MAX'
+#define NAME_MAX                  255   /* max bytes in a file name */
+                                  ^
+<module-includes>:1:9: note: in file included from <module-includes>:1:
+#import "Headers/MapAroundShared.h"
+        ^
+/Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAroundShared.framework/Headers/MapAroundShared.h:7810:30: error: expected member name or ';' after declaration specifiers
+@property (readonly) int32_t NAME_MAX __attribute__((swift_name("NAME_MAX")));
+                             ^
+/Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk/usr/include/sys/syslimits.h:95:35: note: expanded from macro 'NAME_MAX'
+#define NAME_MAX                  255   /* max bytes in a file name */
+                                  ^
+<module-includes>:1:9: note: in file included from <module-includes>:1:
+#import "Headers/MapAroundShared.h"
+        ^
+/Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAroundShared.framework/Headers/MapAroundShared.h:7810:1: error: property requires fields to be named
+@property (readonly) int32_t NAME_MAX __attribute__((swift_name("NAME_MAX")));
+^
+<module-includes>:1:9: note: in file included from <module-includes>:1:
+#import "Headers/MapAroundShared.h"
+        ^
+/Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAroundShared.framework/Headers/MapAroundShared.h:7810:29: error: expected ';' at end of declaration list
+@property (readonly) int32_t NAME_MAX __attribute__((swift_name("NAME_MAX")));
+                            ^
+<module-includes>:1:9: note: in file included from <module-includes>:1:
+#import "Headers/MapAroundShared.h"
+        ^
+/Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAroundShared.framework/Headers/MapAroundShared.h:7810:30: error: expected identifier or '('
+@property (readonly) int32_t NAME_MAX __attribute__((swift_name("NAME_MAX")));
+                             ^
+/Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk/usr/include/sys/syslimits.h:95:35: note: expanded from macro 'NAME_MAX'
+#define NAME_MAX                  255   /* max bytes in a file name */
+                                  ^
+/Users/runner/work/maparound/maparound/iosApp/MapAround/MapAroundApp.swift:2:8: error: could not build Objective-C module 'MapAroundShared'
+import MapAroundShared
+       ^
+
+Failed frontend command:
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend -frontend -emit-module -experimental-skip-non-inlinable-function-bodies-without-types /Users/runner/work/maparound/maparound/iosApp/MapAround/MapAroundApp.swift /Users/runner/work/maparound/maparound/iosApp/MapAround/MapLibreMap.swift /Users/runner/work/maparound/maparound/iosApp/MapAround/MarkerImages.swift /Users/runner/work/maparound/maparound/iosApp/MapAround/TerrainView.swift /Users/runner/work/maparound/maparound/iosApp/MapAround/TileServer.swift /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/DerivedSources/GeneratedAssetSymbols.swift -target arm64-apple-ios16.0-simulator -Xllvm -aarch64-use-tbi -enable-objc-interop -sdk /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -I /Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator -F /Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator -F /Users/runner/work/maparound/maparound/shared/build/xcode-frameworks/Debug/iphonesimulator18.5 -no-color-diagnostics -enable-testing -g -debug-info-format\=dwarf -dwarf-version\=4 -module-cache-path /Users/runner/work/maparound/maparound/iosApp/build/ModuleCache.noindex -swift-version 5 -enforce-exclusivity\=checked -Onone -D DEBUG -serialize-debugging-options -const-gather-protocols-file /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/Objects-normal/arm64/MapAround_const_extract_protocols.json -enable-experimental-feature DebugDescriptionMacro -enable-bare-slash-regex -empty-abi-descriptor -validate-clang-modules-once -clang-build-session-file /Users/runner/work/maparound/maparound/iosApp/build/ModuleCache.noindex/Session.modulevalidation -Xcc -working-directory -Xcc /Users/runner/work/maparound/maparound/iosApp -resource-dir /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift -enable-anonymous-context-mangled-names -file-compilation-dir /Users/runner/work/maparound/maparound/iosApp -Xcc -ivfsstatcache -Xcc /Users/runner/work/maparound/maparound/iosApp/build/SDKStatCaches.noindex/iphonesimulator18.5-22F76-96ae0914227b19deccb34b33ba7b5dea.sdkstatcache -Xcc -I/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/swift-overrides.hmap -Xcc -iquote -Xcc /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/MapAround-generated-files.hmap -Xcc -I/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/MapAround-own-target-headers.hmap -Xcc -I/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/MapAround-all-target-headers.hmap -Xcc -iquote -Xcc /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/MapAround-project-headers.hmap -Xcc -I/Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/DerivedSources/arm64 -Xcc -I/Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/DerivedSources -Xcc -DDEBUG\=1 -module-name MapAround -frontend-parseable-output -disable-clang-spi -target-sdk-version 18.5 -target-sdk-name iphonesimulator18.5 -external-plugin-path /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins\#/Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server -external-plugin-path /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/local/lib/swift/host/plugins\#/Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server -in-process-plugin-server-path /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/libSwiftInProcPluginServer.dylib -plugin-path /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins -plugin-path /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/local/lib/swift/host/plugins -emit-module-doc-path /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/Objects-normal/arm64/MapAround.swiftdoc -emit-module-source-info-path /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/Objects-normal/arm64/MapAround.swiftsourceinfo -emit-objc-header-path /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/Objects-normal/arm64/MapAround-Swift.h -serialize-diagnostics-path /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/Objects-normal/arm64/MapAround-master-emit-module.dia -emit-dependencies-path /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/Objects-normal/arm64/MapAround-master-emit-module.d -o /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/Objects-normal/arm64/MapAround.swiftmodule -emit-abi-descriptor-path /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/Objects-normal/arm64/MapAround.abi.json
+SwiftCompile normal arm64 Compiling\ MarkerImages.swift,\ TerrainView.swift /Users/runner/work/maparound/maparound/iosApp/MapAround/MarkerImages.swift /Users/runner/work/maparound/maparound/iosApp/MapAround/TerrainView.swift (in target 'MapAround' from project 'MapAround')
+SwiftCompile normal arm64 /Users/runner/work/maparound/maparound/iosApp/MapAround/MarkerImages.swift (in target 'MapAround' from project 'MapAround')
+    cd /Users/runner/work/maparound/maparound/iosApp
+    
+
+SwiftCompile normal arm64 /Users/runner/work/maparound/maparound/iosApp/MapAround/TerrainView.swift (in target 'MapAround' from project 'MapAround')
+    cd /Users/runner/work/maparound/maparound/iosApp
+    
+
+SwiftCompile normal arm64 Compiling\ TileServer.swift,\ GeneratedAssetSymbols.swift /Users/runner/work/maparound/maparound/iosApp/MapAround/TileServer.swift /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/DerivedSources/GeneratedAssetSymbols.swift (in target 'MapAround' from project 'MapAround')
+
+SwiftCompile normal arm64 /Users/runner/work/maparound/maparound/iosApp/MapAround/TileServer.swift (in target 'MapAround' from project 'MapAround')
+    cd /Users/runner/work/maparound/maparound/iosApp
+    
+
+SwiftCompile normal arm64 /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/DerivedSources/GeneratedAssetSymbols.swift (in target 'MapAround' from project 'MapAround')
+    cd /Users/runner/work/maparound/maparound/iosApp
+    
+
+LinkAssetCatalog /Users/runner/work/maparound/maparound/iosApp/MapAround/Assets.xcassets (in target 'MapAround' from project 'MapAround')
+    cd /Users/runner/work/maparound/maparound/iosApp
+    builtin-linkAssetCatalog --thinned /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/assetcatalog_output/thinned --thinned-dependencies /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/assetcatalog_dependencies_thinned --thinned-info-plist-content /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/assetcatalog_generated_info.plist_thinned --unthinned /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/assetcatalog_output/unthinned --unthinned-dependencies /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/assetcatalog_dependencies_unthinned --unthinned-info-plist-content /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/assetcatalog_generated_info.plist_unthinned --output /Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAround.app --plist-output /Users/runner/work/maparound/maparound/iosApp/build/Build/Intermediates.noindex/MapAround.build/Debug-iphonesimulator/MapAround.build/assetcatalog_generated_info.plist
+note: Emplaced /Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAround.app/Assets.car (in target 'MapAround' from project 'MapAround')
+note: Emplaced /Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAround.app/AppIcon76x76@2x~ipad.png (in target 'MapAround' from project 'MapAround')
+note: Emplaced /Users/runner/work/maparound/maparound/iosApp/build/Build/Products/Debug-iphonesimulator/MapAround.app/AppIcon60x60@2x.png (in target 'MapAround' from project 'MapAround')
+
+note: Run script build phase 'Build shared Kotlin framework' will be run during every build because the option to run the script phase "Based on dependency analysis" is unchecked. (in target 'MapAround' from project 'MapAround')
+** BUILD FAILED **
+
+
+The following build commands failed:
+	EmitSwiftModule normal arm64 (in target 'MapAround' from project 'MapAround')
+	SwiftEmitModule normal arm64 Emitting\ module\ for\ MapAround (in target 'MapAround' from project 'MapAround')
+	Building project MapAround with scheme MapAround and configuration Debug
+(3 failures)
