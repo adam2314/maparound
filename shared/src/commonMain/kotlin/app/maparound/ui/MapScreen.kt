@@ -19,6 +19,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -629,30 +630,6 @@ fun MapScreen(
     val radarSource = live.radar?.takeIf { dataView && dataLayers.rainRadar }?.let(app.maparound.stats.RainRadar::source)
     val dataRasters = listOfNotNull(dataOverlay, radarSource)
     val photoTiles = stats?.photoTiles?.takeIf { dataView && dataLayers.photos }
-    LaunchedEffect(dataRasters, photoTiles) { controller.setDataTiles(dataRasters, photoTiles) }
-    // The time zones' offsets are worked out again every quarter of an hour (clocks change).
-    var zonesQuarter by remember { mutableStateOf(0L) }
-    LaunchedEffect(stats, dataView, dataLayers.timeZones) {
-        if (stats == null || !dataView || !dataLayers.timeZones) return@LaunchedEffect
-        stats.loadTimeZones()
-        while (true) {
-            zonesQuarter = nowMillis() / ZONES_REFRESH_MS
-            delay(ZONES_REFRESH_MS - nowMillis() % ZONES_REFRESH_MS)
-        }
-    }
-    // How MapAround's maps stand: the list read once a visit, when the layer is first on.
-    LaunchedEffect(stats, dataView, dataLayers.mapBuilds) {
-        if (stats != null && dataView && dataLayers.mapBuilds) stats.loadMapBuilds()
-    }
-    LaunchedEffect(stats, dataView) {
-        if (stats == null || !dataView) return@LaunchedEffect
-        launch { stats.loadCountries() }
-        launch { stats.loadLocalities() }
-        while (true) {
-            dataZoom = controller.zoomLevel()
-            delay(400)
-        }
-    }
     /** New data layers picked: the hidden classes of what changed come back; Israel's picked from afar: there. */
     fun pickDataLayers(new: DataLayers) {
         if (new.country != dataLayers.country || new.timeZones != dataLayers.timeZones || new.mapBuilds != dataLayers.mapBuilds) {
@@ -666,80 +643,109 @@ fun MapScreen(
         }
         dataLayers = new
     }
-    // A data view in a link (the web app's `data=` in its address): open, with its layers and what
-    // was tapped; the map stays where the link put it.
-    LaunchedEffect(stats) {
-        if (stats == null) return@LaunchedEffect
-        DataViewLink.pending.collect { name ->
-            val layers = name?.let(DataViewLink::layers) ?: return@collect
-            DataViewLink.pending.value = null
-            hiddenCountryClasses = emptySet()
-            hiddenZoneClasses = emptySet()
-            hiddenLocalityClasses = emptySet()
-            live.hiddenWeather = emptySet()
-            dataLayers = layers
-            dataSelected = DataViewLink.pendingSelected
-            DataViewLink.pendingSelected = null
-            explorerOpen = false
-            dataView = true
-        }
-    }
-    // The data view asked for from the web app's menu: on, with its explorer open.
-    LaunchedEffect(stats) {
-        if (stats == null) return@LaunchedEffect
-        DataViewLink.showExplorer.collect { show ->
-            if (!show) return@collect
-            DataViewLink.showExplorer.value = false
-            dataSelected = null
-            explorerOpen = true
-            dataView = true
-        }
-    }
-    // The data view as it is now, for the web app's address.
-    LaunchedEffect(dataView, dataLayers, dataSelected) {
-        DataViewLink.current.value = if (dataView) MapAddress.data(dataLayers) else null
-        DataViewLink.currentSelected.value = dataSelected?.takeIf { dataView }
-    }
-    LaunchedEffect(stats, dataView, countryIndicator) {
-        if (stats != null && dataView && countryIndicator != null) stats.loadFigures(countryIndicator, currentYear())
-    }
-    LaunchedEffect(
-        dataView, statsCountries, statsFigures, countryIndicator, hiddenCountryClasses, statsLocalities, localityIndicator,
-        hiddenLocalityClasses, statsZones, dataLayers.timeZones, hiddenZoneClasses, zonesQuarter, app.maparound.i18n.I18n.language,
-        statsBuilds, dataLayers.mapBuilds,
-    ) {
-        if (!dataView) {
-            controller.setStats(null, null, null)
-            return@LaunchedEffect
-        }
-        val countriesJson = countryIndicator?.let { indicator ->
-            statsCountries?.let { cs ->
-                withContext(Dispatchers.Default) {
-                    StatsLayers.countries(cs, indicator, statsFigures[indicator].orEmpty(), hiddenCountryClasses, he = app.maparound.i18n.I18n.language == app.maparound.i18n.Language.HE)
-                }
+    // The data view's effects, in a function of their own (see MapTop).
+    @Composable
+    fun DataViewEffects() {
+        LaunchedEffect(dataRasters, photoTiles) { controller.setDataTiles(dataRasters, photoTiles) }
+        // The time zones' offsets are worked out again every quarter of an hour (clocks change).
+        var zonesQuarter by remember { mutableStateOf(0L) }
+        LaunchedEffect(stats, dataView, dataLayers.timeZones) {
+            if (stats == null || !dataView || !dataLayers.timeZones) return@LaunchedEffect
+            stats.loadTimeZones()
+            while (true) {
+                zonesQuarter = nowMillis() / ZONES_REFRESH_MS
+                delay(ZONES_REFRESH_MS - nowMillis() % ZONES_REFRESH_MS)
             }
         }
-        val localitiesJson = localityIndicator?.let { indicator ->
-            statsLocalities?.let { ls -> withContext(Dispatchers.Default) { StatsLayers.localities(ls, indicator, hiddenLocalityClasses) } }
+        // How MapAround's maps stand: the list read once a visit, when the layer is first on.
+        LaunchedEffect(stats, dataView, dataLayers.mapBuilds) {
+            if (stats != null && dataView && dataLayers.mapBuilds) stats.loadMapBuilds()
         }
-        val zonesJson = statsZones?.takeIf { dataLayers.timeZones }?.let { zs ->
-            val now = nowMillis()
-            val offsets = zs.mapNotNull { z -> stats?.zoneOffset(z.name, now)?.let { z.name to it } }.toMap()
-            withContext(Dispatchers.Default) { TimeZones.geoJson(zs, offsets, hiddenZoneClasses) }
+        LaunchedEffect(stats, dataView) {
+            if (stats == null || !dataView) return@LaunchedEffect
+            launch { stats.loadCountries() }
+            launch { stats.loadLocalities() }
+            while (true) {
+                dataZoom = controller.zoomLevel()
+                delay(400)
+            }
         }
-        // The map builds are drawn as the time zones are (one or the other colours the world).
-        val buildsJson = statsBuilds?.takeIf { dataLayers.mapBuilds }?.let { b ->
-            withContext(Dispatchers.Default) { app.maparound.stats.MapBuilds.geoJson(b, hiddenZoneClasses) }
+        // A data view in a link (the web app's `data=` in its address): open, with its layers and what
+        // was tapped; the map stays where the link put it.
+        LaunchedEffect(stats) {
+            if (stats == null) return@LaunchedEffect
+            DataViewLink.pending.collect { name ->
+                val layers = name?.let(DataViewLink::layers) ?: return@collect
+                DataViewLink.pending.value = null
+                hiddenCountryClasses = emptySet()
+                hiddenZoneClasses = emptySet()
+                hiddenLocalityClasses = emptySet()
+                live.hiddenWeather = emptySet()
+                dataLayers = layers
+                dataSelected = DataViewLink.pendingSelected
+                DataViewLink.pendingSelected = null
+                explorerOpen = false
+                dataView = true
+            }
         }
-        controller.setStats(countriesJson, localitiesJson, zonesJson ?: buildsJson)
+        // The data view asked for from the web app's menu: on, with its explorer open.
+        LaunchedEffect(stats) {
+            if (stats == null) return@LaunchedEffect
+            DataViewLink.showExplorer.collect { show ->
+                if (!show) return@collect
+                DataViewLink.showExplorer.value = false
+                dataSelected = null
+                explorerOpen = true
+                dataView = true
+            }
+        }
+        // The data view as it is now, for the web app's address.
+        LaunchedEffect(dataView, dataLayers, dataSelected) {
+            DataViewLink.current.value = if (dataView) MapAddress.data(dataLayers) else null
+            DataViewLink.currentSelected.value = dataSelected?.takeIf { dataView }
+        }
+        LaunchedEffect(stats, dataView, countryIndicator) {
+            if (stats != null && dataView && countryIndicator != null) stats.loadFigures(countryIndicator, currentYear())
+        }
+        LaunchedEffect(
+            dataView, statsCountries, statsFigures, countryIndicator, hiddenCountryClasses, statsLocalities, localityIndicator,
+            hiddenLocalityClasses, statsZones, dataLayers.timeZones, hiddenZoneClasses, zonesQuarter, app.maparound.i18n.I18n.language,
+            statsBuilds, dataLayers.mapBuilds,
+        ) {
+            if (!dataView) {
+                controller.setStats(null, null, null)
+                return@LaunchedEffect
+            }
+            val countriesJson = countryIndicator?.let { indicator ->
+                statsCountries?.let { cs ->
+                    withContext(Dispatchers.Default) {
+                        StatsLayers.countries(cs, indicator, statsFigures[indicator].orEmpty(), hiddenCountryClasses, he = app.maparound.i18n.I18n.language == app.maparound.i18n.Language.HE)
+                    }
+                }
+            }
+            val localitiesJson = localityIndicator?.let { indicator ->
+                statsLocalities?.let { ls -> withContext(Dispatchers.Default) { StatsLayers.localities(ls, indicator, hiddenLocalityClasses) } }
+            }
+            val zonesJson = statsZones?.takeIf { dataLayers.timeZones }?.let { zs ->
+                val now = nowMillis()
+                val offsets = zs.mapNotNull { z -> stats?.zoneOffset(z.name, now)?.let { z.name to it } }.toMap()
+                withContext(Dispatchers.Default) { TimeZones.geoJson(zs, offsets, hiddenZoneClasses) }
+            }
+            // The map builds are drawn as the time zones are (one or the other colours the world).
+            val buildsJson = statsBuilds?.takeIf { dataLayers.mapBuilds }?.let { b ->
+                withContext(Dispatchers.Default) { app.maparound.stats.MapBuilds.geoJson(b, hiddenZoneClasses) }
+            }
+            controller.setStats(countriesJson, localitiesJson, zonesJson ?: buildsJson)
+        }
+        // The country whose card is open, highlighted on the map.
+        LaunchedEffect(dataView, dataSelected, statsCountries, countryIndicator) {
+            val iso = dataSelected?.takeIf { dataView && countryIndicator != null && it.startsWith(StatsLayers.TAP_COUNTRY) }
+                ?.removePrefix(StatsLayers.TAP_COUNTRY)
+            val geometry = iso?.let { statsCountries?.get(it)?.geometry }
+            controller.setDataPoints(app.maparound.map.maplibre.MapStyle.DATA_SELECTED, geometry?.let(StatsLayers::selection))
+        }
     }
-    // The country whose card is open, highlighted on the map.
-    LaunchedEffect(dataView, dataSelected, statsCountries, countryIndicator) {
-        val iso = dataSelected?.takeIf { dataView && countryIndicator != null && it.startsWith(StatsLayers.TAP_COUNTRY) }
-            ?.removePrefix(StatsLayers.TAP_COUNTRY)
-        val geometry = iso?.let { statsCountries?.get(it)?.geometry }
-        controller.setDataPoints(app.maparound.map.maplibre.MapStyle.DATA_SELECTED, geometry?.let(StatsLayers::selection))
-    }
+    DataViewEffects()
     // The point of interest the pin is on (tapped on the map), while the pin stays there.
     var pinPoi by remember { mutableStateOf<app.maparound.map.MapPoi?>(null) }
     // "What's here?" open for a point (and the point of interest there).
@@ -903,111 +909,121 @@ fun MapScreen(
         controller.followNavigation(loc.lat, loc.lon, navView.bearing, navView.zoom, tilted = prefs.navigation3d.value)
         navShown = true
     }
-    // 2D or 3D chosen while navigating: the view changes at once.
-    LaunchedEffect(navigation3d) {
-        if (NavigationSession.state.value.active && follow) location?.let(::showNavigation)
-    }
-    LaunchedEffect(location) {
-        val loc = location
-        controller.updateLocation(loc)
-        val navigating = loc != null && NavigationSession.state.value.active
-        if (navigating) {
-            // The background service feeds navigation too; the same fix counts once.
-            NavigationSession.onFix(loc!!)
-            navView.update(loc, NavigationSession.state.value)
+    // The map following navigation and the query, in a function of their own (see MapTop).
+    @Composable
+    fun NavigationEffects() {
+        // 2D or 3D chosen while navigating: the view changes at once.
+        LaunchedEffect(navigation3d) {
+            if (NavigationSession.state.value.active && follow) location?.let(::showNavigation)
         }
-        if (follow && loc != null) {
-            if (navigating) showNavigation(loc) else controller.animateTo(loc.lat, loc.lon)
+        LaunchedEffect(location) {
+            val loc = location
+            controller.updateLocation(loc)
+            val navigating = loc != null && NavigationSession.state.value.active
+            if (navigating) {
+                // The background service feeds navigation too; the same fix counts once.
+                NavigationSession.onFix(loc!!)
+                navView.update(loc, NavigationSession.state.value)
+            }
+            if (follow && loc != null) {
+                if (navigating) showNavigation(loc) else controller.animateTo(loc.lat, loc.lon)
+            }
         }
-    }
-    LaunchedEffect(nav.active) {
-        if (nav.active) {
-            follow = true
-            pin = null
-            showMe = false
-            navView.reset()
-            location?.let(::showNavigation)
-        } else {
-            // Navigation's over, wherever it was stopped (the car, the notification, another tab):
-            // the map flat and north up again, nothing of navigation's view left.
-            navShown = false
-            controller.endNavigation()
+        LaunchedEffect(nav.active) {
+            if (nav.active) {
+                follow = true
+                pin = null
+                showMe = false
+                navView.reset()
+                location?.let(::showNavigation)
+            } else {
+                // Navigation's over, wherever it was stopped (the car, the notification, another tab):
+                // the map flat and north up again, nothing of navigation's view left.
+                navShown = false
+                controller.endNavigation()
+            }
         }
+        LaunchedEffect(queryMode) {
+            controller.setQueryMode(queryMode)
+            if (!queryMode) queried = null
+        }
+        // The pin marks the point queried, while there is one.
+        LaunchedEffect(pin, queried) { controller.setPin(queried?.first ?: pin) }
     }
-    LaunchedEffect(queryMode) {
-        controller.setQueryMode(queryMode)
-        if (!queryMode) queried = null
-    }
-    // The pin marks the point queried, while there is one.
-    LaunchedEffect(pin, queried) { controller.setPin(queried?.first ?: pin) }
+    NavigationEffects()
 
     // ---- things other apps shared with us ---------------------------------------------------------
     // The embedded map's track: its name, length and climb over the map (it isn't kept anywhere),
     // and only the last one given (another link in its address replaces it).
     var embedTitle by remember { mutableStateOf<String?>(null) }
-    fun showOnly(id: String) = tracksRepo.visible.value.filter { it != id }.forEach { tracksRepo.setVisible(it, false) }
-    val incoming by Incoming.pending.collectAsState()
-    // consume() changes `incoming`, which restarts this effect and cancels it: anything that waits
-    // (a snackbar) goes in the screen's scope.
-    LaunchedEffect(incoming) {
-        when (val i = incoming) {
-            is Incoming.Item.Point -> {
-                Incoming.consume()
-                val p = i.point
-                follow = false
-                pin = GeoPoint(p.lat, p.lon)
-                pinLabel = p.label
-                controller.moveTo(MapPos(p.lat, p.lon, p.zoom ?: maxOf(controller.position().zoom, 15)))
-            }
-            is Incoming.Item.Route -> {
-                Incoming.consume()
-                follow = false
-                PlannerSession.load(i.route.points, i.route.profile)
-                controller.showPoints(i.route.points)
-            }
-            is Incoming.Item.Track -> {
-                Incoming.consume()
-                follow = false
-                controller.showPoints(i.saved.track.points)
-                if (embedded) {
-                    showOnly(i.saved.id)
-                    embedTitle = RouteText.summary(i.saved.track)
-                } else {
-                    scope.launch { snackbar.showSnackbar(T.map.importedTrack(i.saved.track.name, i.placesAdded)) }
+    // What other apps shared, taken in a function of its own (see MapTop).
+    @Composable
+    fun TakeIncoming() {
+        fun showOnly(id: String) = tracksRepo.visible.value.filter { it != id }.forEach { tracksRepo.setVisible(it, false) }
+        val incoming by Incoming.pending.collectAsState()
+        // consume() changes `incoming`, which restarts this effect and cancels it: anything that waits
+        // (a snackbar) goes in the screen's scope.
+        LaunchedEffect(incoming) {
+            when (val i = incoming) {
+                is Incoming.Item.Point -> {
+                    Incoming.consume()
+                    val p = i.point
+                    follow = false
+                    pin = GeoPoint(p.lat, p.lon)
+                    pinLabel = p.label
+                    controller.moveTo(MapPos(p.lat, p.lon, p.zoom ?: maxOf(controller.position().zoom, 15)))
                 }
-            }
-            is Incoming.Item.LinkedTrack -> {
-                Incoming.consume()
-                follow = false
-                val link = i.track
-                val name = link.name ?: T.map.sharedTrackName
-                // Opened before (the same link again): shown, not saved twice.
-                val known = tracksRepo.tracks.value.firstOrNull { it.track.name == name && it.track.points == link.points }
-                val track = known?.track ?: app.maparound.tracks.Track(name, app.maparound.tracks.TrackKind.IMPORTED, link.points, nowMillis())
-                val id = if (known != null) {
-                    tracksRepo.setVisible(known.id, true)
-                    known.id
-                } else {
-                    tracksRepo.save(track).id
+                is Incoming.Item.Route -> {
+                    Incoming.consume()
+                    follow = false
+                    PlannerSession.load(i.route.points, i.route.profile)
+                    controller.showPoints(i.route.points)
                 }
-                controller.showPoints(link.points)
-                if (embedded) {
-                    showOnly(id)
-                    embedTitle = RouteText.summary(track)
-                } else {
-                    scope.launch { snackbar.showSnackbar(if (known != null) T.map.sharedTrackShown(name) else T.map.importedTrack(name, 0)) }
+                is Incoming.Item.Track -> {
+                    Incoming.consume()
+                    follow = false
+                    controller.showPoints(i.saved.track.points)
+                    if (embedded) {
+                        showOnly(i.saved.id)
+                        embedTitle = RouteText.summary(i.saved.track)
+                    } else {
+                        scope.launch { snackbar.showSnackbar(T.map.importedTrack(i.saved.track.name, i.placesAdded)) }
+                    }
                 }
+                is Incoming.Item.LinkedTrack -> {
+                    Incoming.consume()
+                    follow = false
+                    val link = i.track
+                    val name = link.name ?: T.map.sharedTrackName
+                    // Opened before (the same link again): shown, not saved twice.
+                    val known = tracksRepo.tracks.value.firstOrNull { it.track.name == name && it.track.points == link.points }
+                    val track = known?.track ?: app.maparound.tracks.Track(name, app.maparound.tracks.TrackKind.IMPORTED, link.points, nowMillis())
+                    val id = if (known != null) {
+                        tracksRepo.setVisible(known.id, true)
+                        known.id
+                    } else {
+                        tracksRepo.save(track).id
+                    }
+                    controller.showPoints(link.points)
+                    if (embedded) {
+                        showOnly(id)
+                        embedTitle = RouteText.summary(track)
+                    } else {
+                        scope.launch { snackbar.showSnackbar(if (known != null) T.map.sharedTrackShown(name) else T.map.importedTrack(name, 0)) }
+                    }
+                }
+                is Incoming.Item.Places -> {
+                    Incoming.consume()
+                    follow = false
+                    prefs.setPlacesOnMap(true)
+                    controller.showPoints(i.points)
+                    if (!embedded) scope.launch { snackbar.showSnackbar(if (i.added == 0) T.map.placesAlreadySaved else T.map.placesAdded(i.added)) }
+                }
+                else -> Unit
             }
-            is Incoming.Item.Places -> {
-                Incoming.consume()
-                follow = false
-                prefs.setPlacesOnMap(true)
-                controller.showPoints(i.points)
-                if (!embedded) scope.launch { snackbar.showSnackbar(if (i.added == 0) T.map.placesAlreadySaved else T.map.placesAdded(i.added)) }
-            }
-            else -> Unit
         }
     }
+    TakeIncoming()
 
 
     var showLayers by remember { mutableStateOf(false) }
@@ -1016,9 +1032,14 @@ fun MapScreen(
     var toolsFolded by rememberSaveable { mutableStateOf(false) }
     var plannerFolded by rememberSaveable { mutableStateOf(false) }
     var replayFolded by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(tools.active) { if (tools.active) toolsFolded = false }
-    LaunchedEffect(planner.active) { if (planner.active) plannerFolded = false }
-    LaunchedEffect(replay?.memberId) { if (replay != null) replayFolded = false }
+    // Each drawer opens unfolded (see MapTop).
+    @Composable
+    fun ResetFolds() {
+        LaunchedEffect(tools.active) { if (tools.active) toolsFolded = false }
+        LaunchedEffect(planner.active) { if (planner.active) plannerFolded = false }
+        LaunchedEffect(replay?.memberId) { if (replay != null) replayFolded = false }
+    }
+    ResetFolds()
     var scene3d by remember { mutableStateOf<app.maparound.three.Camera3D?>(null) }
     var scene3dControl by remember { mutableStateOf<Scene3DControl?>(null) }
     var searching by remember { mutableStateOf(false) }
@@ -1302,9 +1323,10 @@ fun MapScreen(
             }
     }
 
-    val density = LocalDensity.current
-    Box(Modifier.fillMaxSize().onSizeChanged { mapWidth = with(density) { it.width.toDp() } }) {
-        mapView(controller, Modifier.fillMaxSize())
+    // What's over the map, and the sheets over the screen, in functions of their own as Cards is:
+    // all in MapScreen, it was too big for Android to compile (it only ran interpreted).
+    @Composable
+    fun BoxScope.MapTop() {
         // The scale, in the top corner away from the buttons (the compass goes under it).
         val menuShown = onMenu != null && !nav.active
         if (scene3d == null) ScaleLine(controller, Modifier.align(Alignment.TopStart).padding(start = if (menuShown) 60.dp else 12.dp, top = 12.dp))
@@ -1420,7 +1442,11 @@ fun MapScreen(
                 }
             }
         }
+    }
 
+    /** The cards and buttons along the bottom, the panels, the data explorer's drawer. */
+    @Composable
+    fun BoxScope.MapPanels() {
         // Beside the explorer's drawer on a wide screen.
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(start = if (explorerBeside) explorerWidth else 0.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
@@ -1560,171 +1586,188 @@ fun MapScreen(
         )
     }
 
-    shareTarget?.let { (la, lo, label) -> PointShareSheet(la, lo, label, onDismiss = { shareTarget = null }) }
+    /** The sheets and dialogs over the whole screen. */
+    @Composable
+    fun Sheets() {
+        shareTarget?.let { (la, lo, label) -> PointShareSheet(la, lo, label, onDismiss = { shareTarget = null }) }
 
-    whatsHere?.let { (p, poi) ->
-        // The places the map draws around the point (offline), nearest first.
-        val around = remember(p) { controller.poisNear(p, WHATS_HERE_RADIUS_DP) }
-        WhatsHereSheet(p, poi, around, onShow = { other ->
-            whatsHere = null
-            pin = other.point
-            pinLabel = other.title
-            pinPoi = other
-            controller.animateTo(other.lat, other.lon)
-        }, onShowPoint = { at, label ->
-            // Where a photo was taken.
-            whatsHere = null
-            pin = at
-            pinLabel = label
-            pinPoi = null
-            controller.animateTo(at.lat, at.lon)
-        }, onDismiss = { whatsHere = null }, known = pinArticle?.takeIf { it.first == poi }?.second)
-    }
-
-    viewPhoto?.let { photo -> PhotoViewer(photo, onDismiss = { viewPhoto = null }) }
-
-    scene3d?.let { req ->
-        // The 3D view drapes the same map: its sources' credits (the relief's are the 3D screen's).
-        val mapCredits = listOfNotNull(
-            if (!showingOffline) onlineSource?.attribution else T.map.osmAttribution,
-            if (showingOffline) backgroundAttribution(background, rasterMaps) else null,
-            if (trailOverlay) TileSources.trailsOverlay.attribution else null,
-        ).joinToString(" · ")
-        Scene3DScreen(
-            req, mapCredits,
-            onClose = { last ->
-                scene3d = null
-                scene3dControl = null
-                // The 2D map comes back where the 3D view was looking: flat, north up.
-                last?.let(controller::showFrom3D)
-                controller.endNavigation()
-            },
-            onControl = { scene3dControl = it },
-            buttons = { zoom, relief, onRelief, close, limit ->
-                MapButtons(Modifier, in3d = true, zoom = zoom, relief = relief, onRelief = onRelief, onSwitch3d = close, bottomLimit = limit)
-            },
-        ) { view3d(it) }
-    }
-
-    if (searching) {
-        SearchOverlay(
-            mapCenter = controller.position().let { GeoPoint(it.lat, it.lon) },
-            myLocation = location,
-            onPick = { r ->
-                searching = false
-                follow = false
-                if (r.placeId != null) {
-                    prefs.setPlacesOnMap(true)
-                    selectedPlace = r.placeId
-                    pin = null
-                } else {
-                    pin = GeoPoint(r.lat, r.lon)
-                    pinLabel = r.name
-                }
-                controller.moveTo(MapPos(r.lat, r.lon, maxOf(controller.position().zoom, 14)))
-                // In 3D: the view goes there too.
-                scene3dControl?.lookAt(r.lat, r.lon)
-            },
-            onClose = { searching = false },
-        )
-    }
-
-    editPlace?.let { (pl, isNew) ->
-        PlaceEditDialog(pl, isNew, onDismiss = { editPlace = null }, onSave = {
-            placesRepo.save(it)
-            editPlace = null
-            if (isNew) {
-                pin = null
-                showMe = false
-                prefs.setPlacesOnMap(true)
-                scope.launch { snackbar.showSnackbar(T.map.savedToPlaces(it.name)) }
-            }
-        })
-    }
-
-    if (saveDialog) {
-        SaveRouteDialog(
-            suggested = Fmt.dayMonthTime(nowMillis()).let {
-                if (planner.profile == RouteProfile.LINE) T.map.drawnRouteName(it) else T.map.routeName(it)
-            },
-            onDismiss = { saveDialog = false },
-            onSave = { name ->
-                saveDialog = false
-                PlannerSession.save(name)
-                PlannerSession.close()
-                scope.launch { snackbar.showSnackbar(T.map.savedToRoutes(name)) }
-            },
-        )
-    }
-
-    if (showLayers) {
-        LayersSheet(
-            selectedId = if (showingOffline) TileSources.OFFLINE_ID else baseLayerId,
-            custom = customSources,
-            offlineCount = localMaps.size,
-            theme = theme,
-            contours = contours,
-            hillshade = hillshade,
-            terrainTiles = terrain.tiles,
-            trails = trailsOn,
-            localTrails = trailData.cells > 0,
-            places = placesOn,
-            inParty = party.party != null,
-            background = background,
-            vectorOnBackground = vectorOnBackground,
-            rasterMaps = rasterMaps,
-            onRasterError = { e -> scope.launch { snackbar.showSnackbar(rasterError(e)) } },
-            onMessage = { m -> scope.launch { snackbar.showSnackbar(m) } },
-            onOpenOffline = onOpenOffline?.let { open ->
-                {
-                    showLayers = false
-                    open()
-                }
-            },
-            onSelect = {
-                prefs.setBaseLayer(it)
-                showLayers = false
-            },
-            onAddCustom = {
-                prefs.addCustomSource(it)
-                prefs.setBaseLayer(it.id)
-                showLayers = false
-            },
-            onRemoveCustom = { prefs.removeCustomSource(it) },
-            onLegend = {
-                showLayers = false
-                showLegend = true
-            },
-            dataView = if (stats != null) dataView else null,
-            onDataView = {
-                dataView = it
-                explorerOpen = it
-                dataSelected = null
-                showLayers = false
-            },
-            onDismiss = { showLayers = false },
-        )
-    }
-
-    if (showLegend) {
-        // The legend of what's on screen: the offline style (with its options), or the online map.
-        val legendThemes = LocalMapThemes.current
-        val sections by produceState<List<app.maparound.map.legend.MapLegend.Section>?>(null, showingOffline, theme, categories, I18n.language) {
-            value = if (!showingOffline) null else withContext(Dispatchers.Default) {
-                legendThemes.themeXml(theme)?.let { app.maparound.map.legend.MapLegend.build(it, categories) }
-            }
+        whatsHere?.let { (p, poi) ->
+            // The places the map draws around the point (offline), nearest first.
+            val around = remember(p) { controller.poisNear(p, WHATS_HERE_RADIUS_DP) }
+            WhatsHereSheet(p, poi, around, onShow = { other ->
+                whatsHere = null
+                pin = other.point
+                pinLabel = other.title
+                pinPoi = other
+                controller.animateTo(other.lat, other.lon)
+            }, onShowPoint = { at, label ->
+                // Where a photo was taken.
+                whatsHere = null
+                pin = at
+                pinLabel = label
+                pinPoi = null
+                controller.animateTo(at.lat, at.lon)
+            }, onDismiss = { whatsHere = null }, known = pinArticle?.takeIf { it.first == poi }?.second)
         }
-        val symbolPx = with(LocalDensity.current) { 22.dp.roundToPx() }
-        val src = onlineSource
-        LegendSheet(
-            mapName = if (src != null) TileSources.title(src) else themes.firstOrNull { it.id == theme }?.let(MapThemes::title) ?: theme,
-            sections = sections,
-            online = src?.let { app.maparound.map.legend.OnlineLegends.of(it) },
-            trailOverlay = trailOverlay,
-            symbol = { path -> legendThemes.symbol(theme, path, symbolPx) },
-            onDismiss = { showLegend = false },
-        )
+
+        viewPhoto?.let { photo -> PhotoViewer(photo, onDismiss = { viewPhoto = null }) }
+
+        scene3d?.let { req ->
+            // The 3D view drapes the same map: its sources' credits (the relief's are the 3D screen's).
+            val mapCredits = listOfNotNull(
+                if (!showingOffline) onlineSource?.attribution else T.map.osmAttribution,
+                if (showingOffline) backgroundAttribution(background, rasterMaps) else null,
+                if (trailOverlay) TileSources.trailsOverlay.attribution else null,
+            ).joinToString(" · ")
+            Scene3DScreen(
+                req, mapCredits,
+                onClose = { last ->
+                    scene3d = null
+                    scene3dControl = null
+                    // The 2D map comes back where the 3D view was looking: flat, north up.
+                    last?.let(controller::showFrom3D)
+                    controller.endNavigation()
+                },
+                onControl = { scene3dControl = it },
+                buttons = { zoom, relief, onRelief, close, limit ->
+                    MapButtons(Modifier, in3d = true, zoom = zoom, relief = relief, onRelief = onRelief, onSwitch3d = close, bottomLimit = limit)
+                },
+            ) { view3d(it) }
+        }
+
+        if (searching) {
+            SearchOverlay(
+                mapCenter = controller.position().let { GeoPoint(it.lat, it.lon) },
+                myLocation = location,
+                onPick = { r ->
+                    searching = false
+                    follow = false
+                    if (r.placeId != null) {
+                        prefs.setPlacesOnMap(true)
+                        selectedPlace = r.placeId
+                        pin = null
+                    } else {
+                        pin = GeoPoint(r.lat, r.lon)
+                        pinLabel = r.name
+                    }
+                    controller.moveTo(MapPos(r.lat, r.lon, maxOf(controller.position().zoom, 14)))
+                    // In 3D: the view goes there too.
+                    scene3dControl?.lookAt(r.lat, r.lon)
+                },
+                onClose = { searching = false },
+            )
+        }
+
+        editPlace?.let { (pl, isNew) ->
+            PlaceEditDialog(pl, isNew, onDismiss = { editPlace = null }, onSave = {
+                placesRepo.save(it)
+                editPlace = null
+                if (isNew) {
+                    pin = null
+                    showMe = false
+                    prefs.setPlacesOnMap(true)
+                    scope.launch { snackbar.showSnackbar(T.map.savedToPlaces(it.name)) }
+                }
+            })
+        }
+
+        if (saveDialog) {
+            SaveRouteDialog(
+                suggested = Fmt.dayMonthTime(nowMillis()).let {
+                    if (planner.profile == RouteProfile.LINE) T.map.drawnRouteName(it) else T.map.routeName(it)
+                },
+                onDismiss = { saveDialog = false },
+                onSave = { name ->
+                    saveDialog = false
+                    PlannerSession.save(name)
+                    PlannerSession.close()
+                    scope.launch { snackbar.showSnackbar(T.map.savedToRoutes(name)) }
+                },
+            )
+        }
+
+        if (showLayers) {
+            LayersSheet(
+                selectedId = if (showingOffline) TileSources.OFFLINE_ID else baseLayerId,
+                custom = customSources,
+                offlineCount = localMaps.size,
+                theme = theme,
+                contours = contours,
+                hillshade = hillshade,
+                terrainTiles = terrain.tiles,
+                trails = trailsOn,
+                localTrails = trailData.cells > 0,
+                places = placesOn,
+                inParty = party.party != null,
+                background = background,
+                vectorOnBackground = vectorOnBackground,
+                rasterMaps = rasterMaps,
+                onRasterError = { e -> scope.launch { snackbar.showSnackbar(rasterError(e)) } },
+                onMessage = { m -> scope.launch { snackbar.showSnackbar(m) } },
+                onOpenOffline = onOpenOffline?.let { open ->
+                    {
+                        showLayers = false
+                        open()
+                    }
+                },
+                onSelect = {
+                    prefs.setBaseLayer(it)
+                    showLayers = false
+                },
+                onAddCustom = {
+                    prefs.addCustomSource(it)
+                    prefs.setBaseLayer(it.id)
+                    showLayers = false
+                },
+                onRemoveCustom = { prefs.removeCustomSource(it) },
+                onLegend = {
+                    showLayers = false
+                    showLegend = true
+                },
+                dataView = if (stats != null) dataView else null,
+                onDataView = {
+                    dataView = it
+                    explorerOpen = it
+                    dataSelected = null
+                    showLayers = false
+                },
+                onDismiss = { showLayers = false },
+            )
+        }
+
+        if (showLegend) {
+            // The legend of what's on screen: the offline style (with its options), or the online map.
+            val legendThemes = LocalMapThemes.current
+            val sections by produceState<List<app.maparound.map.legend.MapLegend.Section>?>(null, showingOffline, theme, categories, I18n.language) {
+                value = if (!showingOffline) null else withContext(Dispatchers.Default) {
+                    legendThemes.themeXml(theme)?.let { app.maparound.map.legend.MapLegend.build(it, categories) }
+                }
+            }
+            val symbolPx = with(LocalDensity.current) { 22.dp.roundToPx() }
+            val src = onlineSource
+            LegendSheet(
+                mapName = if (src != null) TileSources.title(src) else themes.firstOrNull { it.id == theme }?.let(MapThemes::title) ?: theme,
+                sections = sections,
+                online = src?.let { app.maparound.map.legend.OnlineLegends.of(it) },
+                trailOverlay = trailOverlay,
+                symbol = { path -> legendThemes.symbol(theme, path, symbolPx) },
+                onDismiss = { showLegend = false },
+            )
+        }
     }
+
+    /** The whole screen: the map, what's over it, the sheets (one call from MapScreen, not three). */
+    @Composable
+    fun Screen() {
+        val density = LocalDensity.current
+        Box(Modifier.fillMaxSize().onSizeChanged { mapWidth = with(density) { it.width.toDp() } }) {
+            mapView(controller, Modifier.fillMaxSize())
+            MapTop()
+            MapPanels()
+        }
+        Sheets()
+    }
+    Screen()
 }
 
 /** Saved places as map markers. */
