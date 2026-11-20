@@ -54,6 +54,8 @@ data class PartyState(
     val nodesShown: Boolean = true,
     /** Each member's way (by id) over the last [RECENT_WAY_MS], oldest first: the trails layer. */
     val recentWays: Map<Int, List<WayPoint>> = emptyMap(),
+    /** The party's marks (not the meeting point: [meeting]), as the map draws them. */
+    val marks: List<PartyMark> = emptyList(),
 ) {
     companion object {
         /** How far back the trails layer goes. */
@@ -63,6 +65,39 @@ data class PartyState(
 
 /** A point of a member's way, and when they were there (their clock, ms). */
 data class WayPoint(val lat: Double, val lon: Double, val at: Long)
+
+/** One of a party's marks (docs/LINK_PROTOCOL.md §5): its shape, look and text, and how it came. */
+data class PartyMark(
+    /** Its id in the party (creator and counter). */
+    val id: String,
+    val shape: MarkShape,
+    val name: String = "",
+    val note: String = "",
+    /** A [app.maparound.party.link.MarkIcon] code (1–8: the saved places' categories); null: a plain pin. */
+    val icon: Int? = null,
+    /** 0xRRGGBB; null: the icon's own colour, else the party's. */
+    val rgb: Int? = null,
+    val width: app.maparound.party.link.Width = app.maparound.party.link.Width.NORMAL,
+    val line: app.maparound.party.link.LineStyle = app.maparound.party.link.LineStyle.SOLID,
+    val fill: app.maparound.party.link.Fill = app.maparound.party.link.Fill.NONE,
+    /** The connections that brought any of it: shown while one of them is (or it's [mine]). */
+    val via: Set<String> = emptySet(),
+    /** Made or edited on this phone. */
+    val mine: Boolean = false,
+    /** Who changed it last (their member id), and when (ms). */
+    val editor: Int? = null,
+    val edited: Long? = null,
+)
+
+/** A mark's shape. */
+sealed class MarkShape {
+    data class Point(val at: app.maparound.routing.GeoPoint) : MarkShape()
+    data class Circle(val center: app.maparound.routing.GeoPoint, val radiusM: Double) : MarkShape()
+    data class Line(val points: List<app.maparound.routing.GeoPoint>) : MarkShape()
+
+    /** A closed area, its last point not repeated. */
+    data class Area(val points: List<app.maparound.routing.GeoPoint>) : MarkShape()
+}
 
 /** What of one party the map shows; an SOS shows whatever is off. */
 data class PartyLayers(

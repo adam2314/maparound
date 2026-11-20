@@ -11,6 +11,7 @@ import app.maparound.map.MapSurface
 import app.maparound.map.OnlineSource
 import app.maparound.map.PartyMarker
 import app.maparound.map.PartyTrail
+import app.maparound.map.MarkOnMap
 import app.maparound.map.PlaceMarker
 import app.maparound.map.ToolLine
 import app.maparound.routing.GeoPoint
@@ -279,6 +280,28 @@ class MapLibreSurface(
         }))
     }
 
+    override fun setPartyMarks(marks: List<MarkOnMap>) {
+        val features = ArrayList<JsonObject>()
+        for (m in marks) {
+            val props = mapOf(
+                "color" to "#" + (m.color and 0xFFFFFF).toString(16).padStart(6, '0'),
+                "width" to m.width,
+                "line" to MARK_LINES[m.dash.coerceIn(0, 2)],
+                "fill" to m.fill,
+                "tap" to "$TAP_PARTY${m.key}",
+            )
+            val first = m.points.firstOrNull() ?: continue
+            when {
+                m.circleM != null -> features += GeoJson.ring(GeoJson.circle(first.lat, first.lon, m.circleM), props, polygon = true)
+                m.area && m.points.size >= 3 -> features += GeoJson.ring(m.points, props, polygon = true)
+                m.points.size >= 2 -> GeoJson.line(m.points, props)?.let(features::add)
+                m.emoji != null -> features += GeoJson.point(first.lat, first.lon, props + mapOf("role" to "point", "icon" to MarkerIcons.place(m.color, m.emoji, m.label)))
+                m.label.isNotBlank() -> features += GeoJson.point(first.lat, first.lon, props + mapOf("role" to "label", "label" to m.label))
+            }
+        }
+        native.setGeoJson(MapStyle.PARTY_MARKS, GeoJson.collection(features))
+    }
+
     override fun setPartyTrails(trails: List<PartyTrail>) {
         native.setGeoJson(MapStyle.PARTY_TRAILS, GeoJson.collection(trails.mapNotNull { t ->
             GeoJson.line(t.points, mapOf("color" to "#" + (t.color and 0xFFFFFF).toString(16).padStart(6, '0')))
@@ -358,6 +381,9 @@ class MapLibreSurface(
         const val TAP_WAYPOINT = "wp:"
         const val TAP_PARTY = "party:"
         const val TAP_PLACE = "place:"
+
+        /** A mark's line style, as the style's mark layers filter on it. */
+        private val MARK_LINES = listOf("solid", "dashed", "dotted")
 
         private const val COLOR_A = 0xFF1565C0.toInt()
         private const val COLOR_B = 0xFFEF6C00.toInt()

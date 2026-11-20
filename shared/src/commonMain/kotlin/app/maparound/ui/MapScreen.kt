@@ -514,6 +514,7 @@ fun MapScreen(
         val all = parties.ifEmpty { listOf(party) }
         controller.setPartyMarkers(partyMapMarkers(all, partyClock, replay, shown = partyOn))
         controller.setPartyTrails(partyTrails(all, partyClock, replay, shown = partyOn))
+        controller.setPartyMarks(partyMarks(all, shown = partyOn))
     }
     LaunchedEffect(replay?.playing) {
         var last = nowMillis()
@@ -1799,7 +1800,9 @@ private fun PartyMarkerCard(
     val member = (target as? PartyTarget.MemberOf)?.member
     val meet = (target as? PartyTarget.MeetingOf)?.meeting
     val radio = (target as? PartyTarget.Radio)?.node
-    val owner = (target as? PartyTarget.MemberOf)?.party ?: (target as? PartyTarget.MeetingOf)?.party
+    val mark = (target as? PartyTarget.MarkOf)?.mark
+    val owner = (target as? PartyTarget.MemberOf)?.party ?: (target as? PartyTarget.MeetingOf)?.party ?: (target as? PartyTarget.MarkOf)?.party
+    val markAt = mark?.let { markAnchor(it.shape, myLocation?.let { me -> GeoPoint(me.lat, me.lon) }) }
     // Where its marker is (partyMapMarkers): the newest from a shown connection; an SOS, the newest.
     val memberAt = member?.let { m ->
         if (m.sos) m.position?.let { app.maparound.party.TimedPosition(it, m.positionAt) } else shownPosition(m, owner?.hiddenConnections.orEmpty())
@@ -1810,6 +1813,7 @@ private fun PartyMarkerCard(
             Quad(if (member.sos) T.party.sosName(member.displayName) else member.displayName, memberAt.position.lat, memberAt.position.lon, memberAt.at)
         radio != null && radioAt != null -> Quad(T.map.radioNamed(radio.name), radioAt.lat, radioAt.lon, radio.heardAt)
         meet != null -> Quad(T.map.meetingPoint, meet.lat, meet.lon, 0L)
+        mark != null && markAt != null -> Quad(mark.name.ifBlank { T.map.partyMark }, markAt.lat, markAt.lon, mark.edited ?: 0L)
         else -> return
     }
     Card(Modifier.widthIn(max = 360.dp).padding(bottom = 6.dp)) {
@@ -1828,6 +1832,15 @@ private fun PartyMarkerCard(
             if (at > 0) parts += Fmt.relativeTime(at) + " (" + Fmt.moment(at, seconds = true) + ")"
             member?.let { parts += T.map.via(it.heard.keys.joinToString(" + ") { v -> v.label }) }
             if (member?.sos == true && member.sosText.isNotBlank()) parts.add(0, member.sosText)
+            // A mark: its note, a line's length, who changed it last.
+            mark?.let { k ->
+                if (k.note.isNotBlank()) parts.add(0, k.note)
+                markLength(k.shape)?.let { parts += Fmt.distance(it.toFloat()) }
+                k.editor?.let { ed ->
+                    val who = if (ed == owner?.me?.id) T.party.you else owner?.members?.firstOrNull { it.id == ed }?.displayName
+                    who?.let { parts += T.map.markChangedBy(it) }
+                }
+            }
             // Several parties on the map: whose it is.
             if (parties.count { it.party != null } > 1) owner?.party?.let { parts.add(0, it.name) }
             Text(parts.joinToString(" · "), style = MaterialTheme.typography.bodyMedium)

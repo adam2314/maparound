@@ -12,6 +12,14 @@ import app.maparound.party.PartyMessage
 import app.maparound.party.PartyState
 import app.maparound.party.TimedPosition
 import app.maparound.party.TransportStatus
+import app.maparound.party.PartyMark
+import app.maparound.party.MarkShape
+import app.maparound.party.link.Fill
+import app.maparound.party.link.LineStyle
+import app.maparound.party.link.MarkIcon
+import app.maparound.party.link.Width
+import app.maparound.places.PlaceCategory
+import app.maparound.routing.GeoPoint
 import app.maparound.party.WayPoint
 import app.maparound.testing.assertEquals
 import app.maparound.testing.assertNull
@@ -136,5 +144,61 @@ class PartyMapLayersTest {
         assertEquals(0, nodes(party(hike, listOf(), nodes = listOf(node), hidden = setOf("radio:AA"))))
         // Two parties: once.
         assertEquals(1, partyMapMarkers(listOf(party(hike, listOf(), nodes = listOf(node)), party(club, listOf(), nodes = listOf(node))), now).count { it.kind == PartyMarker.Kind.RADIO })
+    }
+
+    private fun withMarks(key: PartyKey, marks: List<PartyMark>, color: Int = 0xFF1E88E5.toInt(), layers: PartyLayers = PartyLayers(), hidden: Set<String> = emptySet()) =
+        party(key, listOf(), color = color, layers = layers, hidden = hidden).copy(marks = marks)
+
+    private val spring = PartyMark("0a0a0a0a.1", MarkShape.Point(GeoPoint(31.5, 35.1)), name = "Spring", icon = MarkIcon.WATER, via = setOf("public"))
+
+    @Test
+    fun marksHaveTheirLook() {
+        val road = PartyMark("0a0a0a0a.2", MarkShape.Line(listOf(GeoPoint(31.0, 35.0), GeoPoint(31.0, 35.1))), rgb = 0x00FF00, line = LineStyle.DASHED, width = Width.THICK, via = setOf("public"))
+        val camp = PartyMark("0a0a0a0a.3", MarkShape.Circle(GeoPoint(31.2, 35.2), 300.0), fill = Fill.MEDIUM, via = setOf("public"))
+        val note = PartyMark("0a0a0a0a.4", MarkShape.Point(GeoPoint(31.3, 35.3)), name = "Cliff edge", icon = MarkIcon.LABEL, via = setOf("public"))
+        val zone = PartyMark("0a0a0a0a.5", MarkShape.Area(listOf(GeoPoint(31.0, 35.0), GeoPoint(31.1, 35.0), GeoPoint(31.1, 35.1))), via = setOf("public"))
+        val m = partyMarks(listOf(withMarks(hike, listOf(spring, road, camp, note, zone))))
+        // A point: its icon (a saved place's category) and its colour.
+        assertEquals("💧", m[0].emoji)
+        assertEquals(PlaceCategory.WATER.argb.toInt(), m[0].color)
+        assertEquals("Spring", m[0].label)
+        // A line in its own colour, dashed and thick.
+        assertEquals(0xFF00FF00.toInt(), m[1].color)
+        assertEquals(1, m[1].dash)
+        assertEquals(6.0, m[1].width, 0.0)
+        // A circle round its centre, filled; no colour of its own: the party's.
+        assertEquals(300.0, m[2].circleM!!, 0.0)
+        assertEquals(0xFF1E88E5.toInt(), m[2].color)
+        assertEquals(0.3, m[2].fill, 1e-9)
+        // The name alone; an area.
+        assertNull(m[3].emoji)
+        assertEquals("Cliff edge", m[3].label)
+        assertTrue(m[4].area)
+        assertEquals(markKey(hike, "0a0a0a0a.1"), m[0].key)
+        assertEquals("Spring", (partyTarget(listOf(withMarks(hike, listOf(spring))), m[0].key) as PartyTarget.MarkOf).mark.name)
+    }
+
+    @Test
+    fun marksFollowTheirLayerAndConnections() {
+        assertEquals(1, partyMarks(listOf(withMarks(hike, listOf(spring)))).size)
+        assertTrue(partyMarks(listOf(withMarks(hike, listOf(spring), layers = PartyLayers(marks = false)))).isEmpty())
+        assertTrue(partyMarks(listOf(withMarks(hike, listOf(spring))), shown = false).isEmpty())
+        // Only through a hidden connection: hidden, unless made here.
+        assertTrue(partyMarks(listOf(withMarks(hike, listOf(spring), hidden = setOf("public")))).isEmpty())
+        assertEquals(1, partyMarks(listOf(withMarks(hike, listOf(spring.copy(mine = true)), hidden = setOf("public")))).size)
+        // Several parties: whose it is.
+        val two = partyMarks(listOf(withMarks(hike, listOf(spring)), withMarks(club, listOf(spring), color = 0xFFFFB300.toInt())))
+        assertEquals(listOf("Spring · Hike", "Spring · Club run"), two.map { it.label })
+        assertEquals(2, two.map { it.key }.toSet().size)
+    }
+
+    @Test
+    fun aRouteToAMarkAndItsLength() {
+        val line = MarkShape.Line(listOf(GeoPoint(31.0, 35.0), GeoPoint(31.0, 35.01), GeoPoint(31.01, 35.01)))
+        assertEquals(GeoPoint(31.01, 35.01), markAnchor(line, GeoPoint(31.02, 35.02)))
+        assertEquals(GeoPoint(31.0, 35.0), markAnchor(line, null))
+        assertEquals(GeoPoint(31.2, 35.2), markAnchor(MarkShape.Circle(GeoPoint(31.2, 35.2), 50.0), GeoPoint(0.0, 0.0)))
+        assertEquals(954.0 + 1112.0, markLength(line)!!, 10.0)
+        assertNull(markLength(MarkShape.Point(GeoPoint(31.0, 35.0))))
     }
 }

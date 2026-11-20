@@ -180,6 +180,12 @@
   only through it, and it keeps running. With several parties on the map, each one's markers have
   its colour round them and its name after theirs. The radio's Meshtastic nodes can be hidden too.
   An SOS shows whatever is off.
+- **A party's marks on the map:** points as badges with their icon (a saved place's category, a
+  flag) or their name alone, lines solid, dashed or dotted, areas and circles filled as they were
+  made, in their colour (else the icon's, else the party's). They follow their party's **Meeting
+  point and marks** switch and the connections that brought them (always shown if made on this
+  phone). Tapping one shows its name, note, length, who changed it last and when, with Route here
+  and Share. Making and editing marks comes later.
 - On Android, the party reaches the servers over secure WebSockets, as the web app does.
 - For now, members' ways so far (History) aren't kept once the app closes.
 - **Only a real GPS fix goes on the map.** A position less exact than ±20 m (a phone indoors or

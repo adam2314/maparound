@@ -14,6 +14,8 @@ import app.maparound.party.PartyController
 import app.maparound.party.PartyEvent
 import app.maparound.party.PartyKey
 import app.maparound.party.PartyLayers
+import app.maparound.party.MarkShape
+import app.maparound.party.PartyMark
 import app.maparound.party.PartyMe
 import app.maparound.party.PartyMessage
 import app.maparound.party.PartyPalette
@@ -94,6 +96,9 @@ class LinkSession(
 
         /** Its private servers that turned it away (until they take it again). */
         val refused = HashSet<ConnectionId>()
+
+        /** What its marks were when last read for the screens (they're read again only when it changes). */
+        var marksSeen = -1L
 
         /** Its own part of what the screens see (the shared part is [common]'s). */
         var state = PartyState()
@@ -771,6 +776,7 @@ class LinkSession(
                 mySos = p.mySos,
                 historyCounts = p.history.counts,
                 recentWays = recentWays(p),
+                marks = marks(s),
                 online = if (h != null && common.onlineEnabled && p in h.parties) onlineStatus(s) else OFF,
             )
         }
@@ -780,6 +786,46 @@ class LinkSession(
         )
         publish()
         _fixEveryMs.value = fixEvery()
+    }
+
+    /** [s]'s marks as the map draws them; read again only when one changed (or came over another connection). */
+    private fun marks(s: Slot): List<PartyMark> {
+        val book = s.party.marks
+        var seen = book.all.size.toLong()
+        for (e in book.all) {
+            seen = seen * 31 + e.id.hashCode()
+            seen = seen * 31 + (e.lastEdited ?: 0) + 7L * (e.lastEditor ?: 0) + 13L * e.via.size + (if (e.isShown) 1 else 0) + (if (e.mine) 2 else 0)
+        }
+        if (seen == s.marksSeen) return s.state.marks
+        s.marksSeen = seen
+        return book.all.filter { it.isShown && it.id != MarkId.MEETING }.mapNotNull(::mark)
+    }
+
+    private fun mark(e: MarkEntry): PartyMark? {
+        fun at(p: GridPoint) = app.maparound.routing.GeoPoint(p.latDeg, p.lonDeg)
+        val shape = when (val g = e.geom?.value) {
+            is Geom.Point -> MarkShape.Point(at(g.at))
+            is Geom.Circle -> MarkShape.Circle(at(g.center), g.radiusM.toDouble())
+            is Geom.Path -> if (g.area) MarkShape.Area(g.vertices.map(::at)) else MarkShape.Line(g.vertices.map(::at))
+            null -> return null
+        }
+        val style = e.style?.value
+        val text = e.text?.value
+        return PartyMark(
+            id = "${hex(e.id.creator).padStart(8, '0')}.${e.id.counter}",
+            shape = shape,
+            name = text?.name.orEmpty(),
+            note = text?.note.orEmpty(),
+            icon = style?.icon,
+            rgb = style?.rgb,
+            width = style?.width ?: Width.NORMAL,
+            line = style?.line ?: LineStyle.SOLID,
+            fill = style?.fill ?: Fill.NONE,
+            via = e.via,
+            mine = e.mine,
+            editor = e.lastEditor,
+            edited = e.lastEdited?.let { it * 1000 },
+        )
     }
 
     /** Each member's way over the last half hour (their positions and the trails they sent), for the trails layer. */

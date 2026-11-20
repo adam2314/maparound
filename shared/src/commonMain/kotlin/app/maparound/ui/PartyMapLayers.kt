@@ -3,12 +3,20 @@ package app.maparound.ui
 import app.maparound.i18n.T
 import app.maparound.map.PartyMarker
 import app.maparound.map.PartyTrail
+import app.maparound.map.MarkOnMap
 import app.maparound.party.Meeting
 import app.maparound.party.Member
 import app.maparound.party.MeshNode
 import app.maparound.party.PartyKey
+import app.maparound.party.PartyMark
+import app.maparound.party.MarkShape
+import app.maparound.party.link.Fill
+import app.maparound.party.link.MarkIcon
+import app.maparound.party.link.Width
+import app.maparound.places.PlaceCategory
 import app.maparound.party.PartyState
 import app.maparound.party.TimedPosition
+import app.maparound.routing.Geo
 import app.maparound.routing.GeoPoint
 
 // The parties on the map, as layers (docs/LINK_PROTOCOL.md §7): each party on or off (its members,
@@ -24,10 +32,13 @@ internal fun meetKey(party: PartyKey) = "meet.${party.tagHex}"
 
 internal fun radioKey(num: Long) = "r$num"
 
+internal fun markKey(party: PartyKey, id: String) = "k${party.tagHex}.$id"
+
 /** What a party marker's key points at. */
 internal sealed class PartyTarget {
     data class MemberOf(val party: PartyState, val member: Member) : PartyTarget()
     data class MeetingOf(val party: PartyState, val meeting: Meeting) : PartyTarget()
+    data class MarkOf(val party: PartyState, val mark: PartyMark) : PartyTarget()
     data class Radio(val node: MeshNode) : PartyTarget()
 }
 
@@ -35,6 +46,11 @@ internal fun partyTarget(parties: List<PartyState>, key: String): PartyTarget? {
     for (p in parties) {
         val k = p.party ?: continue
         if (key == meetKey(k)) return p.meeting?.let { PartyTarget.MeetingOf(p, it) }
+        val markPrefix = "k${k.tagHex}."
+        if (key.startsWith(markPrefix)) {
+            val id = key.removePrefix(markPrefix)
+            return p.marks.firstOrNull { it.id == id }?.let { PartyTarget.MarkOf(p, it) }
+        }
         val prefix = "m${k.tagHex}."
         if (key.startsWith(prefix)) {
             val id = key.removePrefix(prefix).toIntOrNull() ?: return null
@@ -81,6 +97,61 @@ fun partyTrails(parties: List<PartyState>, now: Long, replay: PartyReplay.State?
         }
     }
 }
+
+/**
+ * The parties' marks (not their meeting points: [partyMapMarkers] has those), each party's while
+ * its marks layer is on: a mark while a connection that brought it is shown, or it's mine. Its
+ * colour: its own, else its icon's (a saved place's category), else its party's. With several
+ * parties, a point's name says whose it is.
+ */
+fun partyMarks(parties: List<PartyState>, shown: Boolean = true): List<MarkOnMap> = buildList {
+    if (!shown) return@buildList
+    val inParties = parties.filter { it.party != null }
+    val several = inParties.size > 1
+    val hidden = inParties.firstOrNull()?.hiddenConnections.orEmpty()
+    for (p in inParties) {
+        if (!p.layers.marks) continue
+        val key = p.party!!
+        for (m in p.marks) {
+            if (!m.mine && m.via.isNotEmpty() && m.via.all { it in hidden }) continue
+            val category = m.icon?.takeIf { it in 1..8 }?.let { PlaceCategory.entries[it - 1] }
+            val color = m.rgb?.let { (0xFF shl 24) or it } ?: category?.argb?.toInt() ?: p.color.takeIf { it != 0 } ?: DEFAULT_MARK_COLOR
+            val style = MarkOnMap(
+                key = markKey(key, m.id), points = emptyList(), color = color,
+                width = when (m.width) { Width.THIN -> 2.0; Width.NORMAL -> 3.5; Width.THICK -> 6.0; Width.EXTRA_THICK -> 9.0 },
+                dash = m.line.ordinal,
+                fill = when (m.fill) { Fill.NONE -> 0.0; Fill.LIGHT -> 0.15; Fill.MEDIUM -> 0.3; Fill.STRONG -> 0.5 },
+            )
+            add(when (val s = m.shape) {
+                is MarkShape.Point -> style.copy(
+                    points = listOf(s.at),
+                    // The name alone, without a badge; else the icon's (a pin by default).
+                    emoji = when (m.icon) { MarkIcon.LABEL -> null; MarkIcon.FLAG -> "🚩"; else -> category?.emoji ?: PlaceCategory.OTHER.emoji },
+                    label = m.name + if (several && m.name.isNotEmpty()) " · ${key.name}" else "",
+                )
+                is MarkShape.Circle -> style.copy(points = listOf(s.center), circleM = s.radiusM)
+                is MarkShape.Line -> style.copy(points = s.points)
+                is MarkShape.Area -> style.copy(points = s.points, area = true)
+            })
+        }
+    }
+}
+
+/** Where a route to a mark goes: a point, a circle's centre; else its point nearest [from] (the first, not knowing). */
+internal fun markAnchor(shape: MarkShape, from: GeoPoint?): GeoPoint? = when (shape) {
+    is MarkShape.Point -> shape.at
+    is MarkShape.Circle -> shape.center
+    is MarkShape.Line -> shape.points.nearestTo(from)
+    is MarkShape.Area -> shape.points.nearestTo(from)
+}
+
+private fun List<GeoPoint>.nearestTo(from: GeoPoint?) = if (from == null) firstOrNull() else minByOrNull { Geo.distance(from, it) }
+
+/** A line mark's length (m); null for the other shapes. */
+internal fun markLength(shape: MarkShape): Double? = (shape as? MarkShape.Line)?.points?.zipWithNext { a, b -> Geo.distance(a, b) }?.sum()
+
+/** A mark with no colour of its own, no icon's and no party's. */
+private val DEFAULT_MARK_COLOR = 0xFF6A1B9A.toInt()
 
 /** A member more than this long since their position: drawn faded. */
 private const val STALE_MS = 10 * 60_000L

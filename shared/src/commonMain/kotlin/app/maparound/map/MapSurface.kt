@@ -35,6 +35,28 @@ data class PartyMarker(
 /** A party member's recent way on the map, in their [color] (ARGB). */
 data class PartyTrail(val points: List<GeoPoint>, val color: Int)
 
+/**
+ * A party's mark on the map: a point (one of [points]), a circle ([circleM] round it), a line, or
+ * an [area] (a closed ring, its last point not repeated); [key] is what a tap on it reports.
+ */
+data class MarkOnMap(
+    val key: String,
+    val points: List<GeoPoint>,
+    val area: Boolean = false,
+    val circleM: Double? = null,
+    /** ARGB. */
+    val color: Int,
+    /** A line's (or outline's) width (dp). */
+    val width: Double = 3.5,
+    /** 0 solid, 1 dashed, 2 dotted. */
+    val dash: Int = 0,
+    /** An area's or circle's fill, 0 (none) to 1. */
+    val fill: Double = 0.0,
+    /** A point's badge (null: its [label] alone, as text). */
+    val emoji: String? = null,
+    val label: String = "",
+)
+
 /** A saved place on the map. */
 data class PlaceMarker(val id: String, val lat: Double, val lon: Double, val label: String, val emoji: String, val color: Int)
 
@@ -199,6 +221,9 @@ interface MapSurface : ZoomTarget {
 
     /** The party members' recent ways (the trails layer), each in its member's colour. */
     fun setPartyTrails(trails: List<PartyTrail>) = Unit
+
+    /** The parties' marks. */
+    fun setPartyMarks(marks: List<MarkOnMap>) = Unit
     fun setPlaces(places: List<PlaceMarker>)
     fun updateLocation(fix: GeoFix?)
     fun setPin(point: GeoPoint?)

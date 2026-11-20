@@ -486,4 +486,30 @@ class LinkSessionTest {
         assertEquals(lat, way.last().lat, 1e-4)
         assertTrue(way.zipWithNext().all { (x, y) -> x.at < y.at })
     }
+
+    @Test
+    fun marksReachTheOthersForTheMap() = runTest {
+        val net = Net(this)
+        val a = net.device("A")
+        val b = net.device("B")
+        a.session.create("Hike", "Dana")
+        b.joinOf(a, "Ido")
+        net.step(2)
+        a.session.setMeeting(31.77, 35.16, "Car park")
+        net.drain()
+        a.session.party!!.createMark(net.nowMs, Geom.Point(GridPoint.of(31.7, 35.2)), Style(icon = MarkIcon.WATER), MarkText("Spring", "Fresh in winter"))
+            .let { a.session.hub!!.send(a.session.party!!, it) }
+        net.step(2)
+        // The meeting point is the meeting point; the rest are marks.
+        val m = b.state.marks.single()
+        assertEquals("Spring", m.name)
+        assertEquals("Fresh in winter", m.note)
+        assertEquals(MarkIcon.WATER, m.icon)
+        assertEquals(setOf(LinkSession.PUBLIC), m.via)
+        assertEquals(a.state.me!!.id, m.editor)
+        val at = (m.shape as app.maparound.party.MarkShape.Point).at
+        assertEquals(31.7, at.lat, 1e-4)
+        // Mine, on the phone that made it.
+        assertTrue(a.state.marks.single().mine)
+    }
 }

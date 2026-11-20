@@ -139,6 +139,10 @@ open class MapTexts {
     open val partyTrails = "Trails"
     open val partyTrailsHint = "Where each went in the last 30 minutes"
     open val partyMeetAndMarks = "Meeting point and marks"
+
+    /** A party's mark without a name. */
+    open val partyMark = "Mark"
+    open fun markChangedBy(name: String) = "changed by $name"
     open val partyConnections = "Connections"
     open val partyConnectionsHint = "Hiding one hides what came only through it; it keeps running."
     open fun meshNodes(n: Int) = "Meshtastic nodes · $n"
@@ -485,6 +489,8 @@ object MapTextsHe : MapTexts() {
     override val partyTrails = "מסלולים"
     override val partyTrailsHint = "היכן כל אחד עבר ב־30 הדקות האחרונות"
     override val partyMeetAndMarks = "נקודת המפגש והסימונים"
+    override val partyMark = "סימון"
+    override fun markChangedBy(name: String) = "שונה על ידי $name"
     override val partyConnections = "חיבורים"
     override val partyConnectionsHint = "הסתרת חיבור מסתירה את מה שהגיע רק דרכו; הוא ממשיך לפעול."
     override fun meshNodes(n: Int) = "צמתים של Meshtastic · $n"

@@ -486,6 +486,39 @@ class MapStyle(
         line("tracks-casing", TRACKS, "#FFFFFF", 7.0),
         line("tracks-line", TRACKS, "#E65100", 4.0),
         line("recording", RECORDING, "#D50000", 4.0),
+        // The parties' marks: areas and circles filled as set, lines (and outlines) solid, dashed or
+        // dotted in their colour and width, points as badges, names alone as labels. All tappable.
+        layer("${TAP_PREFIX}party-marks-fill", "fill") {
+            put("source", PARTY_MARKS)
+            put("filter", arr("==", arr("geometry-type"), "Polygon"))
+            put("paint", obj("fill-color" to arr("get", "color"), "fill-opacity" to arr("get", "fill")))
+        },
+        *listOf("solid" to null, "dashed" to arr(2, 2), "dotted" to arr(0, 2)).map { (style, dashes) ->
+            layer("${TAP_PREFIX}party-marks-$style", "line") {
+                put("source", PARTY_MARKS)
+                put("filter", arr("all", arr("==", arr("get", "line"), style), arr("!=", arr("geometry-type"), "Point")))
+                put("layout", ROUND)
+                put("paint", obj(
+                    *listOfNotNull(
+                        "line-color" to arr("get", "color"),
+                        "line-width" to arr("get", "width"),
+                        dashes?.let { "line-dasharray" to it },
+                    ).toTypedArray(),
+                ))
+            }
+        }.toTypedArray(),
+        layer("${TAP_PREFIX}party-marks-labels", "symbol") {
+            put("source", PARTY_MARKS)
+            put("filter", eq("role", "label"))
+            put("layout", obj(
+                "text-field" to arr("get", "label"),
+                "text-font" to arr("Noto Sans Bold"),
+                "text-size" to 13,
+                "text-allow-overlap" to true,
+            ))
+            put("paint", obj("text-color" to arr("get", "color"), "text-halo-color" to "rgba(255,255,255,0.95)", "text-halo-width" to 1.8))
+        },
+        symbols("${TAP_PREFIX}party-marks", PARTY_MARKS, role = "point"),
         // The members' recent ways (the party's trails layer), each in its member's colour, thinner than a replay.
         line("party-trails-casing", PARTY_TRAILS, "#FFFFFF", 5.0),
         layer("party-trails", "line") {
@@ -586,6 +619,7 @@ class MapStyle(
         const val RECORDING = "mr-recording"
         const val PARTY_TRAIL = "mr-party-trail"
         const val PARTY_TRAILS = "mr-party-trails"
+        const val PARTY_MARKS = "mr-party-marks"
         const val ROUTE = "mr-route"
         const val TOOLS = "mr-tools"
         const val PLACES = "mr-places"
@@ -606,7 +640,7 @@ class MapStyle(
 
         /** A data view raster's source and layer. */
         fun dataRasterId(src: OnlineSource) = "mr-data-raster-${src.id}"
-        val OVERLAY_SOURCES = listOf(DATA_ZONES, DATA_COUNTRIES, DATA_SELECTED, DATA_LOCALITIES, DATA_BUSES, DATA_CAMERAS, DATA_WEATHER, GRID, TRACKS, RECORDING, PARTY_TRAILS, PARTY_TRAIL, ROUTE, TOOLS, PLACES, PARTY, ME, PIN)
+        val OVERLAY_SOURCES = listOf(DATA_ZONES, DATA_COUNTRIES, DATA_SELECTED, DATA_LOCALITIES, DATA_BUSES, DATA_CAMERAS, DATA_WEATHER, GRID, TRACKS, RECORDING, PARTY_MARKS, PARTY_TRAILS, PARTY_TRAIL, ROUTE, TOOLS, PLACES, PARTY, ME, PIN)
 
         /** Colour around the maps (no data). */
         const val OUTSIDE = "#EDEADA"
