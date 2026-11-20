@@ -170,5 +170,8 @@ object StatsLayers {
         return sb.append("]}").toString()
     }
 
+    /** The tapped country alone (its [Country.geometry]), for its highlight over the others. */
+    fun selection(geometry: String): String = """{"type":"FeatureCollection","features":[{"type":"Feature","geometry":$geometry,"properties":{}}]}"""
+
     private fun round6(v: Double) = (v * 1e6).roundToInt() / 1e6
 }

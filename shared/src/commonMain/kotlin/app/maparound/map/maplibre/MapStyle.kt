@@ -238,6 +238,30 @@ class MapStyle(
                 "fill-outline-color" to "rgba(255,255,255,0.9)",
             ))
         },
+        // The tapped country (its card open): lifted a little, and outlined in white over a dark edge.
+        layer("data-selected-fill", "fill") {
+            put("source", DATA_SELECTED)
+            put("maxzoom", 7)
+            put("paint", obj("fill-color" to "#FFFFFF", "fill-opacity" to 0.22))
+        },
+        layer("data-selected-casing", "line") {
+            put("source", DATA_SELECTED)
+            put("maxzoom", 7)
+            put("layout", ROUND)
+            put("paint", obj(
+                "line-color" to "rgba(0,0,0,0.6)",
+                "line-width" to arr("interpolate", arr("linear"), arr("zoom"), 1, 3.5, 6, 6.0),
+            ))
+        },
+        layer("data-selected-line", "line") {
+            put("source", DATA_SELECTED)
+            put("maxzoom", 7)
+            put("layout", ROUND)
+            put("paint", obj(
+                "line-color" to "#FFFFFF",
+                "line-width" to arr("interpolate", arr("linear"), arr("zoom"), 1, 1.6, 6, 3.0),
+            ))
+        },
     ) + dataRasters.map { src ->
         layer(dataRasterId(src), "raster") {
             put("source", dataRasterId(src))
@@ -569,9 +593,12 @@ class MapStyle(
         const val DATA_WEATHER = "mr-data-weather"
         const val DATA_CAMERAS = "mr-data-cameras"
 
+        /** The data view's tapped country, drawn over the others ([app.maparound.stats.StatsLayers.selection]). */
+        const val DATA_SELECTED = "mr-data-selected"
+
         /** A data view raster's source and layer. */
         fun dataRasterId(src: OnlineSource) = "mr-data-raster-${src.id}"
-        val OVERLAY_SOURCES = listOf(DATA_ZONES, DATA_COUNTRIES, DATA_LOCALITIES, DATA_BUSES, DATA_CAMERAS, DATA_WEATHER, GRID, TRACKS, RECORDING, PARTY_TRAIL, ROUTE, TOOLS, PLACES, PARTY, ME, PIN)
+        val OVERLAY_SOURCES = listOf(DATA_ZONES, DATA_COUNTRIES, DATA_SELECTED, DATA_LOCALITIES, DATA_BUSES, DATA_CAMERAS, DATA_WEATHER, GRID, TRACKS, RECORDING, PARTY_TRAIL, ROUTE, TOOLS, PLACES, PARTY, ME, PIN)
 
         /** Colour around the maps (no data). */
         const val OUTSIDE = "#EDEADA"

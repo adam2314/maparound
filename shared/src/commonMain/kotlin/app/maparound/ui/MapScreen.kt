@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -693,6 +694,13 @@ fun MapScreen(
         }
         controller.setStats(countriesJson, localitiesJson, zonesJson ?: buildsJson)
     }
+    // The country whose card is open, highlighted on the map.
+    LaunchedEffect(dataView, dataSelected, statsCountries, countryIndicator) {
+        val iso = dataSelected?.takeIf { dataView && countryIndicator != null && it.startsWith(StatsLayers.TAP_COUNTRY) }
+            ?.removePrefix(StatsLayers.TAP_COUNTRY)
+        val geometry = iso?.let { statsCountries?.get(it)?.geometry }
+        controller.setDataPoints(app.maparound.map.maplibre.MapStyle.DATA_SELECTED, geometry?.let(StatsLayers::selection))
+    }
     // The point of interest the pin is on (tapped on the map), while the pin stays there.
     var pinPoi by remember { mutableStateOf<app.maparound.map.MapPoi?>(null) }
     // "What's here?" open for a point (and the point of interest there).
@@ -1069,7 +1077,7 @@ fun MapScreen(
 
         if (onOpenOffline != null && showingOffline && localMaps.isEmpty() && streamed.isEmpty() && !planner.active && !tools.active && !nav.active) {
             ElevatedCard(
-                Modifier.align(Alignment.TopCenter).padding(top = 56.dp, start = 16.dp, end = 72.dp),
+                Modifier.align(Alignment.TopCenter).padding(top = 56.dp, start = 16.dp, end = 72.dp).widthIn(max = CARD_MAX_WIDTH),
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(T.map.noOfflineMapsYet, style = MaterialTheme.typography.titleMedium)
@@ -1093,7 +1101,7 @@ fun MapScreen(
         } else if (onOpenOffline != null && offer != null && !planner.active && !tools.active && !nav.active) {
             // Looking where no installed map reaches: the one made for it.
             ElevatedCard(
-                Modifier.align(Alignment.TopCenter).padding(top = 56.dp, start = 16.dp, end = 72.dp),
+                Modifier.align(Alignment.TopCenter).padding(top = 56.dp, start = 16.dp, end = 72.dp).widthIn(max = CARD_MAX_WIDTH),
             ) {
                 Row(Modifier.padding(start = 16.dp, top = 6.dp, bottom = 6.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
@@ -1181,7 +1189,8 @@ fun MapScreen(
         // Beside the explorer's drawer on a wide screen.
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(start = if (explorerBeside) explorerWidth else 0.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-        Column(Modifier.weight(1f).padding(start = 8.dp, bottom = 8.dp)) {
+        // The cards: as wide as the screen on a phone, no wider than CARD_MAX_WIDTH on a big one.
+        Column(Modifier.weight(1f).padding(start = 8.dp, bottom = 8.dp).wrapContentWidth(Alignment.Start).widthIn(max = CARD_MAX_WIDTH)) {
             // Navigating: how fast we're going.
             if (nav.active) NavSpeed(location, speedUnit, Modifier.padding(bottom = 4.dp))
             if (showMe) {
@@ -1477,6 +1486,8 @@ fun MapScreen(
                 dataSelected = null
                 explorerOpen = false
             },
+            inView = dataView,
+            onOpen = { explorerOpen = true },
         )
     }
 

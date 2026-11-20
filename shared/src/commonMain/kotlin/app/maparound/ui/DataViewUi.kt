@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
@@ -281,6 +283,9 @@ val EXPLORER_WIDTH = 380.dp
  * what's on the map now (each can be taken off, or all), and the tree of everything the view can
  * show, each layer with where its data comes from. On a narrow screen ([narrow]) it covers most of
  * the map, over a scrim that closes it; on a wide one the map stays in use beside it.
+ *
+ * It folds away ([onClose]) with the data staying on the map; while the data view is on ([inView])
+ * and it's folded, a tab on the screen's edge brings it back ([onOpen]).
  */
 @Composable
 fun DataExplorerDrawer(
@@ -292,6 +297,8 @@ fun DataExplorerDrawer(
     onLayers: (DataLayers) -> Unit,
     onClose: () -> Unit,
     onLeave: () -> Unit,
+    inView: Boolean = open,
+    onOpen: () -> Unit = {},
 ) {
     val s = T.stats
     // Kept while it's closed: what was being looked for, which branches are open.
@@ -299,6 +306,27 @@ fun DataExplorerDrawer(
     val expandedBranches = remember { mutableStateMapOf<String, Boolean>() }
     val ltr = LocalLayoutDirection.current == LayoutDirection.Ltr
     Box(Modifier.fillMaxSize()) {
+        // Folded away: its tab on the edge, the layers' icon and an arrow out.
+        AnimatedVisibility(
+            inView && !open,
+            modifier = Modifier.align(Alignment.CenterStart),
+            enter = slideInHorizontally { if (ltr) -it else it } + fadeIn(),
+            exit = slideOutHorizontally { if (ltr) -it else it } + fadeOut(),
+        ) {
+            Tip(s.layers) {
+                Surface(
+                    onClick = onOpen,
+                    shape = RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp),
+                    tonalElevation = 2.dp,
+                    shadowElevation = 6.dp,
+                ) {
+                    Column(Modifier.padding(start = 6.dp, end = 4.dp, top = 12.dp, bottom = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Filled.Layers, contentDescription = s.layers, tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(20.dp))
+                    }
+                }
+            }
+        }
         AnimatedVisibility(open && narrow, enter = fadeIn(), exit = fadeOut()) {
             Box(
                 Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.32f))
@@ -325,7 +353,10 @@ fun DataExplorerDrawer(
                             Text(s.dataView, style = MaterialTheme.typography.titleMedium)
                             Text(s.explorerSubtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Tip(s.showTheMap) { IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = s.showTheMap) } }
+                        // Folds it away; the data stays on the map (leaving the data view is at the bottom).
+                        Tip(s.showTheMap) {
+                            IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = s.showTheMap) }
+                        }
                     }
                     OutlinedTextField(
                         value = query,

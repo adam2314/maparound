@@ -39,6 +39,9 @@ import app.maparound.shared.util.nowMillis
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+/** The map's cards (a place, a country, the offline maps' offer) are no wider than this on a big screen. */
+val CARD_MAX_WIDTH = 560.dp
+
 /** Centered explanation card, e.g. "no barometer" or "permission needed". */
 @Composable
 fun MessageScreen(

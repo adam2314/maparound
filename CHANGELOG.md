@@ -240,6 +240,15 @@
   build machine. `data=maps` in the address opens the map with it, as the **support page** now
   embeds it, in English and Hebrew.
 - The data view's credits name the countries' and Israel's sources only while those are shown.
+- **The explorer's drawer folds away** with the arrow at its top, and the data stays on the map; a
+  tab on the map's edge brings it back, also while a country's card is open. (Its ✕ looked like
+  leaving the data view, which is at the bottom.)
+- **The tapped country is highlighted** while its card is open: outlined in white and a little
+  lighter than the others.
+- **Cards keep a readable width on a big screen.** A country's, a region's, the weather's and the
+  others, a place's or a member's, and the offer of offline maps no longer stretch across a wide
+  window: they're at most about the width of a small tablet, at the bottom corner (the offer at
+  the top). Phones look the same.
 - **Online vector maps** (Layers → Online): OpenFreeMap's **Liberty** and **Positron** (light grey,
   quiet under routes and the data view), drawn in the browser from OpenStreetMap data updated every
   week: sharp at every zoom, the names in the app's language (Hebrew names in Hebrew), with
