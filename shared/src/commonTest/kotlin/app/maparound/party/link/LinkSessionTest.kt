@@ -288,5 +288,14 @@ class LinkSessionTest {
         assertEquals(club, a.session.defaultServer)
         assertTrue(net.internet.broker(public).clients.isEmpty())
         assertEquals(1, net.internet.broker(club).clients.size)
+        // The club's own server knows Dana's id by her token; the public ones never got one.
+        val credential = net.internet.broker(club).connects.last().second!!
+        assertEquals(a.session.party!!.credential(), credential)
+        assertTrue(credential, Regex("[0-9a-f]{4}[.][0-9a-f]{8}[.][A-Za-z0-9_-]{22}").matches(credential))
+        assertTrue(net.internet.broker(public).connects.all { it.second == null })
+        // The token stays with the party: the same after a restart.
+        val token = a.session.party!!.token
+        a.open()
+        assertEquals(token, a.session.party!!.token)
     }
 }

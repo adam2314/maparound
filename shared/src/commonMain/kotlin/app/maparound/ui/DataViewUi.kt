@@ -162,6 +162,9 @@ object DataViewLink {
     /** The data view as shown now, for the web app's address: its `data=` (null: off), and the tapped key. */
     val current = MutableStateFlow<String?>(null)
     val currentSelected = MutableStateFlow<String?>(null)
+
+    /** The data view asked for with its explorer open (the web app's menu): the map screen opens it, then sets this back. */
+    val showExplorer = MutableStateFlow(false)
 }
 
 /** What the data view can offer: the layers there's data for, whose source isn't off. */

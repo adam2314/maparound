@@ -55,9 +55,15 @@ object PartyRelays {
 
 /** MQTT 3.1.1 packets: connecting, subscribing and keeping alive out; what the broker sends in. */
 object MqttWire {
-    /** CONNECT with a clean session and no will, user or password. */
-    fun connect(clientId: String, keepAliveSeconds: Int): ByteArray =
-        packet(0x10, str("MQTT") + byteArrayOf(4, 0x02) + u16(keepAliveSeconds) + str(clientId))
+    /** CONNECT with a clean session and no will; a [username] and [password] if given (a private server's). */
+    fun connect(clientId: String, keepAliveSeconds: Int, username: String? = null, password: String? = null): ByteArray {
+        val flags = 0x02 or (if (username != null) 0x80 else 0) or (if (password != null) 0x40 else 0)
+        return packet(
+            0x10,
+            str("MQTT") + byteArrayOf(4, flags.toByte()) + u16(keepAliveSeconds) + str(clientId) +
+                (username?.let(::str) ?: ByteArray(0)) + (password?.let(::str) ?: ByteArray(0)),
+        )
+    }
 
     fun subscribe(packetId: Int, filter: String, qos: Int = 0): ByteArray =
         packet(0x82, u16(packetId) + str(filter) + byteArrayOf(qos.toByte()))

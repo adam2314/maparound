@@ -155,6 +155,12 @@ class LinkParty(
     /** My Meshtastic node, if I have a radio. */
     var meshNode: Long? = null
 
+    /** My secret for this party on private servers (docs/LINK_PROTOCOL.md, "Private servers"), kept by the caller. */
+    var token: String? = null
+
+    /** What a private server gets for this party: `tag.sender.token`; null without a token. */
+    fun credential(): String? = token?.let { "${key.tagHex}.${app.maparound.shared.util.hex(me).padStart(8, '0')}.$it" }
+
     /** A mode I pinned (null: Auto), on every connection. */
     var pinnedMode: LinkMode? = null
         set(value) {
@@ -386,11 +392,11 @@ class LinkParty(
             val kept = latest.getOrPut(h.sender) { HashMap() }
             if (kept[h.type]?.let { LinkEnvelope.header(it)!!.time > h.time } != true) kept[h.type] = bytes
         }
-        if (relay) out += relayRaw(bytes, h, packet.message, via, nowMs)
+        if (relay) out += relayRaw(bytes, h, packet.message, via, nowMs, snapshot)
         return LinkResult(events, out)
     }
 
-    private fun relayRaw(bytes: ByteArray, h: LinkHeader, msg: LinkMessage, from: ConnectionId, nowMs: Long): List<LinkOut> {
+    private fun relayRaw(bytes: ByteArray, h: LinkHeader, msg: LinkMessage, from: ConnectionId, nowMs: Long, snapshot: Boolean): List<LinkOut> {
         val relayed = LinkEnvelope.relayed(bytes) ?: return emptyList()
         val nowS = nowMs / 1000
         val out = ArrayList<LinkOut>()
@@ -403,6 +409,8 @@ class LinkParty(
             }
             if (relayed.size > LinkEnvelope.LORA_MAX) continue
             if ((h.type == LinkType.POS || h.type == LinkType.HELLO) && nowS - h.time > STALE_S) continue
+            // A server's log: a gateway connecting would otherwise put days of messages on the air.
+            if (snapshot && h.type != LinkType.SOS && nowS - h.time > KEPT_ONTO_RADIO_S) continue
             if (msg is LinkMessage.Pos) {
                 val k = h.sender to to.id
                 val gap = if (msg.sos) SOS_RELAY_S else POS_RELAY_S
@@ -828,6 +836,12 @@ class LinkParty(
 
         /** Positions and hellos older than this don't go onto a radio (s). */
         const val STALE_S = 120L
+
+        /**
+         * What a server hands over on subscribing (a party server's log of messages) goes onto a
+         * radio only this fresh (s), an SOS whatever its age: the radio heard the rest when it was new.
+         */
+        const val KEPT_ONTO_RADIO_S = 30 * 60L
 
         /** Members' positions older than this don't count as near (s). */
         const val NEAR_FRESH_S = 600L

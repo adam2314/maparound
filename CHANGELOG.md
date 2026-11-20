@@ -157,6 +157,15 @@
   set while offline reaches the server then, as does one the server lost.
 - **An invite can carry several servers**: members connect to all of them, and a phone on two of
   them joins those on either.
+- **A party server of your own:** [maparound-server](https://github.com/adam2314/maparound-server),
+  which you run yourself. Members' ids only their own phone can use, parties open to anyone with
+  the invite or by approval, bans and mutes, and a log of messages handed to whoever connects
+  later, all from an admin page. On a party's own server the app sends, for that party, your id
+  and a secret it made when you joined; the public servers get neither. Your id shows on the Party
+  screen under the server. A server that turns a party away (a ban) says so there, and the
+  connection carries on for your other parties. Members only on a LoRa radio count too, through a
+  gateway, and a gateway puts only the last 30 minutes of the server's log on the air. Not yet
+  tried on a real server.
 - On Android, the party reaches the servers over secure WebSockets, as the web app does.
 - For now, members' ways so far (History) aren't kept once the app closes.
 - **Only a real GPS fix goes on the map.** A position less exact than ±20 m (a phone indoors or
@@ -210,6 +219,9 @@
   2D and 3D.
 
 ### The web app
+- **The menu is a side drawer.** The bar along the bottom is gone: the ☰ button at the map's top
+  left opens a drawer with the Data view, Library, Party, Offline and Settings. Each opens over
+  the map, with a back arrow to it.
 - **The address keeps what's on the map**, so a link or a reload shows the same: the map
   (`layer=`), what's over it (`ov=trails,party…`), the data view's layers (`data=c.population,l.size`)
   and what's tapped in it (`sel=c:RUS`), with where the map looks (`map=`) and the pin as before.

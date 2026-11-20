@@ -246,6 +246,7 @@ fun PlacesScreen(hasLocation: Boolean, snackbar: SnackbarHostState, onShowMap: (
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
             title = header,
+            navigationIcon = { BackToMapButton() },
             actions = {
                 Tip(T.library.importPlacesFromGpx) { IconButton(onClick = { importer() }) { Icon(Icons.Filled.FileOpen, contentDescription = T.library.importPlacesFromGpx) } }
                 Tip(T.library.shareListedPlaces) { IconButton(onClick = { platform.sharePlaces(shown, T.library.sharedPlacesTitle) }, enabled = shown.isNotEmpty()) {

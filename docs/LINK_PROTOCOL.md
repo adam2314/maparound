@@ -580,6 +580,66 @@ subscription:
   the addresses in turn, then a pause that grows by 5 s each round, up to 30 s. When the platform
   says the network is back, the waiting ends at once.
 
+### Private servers
+
+A party's own server can be a plain MQTT broker. It can also be **maparound-server**, the
+companion server, which adds members' ids that only their own phone can use, bans, mutes and a
+message log. It never holds the party's key. It works from what it can see: the topics and the
+14-byte header (tag, sender, type, hops, time, seq).
+
+**Credentials.** On a private server, the app's CONNECT carries a password listing each party
+on that connection, `tag.sender.token`, separated by commas:
+
+- `tag` is the 4 hex digits of the party's tag;
+- `sender` is my 8 hex digits in that party;
+- `token` is a secret the phone makes when it joins the party: 16 random bytes, base64url
+  without padding. It's kept with the party.
+
+The username is `maparound`. The public servers get no credentials. A party added to a
+connection that's already open makes it reconnect with the new list.
+
+**Verified ids.** Each party on the server is open or by approval:
+
+- **Open:** the first token used for an id owns it, and after that only that token can send as
+  that id.
+- **By approval:** a new id waits until an admin approves it. Meanwhile it can read but not
+  send.
+
+**What the server enforces:**
+
+- A packet sent directly (hops 0) must come from a connection that holds its sender's verified
+  id. Relayed packets (hops > 0) are accepted from any verified member of the party, for a
+  sender whose id is in. Topics must match the header: tag, and sender where the topic names
+  one.
+- **Members only on the radio** never connect, so they have no token. The first packet a
+  gateway relays for an id the server doesn't know makes it a member without a token: in at
+  once in an open party, waiting for approval in one by approval. The first phone that later
+  connects with that id owns it.
+- **Each packet once:** a copy of one already passed, by `(tag, sender, time, seq)` (a second
+  gateway heard it, or its sender posted it too), isn't passed or logged again. A retained one
+  is still kept.
+- **Banned:** the id's packets are dropped wherever they come from, its retained topics are
+  cleared, and its connections are closed.
+- **Muted:** its TEXT, MARK and LIVE are dropped. Its position, hello, SOS, ACK and LEAVE still
+  go through.
+- **Refused parties:** a subscription the server refuses (banned, unknown token, a party it
+  doesn't take) gets SUBACK code 0x80. The app shows that party as refused on that server and
+  keeps the connection for the others.
+
+**The message log.** The server keeps the party's TEXT packets, still encrypted, for a set time
+(by default 30 days, the last 1000). It can also keep positions. When a member subscribes, it
+sends the log after the retained topics, as retained (stored) messages. So the app files them in
+the chat without announcing them, and drops any it already has (by sender, time and seq). A
+gateway puts only the last 30 minutes of it onto its radios ([§8](#8-relaying)).
+
+**What it can't do:**
+
+- **It can't verify what comes over the radio.** Any member holding the key can make a packet
+  with any sender id, and a gateway can't tell. So the verified ids cover what phones send
+  directly; a relayed packet is only as trusted as the party key ([§10](#10-security-and-privacy)).
+- **Bans and mutes don't reach the radio.** Members in radio range of a banned one still hear
+  them directly. Shutting someone out of the radio too means starting a new party.
+
 ### LoRa: Meshtastic
 
 - **Each radio is a connection of its own.** Several can be connected at once, over Bluetooth
@@ -679,6 +739,8 @@ clock. Nothing on the wire links your ids in one party to your ids in another.
   - only packets of 200 bytes or less;
   - positions at most once a minute per member (SOS every 30 s);
   - drop POS and HELLO older than 2 minutes (newer ones replace them anyway);
+  - of what a server hands over on subscribing (retained, and a party server's log), only SOS
+    and what's from the last 30 minutes; the radio heard the rest when it was new;
   - deliver everything else however late it is.
 - **Before sending onto LoRa,** wait a random 0–3 s, and cancel if the same packet is heard on
   the radio meanwhile (another relay was quicker).

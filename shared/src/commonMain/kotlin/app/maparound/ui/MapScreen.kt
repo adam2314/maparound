@@ -1,5 +1,7 @@
 package app.maparound.ui
 
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Place
@@ -213,6 +215,8 @@ fun MapScreen(
      * search, planning, tools, recording or position. Null in the app.
      */
     openFull: (() -> Unit)? = null,
+    /** Opens the app's side menu (the web app): its ≡ in the map's top corner. Null: the tabs are in a bar. */
+    onMenu: (() -> Unit)? = null,
 ) {
     val embedded = openFull != null
     val prefs = LocalPrefs.current
@@ -680,6 +684,17 @@ fun MapScreen(
             dataView = true
         }
     }
+    // The data view asked for from the web app's menu: on, with its explorer open.
+    LaunchedEffect(stats) {
+        if (stats == null) return@LaunchedEffect
+        DataViewLink.showExplorer.collect { show ->
+            if (!show) return@collect
+            DataViewLink.showExplorer.value = false
+            dataSelected = null
+            explorerOpen = true
+            dataView = true
+        }
+    }
     // The data view as it is now, for the web app's address.
     LaunchedEffect(dataView, dataLayers, dataSelected) {
         DataViewLink.current.value = if (dataView) MapAddress.data(dataLayers) else null
@@ -1110,128 +1125,13 @@ fun MapScreen(
         }
     }
 
-    val density = LocalDensity.current
-    Box(Modifier.fillMaxSize().onSizeChanged { mapWidth = with(density) { it.width.toDp() } }) {
-        mapView(controller, Modifier.fillMaxSize())
-        // The scale, in the top corner away from the buttons (the compass goes under it).
-        if (scene3d == null) ScaleLine(controller, Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 12.dp))
-
-        if (onOpenOffline != null && showingOffline && localMaps.isEmpty() && streamed.isEmpty() && !planner.active && !tools.active && !nav.active) {
-            ElevatedCard(
-                Modifier.align(Alignment.TopCenter).padding(top = 56.dp, start = 16.dp, end = 72.dp).widthIn(max = CARD_MAX_WIDTH),
-            ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(T.map.noOfflineMapsYet, style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        T.map.noOfflineMapsHint,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    if (offer != null) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Button(onClick = { OfflineFocus.show(offer.path); onOpenOffline() }) {
-                                Text(T.map.getRegion(offer.title), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                            Spacer(Modifier.width(8.dp))
-                            TextButton(onClick = onOpenOffline) { Text(T.map.allMaps) }
-                        }
-                    } else {
-                        Button(onClick = onOpenOffline) { Text(T.map.getOfflineMaps) }
-                    }
-                }
-            }
-        } else if (onOpenOffline != null && offer != null && !planner.active && !tools.active && !nav.active) {
-            // Looking where no installed map reaches: the one made for it.
-            ElevatedCard(
-                Modifier.align(Alignment.TopCenter).padding(top = 56.dp, start = 16.dp, end = 72.dp).widthIn(max = CARD_MAX_WIDTH),
-            ) {
-                Row(Modifier.padding(start = 16.dp, top = 6.dp, bottom = 6.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(T.map.noOfflineMapHere, style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            // Streamed meanwhile: the map is there, online.
-                            if (showingOffline && streamed.isNotEmpty()) T.map.shownOnline(offer.label) else offer.label,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    TextButton(onClick = { OfflineFocus.show(offer.path); onOpenOffline() }) { Text(T.map.getMap) }
-                    Tip(T.common.notNow) { IconButton(onClick = { declinedRegions += offer.path }) { Icon(Icons.Filled.Close, contentDescription = T.common.notNow) } }
-                }
-            }
-        }
-
-        // Under the 3D view the 3D view's own column is shown: this one (its zoom slider following the
-        // map as it moves) would only redraw the screen behind it.
-        if (scene3d == null) MapButtons(
-            Modifier.align(Alignment.TopEnd), in3d = false, zoom = controller, relief = false, onRelief = {},
-            onSwitch3d = {
-                follow = false
-                controller.camera3D()?.let { scene3d = it }
-            },
-            bottomLimit = bottomButtonsTop,
-        )
-
-        if (embedded) embedTitle?.let { title ->
-            Surface(
-                Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 12.dp, end = 64.dp),
-                shape = RoundedCornerShape(16.dp),
-                tonalElevation = 3.dp,
-                shadowElevation = 3.dp,
-            ) {
-                Text(
-                    title,
-                    style = MaterialTheme.typography.labelLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                )
-            }
-        }
-
-        if (nav.active) {
-            // Left of the button column on the right.
-            Column(
-                Modifier.align(Alignment.TopStart).fillMaxWidth().padding(start = 8.dp, top = 8.dp, end = 64.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                NavigationBanner(nav, Modifier.fillMaxWidth())
-                if (recorder.recording) RecordingBar(recorder, onStop = { recording.stop() })
-            }
-        } else if (recorder.recording) {
-            RecordingBar(
-                recorder,
-                onStop = { recording.stop() },
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
-            )
-        } else {
-            terrain.progress?.takeIf { it.label == AUTO_TERRAIN_LABEL }?.let { p ->
-                // Terrain coming in for the contours and shading.
-                Surface(
-                    Modifier.align(Alignment.TopCenter).padding(top = 8.dp, start = 64.dp, end = 64.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    tonalElevation = 3.dp,
-                    shadowElevation = 3.dp,
-                ) {
-                    Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            T.map.gettingTerrain(minOf(p.done + 1, p.total), p.total),
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                }
-            }
-        }
-
-        // Beside the explorer's drawer on a wide screen.
-        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(start = if (explorerBeside) explorerWidth else 0.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-        // The cards: as wide as the screen on a phone, no wider than CARD_MAX_WIDTH on a big one.
-        Column(Modifier.weight(1f).padding(start = 8.dp, bottom = 8.dp).wrapContentWidth(Alignment.Start).widthIn(max = CARD_MAX_WIDTH)) {
+    /**
+     * The cards over the bottom of the map: navigating's speed, a query, my location, a place, a
+     * party member, the pin, and the data view's. (A function of its own: all in MapScreen made a
+     * method too big for Android's verifier.)
+     */
+    @Composable
+    fun ColumnScope.Cards() {
             // Navigating: how fast we're going.
             if (nav.active) NavSpeed(location, speedUnit, Modifier.padding(bottom = 4.dp))
             queried?.let { (p, found) -> QueryCard(p, found, onClose = { queried = null }) }
@@ -1400,6 +1300,133 @@ fun MapScreen(
                     )
                 }
             }
+    }
+
+    val density = LocalDensity.current
+    Box(Modifier.fillMaxSize().onSizeChanged { mapWidth = with(density) { it.width.toDp() } }) {
+        mapView(controller, Modifier.fillMaxSize())
+        // The scale, in the top corner away from the buttons (the compass goes under it).
+        val menuShown = onMenu != null && !nav.active
+        if (scene3d == null) ScaleLine(controller, Modifier.align(Alignment.TopStart).padding(start = if (menuShown) 60.dp else 12.dp, top = 12.dp))
+        if (menuShown) MenuButton(onMenu!!, Modifier.align(Alignment.TopStart).padding(8.dp))
+
+        if (onOpenOffline != null && showingOffline && localMaps.isEmpty() && streamed.isEmpty() && !planner.active && !tools.active && !nav.active) {
+            ElevatedCard(
+                Modifier.align(Alignment.TopCenter).padding(top = 56.dp, start = 16.dp, end = 72.dp).widthIn(max = CARD_MAX_WIDTH),
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(T.map.noOfflineMapsYet, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        T.map.noOfflineMapsHint,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    if (offer != null) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Button(onClick = { OfflineFocus.show(offer.path); onOpenOffline() }) {
+                                Text(T.map.getRegion(offer.title), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            TextButton(onClick = onOpenOffline) { Text(T.map.allMaps) }
+                        }
+                    } else {
+                        Button(onClick = onOpenOffline) { Text(T.map.getOfflineMaps) }
+                    }
+                }
+            }
+        } else if (onOpenOffline != null && offer != null && !planner.active && !tools.active && !nav.active) {
+            // Looking where no installed map reaches: the one made for it.
+            ElevatedCard(
+                Modifier.align(Alignment.TopCenter).padding(top = 56.dp, start = 16.dp, end = 72.dp).widthIn(max = CARD_MAX_WIDTH),
+            ) {
+                Row(Modifier.padding(start = 16.dp, top = 6.dp, bottom = 6.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(T.map.noOfflineMapHere, style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            // Streamed meanwhile: the map is there, online.
+                            if (showingOffline && streamed.isNotEmpty()) T.map.shownOnline(offer.label) else offer.label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    TextButton(onClick = { OfflineFocus.show(offer.path); onOpenOffline() }) { Text(T.map.getMap) }
+                    Tip(T.common.notNow) { IconButton(onClick = { declinedRegions += offer.path }) { Icon(Icons.Filled.Close, contentDescription = T.common.notNow) } }
+                }
+            }
+        }
+
+        // Under the 3D view the 3D view's own column is shown: this one (its zoom slider following the
+        // map as it moves) would only redraw the screen behind it.
+        if (scene3d == null) MapButtons(
+            Modifier.align(Alignment.TopEnd), in3d = false, zoom = controller, relief = false, onRelief = {},
+            onSwitch3d = {
+                follow = false
+                controller.camera3D()?.let { scene3d = it }
+            },
+            bottomLimit = bottomButtonsTop,
+        )
+
+        if (embedded) embedTitle?.let { title ->
+            Surface(
+                Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 12.dp, end = 64.dp),
+                shape = RoundedCornerShape(16.dp),
+                tonalElevation = 3.dp,
+                shadowElevation = 3.dp,
+            ) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
+        }
+
+        if (nav.active) {
+            // Left of the button column on the right.
+            Column(
+                Modifier.align(Alignment.TopStart).fillMaxWidth().padding(start = 8.dp, top = 8.dp, end = 64.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                NavigationBanner(nav, Modifier.fillMaxWidth())
+                if (recorder.recording) RecordingBar(recorder, onStop = { recording.stop() })
+            }
+        } else if (recorder.recording) {
+            RecordingBar(
+                recorder,
+                onStop = { recording.stop() },
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
+            )
+        } else {
+            terrain.progress?.takeIf { it.label == AUTO_TERRAIN_LABEL }?.let { p ->
+                // Terrain coming in for the contours and shading.
+                Surface(
+                    Modifier.align(Alignment.TopCenter).padding(top = 8.dp, start = 64.dp, end = 64.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    tonalElevation = 3.dp,
+                    shadowElevation = 3.dp,
+                ) {
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            T.map.gettingTerrain(minOf(p.done + 1, p.total), p.total),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
+        }
+
+        // Beside the explorer's drawer on a wide screen.
+        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(start = if (explorerBeside) explorerWidth else 0.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+        // The cards: as wide as the screen on a phone, no wider than CARD_MAX_WIDTH on a big one.
+        Column(Modifier.weight(1f).padding(start = 8.dp, bottom = 8.dp).wrapContentWidth(Alignment.Start).widthIn(max = CARD_MAX_WIDTH)) {
+            Cards()
             Spacer(Modifier.padding(top = 6.dp))
             Text(
                 text = listOfNotNull(
@@ -2619,3 +2646,11 @@ private val NARROW_SCREEN = 600.dp
 private const val ZONES_REFRESH_MS = 15 * 60_000L
 
 private fun Set<Int>.toggled(c: Int): Set<Int> = if (c in this) this - c else this + c
+
+/** The app's side menu (the web app's), in the map's top corner. */
+@Composable
+private fun MenuButton(onMenu: () -> Unit, modifier: Modifier) {
+    Tip(T.common.menu) {
+        SmallFloatingActionButton(onClick = onMenu, modifier = modifier) { Icon(Icons.Filled.Menu, contentDescription = T.common.menu) }
+    }
+}

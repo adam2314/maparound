@@ -261,6 +261,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
             title = { Text(T.offline.screenTitle) },
+            navigationIcon = { BackToMapButton() },
             actions = {
                 Tip(T.offline.importAnyMapFile) { IconButton(onClick = { importLauncher() }) {
                     Icon(Icons.Filled.FileOpen, contentDescription = T.offline.importAnyMapFile)

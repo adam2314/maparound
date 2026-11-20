@@ -12,6 +12,11 @@ class MqttWireTest {
     @Test
     fun packetsOut() {
         assertEquals("10 0f 00 04 4d 51 54 54 04 02 00 3c 00 03 61 62 63", MqttWire.connect("abc", 60).hex())
+        // A private server's: username and password flagged (0xC2), then each after the client id.
+        assertEquals(
+            "10 17 00 04 4d 51 54 54 04 c2 00 3c 00 03 61 62 63 00 01 75 00 03 70 77 64",
+            MqttWire.connect("abc", 60, username = "u", password = "pwd").hex(),
+        )
         assertEquals("82 08 00 01 00 03 61 2f 62 00", MqttWire.subscribe(1, "a/b").hex())
         assertEquals("40 02 01 02", MqttWire.pubAck(0x0102).hex())
         assertEquals("c0 00", MqttWire.PINGREQ.hex())

@@ -179,6 +179,29 @@ class LinkPartyTest {
     }
 
     @Test
+    fun aPartyServersLogGoesOntoTheRadioOnlyFresh() {
+        val net = Net()
+        val a = net.phone("Adam", 0x0A0A0A0A, "radio" to LORA)
+        val g = net.phone("Gil", 0x06060606, "radio" to LORA, "mqtt" to ONLINE)
+        net.run(5)
+        // Gil's phone connects to the party's server, which hands over its log: messages from
+        // yesterday, an hour ago and just now, and an SOS from two hours ago still standing.
+        val key = LinkKey.of(partyKey)
+        val nowS = net.nowMs / 1000
+        val log = listOf(
+            LinkEnvelope.seal(key, 0x0C0C0C0C, nowS - 86_400, 1, LinkMessage.Text("Yesterday")),
+            LinkEnvelope.seal(key, 0x0C0C0C0C, nowS - 3_600, 2, LinkMessage.Text("An hour ago")),
+            LinkEnvelope.seal(key, 0x0D0D0D0D, nowS - 7_200, 1, LinkMessage.Sos(true, "Stuck")),
+            LinkEnvelope.seal(key, 0x0C0C0C0C, nowS - 300, 3, LinkMessage.Text("Five minutes ago")),
+        )
+        for (bytes in log) net.act(g, g.party.receive(bytes, "mqtt", net.nowMs, snapshot = true))
+        net.run(5)
+        assertEquals(3, g.party.chat.size)
+        assertEquals(listOf("Five minutes ago"), a.party.chat.map { it.text })
+        assertTrue(a.party.members.getValue(0x0D0D0D0D).sos)
+    }
+
+    @Test
     fun marksTravelBetweenTheRadioAndTheInternet() {
         val net = Net()
         val a = net.phone("Adam", 0x0A0A0A0A, "radio" to LORA)

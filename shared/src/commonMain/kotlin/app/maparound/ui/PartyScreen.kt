@@ -132,6 +132,7 @@ fun PartyScreen(
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
             title = { Text(s.party?.name ?: T.party.title) },
+            navigationIcon = { BackToMapButton() },
             actions = {
                 if (s.party != null && !party.watchOnly) {
                     Tip(T.party.invite) { IconButton(onClick = { showQr = true }) { Icon(Icons.Filled.QrCode, contentDescription = T.party.invite) } }
@@ -535,6 +536,15 @@ private fun ServerLine(s: PartyState) {
         Column(Modifier.weight(1f)) {
             Text(T.party.server, style = MaterialTheme.typography.bodyMedium)
             Text(server?.let(PartyRelays::host) ?: T.party.publicServers, style = MaterialTheme.typography.bodySmall)
+            // On the party's own server, its admin knows members by their id.
+            val me = s.me
+            if (s.party?.server != null && me != null) {
+                Text(
+                    T.party.yourId(me.id.toUInt().toString(16).padStart(8, '0').uppercase()) + " · " + T.party.yourIdHint,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         TextButton(onClick = { edit = true }) { Text(T.offline.change) }
     }

@@ -25,6 +25,11 @@ class LinkMqtt(
     private val clock: () -> Long,
     private val listener: Listener,
     private val clientId: String = "maparound-" + randomBytes(6).joinToString("") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') },
+    /**
+     * A private server's credentials (docs/LINK_PROTOCOL.md, "Private servers"): the password
+     * as it is now, each party's `tag.sender.token`; null, or none given: none sent.
+     */
+    private val credentials: (() -> String?)? = null,
 ) {
     init {
         require(urls.isNotEmpty())
@@ -38,6 +43,9 @@ class LinkMqtt(
 
         /** The connection dropped, and every subscription with it (it reconnects by itself). */
         fun onDown()
+
+        /** The server refused [filter] (a party it won't give this connection: banned, a wrong token…); the connection goes on. */
+        fun onRefused(filter: String) {}
 
         /** [retained]: kept by the server and given on subscribing, not sent just now. */
         fun onMessage(topic: String, payload: ByteArray, retained: Boolean)
@@ -73,6 +81,9 @@ class LinkMqtt(
 
     /** Rounds through [urls] that failed since one last worked. */
     private var rounds = 0
+
+    /** The credentials the connection now open was made with. */
+    private var usedCredentials: String? = null
 
     fun start() {
         if (running) return
@@ -162,7 +173,13 @@ class LinkMqtt(
         lastHeard = openedAt
         val s = sockets.open(
             url,
-            onOpen = { if (gen == generation) send(MqttWire.connect(clientId, KEEP_ALIVE_S)) },
+            onOpen = {
+                if (gen == generation) {
+                    val password = credentials?.invoke()
+                    usedCredentials = password
+                    send(MqttWire.connect(clientId, KEEP_ALIVE_S, password?.let { USERNAME }, password))
+                }
+            },
             onData = { data -> if (gen == generation) onData(data, gen) },
             onClose = { why -> if (gen == generation) lost(T.party.hostProblem(host, why.ifEmpty { T.party.connectionClosed })) },
         )
@@ -198,7 +215,8 @@ class LinkMqtt(
                 is MqttWire.Packet.SubAck -> {
                     val filter = pending.remove(p.packetId)?.first ?: continue
                     if (p.codes.any { it >= 0x80 }) {
-                        lost(T.party.refusedSubscription(host))
+                        // That party only: the others on this connection go on.
+                        if (filter in filters) listener.onRefused(filter)
                     } else if (filter in filters) {
                         granted += filter
                         listener.onSubscribed(filter)
@@ -212,6 +230,18 @@ class LinkMqtt(
                 else -> Unit
             }
         }
+    }
+
+    /**
+     * The credentials changed (a party joined this connection): connected with others, it
+     * connects again at once, so the server knows the new party's id.
+     */
+    fun credentialsChanged() {
+        if (!running || !connected || credentials?.invoke() == usedCredentials) return
+        val was = connected
+        close()
+        if (was) listener.onDown()
+        connect()
     }
 
     /** The network is back (the platform says so): a server being waited for is tried now. */
@@ -281,5 +311,8 @@ class LinkMqtt(
         const val RETRY_MS = 2_000L
         const val ROUND_STEP_MS = 5_000L
         const val ROUND_PAUSE_MS = 30_000L
+
+        /** The username a private server gets with its credentials. */
+        const val USERNAME = "maparound"
     }
 }

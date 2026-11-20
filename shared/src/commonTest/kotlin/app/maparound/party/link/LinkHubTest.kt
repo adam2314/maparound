@@ -72,7 +72,14 @@ class LinkHubTest {
             hub.networkBack()
         }
 
-        fun server(id: ConnectionId, vararg urls: String) = apply { hub.addServer(id, urls.toList()) }
+        fun server(id: ConnectionId, vararg urls: String, private: Boolean = false) = apply { hub.addServer(id, urls.toList(), private) }
+
+        /** Parties a server turned away, by connection. */
+        val refused = ArrayList<Pair<ConnectionId, LinkParty>>()
+
+        override fun onRefused(connection: ConnectionId, party: LinkParty) {
+            refused += connection to party
+        }
 
         fun radio(id: ConnectionId, mesh: FakeMesh) = apply {
             hub.addRadio(id, mesh.radio(hub, id))
@@ -469,6 +476,37 @@ class LinkHubTest {
         h.hub.removeParty(second)
         w.loop.drain()
         assertEquals(listOf(LinkTopics.all(tagHex)), broker.clients.single { it.owner == "Hila" }.subs.toList())
+    }
+
+    @Test
+    fun aPrivateServerGetsEachPartysIdAndMayTurnOneAway() {
+        val w = World()
+        val broker = w.broker(club)
+        val other = PartyKey.create("Club run")
+        val h = w.phone("Hila", 0x0A0A0A0A).server("club", club, private = true)
+        h.party.token = "tokenOfHila_1234567"
+        val second = h.party(other, 0x0E0E0E0E).also { it.token = "secondToken_123456" }
+        h.join("club")
+        val first = "$tagHex.0a0a0a0a.tokenOfHila_1234567"
+        assertEquals("Hila" to first, broker.connects.last())
+        // A second party on the same connection: it connects again, with both ids.
+        h.join("club", p = second)
+        assertEquals(setOf(first, "${LinkKey.of(other).tagHex}.0e0e0e0e.secondToken_123456"), broker.connects.last().second!!.split(',').toSet())
+        w.step(1)
+        assertTrue(h.party.connections.single().up)
+        assertTrue(second.connections.single().up)
+        // The server turns the second party away (its member banned): the first stays on the connection.
+        broker.refusedTags += LinkKey.of(other).tagHex
+        broker.kick("Hila")
+        w.step(5)
+        assertTrue(h.party.connections.single().up)
+        assertFalse(second.connections.single().up)
+        assertEquals(listOf("club" to second), h.refused)
+        assertEquals(TransportStatus.State.CONNECTED, h.statuses["club"]?.state)
+        // The public servers get no credentials.
+        val pub = w.phone("Ido", 0x0B0B0B0B).also { it.party.token = "tokenOfIdo_12345678" }.server("public", club).join("public")
+        assertEquals("Ido" to null, broker.connects.last())
+        assertTrue(pub.party.connections.single().up)
     }
 
     @Test

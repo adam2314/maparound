@@ -27,6 +27,9 @@ class LinkHub(
 
         /** Something came in or connected: [nextDueMs] may be sooner now. */
         fun onActivity() {}
+
+        /** The server on [connection] turned [party] away (banned, a wrong token…). */
+        fun onRefused(connection: ConnectionId, party: LinkParty) {}
     }
 
     /** One MQTT server or one radio, for the screens. */
@@ -60,8 +63,11 @@ class LinkHub(
 
     // Connections.
 
-    /** An MQTT server ([urls]: tried in turn until one answers), connected from now on. */
-    fun addServer(id: ConnectionId, urls: List<String>) {
+    /**
+     * An MQTT server ([urls]: tried in turn until one answers), connected from now on. [private]:
+     * a party's own server, which gets its parties' credentials (not the public ones).
+     */
+    fun addServer(id: ConnectionId, urls: List<String>, private: Boolean = false) {
         if (id in conns) return
         val c = Connection(id, ConnectionKind.ONLINE)
         conns[id] = c
@@ -81,9 +87,13 @@ class LinkHub(
 
             override fun onDown() = partiesOn(id).forEach { it.connectionDown(id) }
 
+            override fun onRefused(filter: String) {
+                for (p in partiesOn(id)) if (filterOf(p) == filter) listener.onRefused(id, p)
+            }
+
             override fun onMessage(topic: String, payload: ByteArray, retained: Boolean) =
                 deliver(id, payload, snapshot = retained, kept = !LinkTopics.isRelayPost(topic))
-        })
+        }, credentials = if (private) ({ credentialsOn(id) }) else null)
         c.mqtt = mqtt
         mqtt.start()
     }
@@ -146,8 +156,12 @@ class LinkHub(
         if (on) {
             if (!set.add(id)) return
             party.addConnection(id, c.kind, now, up = false)
-            // Online it's up once subscribed (and the server gives what it keeps); a radio, now.
-            c.mqtt?.subscribe(filterOf(party))
+            // Online it's up once subscribed (and the server gives what it keeps); a radio, now. A private
+            // server hears of the party's id first (it reconnects with it), then its subscription.
+            c.mqtt?.let { m ->
+                m.credentialsChanged()
+                m.subscribe(filterOf(party))
+            }
             if (c.kind == ConnectionKind.LORA && c.radioUp) route(party, party.connectionUp(id, now))
         } else {
             if (!set.remove(id)) return
@@ -235,4 +249,7 @@ class LinkHub(
     private fun partiesOn(id: ConnectionId): List<LinkParty> = uses.filterValues { id in it }.keys.toList()
 
     private fun filterOf(p: LinkParty) = LinkTopics.all(p.key.tagHex)
+
+    /** A private server's credentials: its parties', each `tag.sender.token` (docs/LINK_PROTOCOL.md). */
+    private fun credentialsOn(id: ConnectionId): String? = partiesOn(id).mapNotNull { it.credential() }.distinct().joinToString(",").ifEmpty { null }
 }

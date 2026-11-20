@@ -291,6 +291,9 @@ open class PartyTexts {
     open val connectionClosed = "connection closed"
     open fun refusedConnection(host: String, code: Int) = "$host refused the connection (code $code)"
     open fun refusedSubscription(host: String) = "$host refused the subscription"
+    open fun refusedByServer(host: String) = "$host turned this party away (banned, or a different phone has your id)"
+    open fun yourId(id: String) = "Your id: $id"
+    open val yourIdHint = "On the party's own server, its admin knows you by this"
 
     /** Reconnecting after the connection was lost; [why] says how. */
     open fun reconnectingBecause(why: String) = "Reconnecting… ($why)"
@@ -535,6 +538,9 @@ object PartyTextsHe : PartyTexts() {
     override val connectionClosed = "החיבור נסגר"
     override fun refusedConnection(host: String, code: Int) = "השרת ${ltr(host)} דחה את החיבור (קוד $code)"
     override fun refusedSubscription(host: String) = "השרת ${ltr(host)} דחה את ההרשמה לעדכונים"
+    override fun refusedByServer(host: String) = "השרת ${ltr(host)} לא קיבל את הקבוצה (חסימה, או שמכשיר אחר משתמש במזהה שלך)"
+    override fun yourId(id: String) = "המזהה שלך: ${ltr(id)}"
+    override val yourIdHint = "בשרת הפרטי של הקבוצה, המנהל מזהה אותך לפי זה"
     override fun reconnectingBecause(why: String) = "מתחבר מחדש… ($why)"
 
     override val scanPartyQrPrompt = "סריקת קוד ה־QR של הקבוצה"

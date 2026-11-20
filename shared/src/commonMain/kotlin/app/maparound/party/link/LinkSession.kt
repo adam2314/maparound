@@ -103,7 +103,19 @@ class LinkSession(
         }
 
         override fun onActivity() = replan()
+
+        override fun onRefused(connection: ConnectionId, party: LinkParty) {
+            refused += connection
+            update { it.copy(online = onlineStatus()) }
+        }
     }
+
+    /** Private servers that turned the party away (until they take it again). */
+    private val refused = HashSet<ConnectionId>()
+
+    /** A party's token: 16 random bytes, base64url without padding. */
+    @OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
+    private fun newToken(): String = kotlin.io.encoding.Base64.UrlSafe.encode(randomBytes(16)).trimEnd('=')
 
     // Ticking: when something is due, not every second.
 
@@ -159,6 +171,8 @@ class LinkSession(
         )
         p.sharing = store.getBoolean(K_SHARING, true)
         p.gateway = store.getBoolean(K_GATEWAY, true)
+        // Made once per party, kept with it: it proves my id on the party's private servers.
+        p.token = store.getString(K_TOKEN) ?: newToken().also { store.putString(K_TOKEN, it) }
         party = p
         savedCounter = p.marks.nextCounter
         savedClock = p.marks.clock
@@ -224,7 +238,7 @@ class LinkSession(
         party = null
         key = null
         meshNodes.clear()
-        for (k in listOf(K_LINK, K_ID, K_SEQ, K_ACTIVE, K_COUNTER, K_CLOCK)) store.remove(k)
+        for (k in listOf(K_LINK, K_ID, K_SEQ, K_ACTIVE, K_COUNTER, K_CLOCK, K_TOKEN)) store.remove(k)
         _state.value = settings(PartyState())
     }
 
@@ -359,7 +373,7 @@ class LinkSession(
         val h = hub ?: return
         val p = party ?: return
         for ((id, urls) in servers()) {
-            h.addServer(id, urls)
+            h.addServer(id, urls, private = id != PUBLIC)
             h.use(p, id)
         }
     }
@@ -372,7 +386,16 @@ class LinkSession(
 
     /** The servers as one line on the screens: connected if any is, with their hosts. */
     private fun onlineStatus(): TransportStatus {
-        val all = hub?.connections?.filter { it.kind == ConnectionKind.ONLINE }?.map { it.status }.orEmpty()
+        val p = party
+        // A server that took the party back: no longer refused.
+        refused.removeAll { id -> p?.connections?.any { it.id == id && it.up } == true }
+        val all = hub?.connections?.filter { it.kind == ConnectionKind.ONLINE }?.map { c ->
+            if (c.id in refused && c.status.state == TransportStatus.State.CONNECTED) {
+                TransportStatus(TransportStatus.State.ERROR, T.party.refusedByServer(c.status.detail))
+            } else {
+                c.status
+            }
+        }.orEmpty()
         val up = all.filter { it.state == TransportStatus.State.CONNECTED }
         return if (up.isNotEmpty()) TransportStatus(TransportStatus.State.CONNECTED, up.joinToString(", ") { it.detail })
         else all.firstOrNull { it.state == TransportStatus.State.CONNECTING }
@@ -547,6 +570,7 @@ class LinkSession(
                 chat = p.chat.toList(),
                 mySos = p.mySos,
                 historyCounts = p.history.counts,
+                online = if (hub != null && s.onlineEnabled) onlineStatus() else s.online,
             )
         }
         _fixEveryMs.value = fixEvery(p)
@@ -659,5 +683,6 @@ class LinkSession(
         private const val K_SEQ = "link_seq"
         private const val K_COUNTER = "marks_counter"
         private const val K_CLOCK = "marks_clock"
+        private const val K_TOKEN = "link_token"
     }
 }

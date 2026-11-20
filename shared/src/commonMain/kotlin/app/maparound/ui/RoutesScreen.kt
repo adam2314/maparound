@@ -166,6 +166,7 @@ fun RoutesScreen(
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
             title = header,
+            navigationIcon = { BackToMapButton() },
             actions = {
                 Tip(T.library.importGpxFile) { IconButton(onClick = { importer() }) {
                     Icon(Icons.Filled.FileOpen, contentDescription = T.library.importGpxFile)

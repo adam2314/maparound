@@ -36,6 +36,12 @@ internal class FakeBroker(val loop: FakeLoop) {
     val published = ArrayList<Triple<String, ByteArray, Boolean>>()
     var pings = 0
 
+    /** Each CONNECT: who, and the password it carried (a private server's credentials), if any. */
+    val connects = ArrayList<Pair<String, String?>>()
+
+    /** Parties (tags) whose subscriptions it refuses, as a private server turns a banned member away. */
+    val refusedTags = HashSet<String>()
+
     inner class Client(val owner: String, val onData: (ByteArray) -> Unit, val onClose: (String) -> Unit) : MqttSocket {
         val subs = LinkedHashSet<String>()
         var open = true
@@ -77,7 +83,15 @@ internal class FakeBroker(val loop: FakeLoop) {
         fun u16(at: Int) = ((body[at].toInt() and 0xFF) shl 8) or (body[at + 1].toInt() and 0xFF)
         fun str(at: Int) = body.decodeToString(at + 2, at + 2 + u16(at))
         when ((bytes[0].toInt() and 0xFF) ushr 4) {
-            1 -> c.deliver(byteArrayOf(0x20, 2, 0, 0))
+            1 -> {
+                // "MQTT", level, flags, keep-alive, client id, then a username and password if flagged.
+                var at = 2 + u16(0) + 4
+                at += 2 + u16(at)
+                val flags = body[2 + u16(0) + 1].toInt() and 0xFF
+                if (flags and 0x80 != 0) at += 2 + u16(at)
+                connects += c.owner to (if (flags and 0x40 != 0) str(at) else null)
+                c.deliver(byteArrayOf(0x20, 2, 0, 0))
+            }
             3 -> {
                 val topic = str(0)
                 val qos = (bytes[0].toInt() ushr 1) and 3
@@ -87,6 +101,10 @@ internal class FakeBroker(val loop: FakeLoop) {
             }
             8 -> {
                 val filter = str(2)
+                if (filter.split('/').getOrNull(2) in refusedTags) {
+                    c.deliver(byteArrayOf(0x90.toByte(), 3, body[0], body[1], 0x80.toByte()))
+                    return
+                }
                 c.subs += filter
                 c.deliver(byteArrayOf(0x90.toByte(), 3, body[0], body[1], 0))
                 retained.filterKeys { matches(filter, it) }.forEach { (t, p) -> c.deliver(MqttWire.publish(t, p, retained = true)) }
