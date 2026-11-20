@@ -20,6 +20,8 @@ the space it takes and what it shares. The **Offline maps** and **Party** screen
   with BRouter, without a connection.
 - [Marked trails]({{ '/guide/marked-trails' | relative_url }}): waymarked hiking routes, built in,
   downloaded or online.
+- [Parties]({{ '/guide/party' | relative_url }}): several parties at once, and each one on the map:
+  members, trails, the meeting point and marks, and the connections.
 - [Party server]({{ '/guide/party-server' | relative_url }}): how the party's messages travel, what
   servers see, and running your own.
 - [The map in your website]({{ '/guide/embed' | relative_url }}): the web app's map on any web

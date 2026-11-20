@@ -191,6 +191,8 @@
   with each one's members; the car screen counts the members of all of them. **Meet here** asks
   which party when more than one is on. Each party's colour shows on its chip on the Party screen,
   and tapping its dot in Layers → Overlays picks another.
+- **A new guide, [Parties](https://maparound.app/guide/party)** (English and Hebrew): several
+  parties at once, and what each shows on the map.
 - On Android, the party reaches the servers over secure WebSockets, as the web app does.
 - For now, members' ways so far (History) aren't kept once the app closes.
 - **Only a real GPS fix goes on the map.** A position less exact than ±20 m (a phone indoors or

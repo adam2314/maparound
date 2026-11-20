@@ -1,6 +1,6 @@
 # MapAround privacy policy
 
-*Effective 17 November 2026*
+*Effective 20 November 2026*
 
 MapAround is an offline map app for Android and iPhone. This policy explains what information the
 app uses, where it goes, and what you control.
@@ -75,7 +75,10 @@ tile requests for that area.
 - **Watching in the web app** connects to the same relay servers, which see your IP address and
   which party topic you listen to, as for members; it sends nothing to the party.
 - **Share my location** off hides your position from the others, and **Party on** off stops
-  sending and receiving.
+  sending and receiving. In several parties, each has its own.
+- **Several parties at once:** you have a different member id in each, made at random, so neither
+  the servers nor the members can link you in one party to you in another (only your name and
+  look, which are the same in all). An SOS goes to every party that's on.
 - Relay servers keep the latest encrypted position, name and SOS of each member, and the party's
   marks and meeting point, so people who join later see the group straight away. Leaving the party
   removes yours from the relays.
@@ -85,10 +88,9 @@ tile requests for that area.
   messages for a while (30 days by default), still encrypted, for members who connect later. Its
   admin can see members' ids (also of those on a LoRa radio, whose messages a member's phone
   passes on) and when they were last heard, and can remove members.
-- **Members' history**: the positions of the others that your device receives are kept on it (in
-  the app's files, or the browser's storage for the web app), so you can replay where each one
-  went. They stay on your device, aren't sent anywhere, and are deleted when you leave the party
-  or join another.
+- **Members' history**: the positions of the others that your device receives are kept on it
+  while the party runs, so you can replay where each one went and draw their trails. They stay on
+  your device, aren't sent anywhere, and are deleted when you leave that party.
 
 ## Testing the Android beta
 

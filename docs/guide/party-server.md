@@ -59,6 +59,10 @@ Changing the server in a running party moves you alone: share the invite again, 
 open it. New parties you start use the server you chose last. **Use the public servers** in the same
 dialog goes back to them.
 
+In [several parties]({{ '/guide/party' | relative_url }}), each has its own server: **Server**
+changes the one shown on the Party screen. One connection to a server carries every party on it,
+and a MapAround party server gets each one's id on it.
+
 Everyone in the party needs **MapAround 0.5.4 or newer**: parties now use MapAround's Link v1
 protocol, which older versions don't speak.
 

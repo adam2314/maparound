@@ -702,7 +702,8 @@ clock. Nothing on the wire links your ids in one party to your ids in another.
 **Each party uses some of the connections:**
 
 - **Online:** the servers in its invite ([§6](#6-transports)).
-- **Radio:** the radios the user turns on for that party.
+- **Radio:** the radios the user turns on for that party (in the apps today: the paired radio,
+  for every party that's on).
 - **A party is accepted from any connection,** but sends only on the ones it uses.
 
 **Parties share connections:**
@@ -712,8 +713,29 @@ clock. Nothing on the wire links your ids in one party to your ids in another.
   two parties share a 2-byte tag, both keys are tried.
 - **Airtime:** each radio has its own budget. Positions go to each party on it at its own
   pace, taking turns.
-- **Limit:** up to 8 parties at once is the suggested maximum. How many radios can be
-  connected depends on the platform's Bluetooth.
+- **Limit:** up to 8 parties at once is the suggested maximum; the apps take 4. How many radios
+  can be connected depends on the platform's Bluetooth.
+
+### Several parties in the apps
+
+What the apps do with several parties. None of it is on the wire.
+
+- **The screens show one party,** picked on the Party screen; the map shows all of them. Actions
+  (a message, the meeting point) go to the party shown.
+- **Per party:** its sender id, its token, its servers, **Share my location** and on/off.
+  **Shared:** the name and look in HELLO, the radio, the online switch and the gateway.
+- **An SOS goes to every party that's on,** and to the one shown; its end too.
+- **Each party's layers:**
+  - its members;
+  - their trails: the last 30 minutes of their history (positions and the trails in POS), up
+    to where their marker is;
+  - its meeting point and marks.
+
+  These sit under the connections' layers above: a member is drawn at their newest position from
+  a shown connection, and an SOS whatever is hidden.
+- **With several parties on the map,** each one's markers have its colour round them and its
+  name after theirs. The colour belongs to this device and isn't sent.
+- **Notifications** name their party when there are several.
 
 ## 8. Relaying
 
