@@ -62,6 +62,8 @@ object MqttWire {
     fun subscribe(packetId: Int, filter: String, qos: Int = 0): ByteArray =
         packet(0x82, u16(packetId) + str(filter) + byteArrayOf(qos.toByte()))
 
+    fun unsubscribe(packetId: Int, filter: String): ByteArray = packet(0xA2, u16(packetId) + str(filter))
+
     /** The answer to a QoS 1 PUBLISH. */
     fun pubAck(packetId: Int): ByteArray = packet(0x40, u16(packetId))
 

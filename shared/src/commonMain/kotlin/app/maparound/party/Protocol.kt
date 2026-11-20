@@ -23,13 +23,18 @@ import kotlin.math.roundToInt
 // end-to-end encrypted with AES-256-GCM, so MQTT brokers and LoRa radios only relay ciphertext.
 
 /**
- * The shared secret that defines a party. [server]: the party's own MQTT server (a `wss://`
- * address, [PartyRelays.server]), or null for the public ones; it travels in the invite.
+ * The shared secret that defines a party. [servers]: the party's own MQTT servers (`wss://`
+ * addresses, [PartyRelays.server]), none for the public ones; they travel in the invite.
  */
-class PartyKey(val id: ByteArray, val secret: ByteArray, val name: String, val server: String? = null) {
+class PartyKey(val id: ByteArray, val secret: ByteArray, val name: String, val servers: List<String> = emptyList()) {
+    constructor(id: ByteArray, secret: ByteArray, name: String, server: String?) : this(id, secret, name, listOfNotNull(server))
+
     init {
         require(id.size == 16 && secret.size == 32)
     }
+
+    /** The first of [servers] (the screens show one), or null for the public ones. */
+    val server: String? get() = servers.firstOrNull()
 
     /** 4 bytes that identify the party in packets and topics without revealing its id. */
     val tag: Int = ByteReader.intAt(hmac("MapAround party tag v1"), 0)
@@ -43,19 +48,22 @@ class PartyKey(val id: ByteArray, val secret: ByteArray, val name: String, val s
      * A web link, so messaging apps make it tappable and a phone camera can open the QR code: the
      * page ([INVITE_PAGE]) opens MapAround with the app link `maparound://party/<code>?n=<name>`,
      * or offers the app on Google Play. The code is in the part after `#`, which browsers keep on
-     * the phone: the website never receives it. A party with its own server adds `&s=<server>`.
+     * the phone: the website never receives it. A party with its own servers adds `&s=<server>` for each.
      */
     fun toLink(): String = "$INVITE_PAGE#" + B64.encode(id + secret) + "?n=" + urlEncode(name) +
-        (server?.let { "&s=" + urlEncode(it) } ?: "")
+        servers.joinToString("") { "&s=" + urlEncode(it) }
 
     /** The same party on [server] (null: the public servers). */
     fun withServer(server: String?): PartyKey = PartyKey(id, secret, name, server)
 
     fun hmac(label: String): ByteArray = hmacSha256(secret, label.encodeToByteArray())
 
-    /** The same party on the same server (moving it to another one is a change the screens see). */
-    override fun equals(other: Any?) = other is PartyKey && id.contentEquals(other.id) && server == other.server
-    override fun hashCode() = id.contentHashCode() * 31 + server.hashCode()
+    /** The same party on [servers] (none: the public ones). */
+    fun withServers(servers: List<String>): PartyKey = PartyKey(id, secret, name, servers)
+
+    /** The same party on the same servers (moving it to others is a change the screens see). */
+    override fun equals(other: Any?) = other is PartyKey && id.contentEquals(other.id) && servers == other.servers
+    override fun hashCode() = id.contentHashCode() * 31 + servers.hashCode()
 
     companion object {
         /** Host and path of the invite page (docs/party.html on MapAround's website). */
@@ -99,9 +107,9 @@ class PartyKey(val id: ByteArray, val secret: ByteArray, val name: String, val s
             if (raw.size != 48) return null
             val name = link.substringAfter("?n=", "").substringBefore('&').substringBefore('#')
                 .let(::urlDecode).ifEmpty { T.party.defaultPartyName }
-            // A server that isn't a secure WebSocket address is ignored (the public ones, then).
-            val server = Regex("[?&]s=([^&#]*)").find(link)?.groupValues?.get(1)?.let(::urlDecode)?.let(PartyRelays::server)
-            PartyKey(raw.copyOfRange(0, 16), raw.copyOfRange(16, 48), name, server)
+            // Servers that aren't secure WebSocket addresses are ignored (none left: the public ones).
+            val servers = Regex("[?&]s=([^&#]*)").findAll(link).mapNotNull { PartyRelays.server(urlDecode(it.groupValues[1])) }.distinct().toList()
+            PartyKey(raw.copyOfRange(0, 16), raw.copyOfRange(16, 48), name, servers)
         }.getOrNull()
     }
 }
