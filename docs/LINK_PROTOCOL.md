@@ -280,9 +280,10 @@ live         if LIVE: until u32, time u32, by u32 (the LIVE's end, when it was s
 name    string, at most 24 bytes
 ```
 
-When to send it is unchanged from the current `sendHello`: on start (retained online), then
-every 10 minutes online and every 30 minutes on the radio, and as a reply to a newcomer at
-most every 2 minutes.
+When to send it is unchanged from the current `sendHello`: on start and whenever a connection
+comes (back) up (retained online), then every 10 minutes online and every 30 minutes on the
+radio, and as a reply to a newcomer at most every 2 minutes. The 2 minutes count from the last
+reply, not the last hello: the newcomer may not have been there for that one.
 
 ### SOS, ACK
 
@@ -463,8 +464,9 @@ in each HELLO.
   order: the register's version (u32), its editor (u32) and its payload bytes. A register the
   phone doesn't have counts as version 0, editor 0, with no payload. `fp16` is the low 16 bits.
 - **The summary** is `count` and FNV-1a-32 over all the marks' `fp`, sorted ascending as
-  unsigned numbers, each written as a big-endian u32. Deleted marks count too. The summary
-  rides in every HELLO.
+  unsigned numbers, each written as a big-endian u32. Deleted marks count too. With no marks
+  the summary is (0, 0), which is also what a HELLO without a hash means. The summary rides in
+  every HELLO.
 - **The id bytes** are as in a MARK: `creator u32, counter varint`.
 
 ### DIGEST
@@ -488,11 +490,19 @@ A list of entries, one after another:
 ### The exchange
 
 1. **I hear a HELLO or DIGEST whose summary differs from mine.** I wait a random 5–30 s, then
-   send my DIGEST pages. I skip that if, meanwhile, someone else sent a DIGEST with the same
-   summary as mine.
+   send my DIGEST pages. I skip that:
+   - if, meanwhile, someone else sent a DIGEST with the same summary as mine;
+   - if, by then, everyone I heard on that connection last said they hold my summary;
+   - if I hold no marks: there's nothing for others to lack, and my HELLO already says so.
+
+   A HELLO repeating a summary I already know from that member starts no new round, unless no
+   DIGEST with my summary has gone over that connection in the last 5 minutes (a page may have
+   been lost on the air).
 2. **I receive a DIGEST page:**
    - For each `fp16` on the page that I don't have, I ask with WANT.
    - For each of my marks in that page's range that isn't listed, I send it in full.
+   - If the page shows nothing I lack and it is the only page, the sender is only behind me:
+     my marks answer it, and it doesn't start my DIGEST (step 1).
 3. **I hold a mark that someone asked for in a WANT, or that a DIGEST lacked.** I wait a random
    1–8 s, then send it in full. I skip it if I hear someone else send that version first.
 4. **Edits and the sides converge after a round or two.** Two different versions of one mark
@@ -543,10 +553,32 @@ else publishes it meanwhile.
   - Online, a packet can hold every register, so a shape never needs splitting.
   - Subscribers get each new publish live, so this topic is also how edits travel online.
   - It is written by members only.
-- **Members write a mark's topic in two cases:**
+- **Members write a mark's topic in these cases:**
   - after they change the mark;
-  - when they see a retained state older than what they have. They wait a random 1–5 s
-    first, and skip it if someone else publishes a newer one meanwhile.
+  - when they see a retained state older than what they have;
+  - when they merge a relay's post of a radio MARK (`<sender>/mark`, [§8](#8-relaying));
+  - when the server didn't give the mark back after they (re)connected (below).
+
+  Except after their own change, they wait a random 1–5 s first, and skip it if someone else
+  publishes that state, or a newer one, meanwhile.
+
+**(Re)connecting to a server.** One MQTT connection carries every party on that server, each
+with its own subscription to `maparound/link1/<tag>/#`. Once the server accepts a party's
+subscription:
+
+- **At once:** my HELLO, my position at the next tick, and my SOS if I'm in one. The server then
+  gives back what it keeps for the party (retained), which announces no one.
+- **My own packets come back too.** Marks and LIVE are merged like anyone's: after a restart
+  they may be all I have of them. A kept SOS of mine that says otherwise than I do now is put
+  right with my current one.
+- **10 s later:** whatever of my marks the server didn't give back, it lacks, so I publish them
+  (as above, after 1–5 s). The same for the party's Live, while it's on. This is how marks
+  made while the server was away, or on a server that lost its retained messages, get there.
+- **A gateway** also introduces the members it knows from its other connections whom this
+  server didn't bring: their latest HELLO, POS and (while it's on) SOS, as relays.
+- **When the connection drops,** the same server is tried again after 2 s. After that, each of
+  the addresses in turn, then a pause that grows by 5 s each round, up to 30 s. When the platform
+  says the network is back, the waiting ends at once.
 
 ### LoRa: Meshtastic
 

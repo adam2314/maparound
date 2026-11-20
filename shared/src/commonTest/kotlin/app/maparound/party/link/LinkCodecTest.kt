@@ -321,7 +321,8 @@ class LinkCodecTest {
         assertTrue(pages.all { it.fp16s.size <= LinkMessage.Digest.MAX_PER_PAGE && it.pages == pages.size })
         assertEquals(fps.map { it and 0xFFFF }.sorted(), pages.flatMap { it.fp16s }.sorted())
         pages.forEach { assertTrue(LinkEnvelope.seal(key, me, now, 1, it).size <= LinkEnvelope.LORA_MAX) }
-        assertEquals(listOf(LinkMessage.Digest(MarksSummary(0, Marks.summary(emptyList()).hash), 0, 1, emptyList())), Marks.digest(emptyList()))
+        assertEquals(MarksSummary(0, 0), Marks.summary(emptyList()))
+        assertEquals(listOf(LinkMessage.Digest(MarksSummary(0, 0), 0, 1, emptyList())), Marks.digest(emptyList()))
     }
 
     @Test

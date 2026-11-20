@@ -222,8 +222,12 @@ object Marks {
         return f.hash
     }
 
-    /** The summary of the marks with these fingerprints (deleted ones included). */
+    /**
+     * The summary of the marks with these fingerprints (deleted ones included). No marks: (0, 0),
+     * as a HELLO carries it (without the hash).
+     */
     fun summary(fingerprints: Collection<Int>): MarksSummary {
+        if (fingerprints.isEmpty()) return MarksSummary(0, 0)
         val f = Fnv()
         fingerprints.map { it.toUInt() }.sorted().forEach { f.u32(it.toLong()) }
         return MarksSummary(fingerprints.size, f.hash)
@@ -252,7 +256,8 @@ object Marks {
      * [mark] as MARK messages that each seal to at most [maxPacket] bytes, sent by [sender] at
      * [time]: itself when it fits, else its shape in parts that share their boundary vertices,
      * the other registers riding with part 0 (or alone, when they leave too little room).
-     * Throws when the shape needs more than [Part.MAX] parts.
+     * Where the shape is cut depends on the mark alone, not on [sender] or [time]. Throws when
+     * the shape needs more than [Part.MAX] parts.
      */
     fun split(mark: LinkMessage.Mark, sender: Int, time: Long, maxPacket: Int = LinkEnvelope.LORA_MAX): List<LinkMessage.Mark> {
         fun fits(m: LinkMessage.Mark) = sealedSize(m, sender, time) <= maxPacket
@@ -275,12 +280,16 @@ object Marks {
 
         // What a part costs besides its vertices after the first: measured on a part of two equal
         // vertices, with the count's byte and the zero delta's two bytes taken out and the most a
-        // count can take put in.
+        // count can take put in. Measured as the worst sender and time would make it (every
+        // register's editor named, versions far back), so the parts are the same whoever sends
+        // them and whenever: a member can join parts from different senders.
+        val worstSender = 0
+        val worstTime = maxOf(geom.version, others?.let { o -> listOfNotNull(o.style, o.text, o.alive).maxOf { it.version } } ?: 0) + (1L shl 30)
         fun partCost(withOthers: Boolean): Int {
             val v = path.vertices[0]
             val probe = Reg(Geom.Path(path.area, listOf(v, v), Part(0, 2)), geom.version, geom.editor)
             val m = if (withOthers) others!!.copy(geom = probe) else LinkMessage.Mark(mark.id, geom = probe)
-            return sealedSize(m, sender, time) - 1 - 2 + varintSize(Geom.MAX_VERTICES.toLong())
+            return sealedSize(m, worstSender, worstTime) - 1 - 2 + varintSize(Geom.MAX_VERTICES.toLong())
         }
         val firstWithOthers = others != null &&
             maxPacket - partCost(true) >= deltaSize(path.vertices[0], path.vertices[1])
