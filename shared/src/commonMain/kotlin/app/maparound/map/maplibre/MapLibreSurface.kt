@@ -10,6 +10,7 @@ import app.maparound.map.MapPoi
 import app.maparound.map.MapSurface
 import app.maparound.map.OnlineSource
 import app.maparound.map.PartyMarker
+import app.maparound.map.PartyTrail
 import app.maparound.map.PlaceMarker
 import app.maparound.map.ToolLine
 import app.maparound.routing.GeoPoint
@@ -275,6 +276,12 @@ class MapLibreSurface(
     override fun setPartyMarkers(markers: List<PartyMarker>) {
         native.setGeoJson(MapStyle.PARTY, GeoJson.collection(markers.map { m ->
             GeoJson.point(m.lat, m.lon, mapOf("icon" to MarkerIcons.party(m.kind, m.color, m.label, m.stale, m.icon, m.ring), "tap" to "$TAP_PARTY${m.key}"))
+        }))
+    }
+
+    override fun setPartyTrails(trails: List<PartyTrail>) {
+        native.setGeoJson(MapStyle.PARTY_TRAILS, GeoJson.collection(trails.mapNotNull { t ->
+            GeoJson.line(t.points, mapOf("color" to "#" + (t.color and 0xFFFFFF).toString(16).padStart(6, '0')))
         }))
     }
 

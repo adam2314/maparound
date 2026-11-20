@@ -52,12 +52,24 @@ data class PartyState(
     val hiddenConnections: Set<String> = emptySet(),
     /** The plain Meshtastic nodes the radio hears, on the map. */
     val nodesShown: Boolean = true,
-)
+    /** Each member's way (by id) over the last [RECENT_WAY_MS], oldest first: the trails layer. */
+    val recentWays: Map<Int, List<WayPoint>> = emptyMap(),
+) {
+    companion object {
+        /** How far back the trails layer goes. */
+        const val RECENT_WAY_MS = 30 * 60_000L
+    }
+}
+
+/** A point of a member's way, and when they were there (their clock, ms). */
+data class WayPoint(val lat: Double, val lon: Double, val at: Long)
 
 /** What of one party the map shows; an SOS shows whatever is off. */
 data class PartyLayers(
     /** The members' positions. */
     val members: Boolean = true,
+    /** Where each member went over the last half hour (with their marker). */
+    val trails: Boolean = true,
     /** The meeting point, and the party's marks. */
     val marks: Boolean = true,
 )

@@ -23,6 +23,7 @@ import app.maparound.party.PartyRelays
 import app.maparound.party.PartyState
 import app.maparound.party.TimedPosition
 import app.maparound.party.TransportStatus
+import app.maparound.party.WayPoint
 import app.maparound.party.Via
 import app.maparound.sensors.GeoFix
 import app.maparound.shared.crypto.randomBytes
@@ -226,7 +227,11 @@ class LinkSession(
         val color = store.getInt(s.k(K_PARTY_COLOR), 0).takeIf { it != 0 }
             ?: (PARTY_COLORS.firstOrNull { c -> slots.none { it.state.color == c } } ?: PARTY_COLORS[n % PARTY_COLORS.size])
                 .also { store.putInt(s.k(K_PARTY_COLOR), it) }
-        val layers = PartyLayers(members = store.getBoolean(s.k(K_SHOW_MEMBERS), true), marks = store.getBoolean(s.k(K_SHOW_MARKS), true))
+        val layers = PartyLayers(
+            members = store.getBoolean(s.k(K_SHOW_MEMBERS), true),
+            trails = store.getBoolean(s.k(K_SHOW_TRAILS), true),
+            marks = store.getBoolean(s.k(K_SHOW_MARKS), true),
+        )
         s.state = PartyState(party = k, me = me(id), sharing = p.sharing, color = color, layers = layers)
         reserveSeq(s)
         return s
@@ -314,6 +319,7 @@ class LinkSession(
     override fun setLayers(party: PartyKey, layers: PartyLayers) {
         val s = slotOf(party) ?: return
         store.putBoolean(s.k(K_SHOW_MEMBERS), layers.members)
+        store.putBoolean(s.k(K_SHOW_TRAILS), layers.trails)
         store.putBoolean(s.k(K_SHOW_MARKS), layers.marks)
         s.state = s.state.copy(layers = layers)
         publish()
@@ -764,6 +770,7 @@ class LinkSession(
                 chat = p.chat.toList(),
                 mySos = p.mySos,
                 historyCounts = p.history.counts,
+                recentWays = recentWays(p),
                 online = if (h != null && common.onlineEnabled && p in h.parties) onlineStatus(s) else OFF,
             )
         }
@@ -773,6 +780,21 @@ class LinkSession(
         )
         publish()
         _fixEveryMs.value = fixEvery()
+    }
+
+    /** Each member's way over the last half hour (their positions and the trails they sent), for the trails layer. */
+    private fun recentWays(p: LinkParty): Map<Int, List<WayPoint>> {
+        val since = (clock() - PartyState.RECENT_WAY_MS) / 1000
+        val out = HashMap<Int, List<WayPoint>>()
+        for (m in p.members.values) {
+            if (m.left) continue
+            val all = p.history.of(m.id)
+            // Oldest first: from the first one in the half hour.
+            var i = all.size
+            while (i > 0 && all[i - 1].time >= since) i--
+            if (all.size - i >= 2) out[m.id] = all.subList(i, all.size).map { WayPoint(it.at.latDeg, it.at.lonDeg, it.time * 1000) }
+        }
+        return out
     }
 
     /** The hub's connections as the layers show them: what each is, how it's doing, what it brought. */
@@ -943,6 +965,7 @@ class LinkSession(
         private const val K_PARTY_COLOR = "color"
         private const val K_SHOW_MEMBERS = "show_members"
         private const val K_SHOW_MARKS = "show_marks"
-        private val PER_PARTY = listOf(K_LINK, K_ACTIVE, K_ID, K_SHARING, K_SEQ, K_COUNTER, K_CLOCK, K_TOKEN, K_PARTY_COLOR, K_SHOW_MEMBERS, K_SHOW_MARKS)
+        private const val K_SHOW_TRAILS = "show_trails"
+        private val PER_PARTY = listOf(K_LINK, K_ACTIVE, K_ID, K_SHARING, K_SEQ, K_COUNTER, K_CLOCK, K_TOKEN, K_PARTY_COLOR, K_SHOW_MEMBERS, K_SHOW_TRAILS, K_SHOW_MARKS)
     }
 }

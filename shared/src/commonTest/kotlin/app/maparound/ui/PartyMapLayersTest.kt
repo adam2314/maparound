@@ -12,6 +12,7 @@ import app.maparound.party.PartyMessage
 import app.maparound.party.PartyState
 import app.maparound.party.TimedPosition
 import app.maparound.party.TransportStatus
+import app.maparound.party.WayPoint
 import app.maparound.testing.assertEquals
 import app.maparound.testing.assertNull
 import app.maparound.testing.assertTrue
@@ -32,12 +33,18 @@ class PartyMapLayersTest {
         positionsOn = mapOf("public" to TimedPosition(pos(31.1), now - 60_000), "radio:AA" to TimedPosition(pos(31.2, sos), now)),
     )
 
+    /** Dana's way: one point 40 minutes ago (too old), then 20 and 10 minutes ago, then the two positions above. */
+    private val danasWay = listOf(
+        WayPoint(30.6, 35.0, now - 40 * 60_000), WayPoint(30.8, 35.0, now - 20 * 60_000), WayPoint(30.9, 35.0, now - 10 * 60_000),
+        WayPoint(31.1, 35.0, now - 60_000), WayPoint(31.2, 35.0, now),
+    )
+
     private fun party(
         key: PartyKey, members: List<Member>, color: Int = 0xFF1E88E5.toInt(), layers: PartyLayers = PartyLayers(),
         hidden: Set<String> = emptySet(), meeting: Meeting? = null, nodes: List<MeshNode> = emptyList(), nodesShown: Boolean = true,
     ) = PartyState(
         party = key, members = members, color = color, layers = layers, hiddenConnections = hidden, meeting = meeting,
-        meshNodes = nodes, nodesShown = nodesShown,
+        meshNodes = nodes, nodesShown = nodesShown, recentWays = mapOf(7 to danasWay),
         connections = listOf(
             PartyConnection("public", false, "Public servers", connected, now, 1),
             PartyConnection("radio:AA", true, "T-Echo", connected, now, 1, nodes.size),
@@ -100,6 +107,24 @@ class PartyMapLayersTest {
         val noMarks = partyMapMarkers(listOf(party(hike, listOf(dana()), layers = PartyLayers(marks = false), meeting = meet)), now)
         assertEquals(0, noMarks.count { it.kind == PartyMarker.Kind.MEET })
         assertEquals(1, members(noMarks).size)
+    }
+
+    @Test
+    fun aTrailIsTheLastHalfHourUpToTheMarker() {
+        val t = partyTrails(listOf(party(hike, listOf(dana()))), now).single()
+        assertEquals(listOf(30.8, 30.9, 31.1, 31.2), t.points.map { it.lat })
+        assertEquals(dana().color, t.color)
+        // The radio hidden: the marker is where the servers had them, and the trail stops there.
+        assertEquals(listOf(30.8, 30.9, 31.1), partyTrails(listOf(party(hike, listOf(dana()), hidden = setOf("radio:AA"))), now).single().points.map { it.lat })
+    }
+
+    @Test
+    fun trailsFollowTheirPartysLayers() {
+        assertTrue(partyTrails(listOf(party(hike, listOf(dana()), layers = PartyLayers(trails = false))), now).isEmpty())
+        assertTrue(partyTrails(listOf(party(hike, listOf(dana()), layers = PartyLayers(members = false))), now).isEmpty())
+        assertTrue(partyTrails(listOf(party(hike, listOf(dana()))), now, shown = false).isEmpty())
+        // An SOS: theirs shows anyway (where they came from), unless trails are off.
+        assertEquals(1, partyTrails(listOf(party(hike, listOf(dana(sos = true)), layers = PartyLayers(members = false))), now, shown = false).size)
     }
 
     @Test

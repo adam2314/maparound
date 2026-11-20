@@ -511,7 +511,9 @@ fun MapScreen(
     val replay by PartyReplay.state.collectAsState()
     val partyOn by prefs.partyOnMap.collectAsState()
     LaunchedEffect(parties, party, partyClock, replay, partyOn) {
-        controller.setPartyMarkers(partyMapMarkers(parties.ifEmpty { listOf(party) }, partyClock, replay, shown = partyOn))
+        val all = parties.ifEmpty { listOf(party) }
+        controller.setPartyMarkers(partyMapMarkers(all, partyClock, replay, shown = partyOn))
+        controller.setPartyTrails(partyTrails(all, partyClock, replay, shown = partyOn))
     }
     LaunchedEffect(replay?.playing) {
         var last = nowMillis()

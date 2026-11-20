@@ -2,12 +2,14 @@ package app.maparound.ui
 
 import app.maparound.i18n.T
 import app.maparound.map.PartyMarker
+import app.maparound.map.PartyTrail
 import app.maparound.party.Meeting
 import app.maparound.party.Member
 import app.maparound.party.MeshNode
 import app.maparound.party.PartyKey
 import app.maparound.party.PartyState
 import app.maparound.party.TimedPosition
+import app.maparound.routing.GeoPoint
 
 // The parties on the map, as layers (docs/LINK_PROTOCOL.md §7): each party on or off (its members,
 // its meeting point and marks), each connection on or off, shared by the parties on it. A member
@@ -54,6 +56,30 @@ fun shownPosition(m: Member, hidden: Set<String>): TimedPosition? {
     // Without the connections it came through (the old engine): as it is.
     if (m.positionsOn.isEmpty()) return m.position?.let { TimedPosition(it, m.positionAt) }
     return m.positionsOn.filterKeys { it !in hidden }.values.maxByOrNull { it.at }
+}
+
+/**
+ * The trails layer: each member's way over the last half hour ([PartyState.recentWays]) in their
+ * colour, up to where their marker is (one held back by a hidden connection holds its trail back
+ * too); for members shown, and anyone in an SOS. Not a [replay]ed member's: the replay draws theirs.
+ */
+fun partyTrails(parties: List<PartyState>, now: Long, replay: PartyReplay.State? = null, shown: Boolean = true): List<PartyTrail> = buildList {
+    val inParties = parties.filter { it.party != null }
+    val hidden = inParties.firstOrNull()?.hiddenConnections.orEmpty()
+    val since = now - PartyState.RECENT_WAY_MS
+    for (p in inParties) {
+        if (!p.layers.trails) continue
+        for (m in p.members) {
+            if (m.id == replay?.memberId) continue
+            val until = when {
+                m.sos -> m.positionAt
+                shown && p.layers.members -> shownPosition(m, hidden)?.at
+                else -> null
+            } ?: continue
+            val points = p.recentWays[m.id].orEmpty().filter { it.at in since..until }.map { GeoPoint(it.lat, it.lon) }
+            if (points.size >= 2) add(PartyTrail(points, m.color))
+        }
+    }
 }
 
 /** A member more than this long since their position: drawn faded. */

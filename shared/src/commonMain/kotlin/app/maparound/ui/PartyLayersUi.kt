@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Router
+import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -54,6 +55,13 @@ internal fun PartyLayerRows() {
                 subtitle = T.map.partyMembersLine(p.members.size, p.members.any { it.sos }),
                 checked = p.layers.members,
             ) { control.setLayers(key, p.layers.copy(members = it)) }
+            SubLayer(
+                lead = { Icon(Icons.Filled.Timeline, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                title = T.map.partyTrails,
+                subtitle = T.map.partyTrailsHint,
+                checked = p.layers.trails,
+                indent = true,
+            ) { control.setLayers(key, p.layers.copy(trails = it)) }
             SubLayer(
                 lead = { Icon(Icons.Filled.Place, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                 title = T.map.partyMeetAndMarks,
@@ -133,7 +141,7 @@ private fun SubLayer(
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis) }
         }
         Spacer(Modifier.width(8.dp))
         Switch(checked = checked, onCheckedChange = onChange)

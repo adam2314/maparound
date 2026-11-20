@@ -7,6 +7,7 @@ import app.maparound.routing.PlannerSession
 import app.maparound.routing.RouteProfile
 import app.maparound.tracks.TrackRecorder
 import app.maparound.ui.partyMapMarkers
+import app.maparound.ui.partyTrails
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
@@ -72,9 +73,11 @@ class LiveMapFeed(
                 }
             }
             combine(PartySession.parties, PartySession.state, clock, AppGraph.prefs.partyOnMap) { parties, party, now, shown ->
-                partyMapMarkers(parties.ifEmpty { listOf(party) }, now, shown = shown)
-            }.collect {
-                map.setPartyMarkers(it)
+                val all = parties.ifEmpty { listOf(party) }
+                partyMapMarkers(all, now, shown = shown) to partyTrails(all, now, shown = shown)
+            }.collect { (markers, trails) ->
+                map.setPartyMarkers(markers)
+                map.setPartyTrails(trails)
                 onChange()
             }
         }

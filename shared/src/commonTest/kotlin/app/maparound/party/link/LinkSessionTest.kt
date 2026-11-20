@@ -464,4 +464,26 @@ class LinkSessionTest {
         assertEquals(PartyLayers(), a.session.parties.value.last().layers)
         assertEquals(listOf(hike.color, run.color), a.session.parties.value.map { it.color })
     }
+
+    @Test
+    fun theTrailsLayerHasTheLastHalfHour() = runTest {
+        val net = Net(this)
+        val a = net.device("A")
+        val b = net.device("B")
+        a.session.create("Hike", "Dana")
+        b.joinOf(a, "Ido")
+        net.step(2)
+        // Dana walks north for 40 minutes, about 110 m a minute.
+        var lat = 31.7
+        repeat(40) {
+            lat += 0.001
+            a.fix(lat, 35.2)
+            net.step(60)
+        }
+        val way = b.state.recentWays.getValue(a.state.me!!.id)
+        assertTrue("${way.size}", way.size in 25..35)
+        assertTrue(way.first().at >= net.nowMs - 30 * 60_000)
+        assertEquals(lat, way.last().lat, 1e-4)
+        assertTrue(way.zipWithNext().all { (x, y) -> x.at < y.at })
+    }
 }

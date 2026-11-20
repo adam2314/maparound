@@ -486,6 +486,13 @@ class MapStyle(
         line("tracks-casing", TRACKS, "#FFFFFF", 7.0),
         line("tracks-line", TRACKS, "#E65100", 4.0),
         line("recording", RECORDING, "#D50000", 4.0),
+        // The members' recent ways (the party's trails layer), each in its member's colour, thinner than a replay.
+        line("party-trails-casing", PARTY_TRAILS, "#FFFFFF", 5.0),
+        layer("party-trails", "line") {
+            put("source", PARTY_TRAILS)
+            put("layout", ROUND)
+            put("paint", obj("line-color" to arr("get", "color"), "line-width" to 3.0, "line-opacity" to 0.8))
+        },
         // A party member's way replayed: what's ahead faint, what's been gone in their colour.
         line("party-trail-casing", PARTY_TRAIL, "#FFFFFF", 7.0, role = "done"),
         layer("party-trail", "line") {
@@ -578,6 +585,7 @@ class MapStyle(
         const val TRACKS = "mr-tracks"
         const val RECORDING = "mr-recording"
         const val PARTY_TRAIL = "mr-party-trail"
+        const val PARTY_TRAILS = "mr-party-trails"
         const val ROUTE = "mr-route"
         const val TOOLS = "mr-tools"
         const val PLACES = "mr-places"
@@ -598,7 +606,7 @@ class MapStyle(
 
         /** A data view raster's source and layer. */
         fun dataRasterId(src: OnlineSource) = "mr-data-raster-${src.id}"
-        val OVERLAY_SOURCES = listOf(DATA_ZONES, DATA_COUNTRIES, DATA_SELECTED, DATA_LOCALITIES, DATA_BUSES, DATA_CAMERAS, DATA_WEATHER, GRID, TRACKS, RECORDING, PARTY_TRAIL, ROUTE, TOOLS, PLACES, PARTY, ME, PIN)
+        val OVERLAY_SOURCES = listOf(DATA_ZONES, DATA_COUNTRIES, DATA_SELECTED, DATA_LOCALITIES, DATA_BUSES, DATA_CAMERAS, DATA_WEATHER, GRID, TRACKS, RECORDING, PARTY_TRAILS, PARTY_TRAIL, ROUTE, TOOLS, PLACES, PARTY, ME, PIN)
 
         /** Colour around the maps (no data). */
         const val OUTSIDE = "#EDEADA"

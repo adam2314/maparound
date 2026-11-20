@@ -136,6 +136,8 @@ open class MapTexts {
 
     /** A party's row under the Party layer: its members, and whether one is in an SOS. */
     open fun partyMembersLine(n: Int, sos: Boolean) = (if (n == 1) "1 member" else "$n members") + if (sos) " · SOS" else ""
+    open val partyTrails = "Trails"
+    open val partyTrailsHint = "Where each went in the last 30 minutes"
     open val partyMeetAndMarks = "Meeting point and marks"
     open val partyConnections = "Connections"
     open val partyConnectionsHint = "Hiding one hides what came only through it; it keeps running."
@@ -480,6 +482,8 @@ object MapTextsHe : MapTexts() {
     override val partyLayerHint = "חברי הקבוצה, נקודת המפגש ומכשירי קשר. מצוקה (SOS) מוצגת בכל מקרה."
     override val partyLayerNone = "חברי הקבוצה יוצגו כאן כשתצטרפו לקבוצה"
     override fun partyMembersLine(n: Int, sos: Boolean) = (if (n == 1) "משתתף אחד" else "$n משתתפים") + if (sos) " · SOS" else ""
+    override val partyTrails = "מסלולים"
+    override val partyTrailsHint = "היכן כל אחד עבר ב־30 הדקות האחרונות"
     override val partyMeetAndMarks = "נקודת המפגש והסימונים"
     override val partyConnections = "חיבורים"
     override val partyConnectionsHint = "הסתרת חיבור מסתירה את מה שהגיע רק דרכו; הוא ממשיך לפעול."

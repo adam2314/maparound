@@ -32,6 +32,9 @@ data class PartyMarker(
     enum class Kind { MEMBER, SOS, MEET, RADIO }
 }
 
+/** A party member's recent way on the map, in their [color] (ARGB). */
+data class PartyTrail(val points: List<GeoPoint>, val color: Int)
+
 /** A saved place on the map. */
 data class PlaceMarker(val id: String, val lat: Double, val lon: Double, val label: String, val emoji: String, val color: Int)
 
@@ -193,6 +196,9 @@ interface MapSurface : ZoomTarget {
      * gone by the moment shown ([done]) in their [color] (ARGB). Empty lists: none.
      */
     fun setPartyTrail(full: List<GeoPoint>, done: List<GeoPoint>, color: Int) = Unit
+
+    /** The party members' recent ways (the trails layer), each in its member's colour. */
+    fun setPartyTrails(trails: List<PartyTrail>) = Unit
     fun setPlaces(places: List<PlaceMarker>)
     fun updateLocation(fix: GeoFix?)
     fun setPin(point: GeoPoint?)
