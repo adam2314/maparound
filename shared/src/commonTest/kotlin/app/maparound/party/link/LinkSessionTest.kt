@@ -6,6 +6,7 @@ import app.maparound.party.MeshRadio
 import app.maparound.party.PartyController
 import app.maparound.party.PartyEvent
 import app.maparound.party.PartyKey
+import app.maparound.party.PartyLayers
 import app.maparound.party.PartyRadio
 import app.maparound.party.TransportStatus
 import app.maparound.party.Via
@@ -434,5 +435,33 @@ class LinkSessionTest {
         a.session.resumeIfWasActive()
         net.step(1)
         assertTrue(a.state.active)
+    }
+
+    @Test
+    fun eachPartyHasItsColourAndLayersAndTheConnectionsAreListed() = runTest {
+        val net = Net(this)
+        val a = net.device("A")
+        val b = net.device("B")
+        b.session.create("Hike", "Ido")
+        a.joinOf(b, "Dana")
+        a.session.create("Club run", "Dana")
+        net.step(2)
+        val (hike, run) = a.session.parties.value
+        assertTrue(hike.color != run.color)
+        // One connection for both, and who came through it.
+        val conn = a.state.connections.single()
+        assertEquals(LinkSession.PUBLIC, conn.id)
+        assertEquals(1, conn.members)
+        assertEquals(connected, conn.status.state)
+        // What the map shows is kept.
+        a.session.setConnectionShown(LinkSession.PUBLIC, false)
+        a.session.setLayers(hike.party!!, PartyLayers(members = false))
+        a.session.setNodesShown(false)
+        a.open()
+        assertEquals(setOf(LinkSession.PUBLIC), a.state.hiddenConnections)
+        assertFalse(a.state.nodesShown)
+        assertEquals(PartyLayers(members = false), a.session.parties.value.first().layers)
+        assertEquals(PartyLayers(), a.session.parties.value.last().layers)
+        assertEquals(listOf(hike.color, run.color), a.session.parties.value.map { it.color })
     }
 }

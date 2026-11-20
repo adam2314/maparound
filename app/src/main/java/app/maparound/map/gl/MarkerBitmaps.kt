@@ -50,8 +50,11 @@ class MarkerBitmaps(private val density: Float) {
         val iconCode = if (f.size >= 7) f[5].toIntOrNull() ?: 0 else 0
         val symbolColor = if (f.size >= 7 && kind == "member") argb(f[6]) else Color.WHITE
         val icon = if (kind == "member" && iconCode != 0) PartyIcons.svg(iconCode) else ""
+        // Several parties on the map: the party's colour round it (an SOS keeps its red).
+        val partyRing = f.getOrNull(7)?.takeIf { it.isNotEmpty() }?.let(::argb)
         return badge(
-            ring = if (sos) RED else Color.WHITE, ringWidth = if (sos) 4f else 2f, body = body, radius = 13f,
+            ring = when { sos -> RED; partyRing != null -> partyRing; else -> Color.WHITE },
+            ringWidth = when { sos -> 4f; partyRing != null -> 3.5f; else -> 2f }, body = body, radius = 13f,
             symbol = if (kind == "meet") "" else letter, symbolSize = 13f, symbolBold = true, symbolColor = symbolColor,
             label = f[3], labelColor = if (sos) RED else DARK, alpha = if (f[4] == "1") 140 / 255f else 1f,
             flag = kind == "meet", icon = icon,

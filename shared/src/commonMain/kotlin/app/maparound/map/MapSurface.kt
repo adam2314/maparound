@@ -26,6 +26,8 @@ data class PartyMarker(
     val stale: Boolean,
     /** A member's icon ([app.maparound.party.PartyIcon] code; 0: the initial). */
     val icon: Int = 0,
+    /** Its party's colour (ARGB), as a ring round it, while several parties are on the map; null: none. */
+    val ring: Int? = null,
 ) {
     enum class Kind { MEMBER, SOS, MEET, RADIO }
 }

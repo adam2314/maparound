@@ -71,7 +71,9 @@ class LiveMapFeed(
                     delay(30_000)
                 }
             }
-            combine(PartySession.state, clock, AppGraph.prefs.partyOnMap) { party, now, shown -> partyMapMarkers(party, now, shown = shown) }.collect {
+            combine(PartySession.parties, PartySession.state, clock, AppGraph.prefs.partyOnMap) { parties, party, now, shown ->
+                partyMapMarkers(parties.ifEmpty { listOf(party) }, now, shown = shown)
+            }.collect {
                 map.setPartyMarkers(it)
                 onChange()
             }

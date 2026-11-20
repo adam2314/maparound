@@ -274,7 +274,7 @@ class MapLibreSurface(
 
     override fun setPartyMarkers(markers: List<PartyMarker>) {
         native.setGeoJson(MapStyle.PARTY, GeoJson.collection(markers.map { m ->
-            GeoJson.point(m.lat, m.lon, mapOf("icon" to MarkerIcons.party(m.kind, m.color, m.label, m.stale, m.icon), "tap" to "$TAP_PARTY${m.key}"))
+            GeoJson.point(m.lat, m.lon, mapOf("icon" to MarkerIcons.party(m.kind, m.color, m.label, m.stale, m.icon, m.ring), "tap" to "$TAP_PARTY${m.key}"))
         }))
     }
 

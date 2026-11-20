@@ -498,6 +498,8 @@ fun MapScreen(
 
     // ---- party ------------------------------------------------------------------------------------
     val party by partyControl.state.collectAsState()
+    // Every party I'm in, on the map (a controller with one: that one).
+    val parties by partyControl.parties.collectAsState()
     val partyClock by produceState(nowMillis()) {
         while (true) {
             delay(30_000)
@@ -508,7 +510,9 @@ fun MapScreen(
     // A member's history replayed: their marker goes along their way, drawn in their colour.
     val replay by PartyReplay.state.collectAsState()
     val partyOn by prefs.partyOnMap.collectAsState()
-    LaunchedEffect(party, partyClock, replay, partyOn) { controller.setPartyMarkers(partyMapMarkers(party, partyClock, replay, shown = partyOn)) }
+    LaunchedEffect(parties, party, partyClock, replay, partyOn) {
+        controller.setPartyMarkers(partyMapMarkers(parties.ifEmpty { listOf(party) }, partyClock, replay, shown = partyOn))
+    }
     LaunchedEffect(replay?.playing) {
         var last = nowMillis()
         while (PartyReplay.state.value?.playing == true) {
@@ -1195,15 +1199,17 @@ fun MapScreen(
                 )
             }
             selectedParty?.let { key ->
-                PartyMarkerCard(key, party, location, speedUnit, onClose = { selectedParty = null }, onShare = { la, lo, title -> shareTarget = Triple(la, lo, title) }, onRoute = { target ->
+                PartyMarkerCard(key, parties.ifEmpty { listOf(party) }, location, speedUnit, onClose = { selectedParty = null }, onShare = { la, lo, title -> shareTarget = Triple(la, lo, title) }, onRoute = { target ->
                     selectedParty = null
                     ToolsSession.close()
                     PlannerSession.close()
                     PlannerSession.open()
                     location?.let { PlannerSession.add(GeoPoint(it.lat, it.lon)) }
                     PlannerSession.add(target)
-                }, onHistory = { member ->
+                }, onHistory = { owner, member ->
                     selectedParty = null
+                    // The history is the shown party's: theirs, shown.
+                    partyControl.select(owner)
                     PartyReplay.open(member, partyControl.history(member.id))
                 })
             }
@@ -1774,62 +1780,32 @@ fun MapScreen(
 fun placeMapMarkers(places: List<app.maparound.places.Place>): List<PlaceMarker> =
     places.map { PlaceMarker(it.id, it.lat, it.lon, it.name, it.category.emoji, it.category.argb.toInt()) }
 
-/**
- * Party members, the meeting point and other radios as map markers (phone and car screens). Not
- * [shown] (the Party layer off): only members in an SOS, and a history being replayed.
- */
-fun partyMapMarkers(party: PartyState, now: Long, replay: PartyReplay.State? = null, shown: Boolean = true): List<PartyMarker> = buildList {
-    replay?.let { r ->
-        // Where they were at the moment shown, as they were (an SOS then: the SOS marker).
-        val at = r.where
-        val sos = r.points[r.index].position.sos
-        add(PartyMarker("m${r.memberId}", at.lat, at.lon, r.name, r.color, if (sos) PartyMarker.Kind.SOS else PartyMarker.Kind.MEMBER, false, r.icon))
-    }
-    party.members.forEach { m ->
-        if (m.id == replay?.memberId) return@forEach
-        if (!shown && !m.sos) return@forEach
-        m.position?.let { p ->
-            add(PartyMarker(
-                "m${m.id}", p.lat, p.lon, m.displayName, m.color,
-                if (m.sos) PartyMarker.Kind.SOS else PartyMarker.Kind.MEMBER,
-                stale = now - m.positionAt > 10 * 60_000,
-                icon = m.icon,
-            ))
-        }
-    }
-    party.meeting?.let {
-        if (shown) add(PartyMarker("meet", it.lat, it.lon, it.label.ifBlank { T.map.meetMarker }, 0, PartyMarker.Kind.MEET, false))
-    }
-    if (shown) party.meshNodes.forEach { n ->
-        n.position?.let {
-            add(PartyMarker(
-                "r${n.num}", it.lat, it.lon, n.shortName.ifBlank { n.name }, 0, PartyMarker.Kind.RADIO,
-                stale = now - n.heardAt > 30 * 60_000,
-            ))
-        }
-    }
-}
-
 @Composable
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 private fun PartyMarkerCard(
     key: String,
-    party: PartyState,
+    parties: List<PartyState>,
     myLocation: GeoFix?,
     speedUnit: app.maparound.sensors.SpeedUnit,
     onClose: () -> Unit,
     onShare: (Double, Double, String) -> Unit,
     onRoute: (GeoPoint) -> Unit,
-    /** Replays the member's way so far. */
-    onHistory: (app.maparound.party.Member) -> Unit,
+    /** Replays the member's way so far, in their party. */
+    onHistory: (app.maparound.party.PartyKey, app.maparound.party.Member) -> Unit,
 ) {
-    val member = party.members.firstOrNull { "m${it.id}" == key }
-    val radio = party.meshNodes.firstOrNull { "r${it.num}" == key }
-    val meet = party.meeting?.takeIf { key == "meet" }
-    val memberAt = member?.position
+    val target = partyTarget(parties, key)
+    val member = (target as? PartyTarget.MemberOf)?.member
+    val meet = (target as? PartyTarget.MeetingOf)?.meeting
+    val radio = (target as? PartyTarget.Radio)?.node
+    val owner = (target as? PartyTarget.MemberOf)?.party ?: (target as? PartyTarget.MeetingOf)?.party
+    // Where its marker is (partyMapMarkers): the newest from a shown connection; an SOS, the newest.
+    val memberAt = member?.let { m ->
+        if (m.sos) m.position?.let { app.maparound.party.TimedPosition(it, m.positionAt) } else shownPosition(m, owner?.hiddenConnections.orEmpty())
+    }
     val radioAt = radio?.position
     val (title, lat, lon, at) = when {
-        member != null && memberAt != null -> Quad(if (member.sos) T.party.sosName(member.displayName) else member.displayName, memberAt.lat, memberAt.lon, member.positionAt)
+        member != null && memberAt != null ->
+            Quad(if (member.sos) T.party.sosName(member.displayName) else member.displayName, memberAt.position.lat, memberAt.position.lon, memberAt.at)
         radio != null && radioAt != null -> Quad(T.map.radioNamed(radio.name), radioAt.lat, radioAt.lon, radio.heardAt)
         meet != null -> Quad(T.map.meetingPoint, meet.lat, meet.lon, 0L)
         else -> return
@@ -1850,6 +1826,8 @@ private fun PartyMarkerCard(
             if (at > 0) parts += Fmt.relativeTime(at) + " (" + Fmt.moment(at, seconds = true) + ")"
             member?.let { parts += T.map.via(it.heard.keys.joinToString(" + ") { v -> v.label }) }
             if (member?.sos == true && member.sosText.isNotBlank()) parts.add(0, member.sosText)
+            // Several parties on the map: whose it is.
+            if (parties.count { it.party != null } > 1) owner?.party?.let { parts.add(0, it.name) }
             Text(parts.joinToString(" · "), style = MaterialTheme.typography.bodyMedium)
             member?.let { m ->
                 // No GPS fix now: the marker stays at the last good position; when they were heard.
@@ -1861,8 +1839,9 @@ private fun PartyMarkerCard(
             }
             // The buttons wrap to a second line where they don't fit (narrow phones, Hebrew, big text).
             FlowRow {
-                if (member != null && (party.historyCounts[member.id] ?: 0) > 0) {
-                    TextButton(onClick = { onHistory(member) }) {
+                val ownerKey = owner?.party
+                if (member != null && ownerKey != null && (owner.historyCounts[member.id] ?: 0) > 0) {
+                    TextButton(onClick = { onHistory(ownerKey, member) }) {
                         Icon(Icons.Filled.History, contentDescription = null)
                         Spacer(Modifier.width(6.dp))
                         Text(T.party.history)
@@ -2112,6 +2091,8 @@ private fun LayersSheet(
                     checked = partyOn && inParty,
                     enabled = inParty,
                 ) { prefs.setPartyOnMap(it) }
+                // Each party and each connection, on and off.
+                if (partyOn && inParty) PartyLayerRows()
                 LayerSwitch(
                     Icons.AutoMirrored.Filled.DirectionsWalk, Color(0xFFD84315), T.map.markedTrails,
                     if (localTrails) T.map.trailsOfflineInTopo else T.map.trailsOnline,

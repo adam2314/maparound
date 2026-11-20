@@ -26,12 +26,13 @@ object MarkerIcons {
 
     /**
      * [icon]: a member's [app.maparound.party.PartyIcon] code (0: their initial); the platform
-     * gets its shape from `PartyIcons.svg`. The icon or initial is drawn in [onColor].
+     * gets its shape from `PartyIcons.svg`. The icon or initial is drawn in [onColor]. [ring]: its
+     * party's colour, round it (several parties on the map); null: the plain white ring.
      */
-    fun party(kind: PartyMarker.Kind, color: Int, label: String, stale: Boolean, icon: Int = 0): String =
+    fun party(kind: PartyMarker.Kind, color: Int, label: String, stale: Boolean, icon: Int = 0, ring: Int? = null): String =
         listOf(
-            "party", kind.name.lowercase(), argb(color), label.take(18), if (stale) "1" else "0",
-            icon.toString(), argb(PartyPalette.onColor(color)),
+            "party", kind.name.lowercase(), argb(color), label.take(24), if (stale) "1" else "0",
+            icon.toString(), argb(PartyPalette.onColor(color)), ring?.let(::argb).orEmpty(),
         ).joinToString(SEP)
 
     /** [kind]: 0 for the start, 2 for the end, 1 for points in between. */

@@ -9,9 +9,11 @@ import app.maparound.party.Mesh
 import app.maparound.party.MeshNode
 import app.maparound.party.MeshRadio
 import app.maparound.party.MqttSockets
+import app.maparound.party.PartyConnection
 import app.maparound.party.PartyController
 import app.maparound.party.PartyEvent
 import app.maparound.party.PartyKey
+import app.maparound.party.PartyLayers
 import app.maparound.party.PartyMe
 import app.maparound.party.PartyMessage
 import app.maparound.party.PartyPalette
@@ -220,7 +222,12 @@ class LinkSession(
         p.meshNode = myNode
         // Made once per party, kept with it: it proves my id on the party's private servers.
         p.token = store.getString(s.k(K_TOKEN)) ?: newToken().also { store.putString(s.k(K_TOKEN), it) }
-        s.state = PartyState(party = k, me = me(id), sharing = p.sharing)
+        // Its colour on this device: one no other party has, kept.
+        val color = store.getInt(s.k(K_PARTY_COLOR), 0).takeIf { it != 0 }
+            ?: (PARTY_COLORS.firstOrNull { c -> slots.none { it.state.color == c } } ?: PARTY_COLORS[n % PARTY_COLORS.size])
+                .also { store.putInt(s.k(K_PARTY_COLOR), it) }
+        val layers = PartyLayers(members = store.getBoolean(s.k(K_SHOW_MEMBERS), true), marks = store.getBoolean(s.k(K_SHOW_MARKS), true))
+        s.state = PartyState(party = k, me = me(id), sharing = p.sharing, color = color, layers = layers)
         reserveSeq(s)
         return s
     }
@@ -237,12 +244,14 @@ class LinkSession(
         }
     }
 
-    /** The switches, the radio and my look, as kept. */
+    /** The switches, the radio, my look and the connections hidden on the map, as kept. */
     private fun settings(s: PartyState) = s.copy(
         onlineEnabled = store.getBoolean(K_ONLINE, true),
         radioName = if (radios != null) store.getString(K_RADIO_NAME) else null,
         gateway = store.getBoolean(K_GATEWAY, true),
         look = keptLook(),
+        hiddenConnections = store.getStringSet(K_HIDDEN).orEmpty(),
+        nodesShown = store.getBoolean(K_SHOW_NODES, true),
     )
 
     private fun keptLook(): PartyMe? =
@@ -297,6 +306,29 @@ class LinkSession(
         val s = slotOf(party) ?: return
         selected = s
         store.putInt(K_SELECTED, s.n)
+        publish()
+    }
+
+    // What the map shows.
+
+    override fun setLayers(party: PartyKey, layers: PartyLayers) {
+        val s = slotOf(party) ?: return
+        store.putBoolean(s.k(K_SHOW_MEMBERS), layers.members)
+        store.putBoolean(s.k(K_SHOW_MARKS), layers.marks)
+        s.state = s.state.copy(layers = layers)
+        publish()
+    }
+
+    override fun setConnectionShown(id: String, shown: Boolean) {
+        val hidden = if (shown) common.hiddenConnections - id else common.hiddenConnections + id
+        store.putStringSet(K_HIDDEN, hidden)
+        common = common.copy(hiddenConnections = hidden)
+        publish()
+    }
+
+    override fun setNodesShown(shown: Boolean) {
+        store.putBoolean(K_SHOW_NODES, shown)
+        common = common.copy(nodesShown = shown)
         publish()
     }
 
@@ -735,9 +767,34 @@ class LinkSession(
                 online = if (h != null && common.onlineEnabled && p in h.parties) onlineStatus(s) else OFF,
             )
         }
-        common = common.copy(meshNodes = meshNodes.values.filter { it.position != null }.sortedBy { it.name })
+        common = common.copy(
+            meshNodes = meshNodes.values.filter { it.position != null }.sortedBy { it.name },
+            connections = connections(),
+        )
         publish()
         _fixEveryMs.value = fixEvery()
+    }
+
+    /** The hub's connections as the layers show them: what each is, how it's doing, what it brought. */
+    private fun connections(): List<PartyConnection> {
+        val h = hub ?: return emptyList()
+        return h.connections.map { c ->
+            val heard = slots.flatMap { s -> s.party.members.values.filter { !it.left }.mapNotNull { it.heard[c.id] } }
+            val radio = c.kind == ConnectionKind.LORA
+            PartyConnection(
+                id = c.id,
+                radio = radio,
+                label = when {
+                    c.id == PUBLIC -> T.party.publicServers
+                    radio -> store.getString(K_RADIO_NAME) ?: c.id.removePrefix(RADIO_PREFIX)
+                    else -> PartyRelays.host(c.id.removePrefix(SERVER_PREFIX))
+                },
+                status = c.status,
+                lastHeard = heard.maxOrNull() ?: 0,
+                members = heard.size,
+                nodes = if (radio) meshNodes.values.count { it.position != null } else 0,
+            )
+        }
     }
 
     /** The parties, each with what they share, to the screens: all to the map, the picked one to the rest. */
@@ -756,6 +813,9 @@ class LinkSession(
         gateway = common.gateway,
         myPosition = common.myPosition,
         meshNodes = common.meshNodes,
+        connections = common.connections,
+        hiddenConnections = common.hiddenConnections,
+        nodesShown = common.nodesShown,
     )
 
     /** How often a fix is worth taking now ([fixEveryMs]): what the busiest party needs. */
@@ -865,6 +925,11 @@ class LinkSession(
         private const val K_GATEWAY = "gateway"
         private const val K_RADIO_ID = "radio_id"
         private const val K_RADIO_NAME = "radio_name"
+        private const val K_HIDDEN = "hidden_connections"
+        private const val K_SHOW_NODES = "show_nodes"
+
+        /** The parties' colours on this device: strong, apart from each other and from an SOS's red. */
+        val PARTY_COLORS = listOf(0xFF1E88E5, 0xFFFFB300, 0xFF8E24AA, 0xFF00897B, 0xFFD81B60, 0xFF7CB342).map { it.toInt() }
 
         // Kept for each party, as `p<n>.<key>` (before several parties: without the prefix).
         private const val K_LINK = "link"
@@ -875,6 +940,9 @@ class LinkSession(
         private const val K_COUNTER = "marks_counter"
         private const val K_CLOCK = "marks_clock"
         private const val K_TOKEN = "link_token"
-        private val PER_PARTY = listOf(K_LINK, K_ACTIVE, K_ID, K_SHARING, K_SEQ, K_COUNTER, K_CLOCK, K_TOKEN)
+        private const val K_PARTY_COLOR = "color"
+        private const val K_SHOW_MEMBERS = "show_members"
+        private const val K_SHOW_MARKS = "show_marks"
+        private val PER_PARTY = listOf(K_LINK, K_ACTIVE, K_ID, K_SHARING, K_SEQ, K_COUNTER, K_CLOCK, K_TOKEN, K_PARTY_COLOR, K_SHOW_MEMBERS, K_SHOW_MARKS)
     }
 }

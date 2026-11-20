@@ -261,8 +261,10 @@
     const sos = kind === 'sos';
     const body = kind === 'meet' ? 'rgb(198,40,40)' : kind === 'radio' ? 'rgb(97,97,97)' : argb(f[2]);
     const letter = sos ? '!' : (f[3] || '').slice(0, 1).toUpperCase();
+    // Several parties on the map: the party's colour round it (an SOS keeps its red).
+    const partyRing = f.length >= 8 && f[7] ? argb(f[7]) : null;
     return badge({
-      ring: sos ? RED : '#fff', ringWidth: sos ? 4 : 2, body: body, radius: 13,
+      ring: sos ? RED : partyRing || '#fff', ringWidth: sos ? 4 : partyRing ? 3.5 : 2, body: body, radius: 13,
       symbol: kind === 'meet' ? '' : letter, symbolSize: 13, symbolBold: true,
       symbolColor: (f.length >= 7 && kind === 'member') ? argb(f[6]) : '#fff',
       label: f[3] || '', labelColor: sos ? RED : DARK, alpha: f[4] === '1' ? 140 / 255 : 1, flag: kind === 'meet',

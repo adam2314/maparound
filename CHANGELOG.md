@@ -170,8 +170,14 @@
   them, and **Another party** starts or joins one more (joining no longer leaves the one you're
   in). Each has its own id, its own on/off and its own **Share my location**. Your name and look,
   the radio and the online switch are the same for all, and one connection to a server carries
-  every party on it. An SOS goes to every party that's on. For now the map shows the party picked
-  on the Party screen.
+  every party on it. An SOS goes to every party that's on.
+- **The party layers.** Under **Party** in Layers → Overlays, each party has a switch for its
+  members and one for its meeting point and marks. Each connection (the public servers, a party's
+  own server, the radio) has one too, with how it's doing and how many members came through it.
+  A member shows at their newest position from a connection that's on: hiding one hides what came
+  only through it, and it keeps running. With several parties on the map, each one's markers have
+  its colour round them and its name after theirs. The radio's Meshtastic nodes can be hidden too.
+  An SOS shows whatever is off.
 - On Android, the party reaches the servers over secure WebSockets, as the web app does.
 - For now, members' ways so far (History) aren't kept once the app closes.
 - **Only a real GPS fix goes on the map.** A position less exact than ±20 m (a phone indoors or

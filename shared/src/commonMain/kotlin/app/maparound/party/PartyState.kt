@@ -42,6 +42,43 @@ data class PartyState(
     val myPosition: GeoFix? = null,
     /** How many positions of each member (by id) are in their history ([PartyController.history]). */
     val historyCounts: Map<Int, Int> = emptyMap(),
+    /** This party's colour on this device (ARGB): the ring round its markers while several parties are on the map. */
+    val color: Int = 0,
+    /** What of this party the map shows. */
+    val layers: PartyLayers = PartyLayers(),
+    /** The connections (servers, radios), shared by the parties on them, as the map's layers show them. */
+    val connections: List<PartyConnection> = emptyList(),
+    /** The connections hidden on the map (by [PartyConnection.id]): what came only through them isn't shown. */
+    val hiddenConnections: Set<String> = emptySet(),
+    /** The plain Meshtastic nodes the radio hears, on the map. */
+    val nodesShown: Boolean = true,
+)
+
+/** What of one party the map shows; an SOS shows whatever is off. */
+data class PartyLayers(
+    /** The members' positions. */
+    val members: Boolean = true,
+    /** The meeting point, and the party's marks. */
+    val marks: Boolean = true,
+)
+
+/**
+ * One connection as the layers show it (docs/LINK_PROTOCOL.md §7): a server or a radio, shared by
+ * the parties on it. Hiding it hides what came only through it; it still receives, sends and relays.
+ */
+data class PartyConnection(
+    /** Link v1's connection id: kept across restarts, so what's hidden stays hidden. */
+    val id: String,
+    val radio: Boolean,
+    /** The server's host ("Public servers" for those), or the radio's name. */
+    val label: String,
+    val status: TransportStatus,
+    /** When it last brought something from a member (our clock, ms; 0: never). */
+    val lastHeard: Long,
+    /** Members it brought something from, in all the parties. */
+    val members: Int,
+    /** Plain Meshtastic nodes it hears (a radio). */
+    val nodes: Int = 0,
 )
 
 /**
@@ -59,6 +96,15 @@ interface PartyController {
 
     /** Shows [party] (one of [parties]) on the screens. */
     fun select(party: PartyKey) = Unit
+
+    /** What of [party] the map shows. */
+    fun setLayers(party: PartyKey, layers: PartyLayers) = Unit
+
+    /** A connection's layer ([PartyConnection.id]) on the map or hidden; it keeps running either way. */
+    fun setConnectionShown(id: String, shown: Boolean) = Unit
+
+    /** The plain Meshtastic nodes the radio hears, on the map or not. */
+    fun setNodesShown(shown: Boolean) = Unit
 
     /** Joins, leaves and SOS alerts, for the UI to announce. */
     val events: SharedFlow<PartyEvent>
