@@ -7,6 +7,9 @@ import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.Session
 import androidx.car.app.validation.HostValidator
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import app.maparound.party.PartySession
 import app.maparound.routing.GeoPoint
 import app.maparound.share.Shared
 import app.maparound.share.SharedLinks
@@ -31,6 +34,15 @@ class MapAroundCarService : CarAppService() {
 
 class CarMapSession : Session() {
     private var renderer: CarMapRenderer? = null
+
+    init {
+        // A party that was on carries on (sending my position) when the car screen shows, as when
+        // the phone's does: the phone may stay in a pocket the whole drive. Android lets the service
+        // start while the car screen is in use.
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) = PartySession.resumeIfWasActive()
+        })
+    }
 
     override fun onCreateScreen(intent: Intent): Screen {
         val r = CarMapRenderer(carContext, lifecycle)

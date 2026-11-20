@@ -142,6 +142,9 @@
   list but not on the map.
 - **A member's card on the map fits narrow screens**: its buttons (History, Route here, Share) go
   on to a second line instead of off the edge.
+- **The party carries on in the car.** When the party was on, MapAround on the Android Auto screen
+  now starts it again (sending your position), as opening the app on the phone does. Before, with
+  the phone in a pocket for the whole drive, it didn't send. Not yet tried in a car.
 
 ### The map
 - **Coordinate grids no longer freeze the app.** On a tilted map (navigating, or tilted by hand),
