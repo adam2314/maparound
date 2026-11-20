@@ -46,6 +46,10 @@ data class Member(
     val sos: Boolean = false,
     val sosText: String = "",
     val left: Boolean = false,
+    /** When each connection (a server, a radio: Link v1's connection ids) last brought something of theirs (our clock). */
+    val heardOn: Map<String, Long> = emptyMap(),
+    /** The newest position good enough to show that each connection brought (its layer shows that one). */
+    val positionsOn: Map<String, TimedPosition> = emptyMap(),
 ) {
     val displayName: String get() = name.ifBlank { T.party.memberFallbackName(hex(id).takeLast(4).uppercase()) }
     val lastHeard: Long get() = heard.values.maxOrNull() ?: 0
@@ -62,13 +66,19 @@ data class Meeting(val lat: Double, val lon: Double, val label: String, val setB
 /** A message: who wrote it, and when ([at]: their clock when sending, ms). */
 data class ChatLine(val from: Int, val text: String, val at: Long)
 
+/** A position and when it was taken (the sender's clock, ms). */
+data class TimedPosition(val position: PartyMessage.Position, val at: Long)
+
 sealed class PartyEvent {
-    data class Joined(val member: Member) : PartyEvent()
-    data class SosRaised(val member: Member, val text: String) : PartyEvent()
-    data class SosCancelled(val member: Member) : PartyEvent()
-    data class MeetingSet(val meeting: Meeting?) : PartyEvent()
-    data class TextReceived(val member: Member, val text: String) : PartyEvent()
-    data class Left(val member: Member) : PartyEvent()
+    /** The party it happened in (several at once: whose it is); null from the old engine, which has one. */
+    abstract val party: PartyKey?
+
+    data class Joined(val member: Member, override val party: PartyKey? = null) : PartyEvent()
+    data class SosRaised(val member: Member, val text: String, override val party: PartyKey? = null) : PartyEvent()
+    data class SosCancelled(val member: Member, override val party: PartyKey? = null) : PartyEvent()
+    data class MeetingSet(val meeting: Meeting?, override val party: PartyKey? = null) : PartyEvent()
+    data class TextReceived(val member: Member, val text: String, override val party: PartyKey? = null) : PartyEvent()
+    data class Left(val member: Member, override val party: PartyKey? = null) : PartyEvent()
 }
 
 class PartyEngine(

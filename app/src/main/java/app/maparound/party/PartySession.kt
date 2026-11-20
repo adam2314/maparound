@@ -42,6 +42,7 @@ object PartySession : PartyController {
     private val scope = MainScope()
 
     override val state: StateFlow<PartyState> get() = session.state
+    override val parties: StateFlow<List<PartyState>> get() = session.parties
     private val _events = MutableSharedFlow<PartyEvent>(extraBufferCapacity = 16)
     override val events: SharedFlow<PartyEvent> = _events.asSharedFlow()
     override val pendingInvite: MutableStateFlow<PartyKey?> get() = session.pendingInvite
@@ -91,6 +92,7 @@ object PartySession : PartyController {
 
     override fun create(partyName: String, myName: String) = session.create(partyName, myName)
     override fun join(key: PartyKey, myName: String) = session.join(key, myName)
+    override fun select(party: PartyKey) = session.select(party)
     override fun setServer(server: String?) = session.setServer(server)
     override fun leave() = session.leave()
     override fun setActive(on: Boolean) = session.setActive(on)

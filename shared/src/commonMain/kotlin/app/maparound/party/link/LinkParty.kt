@@ -32,6 +32,8 @@ data class LinkMember(
     val reportAt: Long = 0,
     /** When each connection last brought something of theirs (ms). */
     val heard: Map<ConnectionId, Long> = emptyMap(),
+    /** The newest position good enough to draw that each connection brought, and when it was taken (s): its layer's. */
+    val positions: Map<ConnectionId, Pair<LinkMessage.Pos, Long>> = emptyMap(),
     val sos: Boolean = false,
     val sosText: String = "",
     val left: Boolean = false,
@@ -290,6 +292,8 @@ class LinkParty(
                 if (msg.isGoodFix) {
                     history.add(h.sender, h.time, msg.at)
                     if (h.time >= m.positionAt) m = m.copy(position = msg, positionAt = h.time)
+                    // Each connection's own (not my relay coming back on it).
+                    if (!myRelayCameBack && h.time >= (m.positions[via]?.second ?: 0)) m = m.copy(positions = m.positions + (via to (msg to h.time)))
                 }
                 msg.trail.forEach { history.add(h.sender, it.time, it.at) }
             }

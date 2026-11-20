@@ -175,6 +175,10 @@ class LinkPartyTest {
         assertTrue("$online online", online >= 10)
         assertTrue("$relayed relayed", relayed in 2..4)
         assertTrue(a.party.members.getValue(0x0C0C0C0C).position != null)
+        // Each connection's own latest position (a layer each): Gil has Carmel's from online, Adam from the radio.
+        assertEquals(setOf("mqtt"), g.party.members.getValue(0x0C0C0C0C).positions.keys)
+        assertEquals(setOf("radio"), a.party.members.getValue(0x0C0C0C0C).positions.keys)
+        assertEquals(a.party.members.getValue(0x0C0C0C0C).positionAt, a.party.members.getValue(0x0C0C0C0C).positions.getValue("radio").second)
         assertTrue(net.sent.none { (_, o) -> o.to == "mqtt" && o.header.type in setOf(LinkType.DIGEST, LinkType.WANT) })
     }
 

@@ -44,9 +44,21 @@ data class PartyState(
     val historyCounts: Map<Int, Int> = emptyMap(),
 )
 
-/** The party session as the shared screens drive it (Android: PartySession with MQTT and BLE; the web: OnlineParty). */
+/**
+ * The party session as the shared screens drive it (Android: PartySession; the web: LinkSession).
+ * Up to [MAX_PARTIES] parties at once: the screens show one ([state], picked with [select]); the
+ * map all ([parties]). The actions are the shown party's, except the shared settings (my look,
+ * the online switch, the radio, the gateway) and an SOS, which goes to every party that's on.
+ */
 interface PartyController {
+    /** The party the screens show (no party: [PartyState.party] null), with what all parties share. */
     val state: StateFlow<PartyState>
+
+    /** Every party I'm in, in the order joined (empty: none). Implementations with one party may leave it empty. */
+    val parties: StateFlow<List<PartyState>> get() = NO_PARTIES
+
+    /** Shows [party] (one of [parties]) on the screens. */
+    fun select(party: PartyKey) = Unit
 
     /** Joins, leaves and SOS alerts, for the UI to announce. */
     val events: SharedFlow<PartyEvent>
@@ -91,7 +103,14 @@ interface PartyController {
 
     /** [member]'s positions this device received in the party, oldest first (for replaying their way). */
     fun history(member: Int): List<HistoryPoint> = emptyList()
+
+    companion object {
+        /** Parties at once: more crowds the screens, and the radio's airtime is shared by all. */
+        const val MAX_PARTIES = 4
+    }
 }
+
+private val NO_PARTIES: StateFlow<List<PartyState>> = MutableStateFlow(emptyList())
 
 val LocalParty = staticCompositionLocalOf<PartyController> { error("No PartyController provided") }
 

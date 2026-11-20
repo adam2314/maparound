@@ -3,6 +3,7 @@ package app.maparound.party.link
 import app.maparound.data.MemoryStore
 import app.maparound.party.Mesh
 import app.maparound.party.MeshRadio
+import app.maparound.party.PartyController
 import app.maparound.party.PartyEvent
 import app.maparound.party.PartyKey
 import app.maparound.party.PartyRadio
@@ -10,6 +11,7 @@ import app.maparound.party.TransportStatus
 import app.maparound.party.Via
 import app.maparound.sensors.GeoFix
 import app.maparound.testing.assertEquals
+import app.maparound.testing.assertFalse
 import app.maparound.testing.assertNull
 import app.maparound.testing.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -297,5 +299,140 @@ class LinkSessionTest {
         val token = a.session.party!!.token
         a.open()
         assertEquals(token, a.session.party!!.token)
+    }
+
+    @Test
+    fun onePhoneInTwoParties() = runTest {
+        val net = Net(this)
+        val a = net.device("A")
+        val b = net.device("B")
+        val c = net.device("C")
+        b.session.create("Hike", "Ido")
+        c.session.create("Club run", "Noa")
+        net.drain()
+        a.joinOf(b, "Dana")
+        a.joinOf(c, "Dana")
+        net.step(2)
+        // Both at once, on one connection to the public server; the one joined last is shown.
+        assertEquals(listOf("Hike", "Club run"), a.session.parties.value.map { it.party!!.name })
+        assertEquals("Club run", a.state.party!!.name)
+        assertEquals(1, net.internet.broker(public).clients.count { it.owner == "A" })
+        assertEquals(listOf("Dana"), b.state.members.map { it.name })
+        assertEquals(listOf("Dana"), c.state.members.map { it.name })
+        // A different id in each: nothing links them.
+        val ids = a.session.parties.value.map { it.me!!.id }
+        assertTrue(ids[0] != ids[1])
+        assertEquals(ids[0], b.state.members.single().id)
+        assertEquals(ids[1], c.state.members.single().id)
+        // Each party's messages stay in it, and say whose they are.
+        b.session.sendText("Water at the spring")
+        net.drain()
+        assertEquals(listOf("Water at the spring"), a.session.parties.value[0].chat.map { it.text })
+        assertTrue(a.state.chat.isEmpty())
+        assertTrue(a.events.any { it is PartyEvent.TextReceived && it.party?.name == "Hike" })
+        // The other one shown: my actions go to it.
+        a.session.select(a.session.parties.value[0].party!!)
+        assertEquals("Hike", a.state.party!!.name)
+        a.session.sendText("On my way")
+        net.drain()
+        assertEquals("On my way", b.state.chat.last().text)
+        assertTrue(c.state.chat.isEmpty())
+        // An SOS goes to both, and its end.
+        a.session.sos(true, "Ankle")
+        net.drain()
+        assertTrue(b.state.members.single().sos)
+        assertTrue(c.state.members.single().sos)
+        a.session.sos(false)
+        net.drain()
+        assertFalse(b.state.members.single().sos)
+        assertFalse(c.state.members.single().sos)
+        // The app closes and opens again: both back, with the same ids, the same one shown.
+        a.open()
+        a.session.resumeIfWasActive()
+        net.step(2)
+        assertEquals(ids, a.session.parties.value.map { it.me!!.id })
+        assertEquals("Hike", a.state.party!!.name)
+        assertTrue(a.session.parties.value.all { it.active })
+        // Leaving the shown one: the other carries on, and is shown.
+        a.session.leave()
+        net.drain()
+        advanceTimeBy(2_000)
+        runCurrent()
+        assertEquals(listOf("Club run"), a.session.parties.value.map { it.party!!.name })
+        assertEquals("Club run", a.state.party!!.name)
+        assertTrue(b.state.members.isEmpty())
+        assertEquals(listOf("Dana"), c.state.members.map { it.name })
+        assertEquals(connected, a.state.online.state)
+        // Off in one, on in the other: still connected for it.
+        a.joinOf(b, "Dana")
+        net.step(1)
+        a.session.setActive(false)
+        net.step(1)
+        assertFalse(a.state.active)
+        assertTrue(a.session.parties.value.single { it.party!!.name == "Club run" }.active)
+        assertEquals(1, net.internet.broker(public).clients.count { it.owner == "A" })
+    }
+
+    @Test
+    fun twoPartiesOnTheClubsServerShareAConnectionAndBothAreKnown() = runTest {
+        val net = Net(this)
+        val club = "wss://club.example/mqtt"
+        net.internet.broker(club)
+        val a = net.device("A")
+        a.session.setServer(club)
+        a.session.create("Hike", "Dana")
+        a.session.create("Club run", "Dana")
+        net.step(2)
+        val broker = net.internet.broker(club)
+        assertEquals(1, broker.clients.count { it.owner == "A" })
+        // One connection, both parties' ids and tokens on it.
+        val credentials = broker.connects.last().second!!.split(',').toSet()
+        assertEquals(a.session.parties.value.size, credentials.size)
+        assertTrue(a.state.online.state == connected)
+        // Moving the shown one to the public servers: the club keeps the other.
+        a.session.setServer(null)
+        net.step(2)
+        // (Its connection doesn't reconnect only to drop the moved party's id: the server knew it already.)
+        assertEquals(1, broker.clients.single { it.owner == "A" }.subs.size)
+        assertEquals(TransportStatus(connected, "broker.example"), a.state.online)
+    }
+
+    @Test
+    fun atMostFourPartiesAndTheSameInviteTwiceIsOne() = runTest {
+        val net = Net(this)
+        val a = net.device("A")
+        val b = net.device("B")
+        b.session.create("Hike", "Ido")
+        a.joinOf(b, "Dana")
+        a.joinOf(b, "Dana")
+        assertEquals(1, a.session.parties.value.size)
+        repeat(5) { a.session.create("Party $it", "Dana") }
+        assertEquals(PartyController.MAX_PARTIES, a.session.parties.value.size)
+        assertEquals("Party 2", a.state.party!!.name)
+    }
+
+    @Test
+    fun theOnePartyKeptBeforeBecomesTheFirst() = runTest {
+        val net = Net(this)
+        val key = PartyKey.create("Hike", null)
+        val a = net.device("A")
+        // As the versions with one party kept it.
+        a.store.putString("link", key.toLink())
+        a.store.putInt("my_id", 0x1234ABCD)
+        a.store.putString("link_seq", "4000")
+        a.store.putString("link_token", "tokenOfTheOldVersion1")
+        a.store.putBoolean("sharing", false)
+        a.store.putBoolean("active", true)
+        a.store.remove("parties")
+        a.open()
+        assertEquals("Hike", a.state.party!!.name)
+        assertEquals(0x1234ABCD, a.state.me!!.id)
+        assertFalse(a.state.sharing)
+        assertEquals("tokenOfTheOldVersion1", a.session.party!!.token)
+        assertEquals(4000, a.session.party!!.seq)
+        assertNull(a.store.getString("link"))
+        a.session.resumeIfWasActive()
+        net.step(1)
+        assertTrue(a.state.active)
     }
 }

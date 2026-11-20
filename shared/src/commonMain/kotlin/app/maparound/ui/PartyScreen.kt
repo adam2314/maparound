@@ -5,6 +5,9 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.Image
@@ -64,6 +67,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.AssistChip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -87,6 +92,7 @@ import app.maparound.party.LocalParty
 import app.maparound.party.LocalPartyPlatform
 import app.maparound.party.Member
 import app.maparound.party.PartyKey
+import app.maparound.party.PartyController
 import app.maparound.party.PartyState
 import app.maparound.party.TransportStatus
 import app.maparound.party.Via
@@ -114,7 +120,10 @@ fun PartyScreen(
     val party = LocalParty.current
     val partyPlatform = LocalPartyPlatform.current
     val s by party.state.collectAsState()
+    val all by party.parties.collectAsState()
     val pending by party.pendingInvite.collectAsState()
+    // Starting or joining another party beside those I'm in.
+    var adding by remember { mutableStateOf(false) }
     var showQr by remember { mutableStateOf(false) }
     var radioPicker by remember { mutableStateOf(false) }
     var confirmSos by remember { mutableStateOf(false) }
@@ -131,26 +140,37 @@ fun PartyScreen(
 
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
-            title = { Text(s.party?.name ?: T.party.title) },
+            title = { Text(s.party?.name?.takeUnless { adding } ?: T.party.title) },
             navigationIcon = { BackToMapButton() },
             actions = {
-                if (s.party != null && !party.watchOnly) {
+                if (s.party != null && !party.watchOnly && !adding) {
                     Tip(T.party.invite) { IconButton(onClick = { showQr = true }) { Icon(Icons.Filled.QrCode, contentDescription = T.party.invite) } }
                 }
                 SettingsButton()
             },
             windowInsets = WindowInsets(0, 0, 0, 0),
         )
+        if (all.isNotEmpty() && !party.watchOnly) {
+            PartySwitcher(
+                all, shown = s.party.takeUnless { adding },
+                onPick = {
+                    adding = false
+                    party.select(it)
+                },
+                onAdd = { adding = true }.takeIf { all.size < PartyController.MAX_PARTIES },
+            )
+        }
         if (s.party == null && party.watchOnly) {
             WatchNoParty(onLink = { text ->
                 val key = PartyKey.parse(text)
                 if (key == null) scope.launch { snackbar.showSnackbar(T.party.invalidLink) }
                 else party.pendingInvite.value = key
             })
-        } else if (s.party == null) {
+        } else if (s.party == null || adding) {
             NoParty(myName = s.look?.name.orEmpty(), onCreate = { partyName, me ->
                 if (!hasLocation) requestLocation()
                 ensureNotifications()
+                adding = false
                 party.create(partyName, me)
                 showQr = true
             }, onScan = scan.takeIf { partyPlatform.canScanQr }, onLink = { text ->
@@ -214,7 +234,9 @@ fun PartyScreen(
             dismissButton = { TextButton(onClick = { party.pendingInvite.value = null }) { Text(T.common.cancel) } },
         )
     } else pending?.let { key ->
-        var name by remember(key) { mutableStateOf(s.me?.name.orEmpty()) }
+        var name by remember(key) { mutableStateOf(s.me?.name ?: s.look?.name.orEmpty()) }
+        // In it already: joining just shows it. In as many as can be: one has to go first.
+        val full = all.size >= PartyController.MAX_PARTIES && all.none { it.party?.id?.contentEquals(key.id) == true }
         AlertDialog(
             onDismissRequest = { party.pendingInvite.value = null },
             title = { Text(T.party.joinQuestion(key.name)) },
@@ -222,15 +244,16 @@ fun PartyScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(T.party.joinExplanation)
                     key.server?.let { Text(T.party.onOwnServer(PartyRelays.host(it)), style = MaterialTheme.typography.bodySmall) }
-                    if (s.party != null) Text(T.party.leaveWarning(s.party!!.name), color = MaterialTheme.colorScheme.error)
-                    OutlinedTextField(name, { name = it }, label = { Text(T.party.yourName) }, singleLine = true)
+                    if (full) Text(T.party.partiesFull(PartyController.MAX_PARTIES), color = MaterialTheme.colorScheme.error)
+                    else OutlinedTextField(name, { name = it }, label = { Text(T.party.yourName) }, singleLine = true)
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(enabled = !full, onClick = {
                     party.pendingInvite.value = null
                     if (!hasLocation) requestLocation()
                     ensureNotifications()
+                    adding = false
                     party.join(key, name)
                 }) { Text(T.party.join) }
             },
@@ -257,6 +280,9 @@ fun PartyScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(T.party.sosExplanation)
+                    // Several on: every one of them gets it (LinkSession.sos).
+                    val to = all.filter { it.active || it.party?.id?.contentEquals(s.party?.id ?: ByteArray(0)) == true }.mapNotNull { it.party?.name }
+                    if (to.size > 1) Text(T.party.sosToAllParties(to.joinToString(", ")), fontWeight = FontWeight.Medium)
                     OutlinedTextField(text, { text = it }, label = { Text(T.party.sosWhatHappened) }, singleLine = true)
                 }
             },
@@ -282,6 +308,36 @@ fun PartyScreen(
             confirmButton = { TextButton(onClick = { confirmLeave = false; party.leave() }) { Text(if (party.watchOnly) T.common.stop else T.party.leave) } },
             dismissButton = { TextButton(onClick = { confirmLeave = false }) { Text(T.common.cancel) } },
         )
+    }
+}
+
+/**
+ * The parties I'm in, one chip each ([shown]: the one on the screen; null while adding another),
+ * an SOS in one marked, and another to start or join ([onAdd]: null when there are as many as can be).
+ */
+@Composable
+private fun PartySwitcher(all: List<PartyState>, shown: PartyKey?, onPick: (PartyKey) -> Unit, onAdd: (() -> Unit)?) {
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        for (p in all) {
+            val key = p.party ?: continue
+            val sos = p.members.any { it.sos }
+            FilterChip(
+                selected = shown?.id?.contentEquals(key.id) == true,
+                onClick = { onPick(key) },
+                label = { Text(key.name, maxLines = 1) },
+                leadingIcon = if (sos) ({ Icon(Icons.Filled.Warning, contentDescription = "SOS", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp)) }) else null,
+            )
+        }
+        if (onAdd != null) {
+            AssistChip(
+                onClick = onAdd,
+                label = { Text(T.party.anotherParty) },
+                leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp)) },
+            )
+        }
     }
 }
 

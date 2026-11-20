@@ -29,8 +29,14 @@ open class PartyTexts {
     open fun joinQuestion(name: String) = "Join “$name”?"
     open val joinExplanation = "Everyone in the party sees your live location while sharing is on."
 
-    /** Joining another party while in one. */
-    open fun leaveWarning(name: String) = "You'll leave “$name”."
+    /** Joining another party while in [max] already. */
+    open fun partiesFull(max: Int) = "You're in $max parties, the most at once: leave one to join another."
+
+    /** The chip that starts or joins another party beside those I'm in. */
+    open val anotherParty = "Another party"
+
+    /** An SOS while in several parties: it goes to all of them that are on. */
+    open fun sosToAllParties(names: String) = "It goes to all your parties: $names."
     open val join = "Join"
     open val leave = "Leave"
     open val leaveQuestion = "Leave the party?"
@@ -359,7 +365,9 @@ object PartyTextsHe : PartyTexts() {
 
     override fun joinQuestion(name: String) = "להצטרף לקבוצה \"$name\"?"
     override val joinExplanation = "כל עוד השיתוף פעיל, כל המשתתפים בקבוצה רואים את המיקום שלך בזמן אמת."
-    override fun leaveWarning(name: String) = "פעולה זו תוציא אותך מהקבוצה \"$name\"."
+    override fun partiesFull(max: Int) = "כבר יש לך $max קבוצות, המספר המרבי בבת אחת: כדי להצטרף לקבוצה נוספת צריך לצאת מאחת."
+    override val anotherParty = "קבוצה נוספת"
+    override fun sosToAllParties(names: String) = "ההתרעה נשלחת לכל הקבוצות שלך: $names."
     override val join = "הצטרפות"
     override val leave = "יציאה"
     override val leaveQuestion = "לצאת מהקבוצה?"

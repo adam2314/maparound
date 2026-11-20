@@ -19,6 +19,7 @@ import app.maparound.party.PartyRadio
 import app.maparound.party.PartyRadios
 import app.maparound.party.PartyRelays
 import app.maparound.party.PartyState
+import app.maparound.party.TimedPosition
 import app.maparound.party.TransportStatus
 import app.maparound.party.Via
 import app.maparound.sensors.GeoFix
@@ -43,17 +44,21 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.random.Random
 
 /**
- * The party as the screens drive it ([PartyController]), on Link v1 (docs/LINK_PROTOCOL.md): one
- * party, on the servers in its invite (else the public ones, [publicServers]) and a radio where
- * the platform has one ([radios]). The platform gives the sockets and radios; everything else is
- * here, for the apps alike.
+ * The parties as the screens drive them ([PartyController]), on Link v1 (docs/LINK_PROTOCOL.md):
+ * up to [PartyController.MAX_PARTIES] at once, each on the servers in its invite (else the public
+ * ones, [publicServers]), all on one radio where the platform has one ([radios]), over one
+ * [LinkHub] that shares the connections. The screens show one ([state], picked with [select]),
+ * the map all ([parties]). The platform gives the sockets and radios; everything else is here, for
+ * the apps alike.
  *
- * It runs while active, either here ([scope]: following [locations], ticking every second; the web
- * app) or in the platform's own runner ([service]: Android's foreground service, which calls
- * [attach], [onFix], [tick] and [detach]).
+ * It runs while any party is on, either here ([scope]: following [locations]; the web app) or in
+ * the platform's own runner ([service]: Android's foreground service, which calls [attach],
+ * [onFix], [tick] and [detach]).
  *
- * [store] keeps the invite, my id, name and look, the switches, the radio, and the sequence
- * numbers and marks' counter and clock (they must never go back). Everything runs on the main thread.
+ * [store] keeps, for each party (`p<n>.…`), the invite, my id, its switches, its sequence numbers,
+ * its marks' counter and clock (they must never go back) and its token; for all of them, my name
+ * and look, the online switch, the gateway, the radio, and the server new parties start on.
+ * Everything runs on the main thread.
  */
 class LinkSession(
     private val store: KeyValueStore,
@@ -69,49 +74,69 @@ class LinkSession(
 ) : PartyController {
     private val _state = MutableStateFlow(PartyState())
     override val state: StateFlow<PartyState> = _state.asStateFlow()
+    private val _parties = MutableStateFlow<List<PartyState>>(emptyList())
+    override val parties: StateFlow<List<PartyState>> = _parties.asStateFlow()
     private val _events = MutableSharedFlow<PartyEvent>(extraBufferCapacity = 32)
     override val events: SharedFlow<PartyEvent> = _events.asSharedFlow()
     override val pendingInvite = MutableStateFlow<PartyKey?>(null)
     override val hasRadio: Boolean get() = radios != null
 
-    /** The party I'm in (null: none). */
-    var party: LinkParty? = null
-        private set
-    private var key: PartyKey? = null
+    /** One party I'm in: where it's kept ([n]), its engine, and what the screens see of it. */
+    private class Slot(val n: Int, var key: PartyKey, val party: LinkParty) {
+        /** Switched on: sending and receiving (in the hub while it runs). */
+        var on = false
+        var seqBase = 0
+        var savedCounter = party.marks.nextCounter
+        var savedClock = party.marks.clock
 
-    /** Connected while active. */
+        /** Its private servers that turned it away (until they take it again). */
+        val refused = HashSet<ConnectionId>()
+
+        /** Its own part of what the screens see (the shared part is [common]'s). */
+        var state = PartyState()
+
+        fun k(name: String) = "p$n.$name"
+    }
+
+    private val slots = ArrayList<Slot>()
+    private var selected: Slot? = null
+
+    /** What all the parties share: my look, the switches, the radio, its nodes, my position. */
+    private var common = PartyState()
+
+    /** The party the screens show (null: none). */
+    val party: LinkParty? get() = selected?.party
+
+    /** Connected while any party is on. */
     var hub: LinkHub? = null
         private set
     private var radio: PartyRadio? = null
     private var radioConn: ConnectionId? = null
+
+    /** My radio's own node number, once it said. */
+    private var myNode: Long? = null
     private val meshNodes = LinkedHashMap<Long, MeshNode>()
-    private var running: Job? = null
-    private var seqBase = 0
-    private var savedCounter = 0L
-    private var savedClock = 0L
+    private var locating: Job? = null
 
     private val hubListener = object : LinkHub.Listener {
         override fun onEvent(party: LinkParty, event: LinkEvent) {
-            announce(event)
+            slotOf(party)?.let { announce(it, event) }
             refresh()
         }
 
         override fun onStatus(connection: ConnectionId, status: TransportStatus) {
-            if (connection == radioConn) update { it.copy(radio = status) }
-            else update { it.copy(online = onlineStatus()) }
+            if (connection == radioConn) common = common.copy(radio = status)
+            refresh()
             replan()
         }
 
         override fun onActivity() = replan()
 
         override fun onRefused(connection: ConnectionId, party: LinkParty) {
-            refused += connection
-            update { it.copy(online = onlineStatus()) }
+            slotOf(party)?.refused?.add(connection)
+            refresh()
         }
     }
-
-    /** Private servers that turned the party away (until they take it again). */
-    private val refused = HashSet<ConnectionId>()
 
     /** A party's token: 16 random bytes, base64url without padding. */
     @OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
@@ -132,51 +157,84 @@ class LinkSession(
     private val _fixEveryMs = MutableStateFlow<Long?>(null)
 
     /**
-     * How often the platform should take a fix now (ms), from the fastest mode in use: often in
-     * Live and when moving, rarely when standing still; null when no fix is needed (not running,
-     * or not sharing and no SOS).
+     * How often the platform should take a fix now (ms), from the fastest mode any party uses:
+     * often in Live and when moving, rarely when standing still; null when no fix is needed (not
+     * running, or no party sharing and no SOS).
      */
     val fixEveryMs: StateFlow<Long?> = _fixEveryMs.asStateFlow()
 
     init {
-        val k = store.getString(K_LINK)?.let(PartyKey::parse)
-        val id = store.getInt(K_ID, 0)
-        if (k != null && id != 0) {
-            open(k, id, store.getString(K_SEQ)?.toIntOrNull() ?: Random.nextInt(65_536))
-            _state.value = settings(PartyState(party = k, me = me(id), sharing = store.getBoolean(K_SHARING, true)))
-            // Running here: carry on as it was. (A service is started from the screens: resumeIfWasActive.)
-            if (service == null && store.getBoolean(K_ACTIVE, true)) setActive(true)
-        } else {
-            _state.value = settings(PartyState())
-            if (k != null) {
-                // Watched only (the web app before it could join): asked whether to join it now.
-                store.remove(K_LINK)
-                pendingInvite.value = k
-            }
+        upgrade()
+        common = settings(PartyState())
+        for (n in slotNumbers()) {
+            val s = load(n)
+            if (s != null) slots += s else forgetKeys(n)
         }
+        saveSlots()
+        selected = slots.firstOrNull { it.n == store.getInt(K_SELECTED, -1) } ?: slots.firstOrNull()
+        refresh()
+        // Running here: carry on as it was. (A service is started from the screens: resumeIfWasActive.)
+        if (service == null) slots.filter { store.getBoolean(it.k(K_ACTIVE), true) }.forEach { turn(it, true) }
     }
 
-    /** With a [service]: starts it again if the party was running when the app closed. */
-    fun resumeIfWasActive() {
-        if (party != null && store.getBoolean(K_ACTIVE, false) && !_state.value.active) setActive(true)
+    /** The versions with one party kept it without a prefix: it becomes the first. */
+    private fun upgrade() {
+        if (store.contains(K_SLOTS)) return
+        val link = store.getString(K_LINK)
+        val id = store.getInt(K_ID, 0)
+        if (link != null && id != 0) {
+            store.putString("p0.$K_LINK", link)
+            store.putInt("p0.$K_ID", id)
+            for (name in listOf(K_SEQ, K_COUNTER, K_CLOCK, K_TOKEN)) store.getString(name)?.let { store.putString("p0.$name", it) }
+            for (name in listOf(K_SHARING, K_ACTIVE)) if (store.contains(name)) store.putBoolean("p0.$name", store.getBoolean(name, true))
+            store.putString(K_SLOTS, "0")
+            store.putInt(K_SELECTED, 0)
+        } else {
+            store.putString(K_SLOTS, "")
+            // Watched only (the web app before it could join): asked whether to join it now.
+            link?.let(PartyKey::parse)?.let { pendingInvite.value = it }
+        }
+        for (name in listOf(K_LINK, K_ID, K_SEQ, K_COUNTER, K_CLOCK, K_TOKEN, K_SHARING, K_ACTIVE)) store.remove(name)
     }
 
-    private fun open(k: PartyKey, id: Int, seq: Int) {
-        key = k
+    private fun slotNumbers(): List<Int> = store.getString(K_SLOTS).orEmpty().split(',').mapNotNull { it.trim().toIntOrNull() }.distinct()
+
+    private fun saveSlots() = store.putString(K_SLOTS, slots.joinToString(",") { it.n.toString() })
+
+    private fun load(n: Int): Slot? {
+        val k = store.getString("p$n.$K_LINK")?.let(PartyKey::parse) ?: return null
+        val id = store.getInt("p$n.$K_ID", 0).takeIf { it != 0 } ?: return null
+        return open(n, k, id, store.getString("p$n.$K_SEQ")?.toIntOrNull() ?: Random.nextInt(65_536))
+    }
+
+    private fun open(n: Int, k: PartyKey, id: Int, seq: Int): Slot {
         val p = LinkParty(
             k, id, profile(),
             seq = seq,
-            marksCounter = store.getString(K_COUNTER)?.toLongOrNull() ?: 1,
-            marksClock = store.getString(K_CLOCK)?.toLongOrNull() ?: 0,
+            marksCounter = store.getString("p$n.$K_COUNTER")?.toLongOrNull() ?: 1,
+            marksClock = store.getString("p$n.$K_CLOCK")?.toLongOrNull() ?: 0,
         )
-        p.sharing = store.getBoolean(K_SHARING, true)
+        val s = Slot(n, k, p)
+        p.sharing = store.getBoolean(s.k(K_SHARING), true)
         p.gateway = store.getBoolean(K_GATEWAY, true)
+        p.meshNode = myNode
         // Made once per party, kept with it: it proves my id on the party's private servers.
-        p.token = store.getString(K_TOKEN) ?: newToken().also { store.putString(K_TOKEN, it) }
-        party = p
-        savedCounter = p.marks.nextCounter
-        savedClock = p.marks.clock
-        reserveSeq(p)
+        p.token = store.getString(s.k(K_TOKEN)) ?: newToken().also { store.putString(s.k(K_TOKEN), it) }
+        s.state = PartyState(party = k, me = me(id), sharing = p.sharing)
+        reserveSeq(s)
+        return s
+    }
+
+    private fun forgetKeys(n: Int) {
+        for (name in PER_PARTY) store.remove("p$n.$name")
+    }
+
+    /** With a [service]: starts it again if parties were on when the app closed (or it stopped by itself). */
+    fun resumeIfWasActive() {
+        for (s in slots.toList()) {
+            if (!store.getBoolean(s.k(K_ACTIVE), false)) continue
+            if (!s.on) turn(s, true) else if (hub == null) running(true)
+        }
     }
 
     /** The switches, the radio and my look, as kept. */
@@ -195,106 +253,171 @@ class LinkSession(
 
     private fun profile() = LinkProfile(store.getString(K_NAME).orEmpty(), store.getInt(K_COLOR, PartyPalette.PRESETS[0]) and 0xFFFFFF, store.getInt(K_ICON, 0))
 
-    // Joining and leaving.
+    private fun slotOf(p: LinkParty) = slots.firstOrNull { it.party === p }
+
+    private fun slotOf(k: PartyKey) = slots.firstOrNull { it.key.id.contentEquals(k.id) }
+
+    // Joining, picking and leaving.
 
     override fun create(partyName: String, myName: String) = join(PartyKey.create(partyName, defaultServer), myName)
 
     override val defaultServer: String? get() = store.getString(K_SERVER)
 
+    /** Joins [key] beside the parties I'm in (one I'm in already: shown), and shows it. */
     override fun join(key: PartyKey, myName: String) {
-        leaveSilently()
-        // A new id per party; the look (icon, colour) carries over from the last one.
+        slotOf(key)?.let {
+            select(it.key)
+            return
+        }
+        if (slots.size >= PartyController.MAX_PARTIES) return
+        // My name is the same in every party: a new one is the others' too.
+        val name = myName.trim().ifEmpty { store.getString(K_NAME)?.takeIf { it.isNotBlank() } ?: T.party.defaultMyName }
+        val renamed = slots.isNotEmpty() && name != store.getString(K_NAME)
+        store.putString(K_NAME, name)
+        if (!store.contains(K_COLOR)) store.putInt(K_COLOR, PartyPalette.PRESETS.random())
+        common = common.copy(look = keptLook())
+        if (renamed) profileChanged()
+        // A new id per party: nothing links my ids in two parties.
         val id = randomBytes(4).let { b ->
             (b[0].toInt() shl 24) or ((b[1].toInt() and 0xFF) shl 16) or ((b[2].toInt() and 0xFF) shl 8) or (b[3].toInt() and 0xFF)
         }.let { if (it == 0) 1 else it }
-        store.putString(K_LINK, key.toLink())
-        store.putInt(K_ID, id)
-        store.putString(K_NAME, myName.trim().ifEmpty { T.party.defaultMyName })
-        if (!store.contains(K_COLOR)) store.putInt(K_COLOR, PartyPalette.PRESETS.random())
-        open(key, id, Random.nextInt(65_536))
-        val me = me(id)
-        _state.value = settings(PartyState(party = key, me = me, sharing = store.getBoolean(K_SHARING, true))).copy(look = me)
+        val n = (slots.maxOfOrNull { it.n } ?: -1) + 1
+        store.putString("p$n.$K_LINK", key.toLink())
+        store.putInt("p$n.$K_ID", id)
+        val s = open(n, key, id, Random.nextInt(65_536))
+        slots += s
+        saveSlots()
+        selected = s
+        store.putInt(K_SELECTED, n)
+        refresh()
         setActive(true)
     }
 
-    /** Tells the others (the servers forget what they kept of me), then stops. */
+    override fun select(party: PartyKey) {
+        val s = slotOf(party) ?: return
+        selected = s
+        store.putInt(K_SELECTED, s.n)
+        publish()
+    }
+
+    /** Tells the others in the shown party (the servers forget what they kept of me), then lets it go. */
     override fun leave() {
-        val p = party ?: return
+        val s = selected ?: return
+        forget(s)
         val h = hub
-        if (h == null) {
-            leaveSilently()
+        val inHub = h != null && s.party in h.parties
+        s.on = false
+        if (h == null || !inHub) {
+            settle()
             return
         }
-        h.send(p, p.leave(clock()))
-        h.removeParty(p)
+        h.send(s.party, s.party.leave(clock()))
+        h.removeParty(s.party)
+        refresh()
+        // The leave goes out first; then what no party uses any more closes.
         scope.launch {
             delay(LEAVE_MS)
-            if (party === p) leaveSilently()
+            settle()
         }
     }
 
-    private fun leaveSilently() {
-        run(false)
-        party = null
-        key = null
-        meshNodes.clear()
-        for (k in listOf(K_LINK, K_ID, K_SEQ, K_ACTIVE, K_COUNTER, K_CLOCK, K_TOKEN)) store.remove(k)
-        _state.value = settings(PartyState())
+    private fun forget(s: Slot) {
+        slots -= s
+        forgetKeys(s.n)
+        saveSlots()
+        if (selected === s) {
+            selected = slots.firstOrNull()
+            selected?.let { store.putInt(K_SELECTED, it.n) } ?: store.remove(K_SELECTED)
+        }
     }
 
+    /** The shown party moves to [server] (null: the public ones), and new parties start there. */
     override fun setServer(server: String?) {
         if (server == null) store.remove(K_SERVER) else store.putString(K_SERVER, server)
-        val k = key?.withServer(server) ?: return
-        key = k
-        store.putString(K_LINK, k.toLink())
-        update { it.copy(party = k) }
-        if (hub != null && _state.value.onlineEnabled) {
-            stopOnline()
-            startOnline()
+        val s = selected ?: return
+        val k = s.key.withServer(server)
+        s.key = k
+        store.putString(s.k(K_LINK), k.toLink())
+        s.state = s.state.copy(party = k)
+        s.refused.clear()
+        val h = hub
+        if (h != null && s.party in h.parties && common.onlineEnabled) {
+            // Off the old servers, onto the new.
+            h.uses(s.party).filter { h.connection(it)?.kind == ConnectionKind.ONLINE }.forEach { h.use(s.party, it, on = false) }
+            goOnline(s)
+            closeUnused()
         }
+        refresh()
     }
 
     // Running.
 
+    /** The shown party on or off. */
     override fun setActive(on: Boolean) {
-        if (party == null) return
-        store.putBoolean(K_ACTIVE, on)
-        run(on)
+        val s = selected ?: return
+        store.putBoolean(s.k(K_ACTIVE), on)
+        turn(s, on)
     }
 
-    private fun run(on: Boolean) {
-        val s = service
-        if (s != null) {
-            if (!on) detach()
-            s(on)
+    private fun turn(s: Slot, on: Boolean) {
+        if (s.on == on) return
+        s.on = on
+        if (on) {
+            if (hub != null) enter(s) else running(true) // attach() takes in every party that's on
+        } else {
+            hub?.let { h -> if (s.party in h.parties) h.removeParty(s.party) }
+            settle()
+        }
+        refresh()
+    }
+
+    /** After a party went off or left: what no party uses closes; with none on, it all stops. */
+    private fun settle() {
+        if (slots.none { it.on }) running(false) else closeUnused()
+        refresh()
+    }
+
+    /** Runs (connected, ticking, following my position) while any party is on. */
+    private fun running(on: Boolean) {
+        val svc = service
+        if (svc != null) {
+            if (on) {
+                if (hub == null) svc(true)
+            } else {
+                detach()
+                svc(false)
+            }
             return
         }
         if (on) {
-            if (running != null) return
             attach()
-            running = scope.launch {
-                // Again when they end (no permission yet, or it was taken back).
-                while (true) {
-                    locations().collect { onFix(it) }
-                    delay(LOCATION_RETRY_MS)
+            if (locating == null) {
+                locating = scope.launch {
+                    // Again when they end (no permission yet, or it was taken back).
+                    while (true) {
+                        locations().collect { onFix(it) }
+                        delay(LOCATION_RETRY_MS)
+                    }
                 }
             }
         } else {
-            running?.cancel()
-            running = null
+            locating?.cancel()
+            locating = null
             detach()
         }
     }
 
-    /** Connects: the servers (if online is on) and the radio. */
+    /** Connects: the radio, and each party that's on to its servers (if online is on) and the radio. */
     fun attach() {
-        val p = party ?: return
         if (hub != null) return
-        hub = LinkHub(sockets, hubListener, clock).also { it.addParty(p) }
-        update { it.copy(active = true) }
-        if (_state.value.onlineEnabled) startOnline()
+        // Started by the platform by itself (Android bringing its service back): the parties that were on.
+        if (slots.none { it.on }) slots.filter { store.getBoolean(it.k(K_ACTIVE), false) }.forEach { it.on = true }
+        if (slots.none { it.on }) return
+        hub = LinkHub(sockets, hubListener, clock)
         startRadio()
+        for (s in slots) if (s.on) enter(s)
         ticking = scope.launch { tickLoop() }
+        refresh()
     }
 
     fun detach() {
@@ -303,16 +426,27 @@ class LinkSession(
         ticking = null
         stopRadio()
         h.connections.map { it.id }.forEach(h::removeConnection)
-        party?.let(h::removeParty)
+        h.parties.toList().forEach(h::removeParty)
         hub = null
         _fixEveryMs.value = null
-        update { it.copy(active = false, online = TransportStatus(TransportStatus.State.OFF), radio = TransportStatus(TransportStatus.State.OFF)) }
+        for (s in slots) s.state = s.state.copy(online = OFF)
+        common = common.copy(radio = OFF)
+        refresh()
+    }
+
+    /** [s] into the running hub: on its servers and the radio. */
+    private fun enter(s: Slot) {
+        val h = hub ?: return
+        h.addParty(s.party)
+        if (common.onlineEnabled) goOnline(s)
+        radioConn?.let { h.use(s.party, it) }
     }
 
     /** My position, from the platform: ticked for at once (it may be worth sending). */
     fun onFix(fix: GeoFix) {
-        update { it.copy(myPosition = fix) }
-        party?.onFix(fix)
+        common = common.copy(myPosition = fix)
+        for (s in slots) s.party.onFix(fix)
+        publish()
         wakeNow()
     }
 
@@ -363,50 +497,56 @@ class LinkSession(
 
     // Connections.
 
-    /** The party's servers, else the public ones (one connection). */
-    private fun servers(): Map<ConnectionId, List<String>> {
-        val own = key?.servers.orEmpty()
+    /** [s]'s servers, else the public ones (one connection, shared by the parties on them). */
+    private fun servers(s: Slot): Map<ConnectionId, List<String>> {
+        val own = s.key.servers
         return if (own.isEmpty()) mapOf(PUBLIC to publicServers) else own.associate { "$SERVER_PREFIX$it" to listOf(it) }
     }
 
-    private fun startOnline() {
+    private fun goOnline(s: Slot) {
         val h = hub ?: return
-        val p = party ?: return
-        for ((id, urls) in servers()) {
+        for ((id, urls) in servers(s)) {
             h.addServer(id, urls, private = id != PUBLIC)
-            h.use(p, id)
+            h.use(s.party, id)
         }
     }
 
     private fun stopOnline() {
         val h = hub ?: return
         h.connections.filter { it.kind == ConnectionKind.ONLINE }.map { it.id }.forEach(h::removeConnection)
-        update { it.copy(online = TransportStatus(TransportStatus.State.OFF)) }
+        for (s in slots) s.state = s.state.copy(online = OFF)
     }
 
-    /** The servers as one line on the screens: connected if any is, with their hosts. */
-    private fun onlineStatus(): TransportStatus {
-        val p = party
+    /** The servers no party uses any more: closed. */
+    private fun closeUnused() {
+        val h = hub ?: return
+        val used = h.parties.flatMap { h.uses(it) }.toSet()
+        h.connections.filter { it.kind == ConnectionKind.ONLINE && it.id !in used }.map { it.id }.forEach(h::removeConnection)
+    }
+
+    /** [s]'s servers as one line on the screens: connected if any is, with their hosts. */
+    private fun onlineStatus(s: Slot): TransportStatus {
+        val h = hub ?: return OFF
         // A server that took the party back: no longer refused.
-        refused.removeAll { id -> p?.connections?.any { it.id == id && it.up } == true }
-        val all = hub?.connections?.filter { it.kind == ConnectionKind.ONLINE }?.map { c ->
-            if (c.id in refused && c.status.state == TransportStatus.State.CONNECTED) {
+        s.refused.removeAll { id -> s.party.connections.any { it.id == id && it.up } }
+        val all = h.uses(s.party).mapNotNull(h::connection).filter { it.kind == ConnectionKind.ONLINE }.map { c ->
+            if (c.id in s.refused && c.status.state == TransportStatus.State.CONNECTED) {
                 TransportStatus(TransportStatus.State.ERROR, T.party.refusedByServer(c.status.detail))
             } else {
                 c.status
             }
-        }.orEmpty()
+        }
         val up = all.filter { it.state == TransportStatus.State.CONNECTED }
         return if (up.isNotEmpty()) TransportStatus(TransportStatus.State.CONNECTED, up.joinToString(", ") { it.detail })
         else all.firstOrNull { it.state == TransportStatus.State.CONNECTING }
             ?: all.firstOrNull { it.state == TransportStatus.State.ERROR }
-            ?: TransportStatus(TransportStatus.State.OFF)
+            ?: OFF
     }
 
+    /** The radio, shared by every party that's on. */
     private fun startRadio() {
         val links = radios ?: return
         val h = hub ?: return
-        val p = party ?: return
         if (radio != null) return
         val address = store.getString(K_RADIO_ID) ?: return
         val id = "$RADIO_PREFIX$address"
@@ -416,7 +556,8 @@ class LinkSession(
             }
 
             override fun onMyNode(num: Long) {
-                party?.meshNode = num
+                myNode = num
+                for (s in slots) s.party.meshNode = num
             }
 
             override fun onPartyPacket(payload: ByteArray) {
@@ -429,13 +570,14 @@ class LinkSession(
             }
         })
         if (r == null) {
-            update { it.copy(radio = TransportStatus(TransportStatus.State.ERROR, T.party.bluetoothPermissionNeeded)) }
+            common = common.copy(radio = TransportStatus(TransportStatus.State.ERROR, T.party.bluetoothPermissionNeeded))
+            publish()
             return
         }
         h.addRadio(id, LinkRadio { r.send(it) })
-        h.use(p, id)
         radio = r
         radioConn = id
+        for (s in slots) if (s.on) h.use(s.party, id)
         r.start()
     }
 
@@ -444,13 +586,13 @@ class LinkSession(
         radio = null
         radioConn?.let { hub?.removeConnection(it) }
         radioConn = null
-        update { it.copy(radio = TransportStatus(TransportStatus.State.OFF)) }
+        common = common.copy(radio = OFF)
+        publish()
     }
 
-    /** Plain Meshtastic radios (trackers, others' radios): not mine, not a member's. */
+    /** Plain Meshtastic radios (trackers, others' radios): not mine, not a member's in any party. */
     private fun meshNode(num: Long, name: String?, shortName: String?, position: Mesh.Position?) {
-        val p = party ?: return
-        if (num == 0L || num == p.meshNode || p.members.values.any { it.meshNode == num }) return
+        if (num == 0L || num == myNode || slots.any { s -> s.party.members.values.any { it.meshNode == num } }) return
         val old = meshNodes[num]
         meshNodes[num] = MeshNode(
             num,
@@ -463,48 +605,56 @@ class LinkSession(
 
     // Settings.
 
+    /** Shares my position in the shown party, or not (the others still seen). */
     override fun setSharing(on: Boolean) {
-        store.putBoolean(K_SHARING, on)
-        party?.sharing = on
-        update { it.copy(sharing = on) }
+        val s = selected ?: return
+        store.putBoolean(s.k(K_SHARING), on)
+        s.party.sharing = on
+        s.state = s.state.copy(sharing = on)
         refresh()
         wakeNow()
     }
 
+    /** My name, colour and icon: the same in every party (each is told). */
     override fun setProfile(name: String, color: Int, icon: Int) {
-        val me = _state.value.me
-        val was = me ?: _state.value.look ?: PartyMe(0, "", color, icon)
-        val updated = was.copy(name = name.trim().ifEmpty { was.name }, color = color, icon = icon)
-        store.putString(K_NAME, updated.name)
-        store.putInt(K_COLOR, updated.color)
-        store.putInt(K_ICON, updated.icon)
-        if (me == null) {
-            update { it.copy(look = updated) }
-            return
+        val was = selected?.state?.me ?: common.look ?: PartyMe(0, "", color, icon)
+        store.putString(K_NAME, name.trim().ifEmpty { was.name })
+        store.putInt(K_COLOR, color)
+        store.putInt(K_ICON, icon)
+        common = common.copy(look = keptLook())
+        profileChanged()
+        refresh()
+    }
+
+    private fun profileChanged() {
+        for (s in slots) {
+            s.party.profile = profile()
+            s.state = s.state.copy(me = me(s.party.me))
+            act(s) { p, now -> p.helloNow(now) }
         }
-        update { it.copy(me = updated, look = updated) }
-        party?.profile = profile()
-        act { p, now -> p.helloNow(now) }
     }
 
     override fun setOnlineEnabled(on: Boolean) {
         store.putBoolean(K_ONLINE, on)
-        update { it.copy(onlineEnabled = on) }
-        if (hub == null) return
-        if (on) startOnline() else stopOnline()
+        common = common.copy(onlineEnabled = on)
+        if (hub != null) {
+            if (on) slots.filter { it.on }.forEach(::goOnline) else stopOnline()
+        }
+        refresh()
     }
 
     override fun setGateway(on: Boolean) {
         store.putBoolean(K_GATEWAY, on)
-        party?.gateway = on
-        update { it.copy(gateway = on) }
+        for (s in slots) s.party.gateway = on
+        common = common.copy(gateway = on)
+        publish()
     }
 
     override fun setRadio(address: String, name: String) {
         if (radios == null) return
         store.putString(K_RADIO_ID, address)
         store.putString(K_RADIO_NAME, name)
-        update { it.copy(radioName = name) }
+        common = common.copy(radioName = name)
         stopRadio()
         startRadio()
     }
@@ -513,75 +663,110 @@ class LinkSession(
         store.remove(K_RADIO_ID)
         store.remove(K_RADIO_NAME)
         stopRadio()
-        update { it.copy(radioName = null) }
+        common = common.copy(radioName = null)
+        publish()
     }
 
     // Actions.
 
-    override fun sos(active: Boolean, text: String) = act { p, now -> p.sos(active, text, now) }
+    /**
+     * An SOS goes to every party that's on, and the shown one: help may be in any of them. Its
+     * end goes wherever one is standing.
+     */
+    override fun sos(active: Boolean, text: String) {
+        val to = if (active) slots.filter { it.on || it === selected } else slots.filter { it.party.mySos }
+        for (s in to) act(s) { p, now -> p.sos(active, text, now) }
+    }
 
-    override fun setMeeting(lat: Double, lon: Double, label: String) = act { p, now -> p.setMeeting(GridPoint.of(lat, lon), label, now) }
+    override fun setMeeting(lat: Double, lon: Double, label: String) = actShown { p, now -> p.setMeeting(GridPoint.of(lat, lon), label, now) }
 
-    override fun clearMeeting() = act { p, now -> p.clearMeeting(now) }
+    override fun clearMeeting() = actShown { p, now -> p.clearMeeting(now) }
 
     override fun sendText(text: String) {
         if (text.isBlank()) return
-        act { p, now -> p.text(text.trim(), now) }
+        actShown { p, now -> p.text(text.trim(), now) }
     }
 
-    /** My action: sent where connected (else it goes when they come up); it announces nothing to me. */
-    private fun act(f: (LinkParty, Long) -> LinkResult) {
-        val p = party ?: return
-        val r = f(p, clock())
-        hub?.send(p, LinkResult(out = r.out))
+    private fun actShown(f: (LinkParty, Long) -> LinkResult) {
+        selected?.let { act(it, f) }
+    }
+
+    /** My action in [s]: sent where connected (else it goes when they come up); it announces nothing to me. */
+    private fun act(s: Slot, f: (LinkParty, Long) -> LinkResult) {
+        val r = f(s.party, clock())
+        hub?.send(s.party, LinkResult(out = r.out))
         wakeNow()
         afterSend()
         refresh()
     }
 
-    override fun history(member: Int): List<HistoryPoint> = party?.history?.of(member).orEmpty().map {
+    override fun history(member: Int): List<HistoryPoint> = selected?.party?.history?.of(member).orEmpty().map {
         HistoryPoint(it.time * 1000, PartyMessage.Position(it.at.latDeg, it.at.lonDeg, null, null, null, null, null))
     }
 
     // What the screens see.
 
-    private fun announce(event: LinkEvent) {
-        val p = party ?: return
+    private fun announce(s: Slot, event: LinkEvent) {
+        val k = s.key
         val e = when (event) {
-            is LinkEvent.Joined -> PartyEvent.Joined(member(event.member))
-            is LinkEvent.Left -> PartyEvent.Left(member(event.member))
-            is LinkEvent.SosRaised -> PartyEvent.SosRaised(member(event.member), event.text)
-            is LinkEvent.SosCancelled -> PartyEvent.SosCancelled(member(event.member))
-            is LinkEvent.TextReceived -> PartyEvent.TextReceived(member(event.member), event.text)
-            is LinkEvent.MarkChanged -> if (event.mark.id == MarkId.MEETING) PartyEvent.MeetingSet(meeting(p)) else null
+            is LinkEvent.Joined -> PartyEvent.Joined(member(event.member), k)
+            is LinkEvent.Left -> PartyEvent.Left(member(event.member), k)
+            is LinkEvent.SosRaised -> PartyEvent.SosRaised(member(event.member), event.text, k)
+            is LinkEvent.SosCancelled -> PartyEvent.SosCancelled(member(event.member), k)
+            is LinkEvent.TextReceived -> PartyEvent.TextReceived(member(event.member), event.text, k)
+            is LinkEvent.MarkChanged -> if (event.mark.id == MarkId.MEETING) PartyEvent.MeetingSet(meeting(s.party), k) else null
             else -> null
         }
         e?.let { _events.tryEmit(it) }
     }
 
+    /** Each party's members, chat, meeting point and servers read again, then shown. */
     private fun refresh() {
-        val p = party ?: return
-        update { s ->
-            s.copy(
+        val h = hub
+        for (s in slots) {
+            val p = s.party
+            s.state = s.state.copy(
                 members = p.members.values.filter { !it.left }.map(::member)
                     .sortedWith(compareByDescending<Member> { it.sos }.thenBy { it.displayName.lowercase() }),
-                meshNodes = meshNodes.values.filter { it.position != null }.sortedBy { it.name },
                 meeting = meeting(p),
                 chat = p.chat.toList(),
                 mySos = p.mySos,
                 historyCounts = p.history.counts,
-                online = if (hub != null && s.onlineEnabled) onlineStatus() else s.online,
+                online = if (h != null && common.onlineEnabled && p in h.parties) onlineStatus(s) else OFF,
             )
         }
-        _fixEveryMs.value = fixEvery(p)
+        common = common.copy(meshNodes = meshNodes.values.filter { it.position != null }.sortedBy { it.name })
+        publish()
+        _fixEveryMs.value = fixEvery()
     }
 
-    /** How often a fix is worth taking now ([fixEveryMs]). */
-    private fun fixEvery(p: LinkParty): Long? {
-        if (hub == null || (!p.sharing && !p.mySos)) return null
+    /** The parties, each with what they share, to the screens: all to the map, the picked one to the rest. */
+    private fun publish() {
+        _parties.value = slots.map(::shown)
+        _state.value = selected?.let(::shown) ?: shared(PartyState())
+    }
+
+    private fun shown(s: Slot) = shared(s.state).copy(active = s.on && hub?.parties?.contains(s.party) == true)
+
+    private fun shared(p: PartyState) = p.copy(
+        look = common.look,
+        onlineEnabled = common.onlineEnabled,
+        radio = common.radio,
+        radioName = common.radioName,
+        gateway = common.gateway,
+        myPosition = common.myPosition,
+        meshNodes = common.meshNodes,
+    )
+
+    /** How often a fix is worth taking now ([fixEveryMs]): what the busiest party needs. */
+    private fun fixEvery(): Long? {
+        val h = hub ?: return null
+        val sending = slots.filter { it.party in h.parties && (it.party.sharing || it.party.mySos) }.map { it.party }
+        if (sending.isEmpty()) return null
         // Standing still: just often enough to notice moving again, and to have a fresh fix for a heartbeat.
-        if (!p.isMoving && !p.mySos) return FIX_STILL_MS
-        val gaps = p.connections.map { c -> ModeTable.of(if (p.mySos) LinkMode.LIVE else c.mode?.mode ?: LinkMode.NORMAL, c.kind).minGapS * 1000 }
+        val moving = sending.filter { it.isMoving || it.mySos }
+        if (moving.isEmpty()) return FIX_STILL_MS
+        val gaps = moving.flatMap { p -> p.connections.map { c -> ModeTable.of(if (p.mySos) LinkMode.LIVE else c.mode?.mode ?: LinkMode.NORMAL, c.kind).minGapS * 1000 } }
         return (gaps.minOrNull() ?: FIX_MOVING_MS).coerceIn(FIX_FAST_MS, FIX_MOVING_MS)
     }
 
@@ -599,6 +784,8 @@ class LinkSession(
         sos = m.sos,
         sosText = m.sosText,
         left = m.left,
+        heardOn = m.heard,
+        positionsOn = m.positions.mapValues { (_, v) -> TimedPosition(position(v.first), v.second * 1000) },
     )
 
     private fun position(p: LinkMessage.Pos) = PartyMessage.Position(
@@ -623,28 +810,26 @@ class LinkSession(
 
     // Kept numbers.
 
-    /** After sending: sequence numbers reserved ahead, the marks' counter and clock kept. */
+    /** After sending: each party's sequence numbers reserved ahead, its marks' counter and clock kept. */
     private fun afterSend() {
-        val p = party ?: return
-        if (((p.seq - seqBase) and 0xFFFF) >= SEQ_BLOCK - SEQ_MARGIN) reserveSeq(p)
-        if (p.marks.nextCounter != savedCounter) {
-            savedCounter = p.marks.nextCounter
-            store.putString(K_COUNTER, savedCounter.toString())
-        }
-        if (p.marks.clock != savedClock) {
-            savedClock = p.marks.clock
-            store.putString(K_CLOCK, savedClock.toString())
+        for (s in slots) {
+            val p = s.party
+            if (((p.seq - s.seqBase) and 0xFFFF) >= SEQ_BLOCK - SEQ_MARGIN) reserveSeq(s)
+            if (p.marks.nextCounter != s.savedCounter) {
+                s.savedCounter = p.marks.nextCounter
+                store.putString(s.k(K_COUNTER), s.savedCounter.toString())
+            }
+            if (p.marks.clock != s.savedClock) {
+                s.savedClock = p.marks.clock
+                store.putString(s.k(K_CLOCK), s.savedClock.toString())
+            }
         }
     }
 
     /** Sequence numbers must never repeat: reserved in blocks, so a restart starts past them. */
-    private fun reserveSeq(p: LinkParty) {
-        seqBase = p.seq
-        store.putString(K_SEQ, ((p.seq + SEQ_BLOCK) and 0xFFFF).toString())
-    }
-
-    private inline fun update(f: (PartyState) -> PartyState) {
-        _state.value = f(_state.value)
+    private fun reserveSeq(s: Slot) {
+        s.seqBase = s.party.seq
+        store.putString(s.k(K_SEQ), ((s.party.seq + SEQ_BLOCK) and 0xFFFF).toString())
     }
 
     companion object {
@@ -655,6 +840,7 @@ class LinkSession(
         private const val NO_HELLO_RGB = 0x808080
         const val SERVER_PREFIX = "mqtt:"
         const val RADIO_PREFIX = "radio:"
+        private val OFF = TransportStatus(TransportStatus.State.OFF)
 
         /** The tick loop waits at least this long for a timer (a fix, a packet or an action wakes it sooner). */
         private const val MIN_WAIT_MS = 1_000L
@@ -668,21 +854,27 @@ class LinkSession(
         private const val SEQ_BLOCK = 1_000
         private const val SEQ_MARGIN = 500
 
-        private const val K_LINK = "link"
+        // Kept for all the parties.
+        private const val K_SLOTS = "parties"
+        private const val K_SELECTED = "shown_party"
         private const val K_SERVER = "server"
-        private const val K_ACTIVE = "active"
-        private const val K_ID = "my_id"
         private const val K_NAME = "my_name"
         private const val K_COLOR = "my_rgb"
         private const val K_ICON = "my_icon"
-        private const val K_SHARING = "sharing"
         private const val K_ONLINE = "online"
         private const val K_GATEWAY = "gateway"
         private const val K_RADIO_ID = "radio_id"
         private const val K_RADIO_NAME = "radio_name"
+
+        // Kept for each party, as `p<n>.<key>` (before several parties: without the prefix).
+        private const val K_LINK = "link"
+        private const val K_ACTIVE = "active"
+        private const val K_ID = "my_id"
+        private const val K_SHARING = "sharing"
         private const val K_SEQ = "link_seq"
         private const val K_COUNTER = "marks_counter"
         private const val K_CLOCK = "marks_clock"
         private const val K_TOKEN = "link_token"
+        private val PER_PARTY = listOf(K_LINK, K_ACTIVE, K_ID, K_SHARING, K_SEQ, K_COUNTER, K_CLOCK, K_TOKEN)
     }
 }

@@ -166,6 +166,12 @@
   connection carries on for your other parties. Members only on a LoRa radio count too, through a
   gateway, and a gateway puts only the last 30 minutes of the server's log on the air. Not yet
   tried on a real server.
+- **Several parties at once,** up to 4. A row at the top of the Party screen switches between
+  them, and **Another party** starts or joins one more (joining no longer leaves the one you're
+  in). Each has its own id, its own on/off and its own **Share my location**. Your name and look,
+  the radio and the online switch are the same for all, and one connection to a server carries
+  every party on it. An SOS goes to every party that's on. For now the map shows the party picked
+  on the Party screen.
 - On Android, the party reaches the servers over secure WebSockets, as the web app does.
 - For now, members' ways so far (History) aren't kept once the app closes.
 - **Only a real GPS fix goes on the map.** A position less exact than ±20 m (a phone indoors or
