@@ -188,66 +188,87 @@ on Windows, prefix the commands with `MSYS_NO_PATHCONV=1`.
 
 ## Party location sharing
 
-- **Party = 16-byte id + 32-byte key**, shared as the web link
-  `https://maparound.app/party#<code>?n=<name>` (QR code or link), so messaging
-  apps make it tappable and a phone camera opens it. The page (`docs/party.html`) opens the app
-  with `maparound://party/<code>?n=<name>`, or the way to get it (the Android beta page); the code stays after the
-  `#`, which browsers never send to the site. The app also reads `maparound://` invites from the
-  first versions. Every message is **AES-256-GCM** encrypted end to end (`party/Protocol.kt`); a position
-  update is 54 bytes. Message types: position (with speed, heading, battery, SOS flag), hello
-  (name, colour, icon, Meshtastic node), SOS, meeting point, text, leave. Hello first carries a
-  colour index and the node and name, as the first app versions read it (they get the nearest of
-  their 8 colours); the icon code and the full RGB colour follow, so newer versions show both
-  (`party/PartyLook.kt`). The icons are flattened to polygons there, so the list, the Android map
-  and the iOS map draw the same shapes.
-- **Transports** (`party/`), each a module the router drives:
-  - **Online** (`MqttTransport`): MQTT over TLS, topics `maparound/v1/<party tag>/<sender>/<kind>`.
-    Positions, names, SOS and meeting point are *retained*, so whoever joins sees everyone at
-    once. For now it uses free public brokers (broker.emqx.io, test.mosquitto.org,
-    broker.hivemq.com, tried in that order). They only ever see ciphertext, but they do see the
-    party's topic, member ids, timing and IP addresses; move to your own Mosquitto for real use.
-    The web app reaches the same brokers over secure WebSockets (`PartyRelays`).
-  - **LoRa** (`MeshtasticTransport`): talks to a Meshtastic radio over Bluetooth LE with the
-    official phone API. Party packets travel as `PRIVATE_APP` (port 256) broadcasts on the radio's
-    primary channel. Positions broadcast by other Meshtastic radios (e.g. a standalone tracker in
-    another vehicle) are shown as grey "radio" markers.
-- **Router** (`PartyEngine`, `PartySession`): drops duplicates (the same update can arrive online
-  and by radio), keeps the newest position per member, and on a **gateway** phone relays packets
-  between online and radio unchanged (they stay encrypted).
-- **Order and history** (`PartyEngine`, `PartyHistory`): messages are kept in the order they were
-  written (their send time, in whole seconds), so one that comes late by radio goes in its place.
-  Every position received goes into its member's history in time order, the same moment once (at
-  most 5,000 a member). The platforms keep it in a file (`PartyHistoryFile`: the app's files, the
-  web app's IndexedDB), saved at most every minute and when the party stops, deleted when leaving
-  or joining another. **History** replays it on the map (`ui/PartyHistoryUi.kt`): the way in the
-  member's colour, the marker moving between positions, long stops skipped.
-- **In the browser** (`OnlineParty`, with the web's parts in `webApp/.../WebParty.kt` and
-  `WebRadio.kt`): the invite page's *Join in your browser* opens the web app with
-  `app/#party=<code>?n=<name>`; the app takes the code out of the address and asks for a name
-  before joining. A full member: MQTT 3.1.1 over a secure WebSocket to the same brokers
-  (`MqttWire`), the same `PartyEngine`, `Envelope` and topics as the app, so it sends its position
-  (the browser's), hellos, SOS, the meeting point and messages, and clears its kept state when it
-  leaves. Where the browser has Web Bluetooth (Chrome, Edge; not Safari, so not on iPhone, nor
-  Firefox), a Meshtastic radio too: `MeshRadio` is the radio's session in shared code (the same
-  phone API and `MeshProto` as Android's `MeshtasticTransport`) over the browser's Bluetooth, each
-  connection at its own pace, and the gateway relays between radio and online. The position goes
-  only while the page is open (phones stop pages in the background). SOS alerts and
-  messages show as notifications while the page is hidden; the invite's QR code is drawn from
-  qrcode-generator (MIT). The browser's Web Crypto is asynchronous only, so the web app's AES and
-  HMAC are plain Kotlin (`PureCrypto`, checked against the platforms' in the tests).
-- **Send rates** (`SendPolicy`; above 15 km/h counts as driving):
+The party runs on **Link v1**, MapAround's own protocol, specified in
+[docs/LINK_PROTOCOL.md](docs/LINK_PROTOCOL.md). Its code is shared by Android and the web app
+(`party/link/`); the platforms give it their sockets, radios and location.
 
-  | | Online | LoRa |
-  |---|---|---|
-  | Hiking | every 10 s when moved ≥ 10 m | every 2 min when moved ≥ 40 m |
-  | Driving | every 5 s | every 45 s when moved ≥ 200 m |
-  | Standing still | every 60 s | every 10 min |
-  | SOS | every 10 s | every 30 s |
-
-  LoRa airtime is scarce and shared (e.g. EU868 duty-cycle limits); these keep a group of about
-  10–20 radios usable.
-- **Background**: `PartyService` is a location foreground service with a notification; it keeps
-  sharing with the screen off and resumes after a restart. SOS and messages raise notifications.
+- **Party = 16-byte id + 32-byte secret**, shared as the web link
+  `https://maparound.app/party#<code>?n=<name>` (QR code or link; `&s=<server>` for each of the
+  party's own servers), so messaging apps make it tappable and a phone camera opens it. The page
+  (`docs/party.html`) opens the app with `maparound://party/<code>?n=<name>`, or the way to get it
+  (the Android beta page); the code stays after the `#`, which browsers never send to the site.
+  From the secret come the party's AES key and its 2-byte tag (HMAC-SHA256).
+- **Packets** (`LinkEnvelope`, `LinkMessage`): a 14-byte header that relays read without the key
+  (type, hops, tag, sender, time, seq), then the body, sealed with **AES-256-GCM** and an 8-byte
+  tag; the nonce is the sender, time and seq, so it never repeats. A position is 32 bytes (54 in
+  the first versions), 45–56 with the way you went since the last one. Types: POS, HELLO (name,
+  colour, icon, radio node, mode, the marks' summary), SOS and ACK, TEXT, LEAVE, MARK, LIVE, and
+  DIGEST and WANT for catching up on the radio. A member's icon and colour are drawn from
+  `party/PartyLook.kt`, the same shapes in the list, on Android's map and on iOS's.
+- **When positions go** (`LinkParty`, `Positions.kt`, `AutoMode.kt`): from your speed and heading
+  the others' phones carry your marker on; yours sends a position when that guess is off (15 m
+  online), when you stop or start, and at least every minute (on the radio, every 10), each with
+  the way you went since. The pace follows a mode chosen by itself: **Live** near another member
+  or the meeting point, in an SOS, or moving while charging; **Saver** on a low battery, standing
+  still for 10 minutes, or with no one heard for half an hour; **Normal** otherwise, a step down
+  when the radio's channel is busy (spec §3).
+- **Marks** (`Marks.kt`, `MarkBook.kt`): points, lines, areas and circles that anyone in the party
+  can add, edit and delete. Each mark is four registers with versions, so every phone ends up with
+  the same; on the radio, phones compare summaries (DIGEST) and ask for what they lack (WANT). The
+  meeting point is one. They're drawn on the map; making and editing them in the app comes later.
+- **Connections** (`LinkHub`): any number of MQTT servers and radios at once, each a stream.
+  - **Online** (`LinkMqtt`, `MqttWire`): MQTT 3.1.1 over secure WebSockets, the same on Android
+    (OkHttp) and in the browser. Topics are `maparound/link1/<tag>/<sender>/<kind>`; each member's
+    latest position, hello and SOS, the marks' full states and the party's Live are kept
+    (*retained*), so whoever joins sees everyone at once. A party uses the free public servers
+    (broker.emqx.io, test.mosquitto.org, broker.hivemq.com) unless its invite names its own
+    `wss://` server. Servers only see ciphertext, but also the party's tag, member ids, timing and
+    IP addresses ([guide](https://maparound.app/guide/party-server)).
+  - **Private servers:** on a party's own server, the app logs in with each party's
+    `tag.sender.token` (a secret made when joining), so only your phone can send as you.
+    [maparound-server](https://github.com/adam2314/maparound-server) uses it for verified ids,
+    approval, bans, mutes and a message log.
+  - **LoRa** (`MeshRadio`, shared; the Bluetooth is Android's `MeshtasticTransport` or the
+    browser's `WebRadio.kt`): a Meshtastic radio over Bluetooth LE with its official phone API.
+    Party packets are `PRIVATE_APP` (port 256) broadcasts on its primary channel, at most 200
+    bytes, within an airtime budget (on average one every 20 s; SOS and ACK outside it, SOS first).
+    Positions broadcast by other Meshtastic radios (say a tracker in another vehicle) show as grey
+    "radio" markers.
+  - **Relaying:** a **gateway** phone (radio and online, or two servers) passes each party's
+    packets between its connections unchanged but for the hop count (at most 3). Onto the radio:
+    a member's position at most once a minute, nothing stale, and of a server's log only the last
+    30 minutes.
+- **Several parties at once** (`LinkSession`): up to 4, each with its own id, token, sequence
+  numbers and switches (kept as `p<n>.*`), over one hub that shares the connections: one MQTT
+  connection to a server, one radio. Your name and look, the radio, the online switch and the
+  gateway are the same for all; an SOS goes to every party that's on.
+- **On the map** (`ui/PartyMapLayers.kt`, `ui/PartyLayersUi.kt`): in **Map layers → Overlays**,
+  each party's members, their trails (the last 30 minutes), its meeting point and marks, and each
+  connection are layers. A member sits at their newest position from a connection that's shown; an
+  SOS always shows. With several parties, each one's markers have its colour round them and its
+  name after theirs ([guide](https://maparound.app/guide/party)).
+- **History** (`LinkHistory`): every position received, and the trails they carry, in time order,
+  at most 5,000 a member, kept while the party runs (not yet across restarts). **History**
+  replays a member's way on the map (`ui/PartyHistoryUi.kt`): the way in their colour, the marker
+  moving between positions, long stops skipped.
+- **In the browser** (`webApp/.../WebParty.kt`, `WebRadio.kt`): the invite page's *Join in your
+  browser* opens the web app with `app/#party=<code>?n=<name>`; the app takes the code out of the
+  address and asks for a name before joining. A full member, on the same `LinkSession` as the app:
+  it sends its position (the browser's), hellos, SOS, the meeting point and messages. Where the
+  browser has Web Bluetooth (Chrome, Edge; not Safari, so not on iPhone, nor Firefox), a
+  Meshtastic radio too. The position goes only while the page is open (phones stop pages in the
+  background). SOS alerts and messages show as notifications while the page is hidden; the
+  invite's QR code is drawn with qrcode-generator (MIT). The browser's Web Crypto is asynchronous
+  only, so AES and HMAC are plain Kotlin (`PureCrypto`, checked against the platforms' in the
+  tests).
+- **Battery** (`LinkSession`): the party wakes only when something is due (a fix, a packet, a
+  timer, at most 30 s apart), takes a GPS fix as often as the busiest party's mode needs (2 s in
+  Live or an SOS, up to 10 s moving, 20 s standing still, none while hidden), and pings a server
+  only after 50 s of sending nothing.
+- **Background**: `PartyService` (Android) is a location foreground service with one notification
+  for every party that's on; it keeps sharing with the screen off and resumes after a restart. An
+  SOS, a message and a new meeting point raise notifications, with the party's name when you're
+  in several.
 
 ### Setting up Meshtastic radios
 
@@ -646,7 +667,7 @@ shared/src/
                            coordinates, tilt & trip, sensor interfaces, 3D tiles & meshes, search
                            engine, routing geometry, planner (dragging stops: RouteEdit) & navigation, turn arrows, contours, elevation tiles
                            (memory-mapped), HGT processing, RMAP, places, GPX & track library, trail
-                           cells, links, party protocol, engine, state & history, Meshtastic codec, map
+                           cells, links, the party (Link v1: packets, marks, connections, the session; its map layers), Meshtastic codec, map
                            catalog, settings (Prefs) and the offline-data interfaces
     shared/mapsforge/      a Kotlin port of the mapsforge map reader (no rendering)
     shared/mvt/            mapsforge data → vector tiles (for MapLibre on iOS)
@@ -692,7 +713,7 @@ app/src/main/java/app/maparound/
   three/                   3D view on the globe: tile loader (meshes, buildings, names), MapLibre snapshot
                            textures, OpenGL ES 3 renderer with sky and haze, standing names (LabelOverlay)
   car/                     Android Auto: car app service, session, map renderer on the car surface, template screen, navigation
-  party/                   party key & encryption, Meshtastic protobuf codec, engine, MQTT & BLE transports, service
+  party/                   the party on Android: the session with its Meshtastic radio (Bluetooth), WebSockets (OkHttp), foreground service, notifications
   sensors/                 location, GNSS status, compass, motion (tilt, accelerometer, gyro), speed & trip, barometer
   ui/                      Android root (permissions, start-up), platform actions, Satellites tab, 3D view host
 brouter/                   vendored BRouter routing engine (Java, MIT)
@@ -728,10 +749,11 @@ The app's privacy policy (also for the stores) is [docs/privacy.md](docs/privacy
 - **Android Auto** (`androidx.car.app.NAVIGATION_TEMPLATES`, `androidx.car.app.ACCESS_SURFACE`): lets
   the app show its map on a car screen as a navigation app. Nothing is sent to the car maker or
   Google beyond what Android Auto itself handles.
-- **Party sharing**: your position goes only to the party (encrypted with its key). Anyone you give
-  the invite link or QR code to can join and see the party's positions; "Share my location" off
-  hides you. The others' positions this device receives are kept on it for their history, until
-  you leave the party.
+- **Party sharing**: your position goes only to the parties you share it in (encrypted with each
+  one's key), and you have a different id in each. Anyone you give an invite link or QR code to can
+  join and see that party's positions; "Share my location" off hides you there. The others'
+  positions this device receives are kept on it for their history and trails while the party runs,
+  until you leave it.
 - **The map embedded in other websites** (the web app's `?embed`) reads and saves nothing in the
   visitor's browser and doesn't ask for their location.
 - **Internet**: used for map, terrain, routing-data and trail downloads, online tiles (2D and 3D),
@@ -766,9 +788,12 @@ The app's privacy policy (also for the stores) is [docs/privacy.md](docs/privacy
 - **Line of sight, radio links and viewsheds use bare ~30 m terrain**: no trees or buildings, and
   rounded peaks; radio loss is a single-obstacle estimate. Treat them as a guide.
 - **Off-grid party sharing needs Meshtastic radios**; there is no phone-to-phone Bluetooth yet.
-- **Not yet tried for real**: the LoRa transport with real radios.
-- **A party member's history is what this device received** since joining (the servers keep only
-  each member's latest position), with gaps while the party was off or the web page closed.
+- **Not yet tried for real**: the LoRa transport with real radios, and a MapAround party server on
+  a real host.
+- **A party member's history is what this device received** while the party ran (the servers keep
+  only each member's latest position), with gaps while it was off or the web page closed; it isn't
+  kept when the app closes yet.
+- **Marks show on the map, but can't be made or edited in the app yet.**
 - **The web app shows MapAround's vector map only where a map is downloaded**: a browser can't read
   GitHub's release files, so online it uses raster maps until the maps are hosted elsewhere.
 - **Raster maps: GeoTIFF, `.rmap`, MBTiles and SQLiteDB** (no OziExplorer, KMZ or ECW yet), with no
@@ -815,7 +840,7 @@ The app's privacy policy (also for the stores) is [docs/privacy.md](docs/privacy
   - **National open data**: swisstopo (© swisstopo, free use with attribution), basemap.at (CC BY 4.0), Kartverket (CC BY 4.0), IGN Géoplateforme (Etalab open licence 2.0), USGS The National Map (public domain).
 - **Map styles**: Topo's point-of-interest sections and the Classic, Osmarender, Biker and Motorider styles come from [mapsforge](https://github.com/mapsforge/mapsforge) (LGPL-3.0). Imported styles keep their authors' licences.
 - **Map rendering**: [MapLibre Native](https://github.com/maplibre/maplibre-native) (BSD-2-Clause) on Android and iOS; on Android with [OkHttp](https://square.github.io/okhttp/) (Apache-2.0). Label fonts: Noto Sans (SIL Open Font License 1.1), as glyph ranges from the [OpenMapTiles fonts](https://github.com/openmaptiles/fonts) release. In the web app, [MapLibre GL JS](https://github.com/maplibre/maplibre-gl-js) (BSD-3-Clause) with the [right-to-left text plugin](https://github.com/mapbox/mapbox-gl-rtl-text) (BSD-2-Clause) for Hebrew and Arabic names.
-- **Party**: Meshtastic phone API and protocol definitions ([meshtastic/protobufs](https://github.com/meshtastic/protobufs), GPL-3.0; a minimal encoder for the messages used is in `party/MeshProto.kt`). MQTT via [Eclipse Paho](https://github.com/eclipse-paho/paho.mqtt.java) (EPL-2.0 / EDL-1.0). QR codes via [ZXing Android Embedded](https://github.com/journeyapps/zxing-android-embedded) (Apache-2.0).
+- **Party**: Meshtastic phone API and protocol definitions ([meshtastic/protobufs](https://github.com/meshtastic/protobufs), GPL-3.0; a minimal encoder for the messages used is in `party/MeshProto.kt`). MQTT is MapAround's own small client over WebSockets (`party/MqttWire.kt`); [Eclipse Paho](https://github.com/eclipse-paho/paho.mqtt.java) (EPL-2.0 / EDL-1.0) is still in the Android build for the old transport. QR codes via [ZXing Android Embedded](https://github.com/journeyapps/zxing-android-embedded) (Apache-2.0).
 - **Android Auto**: [Android for Cars App Library](https://developer.android.com/training/cars/apps) (`androidx.car.app`, Apache-2.0).
 - **Magnetic declination**: the World Magnetic Model built into Android (`GeomagneticField`).
 - **Online search**: [Photon](https://photon.komoot.io) by komoot and [Nominatim](https://nominatim.org) (OpenStreetMap data, ODbL; fair-use policies: no bulk queries, a request at a time).
