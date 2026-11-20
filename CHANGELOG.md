@@ -172,6 +172,20 @@
   the phone in a pocket for the whole drive, it didn't send. Not yet tried in a car.
 
 ### The map
+- **Layers in tabs.** The layers sheet has three: **Map** (offline or online, its style, the
+  background), **Terrain** (contour lines, hill shading) and **Overlays** (the party, marked trails,
+  saved places, the grid, the data view), each tab with how many of its layers are on. Each layer
+  is a row with its picture, what it shows and a switch; one that can't show on the map in use says
+  why (contours and shading are drawn on the offline maps).
+- **A Party layer.** The party's members, meeting point and radios heard go on and off together
+  (Overlays → Party), on the car screen too. A member in an SOS stays on the map either way.
+- **Query mode** (the button under the layers): every tap on the map, on a marker too, shows that
+  point: its elevation and slope (which way it faces), the local time, first light, sunrise and
+  sunset (with their directions), last light, moonrise and moonset, where the moon is and how much
+  of it is lit, and the next new moon. Below, everything the map draws there (a road, a building,
+  a peak, a country of the data view…), by name and kind; tapping one shows all it says about
+  itself. The elevation data comes by itself where it's missing. On a map of pictures (raster
+  tiles) there's nothing to list, only the point. Times are in the device's time zone.
 - **Coordinate grids no longer freeze the app.** On a tilted map (navigating, or tilted by hand),
   the view reaches toward the horizon, and the grid kept widening its spacing to cover all of it.
   A UTM, MGRS or national grid's numbers that far from its area grew without bound, so the grid
@@ -196,6 +210,10 @@
   2D and 3D.
 
 ### The web app
+- **The address keeps what's on the map**, so a link or a reload shows the same: the map
+  (`layer=`), what's over it (`ov=trails,party…`), the data view's layers (`data=c.population,l.size`)
+  and what's tapped in it (`sel=c:RUS`), with where the map looks (`map=`) and the pin as before.
+  `data=maps` still opens how MapAround's maps stand.
 - **The 3D view turns around the place you right-click.** A right-button drag (or ctrl, shift or
   alt + drag) turns and tilts the camera around the spot it starts on, which stays under the
   pointer, marked with a ring while turning: a peak or a valley can be looked at from every side.

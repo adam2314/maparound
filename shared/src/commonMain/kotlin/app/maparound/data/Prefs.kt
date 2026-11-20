@@ -276,6 +276,7 @@ class Prefs(
         private const val K_SCREEN_OPEN = "screen_on_open"
         private const val K_SCREEN_NAV = "screen_on_nav"
         private const val K_PLACES_ON_MAP = "places_on_map"
+        private const val K_PARTY_ON_MAP = "party_on_map"
         private const val K_NAV_VOICE = "nav_voice"
         private const val K_BACKGROUND = "map_background"
         private const val K_VECTOR_ON_BG = "vector_on_background"
@@ -305,6 +306,14 @@ class Prefs(
     fun setPlacesOnMap(value: Boolean) {
         _placesOnMap.value = value
         sp.putBoolean(K_PLACES_ON_MAP, value)
+    }
+
+    /** The party on the map (its members, meeting point, radios); a member in an SOS shows anyway. */
+    private val _partyOnMap = MutableStateFlow(sp.getBoolean(K_PARTY_ON_MAP, true))
+    val partyOnMap: StateFlow<Boolean> = _partyOnMap.asStateFlow()
+    fun setPartyOnMap(value: Boolean) {
+        _partyOnMap.value = value
+        sp.putBoolean(K_PARTY_ON_MAP, value)
     }
 
     /** Spoken turn-by-turn instructions while navigating. */

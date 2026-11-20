@@ -152,13 +152,16 @@ data class DataLayers(
  * MapAround's maps stand, as the support page embeds it). The map screen opens it once it's there.
  */
 object DataViewLink {
+    /** A `data=` to open ([MapAddress.data]), and what's tapped in it (a tap key), if anything. */
     val pending = MutableStateFlow<String?>(null)
+    var pendingSelected: String? = null
 
-    /** The layers a link's name stands for, or null. */
-    fun layers(name: String): DataLayers? = when (name) {
-        "maps" -> DataLayers(country = null, locality = null, mapBuilds = true)
-        else -> null
-    }
+    /** The layers a link's `data=` stands for, or null. */
+    fun layers(name: String): DataLayers? = MapAddress.data(name)
+
+    /** The data view as shown now, for the web app's address: its `data=` (null: off), and the tapped key. */
+    val current = MutableStateFlow<String?>(null)
+    val currentSelected = MutableStateFlow<String?>(null)
 }
 
 /** What the data view can offer: the layers there's data for, whose source isn't off. */

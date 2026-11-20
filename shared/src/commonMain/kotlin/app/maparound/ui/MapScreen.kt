@@ -1,5 +1,14 @@
 package app.maparound.ui
 
+import androidx.compose.material.icons.filled.Cast
+import androidx.compose.material.icons.filled.GridOn
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Landscape
+import androidx.compose.material3.Badge
+import androidx.compose.material3.Tab
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import app.maparound.map.satelliteSource
@@ -493,7 +502,8 @@ fun MapScreen(
     var selectedParty by remember { mutableStateOf<String?>(null) }
     // A member's history replayed: their marker goes along their way, drawn in their colour.
     val replay by PartyReplay.state.collectAsState()
-    LaunchedEffect(party, partyClock, replay) { controller.setPartyMarkers(partyMapMarkers(party, partyClock, replay)) }
+    val partyOn by prefs.partyOnMap.collectAsState()
+    LaunchedEffect(party, partyClock, replay, partyOn) { controller.setPartyMarkers(partyMapMarkers(party, partyClock, replay, shown = partyOn)) }
     LaunchedEffect(replay?.playing) {
         var last = nowMillis()
         while (PartyReplay.state.value?.playing == true) {
@@ -578,6 +588,9 @@ fun MapScreen(
     }
     var pin by remember { mutableStateOf<GeoPoint?>(null) }
     var pinLabel by remember { mutableStateOf<String?>(null) }
+    // Query mode: every tap says what's there (and the ground and sky); what the last one found.
+    var queryMode by rememberSaveable { mutableStateOf(false) }
+    var queried by remember { mutableStateOf<Pair<GeoPoint, List<app.maparound.map.MapFeature>>?>(null) }
     // Where the buttons at the bottom right start: the zoom slider above them fits in what's left.
     var bottomButtonsTop by remember { mutableStateOf<Float?>(null) }
 
@@ -649,17 +662,28 @@ fun MapScreen(
         }
         dataLayers = new
     }
-    // A data view in a link (the web app's `data=` in its address): open, with its layers, the map in view.
+    // A data view in a link (the web app's `data=` in its address): open, with its layers and what
+    // was tapped; the map stays where the link put it.
     LaunchedEffect(stats) {
         if (stats == null) return@LaunchedEffect
         DataViewLink.pending.collect { name ->
             val layers = name?.let(DataViewLink::layers) ?: return@collect
             DataViewLink.pending.value = null
-            pickDataLayers(layers)
-            dataSelected = null
+            hiddenCountryClasses = emptySet()
+            hiddenZoneClasses = emptySet()
+            hiddenLocalityClasses = emptySet()
+            live.hiddenWeather = emptySet()
+            dataLayers = layers
+            dataSelected = DataViewLink.pendingSelected
+            DataViewLink.pendingSelected = null
             explorerOpen = false
             dataView = true
         }
+    }
+    // The data view as it is now, for the web app's address.
+    LaunchedEffect(dataView, dataLayers, dataSelected) {
+        DataViewLink.current.value = if (dataView) MapAddress.data(dataLayers) else null
+        DataViewLink.currentSelected.value = dataSelected?.takeIf { dataView }
     }
     LaunchedEffect(stats, dataView, countryIndicator) {
         if (stats != null && dataView && countryIndicator != null) stats.loadFigures(countryIndicator, currentYear())
@@ -847,6 +871,10 @@ fun MapScreen(
             override fun onDataTap(key: String) {
                 dataSelected = key
             }
+
+            override fun onQueryTap(point: GeoPoint) {
+                queried = point to controller.featuresAt(point, QUERY_RADIUS_DP)
+            }
         }
     }
     // Navigation's view: tilted, the way ahead up, our position low, further out the faster we go.
@@ -891,7 +919,12 @@ fun MapScreen(
             controller.endNavigation()
         }
     }
-    LaunchedEffect(pin) { controller.setPin(pin) }
+    LaunchedEffect(queryMode) {
+        controller.setQueryMode(queryMode)
+        if (!queryMode) queried = null
+    }
+    // The pin marks the point queried, while there is one.
+    LaunchedEffect(pin, queried) { controller.setPin(queried?.first ?: pin) }
 
     // ---- things other apps shared with us ---------------------------------------------------------
     // The embedded map's track: its name, length and climb over the map (it isn't kept anywhere),
@@ -1008,6 +1041,14 @@ fun MapScreen(
             }
             Tip(T.map.mapLayers) { SmallFloatingActionButton(onClick = { showLayers = true }) {
                 Icon(Icons.Filled.Layers, contentDescription = T.map.mapLayers)
+            } }
+            // Query mode: on, it's coloured, and every tap on the map says what's there.
+            Tip(T.map.queryHint) { SmallFloatingActionButton(
+                onClick = { queryMode = !queryMode },
+                containerColor = if (queryMode) MaterialTheme.colorScheme.primary else FloatingActionButtonDefaults.containerColor,
+                contentColor = if (queryMode) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+            ) {
+                Icon(Icons.Filled.TravelExplore, contentDescription = T.map.query)
             } }
             if (!nav.active && !embedded) Tip(T.map.planRoute) { SmallFloatingActionButton(
                 onClick = {
@@ -1193,6 +1234,7 @@ fun MapScreen(
         Column(Modifier.weight(1f).padding(start = 8.dp, bottom = 8.dp).wrapContentWidth(Alignment.Start).widthIn(max = CARD_MAX_WIDTH)) {
             // Navigating: how fast we're going.
             if (nav.active) NavSpeed(location, speedUnit, Modifier.padding(bottom = 4.dp))
+            queried?.let { (p, found) -> QueryCard(p, found, onClose = { queried = null }) }
             if (showMe) {
                 location?.let { me ->
                     PinCard(
@@ -1600,6 +1642,7 @@ fun MapScreen(
             trails = trailsOn,
             localTrails = trailData.cells > 0,
             places = placesOn,
+            inParty = party.party != null,
             background = background,
             vectorOnBackground = vectorOnBackground,
             rasterMaps = rasterMaps,
@@ -1661,8 +1704,11 @@ fun MapScreen(
 fun placeMapMarkers(places: List<app.maparound.places.Place>): List<PlaceMarker> =
     places.map { PlaceMarker(it.id, it.lat, it.lon, it.name, it.category.emoji, it.category.argb.toInt()) }
 
-/** Party members, the meeting point and other radios as map markers (phone and car screens). */
-fun partyMapMarkers(party: PartyState, now: Long, replay: PartyReplay.State? = null): List<PartyMarker> = buildList {
+/**
+ * Party members, the meeting point and other radios as map markers (phone and car screens). Not
+ * [shown] (the Party layer off): only members in an SOS, and a history being replayed.
+ */
+fun partyMapMarkers(party: PartyState, now: Long, replay: PartyReplay.State? = null, shown: Boolean = true): List<PartyMarker> = buildList {
     replay?.let { r ->
         // Where they were at the moment shown, as they were (an SOS then: the SOS marker).
         val at = r.where
@@ -1671,6 +1717,7 @@ fun partyMapMarkers(party: PartyState, now: Long, replay: PartyReplay.State? = n
     }
     party.members.forEach { m ->
         if (m.id == replay?.memberId) return@forEach
+        if (!shown && !m.sos) return@forEach
         m.position?.let { p ->
             add(PartyMarker(
                 "m${m.id}", p.lat, p.lon, m.displayName, m.color,
@@ -1681,9 +1728,9 @@ fun partyMapMarkers(party: PartyState, now: Long, replay: PartyReplay.State? = n
         }
     }
     party.meeting?.let {
-        add(PartyMarker("meet", it.lat, it.lon, it.label.ifBlank { T.map.meetMarker }, 0, PartyMarker.Kind.MEET, false))
+        if (shown) add(PartyMarker("meet", it.lat, it.lon, it.label.ifBlank { T.map.meetMarker }, 0, PartyMarker.Kind.MEET, false))
     }
-    party.meshNodes.forEach { n ->
+    if (shown) party.meshNodes.forEach { n ->
         n.position?.let {
             add(PartyMarker(
                 "r${n.num}", it.lat, it.lon, n.shortName.ifBlank { n.name }, 0, PartyMarker.Kind.RADIO,
@@ -1778,6 +1825,9 @@ private class ToolDrag {
 
 /** How near (dp on screen) a press has to be to a tool's point to pick it up. */
 private const val TOOL_GRAB_DP = 26.0
+
+/** Query mode looks this far around a tap for what the map draws. */
+private const val QUERY_RADIUS_DP = 6.0
 
 /** The replay's frames, ms. */
 private const val REPLAY_FRAME_MS = 40L
@@ -1894,6 +1944,8 @@ private fun LayersSheet(
     trails: Boolean,
     localTrails: Boolean,
     places: Boolean,
+    /** In a party: its layer can go on and off. */
+    inParty: Boolean,
     background: String,
     vectorOnBackground: Boolean,
     rasterMaps: List<app.maparound.raster.RasterMap>,
@@ -1944,42 +1996,79 @@ private fun LayersSheet(
             { onMessage(it.message ?: T.map.couldntReadList) },
         )
     }
+    // Kept while the app runs: the sheet opens on the tab last looked at.
+    var tab by rememberSaveable { mutableStateOf(LAYERS_TAB_MAP) }
+    val partyOn by prefs.partyOnMap.collectAsState()
+    val grid by prefs.showGrid.collectAsState()
+    val terrainShown = selectedId == TileSources.OFFLINE_ID
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
+        // The map under everything, its terrain, and what goes over it; each tab with how many of its layers are on.
+        PrimaryTabRow(selectedTabIndex = tab) {
+            LayersTab(tab == LAYERS_TAB_MAP, T.map.baseMap, 0) { tab = LAYERS_TAB_MAP }
+            LayersTab(tab == LAYERS_TAB_TERRAIN, T.map.terrain, if (terrainShown) listOf(contours, hillshade).count { it } else 0) { tab = LAYERS_TAB_TERRAIN }
+            LayersTab(
+                tab == LAYERS_TAB_OVERLAYS, T.map.overlays,
+                listOf(partyOn && inParty, trails, places, grid, dataView == true).count { it },
+            ) { tab = LAYERS_TAB_OVERLAYS }
+        }
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(top = 8.dp, bottom = 24.dp)) {
+            if (tab == LAYERS_TAB_TERRAIN) {
+                LayerSwitch(
+                    Icons.Filled.Terrain, Color(0xFF8D6E63), T.map.contourLines,
+                    when {
+                        !terrainShown -> T.map.terrainOnOffline
+                        !MapThemes.drawsTerrain(theme) -> T.map.contoursOnlyIn
+                        else -> T.map.contoursHint
+                    },
+                    checked = contours,
+                    enabled = terrainShown && MapThemes.drawsTerrain(theme),
+                ) { prefs.setContours(it) }
+                LayerSwitch(
+                    Icons.Filled.Landscape, Color(0xFF6D8B74), T.map.hillShading,
+                    if (terrainShown) T.map.hillShadingHint else T.map.terrainOnOffline,
+                    checked = hillshade,
+                    enabled = terrainShown,
+                ) { prefs.setHillshade(it) }
+                if (terrainTiles == 0 && onOpenOffline != null) {
+                    TextButton(onClick = onOpenOffline, modifier = Modifier.padding(horizontal = 12.dp)) {
+                        Text(T.map.terrainComesByItself)
+                    }
+                }
+            }
+            if (tab == LAYERS_TAB_OVERLAYS) {
+                LayerSwitch(
+                    Icons.Filled.Groups, Color(0xFF1E88E5), T.map.partyLayer,
+                    if (inParty) T.map.partyLayerHint else T.map.partyLayerNone,
+                    checked = partyOn && inParty,
+                    enabled = inParty,
+                ) { prefs.setPartyOnMap(it) }
+                LayerSwitch(
+                    Icons.AutoMirrored.Filled.DirectionsWalk, Color(0xFFD84315), T.map.markedTrails,
+                    if (localTrails) T.map.trailsOfflineInTopo else T.map.trailsOnline,
+                    checked = trails,
+                ) { prefs.setTrails(it) }
+                LayerSwitch(Icons.Filled.Place, Color(0xFF8E24AA), T.map.savedPlaces, T.map.savedPlacesHint, checked = places) { prefs.setPlacesOnMap(it) }
+                // The coordinate grid, in the format chosen for coordinates; its spacing follows the zoom.
+                val gridIn by prefs.coordFormat.collectAsState()
+                LayerSwitch(Icons.Filled.GridOn, Color(0xFF546E7A), T.map.coordinateGrid, T.map.coordinateGridHint(gridIn.label), checked = grid) { prefs.setShowGrid(it) }
+                if (dataView != null) {
+                    LayerSwitch(Icons.Filled.Layers, Color(0xFF00897B), T.stats.dataView, T.stats.dataViewSubtitle, checked = dataView, onChange = onDataView)
+                }
+                // The map on a monitor, TV or wireless display: only while one is connected.
+                LocalSecondScreen.current?.let { second ->
+                    val screenName by second.display.collectAsState()
+                    val onSecond by second.showing.collectAsState()
+                    screenName?.let { name ->
+                        LayerSwitch(Icons.Filled.Cast, Color(0xFF5E35B1), T.map.secondScreen, T.map.secondScreenSubtitle(name), checked = onSecond) { second.show(it) }
+                    }
+                }
+            }
+            if (tab == LAYERS_TAB_MAP) {
             // What the map on screen shows: its legend.
             OutlinedButton(onClick = onLegend, modifier = Modifier.padding(horizontal = 16.dp)) {
                 Icon(Icons.Filled.Info, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(T.legend.legend)
-            }
-            if (dataView != null) {
-                Row(
-                    Modifier.fillMaxWidth().clickable { onDataView(!dataView) }.padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(T.stats.dataView, style = MaterialTheme.typography.bodyLarge)
-                        Text(T.stats.dataViewSubtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Switch(checked = dataView, onCheckedChange = onDataView)
-                }
-            }
-            // The map on a monitor, TV or wireless display: only while one is connected.
-            LocalSecondScreen.current?.let { second ->
-                val screenName by second.display.collectAsState()
-                val onSecond by second.showing.collectAsState()
-                screenName?.let { name ->
-                    Row(
-                        Modifier.fillMaxWidth().clickable { second.show(!onSecond) }.padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(T.map.secondScreen, style = MaterialTheme.typography.bodyLarge)
-                            Text(T.map.secondScreenSubtitle(name), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Switch(checked = onSecond, onCheckedChange = { second.show(it) })
-                    }
-                }
             }
             SheetHeader(T.map.sectionOffline)
             LayerRow(
@@ -2021,19 +2110,6 @@ private fun LayersSheet(
             }
             Column(Modifier.padding(start = 72.dp, end = 16.dp)) {
                 StyleOptions(theme, themeLib)
-                Text(T.map.terrain, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
-                SwitchRow(
-                    T.map.contourLines,
-                    if (!MapThemes.drawsTerrain(theme)) T.map.contoursOnlyIn else null,
-                    checked = contours,
-                    enabled = MapThemes.drawsTerrain(theme),
-                ) { prefs.setContours(it) }
-                SwitchRow(T.map.hillShading, null, checked = hillshade) { prefs.setHillshade(it) }
-                if (terrainTiles == 0 && onOpenOffline != null) {
-                    TextButton(onClick = onOpenOffline, contentPadding = PaddingValues(0.dp)) {
-                        Text(T.map.terrainComesByItself)
-                    }
-                }
             }
             SheetHeader(T.map.backgroundHeader)
             val addRaster = rasters.rememberPicker { r -> r.fold({ showRasterOnMap(prefs, it); onDismiss() }, onRasterError) }
@@ -2081,19 +2157,6 @@ private fun LayersSheet(
                     checked = vectorOnBackground,
                     enabled = background != app.maparound.data.Prefs.BACKGROUND_NONE,
                 ) { prefs.setVectorOnBackground(it) }
-            }
-            SheetHeader(T.map.overlays)
-            Column(Modifier.padding(start = 24.dp, end = 16.dp)) {
-                SwitchRow(
-                    T.map.markedTrails,
-                    if (localTrails) T.map.trailsOfflineInTopo else T.map.trailsOnline,
-                    checked = trails,
-                ) { prefs.setTrails(it) }
-                SwitchRow(T.map.savedPlaces, T.map.savedPlacesHint, checked = places) { prefs.setPlacesOnMap(it) }
-                // The coordinate grid, in the format chosen for coordinates; its spacing follows the zoom.
-                val grid by prefs.showGrid.collectAsState()
-                val gridIn by prefs.coordFormat.collectAsState()
-                SwitchRow(T.map.coordinateGrid, T.map.coordinateGridHint(gridIn.label), checked = grid) { prefs.setShowGrid(it) }
             }
             SheetHeader(T.map.sectionOnline)
             // The map that suits where the map is (a country's own), until one is picked.
@@ -2147,9 +2210,71 @@ private fun LayersSheet(
                     Text(T.map.exportList)
                 }
             }
+            }
         }
     }
     if (showAdd) AddSourceDialog(onDismiss = { showAdd = false }, onAdd = { showAdd = false; onAddCustom(it) })
+}
+
+private const val LAYERS_TAB_MAP = 0
+private const val LAYERS_TAB_TERRAIN = 1
+private const val LAYERS_TAB_OVERLAYS = 2
+
+/** A tab of the layers sheet: its name, and how many of its layers are on (none: no badge). */
+@Composable
+private fun LayersTab(selected: Boolean, title: String, on: Int, onClick: () -> Unit) {
+    Tab(
+        selected = selected,
+        onClick = onClick,
+        text = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (on > 0) {
+                    Spacer(Modifier.width(6.dp))
+                    Badge(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer) {
+                        Text("$on")
+                    }
+                }
+            }
+        },
+    )
+}
+
+/**
+ * A layer that goes on and off: its picture (an icon on a tile in [tint]), name, what it shows,
+ * and its switch. The whole row toggles it.
+ */
+@Composable
+private fun LayerSwitch(
+    icon: ImageVector,
+    tint: Color,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    enabled: Boolean = true,
+    onChange: (Boolean) -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().clickable(enabled = enabled) { onChange(!checked) }.padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(48.dp).background(tint.copy(alpha = if (enabled) 0.18f else 0.08f), RoundedCornerShape(10.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = null, tint = if (enabled) tint else tint.copy(alpha = 0.4f), modifier = Modifier.size(26.dp))
+        }
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                title, style = MaterialTheme.typography.titleSmall,
+                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Spacer(Modifier.width(8.dp))
+        Switch(checked = checked && enabled, onCheckedChange = onChange, enabled = enabled)
+    }
 }
 
 /** One style of the offline maps (radio choice), removable when the user imported it. */

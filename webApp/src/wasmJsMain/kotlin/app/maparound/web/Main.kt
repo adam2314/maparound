@@ -2,6 +2,9 @@ package app.maparound.web
 
 import app.maparound.ui.UserActivity
 import app.maparound.ui.DataViewLink
+import app.maparound.ui.MapAddress
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.combine
 import app.maparound.map.satelliteSource
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
@@ -100,20 +103,93 @@ private fun embeddedFromAddress(): Boolean = addressParam("embed").let { it != n
  * Kept for this visit only.
  */
 private fun embedOptions(app: WebApp) {
-    addressParam("layer")?.let(TileSources::current)?.takeIf { id -> TileSources.builtIn.any { it.id == id } }
-        ?.let(app.prefs::setBaseLayer)
     addressParam("trails")?.let { app.prefs.setTrails(it != "0" && it != "false") }
     addressParam("lang")?.let(Language::of)?.let { app.prefs.setLanguage(it.code) }
 }
 
+/** A map the address can name: the built-in online ones, the offline maps, or "the one for here". */
+private fun addressableLayer(id: String) = id == TileSources.OFFLINE_ID || id == TileSources.AUTO_ID || TileSources.builtIn.any { it.id == id }
+
 /**
- * A data view in the page's address, `data=<name>` (`data=maps`: how MapAround's maps stand, as the
- * support page embeds it): the map opens with it. The embedded map keeps it in its address (for
- * "Open in MapAround"); the app takes it out.
+ * The map's layers in the page's address, as the app and the embedded map keep them there
+ * ([keepStateInAddress]): `layer=<map>` (TileSources' ids, `offline`, `auto`) and `ov=<what's on
+ * over it>` ([MapAddress.Overlay]'s words; `ov=-` for none). Applied as the page opens.
  */
-private fun dataViewFromAddress(embedded: Boolean) {
+private fun layersFromAddress(app: WebApp) {
+    addressParam("layer")?.let(TileSources::current)?.takeIf(::addressableLayer)?.let(app.prefs::setBaseLayer)
+    addressParam("ov")?.let { value ->
+        val on = MapAddress.overlays(value)
+        app.prefs.setTrails(MapAddress.Overlay.TRAILS in on)
+        app.prefs.setPlacesOnMap(MapAddress.Overlay.PLACES in on)
+        app.prefs.setShowGrid(MapAddress.Overlay.GRID in on)
+        app.prefs.setPartyOnMap(MapAddress.Overlay.PARTY in on)
+        app.prefs.setContours(MapAddress.Overlay.CONTOURS in on)
+        app.prefs.setHillshade(MapAddress.Overlay.SHADING in on)
+    }
+}
+
+/**
+ * Sets the address's parameters [names] to [values] after # ("": taken out), taking them out of
+ * the part after ? too, the rest kept (`map=`, the pin). Replaces the address in the history:
+ * Back still leaves the page.
+ */
+private fun setAddressParams(names: JsArray<JsString>, values: JsArray<JsString>): Unit = js(
+    """{
+    const set = new Map();
+    for (let i = 0; i < names.length; i++) set.set(names[i], values[i]);
+    const keep = (s) => s.split('&').filter((p) => p && !set.has(p.split('=')[0]));
+    const search = keep(location.search.replace(/^\?/, '')).join('&');
+    const hash = keep(location.hash.replace(/^#/, ''));
+    for (const [k, v] of set) {
+        if (v !== '') hash.push(k + '=' + encodeURIComponent(v).replace(/%2C/g, ',').replace(/%3A/g, ':'));
+    }
+    const url = location.pathname + (search ? '?' + search : '') + (hash.length ? '#' + hash.join('&') : '');
+    if (url !== location.pathname + location.search + location.hash) {
+        try { history.replaceState(history.state, '', url); } catch (e) {}
+    }
+}""",
+)
+
+/**
+ * What's on the map, kept in the page's address as it changes, so a link or a reload shows the
+ * same: the map (`layer=`), what's over it (`ov=`), the data view and what's tapped in it (`data=`,
+ * `sel=`). Where the map looks (`map=`) and the pin are kept there by the map itself (mapview.js).
+ */
+private fun CoroutineScope.keepStateInAddress(app: WebApp) {
+    val p = app.prefs
+    val overlays = combine(p.trails, p.placesOnMap, p.showGrid, p.partyOnMap, combine(p.contours, p.hillshade, ::Pair)) { trails, places, grid, party, terrain ->
+        buildSet {
+            if (trails) add(MapAddress.Overlay.TRAILS)
+            if (places) add(MapAddress.Overlay.PLACES)
+            if (grid) add(MapAddress.Overlay.GRID)
+            if (party) add(MapAddress.Overlay.PARTY)
+            if (terrain.first) add(MapAddress.Overlay.CONTOURS)
+            if (terrain.second) add(MapAddress.Overlay.SHADING)
+        }
+    }
+    launch {
+        combine(p.baseLayer, overlays, DataViewLink.current, DataViewLink.currentSelected) { layer, on, data, selected ->
+            listOf(
+                "layer" to TileSources.current(layer).takeIf(::addressableLayer).orEmpty(),
+                // Kept even with nothing on ("ov=" alone), so a link with none stays so.
+                "ov" to MapAddress.overlays(on).ifEmpty { "-" },
+                "data" to data.orEmpty(),
+                "sel" to selected?.let(MapAddress::selected).orEmpty(),
+            )
+        }.collect { params ->
+            setAddressParams(params.map { it.first.toJsString() }.toJsArray(), params.map { it.second.toJsString() }.toJsArray())
+        }
+    }
+}
+
+/**
+ * A data view in the page's address: `data=<its layers>` ([MapAddress.data]; `data=maps`: how
+ * MapAround's maps stand, as the support page embeds it) and `sel=<what's tapped>`. The map opens
+ * with it; the address then follows the data view as it changes ([keepStateInAddress]).
+ */
+private fun dataViewFromAddress() {
     val name = addressParam("data")?.takeIf { it.isNotEmpty() } ?: return
-    if (!embedded) removeFromAddress("data")
+    DataViewLink.pendingSelected = addressParam("sel")?.takeIf { it.isNotEmpty() }?.let(MapAddress::selectedKey)
     DataViewLink.pending.value = name
 }
 
@@ -273,7 +349,9 @@ fun main() {
             launch { regions?.await()?.let { bytes -> MapRegions.source = { bytes } } }
         }
         pinFromAddress()
-        dataViewFromAddress(embedded)
+        layersFromAddress(app)
+        dataViewFromAddress()
+        keepStateInAddress(app)
         if (!embedded) inviteFromAddress(app)
         linkFromAddress(app)
         onAddressChange {

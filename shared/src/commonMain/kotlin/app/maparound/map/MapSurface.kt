@@ -110,6 +110,9 @@ interface MapListener {
 
     /** A country or locality of the data view ([app.maparound.stats.StatsLayers.TAP_COUNTRY]…). */
     fun onDataTap(key: String) {}
+
+    /** A tap in query mode ([MapSurface.setQueryMode]): where. */
+    fun onQueryTap(point: GeoPoint) {}
     fun onMyLocationTap()
 }
 
@@ -165,6 +168,12 @@ interface MapSurface : ZoomTarget {
 
     /** The points of interest drawn within [radiusDp] of [point], nearest first. */
     fun poisNear(point: GeoPoint, radiusDp: Double): List<MapPoi> = emptyList()
+
+    /** Everything the map draws within [radiusDp] of [point], topmost first (a query); none where the platform can't say. */
+    fun featuresAt(point: GeoPoint, radiusDp: Double): List<MapFeature> = emptyList()
+
+    /** Query mode: every tap goes to [MapListener.onQueryTap], whatever it lands on. */
+    fun setQueryMode(on: Boolean) {}
 
     /** May open files (raster backgrounds): call from a coroutine. */
     suspend fun setBaseMap(base: BaseMap)

@@ -4,6 +4,7 @@ import app.maparound.tools.MapGrid
 import app.maparound.data.MapPos
 import app.maparound.i18n.I18n
 import app.maparound.map.BaseMap
+import app.maparound.map.MapFeature
 import app.maparound.map.MapListener
 import app.maparound.map.MapPoi
 import app.maparound.map.MapSurface
@@ -58,6 +59,7 @@ class MapLibreSurface(
 
             override fun onTap(lat: Double, lon: Double, tapped: String?) {
                 val l = listener ?: return
+                if (queryMode) return l.onQueryTap(GeoPoint(lat, lon))
                 when {
                     tapped == null -> tapMap(l, GeoPoint(lat, lon))
                     tapped == TAP_ME -> l.onMyLocationTap()
@@ -155,6 +157,15 @@ class MapLibreSurface(
 
     override fun poisNear(point: GeoPoint, radiusDp: Double): List<MapPoi> =
         MapPoi.parseList(runCatching { native.poisNear(point.lat, point.lon, radiusDp) }.getOrDefault("[]"), point.lat, point.lon, I18n.contentLanguage)
+
+    override fun featuresAt(point: GeoPoint, radiusDp: Double): List<MapFeature> =
+        MapFeature.parseList(runCatching { native.featuresAt(point.lat, point.lon, radiusDp) }.getOrDefault("[]"))
+
+    private var queryMode = false
+
+    override fun setQueryMode(on: Boolean) {
+        queryMode = on
+    }
 
     override fun showFrom3D(camera: Camera3D) {
         val h = native.viewHeight()

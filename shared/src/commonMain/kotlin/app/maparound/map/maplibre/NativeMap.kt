@@ -42,6 +42,13 @@ interface NativeMap {
      * `[{"lat":…,"lon":…,"p":{"name":…,"natural":"peak",…}}]` (see [app.maparound.map.MapPoi]).
      */
     fun poisNear(lat: Double, lon: Double, radiusPx: Double): String
+
+    /**
+     * Everything the map draws within [radiusPx] points of ([lat], [lon]), topmost first, as JSON
+     * `[{"layer":…,"type":"fill","source":…,"sourceLayer":…,"geom":"Polygon","p":{…}}]` (see
+     * [app.maparound.map.MapFeature]); "[]" where the platform can't say.
+     */
+    fun featuresAt(lat: Double, lon: Double, radiusPx: Double): String = "[]"
 }
 
 /** What happens on the native map. Called on the main thread. */

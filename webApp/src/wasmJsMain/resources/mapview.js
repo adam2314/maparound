@@ -1386,6 +1386,29 @@
       return JSON.stringify(fs.filter((f) => f.geometry && f.geometry.type === 'Point')
         .map((f) => ({ lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0], p: f.properties })));
     },
+    /**
+     * Everything drawn within radius CSS px of (lat, lon), topmost first, as JSON (see
+     * NativeMap.featuresAt): each feature's layer, its kind of drawing, source, source layer,
+     * geometry type and properties; the same feature once, at most 60.
+     */
+    featuresAt(lat, lon, radius) {
+      if (!map || !map.getStyle()) return '[]';
+      const c = map.project([lon, lat]);
+      const fs = map.queryRenderedFeatures([[c.x - radius, c.y - radius], [c.x + radius, c.y + radius]]);
+      const out = [];
+      const seen = new Set();
+      for (const f of fs) {
+        const key = (f.source || '') + '|' + (f.sourceLayer || '') + '|' + (f.id == null ? '' : f.id) + '|' + JSON.stringify(f.properties || {});
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({
+          layer: f.layer ? f.layer.id : '', type: f.layer ? f.layer.type : '', source: f.source || '',
+          sourceLayer: f.sourceLayer || '', geom: f.geometry ? f.geometry.type : '', p: f.properties || {},
+        });
+        if (out.length >= 60) break;
+      }
+      return JSON.stringify(out);
+    },
     /** The `tap` property of the topmost marker at (x, y), or "". */
     tapped(x, y) {
       const layers = tapLayers();

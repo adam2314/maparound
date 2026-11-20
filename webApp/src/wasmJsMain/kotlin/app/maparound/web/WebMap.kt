@@ -59,6 +59,7 @@ private fun mlZoomAt(delta: Double, x: Double, y: Double, animated: Boolean): Un
 private fun mlLngLat(x: Double, y: Double): String = js("MapAroundMap.lngLat(x, y)")
 private fun mlTapped(x: Double, y: Double): String = js("MapAroundMap.tapped(x, y)")
 private fun mlPoisNear(lat: Double, lon: Double, radius: Double): String = js("MapAroundMap.poisNear(lat, lon, radius)")
+private fun mlFeaturesAt(lat: Double, lon: Double, radius: Double): String = js("MapAroundMap.featuresAt(lat, lon, radius)")
 private fun mlSetTerrain3d(template: String, mapbox: Boolean): Unit = js("{ MapAroundMap.setTerrain3d(template, mapbox); }")
 
 /** The 3D view's terrain tiles ({z}/{x}/{y}; Terrarium, else Mapbox Terrain-RGB): used from the next time it opens. */
@@ -114,6 +115,7 @@ class WebNativeMap(style: String, symbolsUrl: String, tiles: (String) -> JsAny?)
     }
 
     override fun poisNear(lat: Double, lon: Double, radiusPx: Double): String = mlPoisNear(lat, lon, radiusPx)
+    override fun featuresAt(lat: Double, lon: Double, radiusPx: Double): String = mlFeaturesAt(lat, lon, radiusPx)
 
     fun place(left: Double, top: Double, width: Double, height: Double) = mlPlace(left, top, width, height)
     fun hide() = mlHide()

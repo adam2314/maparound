@@ -19,6 +19,10 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
+import org.maplibre.android.style.layers.CircleLayer
+import org.maplibre.android.style.layers.FillExtrusionLayer
+import org.maplibre.android.style.layers.FillLayer
+import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.geojson.Point
@@ -278,6 +282,45 @@ class AndroidNativeMap(
         return out.toString()
     }
 
+    /**
+     * Everything drawn within [radiusPx] of the point, topmost first (query mode). MapLibre doesn't
+     * say which layer a feature came from, so each layer is asked in turn, from the top.
+     */
+    override fun featuresAt(lat: Double, lon: Double, radiusPx: Double): String {
+        val m = map ?: return "[]"
+        val style = m.style ?: return "[]"
+        val p = m.projection.toScreenLocation(LatLng(lat, lon))
+        val r = (radiusPx * density).toFloat()
+        val box = RectF(p.x - r, p.y - r, p.x + r, p.y + r)
+        val out = JsonArray()
+        val seen = HashSet<String>()
+        for (layer in style.layers.asReversed()) {
+            val (type, source, sourceLayer) = when (layer) {
+                is FillLayer -> Triple("fill", layer.sourceId, layer.sourceLayer)
+                is LineLayer -> Triple("line", layer.sourceId, layer.sourceLayer)
+                is SymbolLayer -> Triple("symbol", layer.sourceId, layer.sourceLayer)
+                is CircleLayer -> Triple("circle", layer.sourceId, layer.sourceLayer)
+                is FillExtrusionLayer -> Triple("fill-extrusion", layer.sourceId, layer.sourceLayer)
+                else -> continue
+            }
+            for (f in m.queryRenderedFeatures(box, layer.id)) {
+                val props = JsonObject()
+                f.properties()?.entrySet()?.forEach { (k, v) -> if (v.isJsonPrimitive) props.addProperty(k, v.asString) }
+                if (!seen.add("$source|$sourceLayer|$props")) continue
+                out.add(JsonObject().apply {
+                    addProperty("layer", layer.id)
+                    addProperty("type", type)
+                    addProperty("source", source)
+                    addProperty("sourceLayer", sourceLayer)
+                    addProperty("geom", f.geometry()?.type().orEmpty())
+                    add("p", props)
+                })
+                if (out.size() >= MAX_QUERIED) return out.toString()
+            }
+        }
+        return out.toString()
+    }
+
     // ---- the car screen's controls ------------------------------------------------------------------------
 
     /** Moves the map's content by screen pixels (a drag on the car's screen), as MapLibre's own pan does. */
@@ -331,6 +374,9 @@ class AndroidNativeMap(
     private companion object {
         /** The offline maps' points of interest in the vector tiles (MapsforgeToMvt). */
         private const val POI_LAYER = "poi"
+
+        /** Query mode lists at most this many features. */
+        private const val MAX_QUERIED = 60
         const val ANIMATION_MS = 600
 
         // mapsforge's limits (2…21), in MapLibre's zooms (one lower).

@@ -262,6 +262,45 @@ object ToolsSession {
         recompute()
     }
 
+    // A point's ground (the map's query).
+
+    /** The ground's height at [p] in metres, from the elevation data on the device; null without it there. */
+    fun elevationAt(p: GeoPoint): Double? = terrain()?.elevation(p.lat, p.lon)?.takeIf { !it.isNaN() }?.toDouble()
+
+    /**
+     * How steep the ground is at [p] (degrees) and which way it faces (degrees from north, downhill),
+     * from the heights [SLOPE_STEP_M] to each side; null without the elevation data there.
+     */
+    fun slopeAt(p: GeoPoint): Pair<Double, Double>? {
+        val dem = terrain() ?: return null
+        val dLat = SLOPE_STEP_M / 111_320.0
+        val dLon = dLat / cos(p.lat * PI / 180).coerceAtLeast(0.01)
+        fun h(lat: Double, lon: Double) = dem.elevation(lat, lon).toDouble().takeIf { !it.isNaN() }
+        val n = h(p.lat + dLat, p.lon) ?: return null
+        val s = h(p.lat - dLat, p.lon) ?: return null
+        val e = h(p.lat, p.lon + dLon) ?: return null
+        val w = h(p.lat, p.lon - dLon) ?: return null
+        val east = (e - w) / (2 * SLOPE_STEP_M)
+        val north = (n - s) / (2 * SLOPE_STEP_M)
+        val slope = kotlin.math.atan(kotlin.math.sqrt(east * east + north * north)) * 180 / PI
+        return slope to (kotlin.math.atan2(-east, -north) * 180 / PI).mod(360.0)
+    }
+
+    /** Gets the elevation data around [p] if it's missing, without asking: null when it's there or coming, else why not. */
+    fun fetchTerrainAt(p: GeoPoint): String? {
+        val t = terrainData ?: return null
+        return t.ensure(T.tools.thisArea, GeoBounds(p.lat - 0.01, p.lon - 0.01, p.lat + 0.01, p.lon + 0.01))
+    }
+
+    /** Whether elevation data that exists for around [p] isn't on the device yet. */
+    fun terrainMissingAt(p: GeoPoint): Boolean =
+        terrainData?.missingCells(GeoBounds(p.lat - 0.01, p.lon - 0.01, p.lat + 0.01, p.lon + 0.01))?.isNotEmpty() == true
+
+    /** Changes whenever more elevation data arrives. */
+    val terrainVersion: Int get() = terrainSource()?.second ?: -1
+
+    private const val SLOPE_STEP_M = 30.0
+
     private fun terrain(): DemIndex? {
         val (dir, version) = terrainSource() ?: return null
         if (version != demVersion || dem == null) {
