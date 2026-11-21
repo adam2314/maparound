@@ -163,7 +163,7 @@ object DataViewLink {
     val current = MutableStateFlow<String?>(null)
     val currentSelected = MutableStateFlow<String?>(null)
 
-    /** The data view asked for with its explorer open (the web app's menu): the map screen opens it, then sets this back. */
+    /** The data view asked for with its explorer open (from the side rail): the map screen opens it, then sets this back. */
     val showExplorer = MutableStateFlow(false)
 }
 

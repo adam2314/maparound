@@ -2,6 +2,18 @@
 
 ## 0.5.4 (not released yet)
 
+### Big screens: the map with a side bar
+- **On a tablet, an unfolded foldable or a computer, the tabs are in a rail down the side of the
+  map** instead of the bar along the bottom: Library, Party, Offline (and Sensors on Android; the
+  Data view on the web) and, at its foot, Settings. The screen's size decides, the same on Android,
+  iPad and the web; a phone, also turned sideways, and a narrow browser window keep the bar.
+- **Each opens in a panel at the map's side, and the map stays in view.** A track or place shown
+  from Library, a member from Party or a map from Offline goes there on the map with the panel
+  still open, and a route planned from Library is planned on the map beside it. Wide enough, the
+  panel is beside the map; narrower (a tablet upright, a foldable) it lies over the map's side.
+  Each keeps its place while another is open; its ✕, its rail button again, Back or Esc closes it.
+  Navigating, the map has the whole screen.
+
 ### Navigation on a watch
 - **A Wear OS app** (first version, built with the phone app): the next turn with its arrow and
   distance, the instruction, distance left and arrival time, and Stop; or the recording's time,
@@ -246,9 +258,6 @@
   2D and 3D.
 
 ### The web app
-- **The menu is a side drawer.** The bar along the bottom is gone: the ☰ button at the map's top
-  left opens a drawer with the Data view, Library, Party, Offline and Settings. Each opens over
-  the map, with a back arrow to it.
 - **The address keeps what's on the map**, so a link or a reload shows the same: the map
   (`layer=`), what's over it (`ov=trails,party…`), the data view's layers (`data=c.population,l.size`)
   and what's tapped in it (`sel=c:RUS`), with where the map looks (`map=`) and the pin as before.

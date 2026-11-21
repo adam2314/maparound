@@ -33,6 +33,7 @@ fun SensorsScreen(hasLocation: Boolean, requestLocation: () -> Unit, satellites:
     Column(Modifier.fillMaxSize()) {
         // The tabs, and the gear for Settings beside them.
         Row(verticalAlignment = Alignment.CenterVertically) {
+            ClosePanelButton()
             PrimaryScrollableTabRow(selectedTabIndex = tab, edgePadding = 8.dp, modifier = Modifier.weight(1f)) {
                 titles.forEachIndexed { i, title ->
                     Tab(selected = tab == i, onClick = { tab = i }, text = { Text(title) })

@@ -95,6 +95,8 @@ import app.maparound.i18n.ltr
 import app.maparound.map.TileSources
 import app.maparound.raster.LocalRasters
 import app.maparound.routing.Segments
+import app.maparound.routing.MapFocus
+import app.maparound.routing.GeoPoint
 import app.maparound.terrain.GeoBounds
 import kotlin.math.floor
 import kotlin.math.log2
@@ -244,7 +246,11 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
     fun showOnMap(map: LocalMap) {
         scope.launch {
             val bbox = withContext(Dispatchers.Default) { mapBounds(map.path) }
-            if (bbox != null) prefs.saveLastPosition(MapPos(bbox.centerLat, bbox.centerLon, zoomToFit(bbox)))
+            if (bbox != null) {
+                prefs.saveLastPosition(MapPos(bbox.centerLat, bbox.centerLon, zoomToFit(bbox)))
+                // A map already open (beside the web app's panel) goes there too.
+                MapFocus.show(listOf(GeoPoint(bbox.maxLat, bbox.minLon), GeoPoint(bbox.minLat, bbox.maxLon)))
+            }
             prefs.setBaseLayer(TileSources.OFFLINE_ID)
             onShowOnMap()
         }
@@ -261,7 +267,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
             title = { Text(T.offline.screenTitle) },
-            navigationIcon = { BackToMapButton() },
+            navigationIcon = { ClosePanelButton() },
             actions = {
                 Tip(T.offline.importAnyMapFile) { IconButton(onClick = { importLauncher() }) {
                     Icon(Icons.Filled.FileOpen, contentDescription = T.offline.importAnyMapFile)

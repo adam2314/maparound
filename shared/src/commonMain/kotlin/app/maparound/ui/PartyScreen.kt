@@ -141,7 +141,7 @@ fun PartyScreen(
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
             title = { Text(s.party?.name?.takeUnless { adding } ?: T.party.title) },
-            navigationIcon = { BackToMapButton() },
+            navigationIcon = { ClosePanelButton() },
             actions = {
                 if (s.party != null && !party.watchOnly && !adding) {
                     Tip(T.party.invite) { IconButton(onClick = { showQr = true }) { Icon(Icons.Filled.QrCode, contentDescription = T.party.invite) } }

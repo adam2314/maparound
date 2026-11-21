@@ -2,38 +2,40 @@ package app.maparound.ui
 
 import app.maparound.stats.LocalStats
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.widthIn
-import kotlinx.coroutines.launch
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.compositionLocalOf
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.NavigationDrawerItemDefaults
-import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.DrawerState
-import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.runtime.CompositionLocalProvider
 import app.maparound.i18n.T
 import app.maparound.i18n.I18n
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.Surface
+import androidx.compose.material3.VerticalDivider
+import androidx.compose.runtime.saveable.SaveableStateHolder
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.DownloadForOffline
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.Route
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -49,6 +51,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
@@ -80,6 +83,11 @@ enum class Tab(val icon: ImageVector) {
 /**
  * The app: tabs for the map, library, party, offline maps and sensors. The platform gives the
  * location permission state, its background messages, start-up work and its own views.
+ *
+ * The screen's size picks the layout, the same on every platform: on a phone the tabs are in a bar
+ * along the bottom, each in place of the map; on a big screen (a tablet, an unfolded foldable, a
+ * computer's browser) they're in a rail down the side of the map ([SideRail]), each opening in a
+ * panel beside the map, which stays in view.
  */
 @Composable
 fun MapAroundRoot(
@@ -102,16 +110,8 @@ fun MapAroundRoot(
      * in MapAround itself. Null in the app.
      */
     openFull: (() -> Unit)? = null,
-    /**
-     * The tabs in a side drawer instead of the bar at the bottom (the web app): its ≡ is on the
-     * map, with the data view first, then the other tabs and Settings; each other tab goes back to
-     * the map with its top bar's arrow.
-     */
-    sideMenu: Boolean = false,
 ) {
     var tab by rememberSaveable { mutableStateOf(initialTab) }
-    val drawer = rememberDrawerState(DrawerValue.Closed)
-    val drawerScope = rememberCoroutineScope()
     var settingsOpen by remember { mutableStateOf(false) }
 
     val snackbar = remember { SnackbarHostState() }
@@ -155,29 +155,48 @@ fun MapAroundRoot(
     if (openFull == null) ScreenKeeper(navigating)
 
     // Right to left in a right-to-left language (Hebrew), on every platform: the screens mirror.
-    CompositionLocalProvider(
-        LocalLayoutDirection provides if (I18n.rtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
-        LocalBackToMap provides if (sideMenu && tab != Tab.Map) ({ tab = Tab.Map }) else null,
-    ) {
-    MenuDrawer(
-        enabled = sideMenu,
-        state = drawer,
-        tabs = tabs,
-        current = tab,
-        onData = {
-            DataViewLink.showExplorer.value = true
-            tab = Tab.Map
-        },
-        onTab = { tab = it },
-        onSettings = { settingsOpen = true },
-    ) {
+    CompositionLocalProvider(LocalLayoutDirection provides if (I18n.rtl) LayoutDirection.Rtl else LayoutDirection.Ltr) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+    // A big screen: the rail, and the tabs and Settings in a panel beside the map. Navigating, the
+    // map has the whole screen (as the bottom bar goes on a phone). One tab (the embedded map): neither.
+    val big = tabs.size > 1 && maxWidth >= RAIL_MIN_WIDTH && maxHeight >= RAIL_MIN_HEIGHT
+    val rail = big && !navigating
+    // Wide enough, the panel goes beside the map; narrower (a tablet upright, a foldable), it lies over the map's side.
+    val beside = maxWidth >= PANEL_BESIDE_WIDTH
+    // With the map beside the panel, "show on map" leaves the panel open: the map moves next to it.
+    val toMap = { if (!big) tab = Tab.Map }
+    if (big) {
+        // Navigating: the map has the room. A tab asked for (an invite, the map's "Get the map"): Settings gives way.
+        LaunchedEffect(navigating) { if (navigating) { tab = Tab.Map; settingsOpen = false } }
+        LaunchedEffect(tab) { if (tab != Tab.Map) settingsOpen = false }
+    }
+    @Composable
+    fun TabScreen(t: Tab) {
+        when (t) {
+            Tab.Map -> Unit
+            Tab.Routes -> LibraryScreen(hasLocation, requestLocation, snackbar, onShowMap = toMap)
+            Tab.Party -> PartyScreen(hasLocation, requestLocation, snackbar, onShowMap = toMap)
+            Tab.Offline -> OfflineMapsScreen(snackbar = snackbar, onShowOnMap = toMap)
+            Tab.Sensors -> SensorsScreen(hasLocation, requestLocation, satellites = satellites?.let { s -> { s(hasLocation, requestLocation) } })
+        }
+    }
+    // Each panel keeps its place (a folder open, how far down) while another is shown.
+    val panels = rememberSaveableStateHolder()
+    @Composable
+    fun Panel(floating: Boolean, modifier: Modifier = Modifier) {
+        if (settingsOpen) {
+            SidePanel("settings", panels, floating, modifier, onClose = { settingsOpen = false }) { SettingsPanel(onClose = { settingsOpen = false }) }
+        } else if (tab != Tab.Map) {
+            SidePanel(tab.name, panels, floating, modifier, onClose = { tab = Tab.Map }) { TabScreen(tab) }
+        }
+    }
     Scaffold(
         // Every touch counts for "the screen stays on N minutes after the last touch".
         modifier = Modifier.watchTouches(),
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
-            // Navigating on the map: the map has the whole screen. One tab (the embedded map): no bar.
-            if (!sideMenu && !(navigating && tab == Tab.Map) && tabs.size > 1) NavigationBar {
+            // A phone's tabs. Navigating on the map: the map has the whole screen.
+            if (!big && !(navigating && tab == Tab.Map) && tabs.size > 1) NavigationBar {
                 tabs.forEach { t ->
                     NavigationBarItem(
                         selected = tab == t,
@@ -189,93 +208,132 @@ fun MapAroundRoot(
             }
         },
     ) { padding ->
-        Box(Modifier.padding(padding).fillMaxSize()) {
-            when (tab) {
-                Tab.Map -> MapScreen(
+        Row(Modifier.padding(padding).fillMaxSize()) {
+            if (rail) {
+                val dataOn = DataViewLink.current.collectAsState().value != null
+                SideRail(
+                    tabs = tabs,
+                    open = tab.takeIf { it != Tab.Map && !settingsOpen },
+                    settingsOpen = settingsOpen,
+                    dataOn = dataOn,
+                    // The data view (the web app's): on the map, with its explorer.
+                    onData = if (LocalStats.current != null) ({
+                        settingsOpen = false
+                        tab = Tab.Map
+                        DataViewLink.showExplorer.value = true
+                    }) else null,
+                    // The open one again closes it.
+                    onTab = { t ->
+                        tab = if (tab == t && !settingsOpen) Tab.Map else t
+                        settingsOpen = false
+                    },
+                    onSettings = {
+                        settingsOpen = !settingsOpen
+                        tab = Tab.Map
+                    },
+                )
+                if (beside) Panel(floating = false)
+            }
+            Box(Modifier.weight(1f).fillMaxHeight()) {
+                val shown = if (big) Tab.Map else tab
+                if (shown == Tab.Map) MapScreen(
                     hasLocation = hasLocation,
                     requestLocation = requestLocation,
-                    // Platforms without the Offline tab yet (the web app) don't offer to go there.
+                    // Platforms without the Offline tab yet don't offer to go there.
                     onOpenOffline = if (Tab.Offline in tabs) ({ tab = Tab.Offline }) else null,
                     snackbar = snackbar,
                     createMap = createMap,
                     mapView = mapView,
                     view3d = view3d,
                     openFull = openFull,
-                    onMenu = if (sideMenu) ({ drawerScope.launch { drawer.open() } }) else null,
-                )
-                Tab.Routes -> LibraryScreen(hasLocation, requestLocation, snackbar, onShowMap = { tab = Tab.Map })
-                Tab.Party -> PartyScreen(hasLocation, requestLocation, snackbar, onShowMap = { tab = Tab.Map })
-                Tab.Offline -> OfflineMapsScreen(snackbar = snackbar, onShowOnMap = { tab = Tab.Map })
-                Tab.Sensors -> SensorsScreen(hasLocation, requestLocation, satellites = satellites?.let { s -> { s(hasLocation, requestLocation) } })
+                ) else TabScreen(shown)
+                if (rail && !beside) Panel(floating = true, Modifier.align(Alignment.TopStart))
             }
         }
     }
+    // On a phone, Settings is over the whole screen (from the gear in the tabs' top bars).
+    if (settingsOpen && !big) SettingsScreen(onDismiss = { settingsOpen = false })
     }
-    if (settingsOpen) SettingsScreen(onDismiss = { settingsOpen = false })
     }
 }
 
-/** On the other tabs, with the side menu (the web app): back to the map, for their top bar's arrow ([BackToMapButton]). */
-val LocalBackToMap = compositionLocalOf<(() -> Unit)?> { null }
+/** In the side panel beside the map (a big screen): closes it, for its top bar's ✕ ([ClosePanelButton]). */
+val LocalClosePanel = compositionLocalOf<(() -> Unit)?> { null }
 
-/** The arrow back to the map, in a tab's top bar, where the tabs are in a side menu. */
+/** The ✕ that closes a tab's side panel, in its top bar; nothing on a phone, where the tab is the whole screen. */
 @Composable
-fun BackToMapButton() {
-    val back = LocalBackToMap.current ?: return
-    Tip(T.common.backToMap) { IconButton(onClick = back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = T.common.backToMap) } }
+fun ClosePanelButton() {
+    val close = LocalClosePanel.current ?: return
+    Tip(T.common.close) { IconButton(onClick = close) { Icon(Icons.Filled.Close, contentDescription = T.common.close) } }
 }
 
 /**
- * The side menu ([enabled]: else just [content]): MapAround's name, the data view, the tabs but
- * the map ([current] marked), and Settings. It opens from the map's ≡ only (a swipe on the map
- * moves the map).
+ * From this size the tabs are in a rail at the map's side ([SideRail]), not a bar along the bottom:
+ * a tablet, an unfolded foldable, a computer's browser window. A phone, also turned sideways (it's
+ * low then), keeps the bar.
+ */
+private val RAIL_MIN_WIDTH = 600.dp
+private val RAIL_MIN_HEIGHT = 480.dp
+
+/** From this width the side panel goes beside the map (which keeps 360 dp or more); narrower, over its side. */
+private val PANEL_BESIDE_WIDTH = 840.dp
+
+/** The side panel's width: about a phone's, which the tabs are made for. */
+private val PANEL_WIDTH = 400.dp
+
+/**
+ * The tabs on a big screen, down the side of the map: the data view (where there is one), the tabs
+ * but the map ([open] marked) and, at the foot, Settings.
  */
 @Composable
-private fun MenuDrawer(
-    enabled: Boolean,
-    state: DrawerState,
+private fun SideRail(
     tabs: List<Tab>,
-    current: Tab,
-    onData: () -> Unit,
+    open: Tab?,
+    settingsOpen: Boolean,
+    dataOn: Boolean,
+    onData: (() -> Unit)?,
     onTab: (Tab) -> Unit,
     onSettings: () -> Unit,
-    content: @Composable () -> Unit,
 ) {
-    if (!enabled) return content()
-    val scope = rememberCoroutineScope()
-    fun pick(action: () -> Unit) {
-        action()
-        scope.launch { state.close() }
+    // The Scaffold's padding already keeps it clear of the system bars.
+    NavigationRail(containerColor = MaterialTheme.colorScheme.surfaceContainer, windowInsets = WindowInsets(0, 0, 0, 0)) {
+        Spacer(Modifier.height(8.dp))
+        if (onData != null) RailItem(Icons.Filled.Layers, T.stats.dataView, dataOn, onData)
+        tabs.filter { it != Tab.Map }.forEach { t -> RailItem(t.icon, t.label, t == open) { onTab(t) } }
+        Spacer(Modifier.weight(1f))
+        RailItem(Icons.Filled.Settings, T.common.settings, settingsOpen, onSettings)
+        Spacer(Modifier.height(8.dp))
     }
-    ModalNavigationDrawer(
-        drawerState = state,
-        gesturesEnabled = state.isOpen,
-        drawerContent = {
-            ModalDrawerSheet(Modifier.widthIn(max = 300.dp)) {
-                Text(
-                    "MapAround",
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(start = 28.dp, top = 24.dp, bottom = 16.dp),
-                )
-                if (LocalStats.current != null) {
-                    MenuItem(Icons.Filled.Layers, T.stats.dataView, selected = false) { pick(onData) }
-                }
-                tabs.filter { it != Tab.Map }.forEach { t -> MenuItem(t.icon, t.label, selected = t == current) { pick { onTab(t) } } }
-                HorizontalDivider(Modifier.padding(horizontal = 28.dp, vertical = 8.dp))
-                MenuItem(Icons.Filled.Settings, T.common.settings, selected = false) { pick(onSettings) }
-            }
-        },
-        content = content,
-    )
 }
 
 @Composable
-private fun MenuItem(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit) {
-    NavigationDrawerItem(
-        icon = { Icon(icon, contentDescription = null) },
-        label = { Text(label) },
+private fun RailItem(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit) {
+    NavigationRailItem(
         selected = selected,
         onClick = onClick,
-        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+        icon = { Icon(icon, contentDescription = null) },
+        label = { Text(label, maxLines = 2, textAlign = TextAlign.Center, style = MaterialTheme.typography.labelMedium) },
+        modifier = Modifier.padding(vertical = 2.dp),
     )
+}
+
+/**
+ * A tab (or Settings) at the map's side, next to the rail: beside the map, or [floating] over its
+ * side (the map keeps its width). [key] keeps each one's place.
+ */
+@Composable
+private fun SidePanel(
+    key: String,
+    holder: SaveableStateHolder,
+    floating: Boolean,
+    modifier: Modifier,
+    onClose: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    Surface(modifier.width(PANEL_WIDTH).fillMaxHeight(), shadowElevation = if (floating) 8.dp else 0.dp) {
+        CompositionLocalProvider(LocalClosePanel provides onClose) {
+            holder.SaveableStateProvider(key) { content() }
+        }
+    }
+    if (!floating) VerticalDivider()
 }

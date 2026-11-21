@@ -80,6 +80,8 @@ import kotlinx.datetime.toLocalDateTime
 /** The gear for the app's settings (in the top bar of every screen but the map's), and its screen. */
 @Composable
 fun SettingsButton() {
+    // In the side panel beside the map, Settings is on the rail.
+    if (LocalClosePanel.current != null) return
     var open by remember { mutableStateOf(false) }
     Tip(T.common.settings) { IconButton(onClick = { open = true }) { Icon(Icons.Filled.Settings, contentDescription = T.common.settings) } }
     if (open) SettingsScreen(onDismiss = { open = false })
@@ -97,55 +99,60 @@ private enum class SettingsPage { LANGUAGE, UNITS, SCREEN, PARTY, SHARING, SOURC
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(onDismiss: () -> Unit) {
-    var page by remember { mutableStateOf<SettingsPage?>(null) }
-    val back = { if (page != null) page = null else onDismiss() }
     Dialog(
         onDismissRequest = onDismiss,
-        // Back is handled here, a page at a time.
+        // Back is handled in SettingsPanel, a page at a time.
         properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnBackPress = false),
     ) {
-        PlatformBackHandler(enabled = true, onBack = back)
-        Surface(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize()) {
-                val p = page
-                TopAppBar(
-                    navigationIcon = {
-                        val label = if (p != null) T.common.back else T.common.close
-                        Tip(label) {
-                            IconButton(onClick = back) {
-                                Icon(if (p != null) Icons.AutoMirrored.Filled.ArrowBack else Icons.Filled.Close, contentDescription = label)
-                            }
-                        }
+        Surface(Modifier.fillMaxSize()) { SettingsPanel(onClose = onDismiss) }
+    }
+}
+
+/** Settings' list and pages, with their top bar: in [SettingsScreen], or the web app's panel beside the map. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsPanel(onClose: () -> Unit) {
+    var page by remember { mutableStateOf<SettingsPage?>(null) }
+    val back = { if (page != null) page = null else onClose() }
+    PlatformBackHandler(enabled = true, onBack = back)
+    Column(Modifier.fillMaxSize()) {
+        val p = page
+        TopAppBar(
+            navigationIcon = {
+                val label = if (p != null) T.common.back else T.common.close
+                Tip(label) {
+                    IconButton(onClick = back) {
+                        Icon(if (p != null) Icons.AutoMirrored.Filled.ArrowBack else Icons.Filled.Close, contentDescription = label)
+                    }
+                }
+            },
+            title = {
+                Text(
+                    when (p) {
+                        null -> T.common.settings
+                        SettingsPage.LANGUAGE -> T.common.language
+                        SettingsPage.UNITS -> T.settings.unitsAndFormats
+                        SettingsPage.SCREEN -> T.settings.screen
+                        SettingsPage.PARTY -> T.settings.party
+                        SettingsPage.SHARING -> T.settings.sharing
+                        SettingsPage.SOURCES -> T.settings.sources
                     },
-                    title = {
-                        Text(
-                            when (p) {
-                                null -> T.common.settings
-                                SettingsPage.LANGUAGE -> T.common.language
-                                SettingsPage.UNITS -> T.settings.unitsAndFormats
-                                SettingsPage.SCREEN -> T.settings.screen
-                                SettingsPage.PARTY -> T.settings.party
-                                SettingsPage.SHARING -> T.settings.sharing
-                                SettingsPage.SOURCES -> T.settings.sources
-                            },
-                        )
-                    },
-                    windowInsets = WindowInsets(0, 0, 0, 0),
                 )
-                // Readable on a wide screen: a column down the middle.
-                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-                    key(p) {
-                        Column(Modifier.widthIn(max = 640.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
-                            when (p) {
-                                null -> SettingsList { page = it }
-                                SettingsPage.LANGUAGE -> LanguagePage()
-                                SettingsPage.UNITS -> UnitsPage()
-                                SettingsPage.SCREEN -> ScreenPage()
-                                SettingsPage.PARTY -> PartyPage()
-                                SettingsPage.SHARING -> SharingPage()
-                                SettingsPage.SOURCES -> SourcesPage()
-                            }
-                        }
+            },
+            windowInsets = WindowInsets(0, 0, 0, 0),
+        )
+        // Readable on a wide screen: a column down the middle.
+        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+            key(p) {
+                Column(Modifier.widthIn(max = 640.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
+                    when (p) {
+                        null -> SettingsList { page = it }
+                        SettingsPage.LANGUAGE -> LanguagePage()
+                        SettingsPage.UNITS -> UnitsPage()
+                        SettingsPage.SCREEN -> ScreenPage()
+                        SettingsPage.PARTY -> PartyPage()
+                        SettingsPage.SHARING -> SharingPage()
+                        SettingsPage.SOURCES -> SourcesPage()
                     }
                 }
             }

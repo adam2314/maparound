@@ -422,8 +422,6 @@ fun WebRoot(app: WebApp) {
                 // No Sensors tab: the browser's position is for the map ("my location"). Embedded: the map alone.
                 tabs = if (app.embedded) listOf(Tab.Map) else listOf(Tab.Map, Tab.Routes, Tab.Party, Tab.Offline),
                 openFull = if (app.embedded) ::openFullApp else null,
-                // A browser window is wide: the tabs in a side menu, the map the whole page.
-                sideMenu = !app.embedded,
             )
         }
     }

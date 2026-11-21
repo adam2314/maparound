@@ -1,6 +1,5 @@
 package app.maparound.ui
 
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.GridOn
@@ -218,8 +217,6 @@ fun MapScreen(
      * search, planning, tools, recording or position. Null in the app.
      */
     openFull: (() -> Unit)? = null,
-    /** Opens the app's side menu (the web app): its ≡ in the map's top corner. Null: the tabs are in a bar. */
-    onMenu: (() -> Unit)? = null,
 ) {
     val embedded = openFull != null
     val prefs = LocalPrefs.current
@@ -697,7 +694,7 @@ fun MapScreen(
                 dataView = true
             }
         }
-        // The data view asked for from the web app's menu: on, with its explorer open.
+        // The data view asked for from the side rail: on, with its explorer open.
         LaunchedEffect(stats) {
             if (stats == null) return@LaunchedEffect
             DataViewLink.showExplorer.collect { show ->
@@ -1342,9 +1339,7 @@ fun MapScreen(
     @Composable
     fun BoxScope.MapTop() {
         // The scale, in the top corner away from the buttons (the compass goes under it).
-        val menuShown = onMenu != null && !nav.active
-        if (scene3d == null) ScaleLine(controller, Modifier.align(Alignment.TopStart).padding(start = if (menuShown) 60.dp else 12.dp, top = 12.dp))
-        if (menuShown) MenuButton(onMenu!!, Modifier.align(Alignment.TopStart).padding(8.dp))
+        if (scene3d == null) ScaleLine(controller, Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 12.dp))
 
         if (onOpenOffline != null && showingOffline && localMaps.isEmpty() && streamed.isEmpty() && !planner.active && !tools.active && !nav.active) {
             ElevatedCard(
@@ -2699,11 +2694,3 @@ private val NARROW_SCREEN = 600.dp
 private const val ZONES_REFRESH_MS = 15 * 60_000L
 
 private fun Set<Int>.toggled(c: Int): Set<Int> = if (c in this) this - c else this + c
-
-/** The app's side menu (the web app's), in the map's top corner. */
-@Composable
-private fun MenuButton(onMenu: () -> Unit, modifier: Modifier) {
-    Tip(T.common.menu) {
-        SmallFloatingActionButton(onClick = onMenu, modifier = modifier) { Icon(Icons.Filled.Menu, contentDescription = T.common.menu) }
-    }
-}
