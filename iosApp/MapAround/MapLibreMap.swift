@@ -77,6 +77,29 @@ final class MapLibreMap: NSObject, NativeMapView, MLNMapViewDelegate {
         self.callbacks = callbacks
     }
 
+    // NativeMap's members with a Kotlin default are still required here: Swift doesn't get Kotlin's
+    // interface defaults, and a missing one fails the app's build.
+
+    /// What's in view: south, west, north, east; nil before the view is laid out (see NativeMap.kt).
+    func visibleBounds() -> KotlinDoubleArray? {
+        guard mapView.bounds.width > 0, mapView.bounds.height > 0 else { return nil }
+        let b = mapView.visibleCoordinateBounds
+        let out = KotlinDoubleArray(size: 4)
+        out.set(index: 0, value: b.sw.latitude)
+        out.set(index: 1, value: b.sw.longitude)
+        out.set(index: 2, value: b.ne.latitude)
+        out.set(index: 3, value: b.ne.longitude)
+        return out
+    }
+
+    /// The weather map is the web app's (weather.js); none on iPhone.
+    func setWeatherMap(spec: String?) {}
+
+    /// Everything drawn near (lat, lon), for the query mode: not on iPhone yet (see NativeMap.kt).
+    func featuresAt(lat: Double, lon: Double, radiusPx: Double) -> String {
+        "[]"
+    }
+
     /// The points of interest drawn within `radiusPx` points of (lat, lon), as JSON (see NativeMap.kt).
     func poisNear(lat: Double, lon: Double, radiusPx: Double) -> String {
         guard let style = mapView.style else { return "[]" }
