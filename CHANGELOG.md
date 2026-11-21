@@ -342,7 +342,8 @@
   the top). Phones look the same.
 - **Online vector maps** (Layers → Online): OpenFreeMap's **Liberty** and **Positron** (light grey,
   quiet under routes and the data view), drawn in the browser from OpenStreetMap data updated every
-  week: sharp at every zoom, the names in the app's language (Hebrew names in Hebrew), with
+  week: sharp at every zoom, the names in the app's language (in Hebrew the Hebrew name, else the
+  English one, so a village with no Hebrew name isn't in Arabic), with
   MapAround's routes, trails, party and data view over them. Free, with no account or key. If
   OpenFreeMap can't be reached, OSM France's map shows instead. `layer=ofm_liberty` or
   `layer=ofm_positron` for an embedded map; the support page's map of the builds is on Positron.

@@ -39,8 +39,8 @@ object OnlineVectorStyle {
 
     /**
      * [style]'s sources and layers, their ids prefixed; the labels that show a name show it in
-     * [language] ("he": `name:he`, else the name there) except in English, where the style's own
-     * (the name in Latin letters, and in its own script beside it) stays.
+     * [language] ("he": `name:he`, else the English name, else the name there) except in English,
+     * where the style's own (the name in Latin letters, and in its own script beside it) stays.
      */
     fun parts(style: JsonObject, language: String): Parts {
         val sources = (style["sources"] as? JsonObject).orEmpty().mapKeys { (id, _) -> PREFIX + id }
@@ -64,12 +64,16 @@ object OnlineVectorStyle {
     private fun showsName(field: JsonElement): Boolean =
         Regex("\"name([:_][a-z]+)?\"|\\{name").containsMatchIn(field.toString())
 
-    /** The name in [lang] where there is one, else the place's own. */
-    private fun nameIn(lang: String): JsonElement = JsonArray(listOf(
-        JsonPrimitive("coalesce"),
-        JsonArray(listOf(JsonPrimitive("get"), JsonPrimitive("name:$lang"))),
-        JsonArray(listOf(JsonPrimitive("get"), JsonPrimitive("name"))),
-    ))
+    /**
+     * The name in [lang] where there is one, else the English one (`name:en`, or OpenMapTiles' older
+     * `name_en`), else the place's own: a village with no Hebrew name shows its English one, not
+     * its Arabic one.
+     */
+    private fun nameIn(lang: String): JsonElement = JsonArray(
+        listOf(JsonPrimitive("coalesce")) + listOf("name:$lang", "name:en", "name_en", "name").map { key ->
+            JsonArray(listOf(JsonPrimitive("get"), JsonPrimitive(key)))
+        },
+    )
 
     private val styles = HashMap<String, String>()
     private val lock = Mutex()

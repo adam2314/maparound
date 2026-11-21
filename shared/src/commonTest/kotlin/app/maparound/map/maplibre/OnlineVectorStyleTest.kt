@@ -48,11 +48,11 @@ class OnlineVectorStyleTest {
         // English: the style's own (Latin letters, and the name in its script beside them).
         val en = OnlineVectorStyle.parts(liberty, "en")
         assertTrue("name:nonlatin" in layer(en, "v-label_city")["layout"].toString())
-        // Hebrew: the Hebrew name, else the place's own; road numbers stay.
+        // Hebrew: the Hebrew name, else the English one, else the place's own; road numbers stay.
         for (code in listOf("he", "he-IL", "iw")) {
             val he = OnlineVectorStyle.parts(liberty, code)
             val field = layer(he, "v-label_city")["layout"]!!.jsonObject["text-field"].toString()
-            assertEquals("""["coalesce",["get","name:he"],["get","name"]]""", field, code)
+            assertEquals("""["coalesce",["get","name:he"],["get","name:en"],["get","name_en"],["get","name"]]""", field, code)
             assertEquals("""["to-string",["get","ref"]]""", layer(he, "v-road_shield")["layout"]!!.jsonObject["text-field"].toString())
             // The rest of the layout kept.
             assertTrue("Noto Sans Bold" in layer(he, "v-label_city")["layout"].toString())
