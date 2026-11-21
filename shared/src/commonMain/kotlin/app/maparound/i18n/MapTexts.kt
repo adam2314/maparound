@@ -187,12 +187,14 @@ open class MapTexts {
     /** Above the style's overlays to switch on and off. */
     open val show = "Show"
 
-    /** The Topo style's options by their id in topo.xml; null: the name the theme gives. */
+    /** The Topo style's options by their id in topo.xml (Tracestrack look has the same); null: the name the theme gives. */
     open fun topoOption(id: String): String? = null
 
     // ---- the offline maps' styles ----
     open val styleClassic = "Classic"
     open val styleTopoAbout = "MapAround's hiking style: contours, trails, peaks"
+    open val styleTracestrack = "Tracestrack look"
+    open val styleTracestrackAbout = "Drawn like Tracestrack Topo: light green forests, grey contours, OpenStreetMap's road colours"
     open val styleClassicAbout = "mapsforge's default style"
     open val styleOsmarenderAbout = "The classic OpenStreetMap look"
     open val styleBikerAbout = "Cycle routes and cycleways first"
@@ -547,6 +549,8 @@ object MapTextsHe : MapTexts() {
 
     override val styleClassic = "קלאסי"
     override val styleTopoAbout = "סגנון הטיולים של MapAround: קווי גובה, שבילים, פסגות"
+    override val styleTracestrack = "בסגנון Tracestrack"
+    override val styleTracestrackAbout = "מצוירת כמו Tracestrack Topo: יערות בירוק בהיר, קווי גובה אפורים, צבעי הכבישים של OpenStreetMap"
     override val styleClassicAbout = "סגנון ברירת המחדל של mapsforge"
     override val styleOsmarenderAbout = "המראה הקלאסי של OpenStreetMap"
     override val styleBikerAbout = "מסלולי אופניים ושבילי אופניים קודם כול"

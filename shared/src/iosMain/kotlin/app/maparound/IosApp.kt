@@ -24,8 +24,7 @@ import app.maparound.map.MapThemes
 import app.maparound.map.StyleMenu
 import app.maparound.map.TileSources
 import app.maparound.map.maplibre.BasicLayers
-import app.maparound.map.maplibre.MapStyle
-import app.maparound.map.maplibre.ThemeStyle
+import app.maparound.map.maplibre.ThemeStyles
 import app.maparound.shared.fileSystem
 import okio.Path.Companion.toPath
 import app.maparound.map.maplibre.TileService
@@ -71,19 +70,17 @@ object IosApp {
     /** Label fonts in the app bundle (iosApp/fetch-fonts.sh); online fonts when they're missing. */
     private val fonts: String? = NSBundle.mainBundle.resourcePath?.let { "$it/Fonts" }?.takeIf { fileSystem.exists(it.toPath()) }
     val tiles = TileService("$documents/dem", fonts)
-    /** The Android map's theme (topo.xml in the app bundle). */
-    private val topoXml: String? = runCatching {
-        val path = NSBundle.mainBundle.pathForResource("topo", "xml") ?: error("topo.xml is not in the app")
+    /** One of the Android map's themes in the app bundle (topo.xml, tracestrack.xml). */
+    private fun bundledTheme(name: String): String? = runCatching {
+        val path = NSBundle.mainBundle.pathForResource(name, "xml") ?: error("$name.xml is not in the app")
         fileSystem.read(path.toPath()) { readUtf8() }
-    }.onFailure { println("MapAround: map theme not loaded ($it), using the basic style") }.getOrNull()
+    }.onFailure { println("MapAround: map theme $name not loaded ($it)") }.getOrNull()
 
-    /** The map style, made from the theme; its options draw it again with fewer rule categories. */
-    val style = theme()?.let { t ->
-        MapStyle(t.layers, BasicLayers.GLYPHS, t.hillshade) { categories -> ThemeStyle.convert(topoXml.orEmpty(), categories) }
-    } ?: MapStyle(BasicLayers.layers, BasicLayers.GLYPHS)
+    /** Topo and Tracestrack look: their rules become MapLibre layers. Importing styles is Android-only for now. */
+    val themes: MapThemeLibrary = IosMapThemes(bundledTheme("topo"), bundledTheme("tracestrack"))
 
-    /** Topo only: its rules become MapLibre layers. Importing styles is Android-only for now. */
-    val themes: MapThemeLibrary = IosMapThemes(topoXml)
+    /** The map styles, one per style, made from their themes when first shown (the basic one if a theme can't be read). */
+    val styles = ThemeStyles(BasicLayers.GLYPHS, themes::themeXml)
     val maps = IosInstalledMaps("$documents/maps")
     val places = PlaceRepository(documents)
     val tracks = TrackRepository(documents, UserDefaultsStore("tracks"))
@@ -170,22 +167,26 @@ object IosApp {
             Incoming.Item.Message(if (name.endsWith(".gpx", ignoreCase = true)) T.map.couldntReadGpx(it.message) else T.map.notGpx)
         }
     }
-
-    private fun theme(): ThemeStyle.Result? = topoXml?.let { xml ->
-        runCatching { ThemeStyle.convert(xml) }.onFailure { println("MapAround: map theme not converted ($it), using the basic style") }.getOrNull()
-    }
 }
 
-/** The styles on iPhone: Topo with its options. */
-private class IosMapThemes(private val topoXml: String?) : MapThemeLibrary {
+/** The styles on iPhone: Topo and Tracestrack look, with their options. */
+private class IosMapThemes(private val topoXml: String?, private val tracestrackXml: String?) : MapThemeLibrary {
 
-    override fun themeXml(themeId: String): String? = if (themeId == MapThemes.TOPO) topoXml else null
+    override fun themeXml(themeId: String): String? = when (themeId) {
+        MapThemes.TOPO -> topoXml
+        MapThemes.TRACESTRACK -> tracestrackXml
+        else -> null
+    }
 
-    private val topoMenu = topoXml?.let { runCatching { StyleMenu.parse(it) }.getOrNull() }
+    private val menus = mapOf(MapThemes.TOPO to topoXml, MapThemes.TRACESTRACK to tracestrackXml)
+        .mapValues { (_, xml) -> xml?.let { runCatching { StyleMenu.parse(it) }.getOrNull() } }
     override val themes: StateFlow<List<MapTheme>> =
-        // Its description in the app's language: MapThemes.about.
-        MutableStateFlow(listOf(MapTheme(MapThemes.TOPO, "Topo", "")))
-    override fun menu(themeId: String): StyleMenu? = if (themeId == MapThemes.TOPO) topoMenu else null
+        // Their names and descriptions in the app's language: MapThemes.title / about.
+        MutableStateFlow(listOfNotNull(
+            MapTheme(MapThemes.TOPO, "Topo", ""),
+            tracestrackXml?.let { MapTheme(MapThemes.TRACESTRACK, "Tracestrack look", "") },
+        ))
+    override fun menu(themeId: String): StyleMenu? = menus[themeId]
     override val canImport = false
     override fun import(name: String?, bytes: ByteArray): Result<List<MapTheme>> =
         Result.failure(UnsupportedOperationException(T.map.styleImportOnIphoneLater))

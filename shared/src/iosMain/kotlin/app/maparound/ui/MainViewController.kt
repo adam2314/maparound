@@ -65,7 +65,7 @@ fun MainViewController(newMap: () -> NativeMapView): UIViewController = ComposeU
                 requestLocation = app.sensors::requestPermission,
                 messages = remember { merge(app.downloads.events, app.terrain.events) },
                 onStart = {},
-                createMap = { MapLibreSurface(newMap(), app.tiles, app.style) },
+                createMap = { MapLibreSurface(newMap(), app.tiles, app.styles::styleFor) },
                 mapView = { map, modifier ->
                     val view = remember(map) { ((map as MapLibreSurface).native as NativeMapView).view }
                     UIKitView(factory = { view }, modifier = modifier, update = {}, properties = interactive)

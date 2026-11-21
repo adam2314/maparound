@@ -489,18 +489,31 @@ object PendingRasters : RasterLibrary {
     }
 }
 
-/** The styles on the web: Topo with its options (as on iPhone). */
-class WebMapThemes(private val topoXml: String?, private val symbolBase: String = "") : MapThemeLibrary {
-    private val topoMenu = topoXml?.let { runCatching { StyleMenu.parse(it) }.getOrNull() }
+/** The styles on the web: Topo and Tracestrack look, with their options (as on iPhone). */
+class WebMapThemes(
+    private val topoXml: String?,
+    private val tracestrackXml: String? = null,
+    private val symbolBase: String = "",
+) : MapThemeLibrary {
+    private val menus = mapOf(MapThemes.TOPO to topoXml, MapThemes.TRACESTRACK to tracestrackXml)
+        .mapValues { (_, xml) -> xml?.let { runCatching { StyleMenu.parse(it) }.getOrNull() } }
     override val themes: StateFlow<List<MapTheme>> =
-        MutableStateFlow(listOf(MapTheme(MapThemes.TOPO, "Topo", "MapAround's hiking style: contours, trails, peaks")))
-    override fun menu(themeId: String): StyleMenu? = if (themeId == MapThemes.TOPO) topoMenu else null
+        // Their names and descriptions in the app's language: MapThemes.title / about.
+        MutableStateFlow(listOfNotNull(
+            MapTheme(MapThemes.TOPO, "Topo", ""),
+            tracestrackXml?.let { MapTheme(MapThemes.TRACESTRACK, "Tracestrack look", "") },
+        ))
+    override fun menu(themeId: String): StyleMenu? = menus[themeId]
     override val canImport = false
     override fun import(name: String?, bytes: ByteArray): Result<List<MapTheme>> =
         Result.failure(UnsupportedOperationException(T.common.styleImportLater(LATER)))
     override fun delete(themeId: String) = Unit
 
-    override fun themeXml(themeId: String): String? = if (themeId == MapThemes.TOPO) topoXml else null
+    override fun themeXml(themeId: String): String? = when (themeId) {
+        MapThemes.TOPO -> topoXml
+        MapThemes.TRACESTRACK -> tracestrackXml
+        else -> null
+    }
 
     override suspend fun symbol(themeId: String, path: String, heightPx: Int): ImageBitmap? =
         if (".." in path) null else runCatching { app.maparound.ui.renderSvg(httpGetAsync(symbolBase + path), heightPx) }.getOrNull()

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Tracestrack Topo's saddle icon (github.com/tracestrack/tracestrack-topo-map, CC0-1.0), in its landform brown. -->
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8">
+  <path fill="#D08F55" d="M 0,3 0,8 8,8 8,3 4,5 z"/>
+</svg>

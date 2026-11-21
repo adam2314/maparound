@@ -17,10 +17,8 @@ import app.maparound.i18n.T
 import app.maparound.map.BorderLines
 import app.maparound.map.WorldData
 import app.maparound.map.WorldTile
-import app.maparound.map.maplibre.BasicLayers
 import app.maparound.map.maplibre.MapLibreSurface
-import app.maparound.map.maplibre.MapStyle
-import app.maparound.map.maplibre.ThemeStyle
+import app.maparound.map.maplibre.ThemeStyles
 import app.maparound.map.maplibre.TileService
 import app.maparound.places.PlaceRepository
 import app.maparound.routing.Geo
@@ -53,7 +51,15 @@ import okio.Path.Companion.toPath
  * (memory, saved to IndexedDB), settings in localStorage. [base] is the app's address, for its
  * own files (fonts, symbols). [embedded]: the map in another website, settings in memory only.
  */
-class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: String, val embedded: Boolean = false) {
+class WebApp(
+    topoXml: String?,
+    world: ByteArray?,
+    borders: ByteArray?,
+    base: String,
+    val embedded: Boolean = false,
+    /** The Tracestrack look style (none in an embedded map: Topo only). */
+    tracestrackXml: String? = null,
+) {
     /** Where settings are kept: the browser's localStorage, or (embedded) nowhere. */
     private fun store(name: String): KeyValueStore = if (embedded) MemoryStore() else WebStorageStore(name)
 
@@ -75,14 +81,10 @@ class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: Str
     private val glyphs = "${base}fonts/{fontstack}/{range}.pbf"
     private val symbols = "${base}mapsforge/"
 
-    /** The map style, made from the Topo theme; its options draw it again with fewer rule categories. */
-    val style: MapStyle = topoXml?.let { xml ->
-        runCatching { ThemeStyle.convert(xml) }.getOrNull()?.let { t ->
-            MapStyle(t.layers, glyphs, t.hillshade) { categories -> ThemeStyle.convert(xml, categories) }
-        }
-    } ?: MapStyle(BasicLayers.layers, glyphs)
+    val themes = WebMapThemes(topoXml, tracestrackXml, symbols)
 
-    val themes = WebMapThemes(topoXml, symbols)
+    /** The map styles, one per style (Topo, Tracestrack look), made from their themes when first shown. */
+    private val styles = ThemeStyles(glyphs, themes::themeXml)
     val maps = WebInstalledMaps()
     val places = PlaceRepository(WebFiles.ROOT)
     val tracks = TrackRepository(WebFiles.ROOT, store("tracks"))
@@ -171,7 +173,7 @@ class WebApp(topoXml: String?, world: ByteArray?, borders: ByteArray?, base: Str
         val native = WebNativeMap(EMPTY_STYLE, symbols) { url ->
             runCatching { tiles.respond(url.removePrefix(TILE_BASE))?.bytes?.toUint8Array() }.getOrNull()
         }
-        return MapLibreSurface(native, tiles, style).also { map = it }
+        return MapLibreSurface(native, tiles, styles::styleFor).also { map = it }
     }
 
     /**

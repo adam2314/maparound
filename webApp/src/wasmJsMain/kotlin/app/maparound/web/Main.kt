@@ -328,6 +328,7 @@ fun main() {
         // world map and borders (waited for), the regions (set when they come), and in a
         // right-to-left language its letters (waited for before the first text).
         val topo = async { fetchText("themes/topo.xml") }
+        val tracestrack = if (embedded) null else async { fetchText("themes/tracestrack.xml") }
         val world = async { fetchBytes("world.bin") }
         val borders = async { fetchBytes("borders.bin") }
         val regions = if (embedded) null else async { fetchBytes("regions.bin") }
@@ -336,6 +337,7 @@ fun main() {
         if (!embedded) WebFiles.persist()
         val app = WebApp(
             topoXml = topo.await(),
+            tracestrackXml = tracestrack?.await(),
             world = world.await(),
             borders = borders.await(),
             base = pageBase(),

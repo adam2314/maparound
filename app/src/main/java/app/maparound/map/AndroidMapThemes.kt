@@ -21,7 +21,7 @@ import java.io.InputStream
 import java.util.zip.ZipInputStream
 
 /**
- * The offline maps' styles on Android: MapAround's Topo, the themes that come with mapsforge,
+ * The offline maps' styles on Android: MapAround's Topo and Tracestrack look, the themes that come with mapsforge,
  * and render themes the user imports (`files/themes/<folder>/…`, an `.xml` or a `.zip` with the
  * theme and its symbols). The map draws them with MapLibre (map/gl/GlStyles).
  */
@@ -32,6 +32,7 @@ class AndroidMapThemes(context: Context) : MapThemeLibrary {
     // Their descriptions (and Classic's name) in the app's language: MapThemes.about / title.
     private val builtIn = listOf(
         MapTheme(MapThemes.TOPO, "Topo", ""),
+        MapTheme(MapThemes.TRACESTRACK, "Tracestrack look", ""),
         MapTheme(MapThemes.CLASSIC, "Classic", ""),
         MapTheme(OSMARENDER, "Osmarender", ""),
         MapTheme(BIKER, "Biker", ""),
@@ -70,13 +71,16 @@ class AndroidMapThemes(context: Context) : MapThemeLibrary {
         if (".." in path) return null
         val id = themeId.takeIf { exists(it) } ?: MapThemes.TOPO
         val prefix = prefix(id)
-        // Topo's own symbols (symbols/maparound/…) are next to it in the app's assets.
-        if (id == MapThemes.TOPO) runCatching { assets.open("themes/$path") }.getOrNull()?.let { return it }
+        // MapAround's styles' own symbols (symbols/maparound/…, symbols/tracestrack/…) are next to them in the app's assets.
+        if (id in OWN) runCatching { assets.open("themes/$path") }.getOrNull()?.let { return it }
         return if (prefix.startsWith("/")) {
             // The built-in styles' symbols are in mapsforge's jar.
             AndroidMapThemes::class.java.getResourceAsStream(prefix + path)
         } else {
+            // An imported style's own (file:…) next to it; else mapsforge's (jar:…, as Topo's are): the
+            // MapLibre style names both by their path alone.
             File(prefix + path).takeIf { it.isFile }?.inputStream()
+                ?: AndroidMapThemes::class.java.getResourceAsStream("/assets/$path")
         }
     }
 
@@ -90,6 +94,7 @@ class AndroidMapThemes(context: Context) : MapThemeLibrary {
 
     private fun open(id: String): InputStream = when (id) {
         MapThemes.TOPO -> assets.open("themes/topo.xml")
+        MapThemes.TRACESTRACK -> assets.open("themes/tracestrack.xml")
         MapThemes.CLASSIC -> MapsforgeThemes.DEFAULT.renderThemeAsStream
         OSMARENDER -> MapsforgeThemes.OSMARENDER.renderThemeAsStream
         BIKER -> MapsforgeThemes.BIKER.renderThemeAsStream
@@ -99,7 +104,7 @@ class AndroidMapThemes(context: Context) : MapThemeLibrary {
 
     /** Where the theme's own symbol files are found. */
     private fun prefix(id: String): String = when (id) {
-        MapThemes.TOPO -> "/assets/"
+        MapThemes.TOPO, MapThemes.TRACESTRACK -> "/assets/"
         MapThemes.CLASSIC -> MapsforgeThemes.DEFAULT.relativePathPrefix
         OSMARENDER -> MapsforgeThemes.OSMARENDER.relativePathPrefix
         BIKER -> MapsforgeThemes.BIKER.relativePathPrefix
@@ -207,6 +212,8 @@ class AndroidMapThemes(context: Context) : MapThemeLibrary {
         const val OSMARENDER = MapThemes.OSMARENDER
         const val BIKER = MapThemes.BIKER
         const val MOTORIDER = MapThemes.MOTORIDER
+        /** MapAround's own styles, in the app's assets. */
+        private val OWN = setOf(MapThemes.TOPO, MapThemes.TRACESTRACK)
         private const val MAX_ENTRIES = 5000
         private const val MAX_UNZIPPED = 200L shl 20
     }

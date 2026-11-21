@@ -26,6 +26,12 @@ class ThemeStyleTest {
         return if (fileSystem.exists(path)) fileSystem.read(path) { readUtf8() } else null
     }
 
+    /** The built-in Tracestrack look (TRACESTRACK_FILE on the iOS simulator). */
+    private fun tracestrack(): String? {
+        val path = (testEnv("TRACESTRACK_FILE") ?: "../app/src/main/assets/themes/tracestrack.xml").toPath()
+        return if (fileSystem.exists(path)) fileSystem.read(path) { readUtf8() } else null
+    }
+
     private val JsonObject.id get() = this["id"]!!.jsonPrimitive.content
     private val JsonObject.type get() = this["type"]!!.jsonPrimitive.content
     private fun JsonObject.str(k: String) = this[k]?.jsonPrimitive?.content
@@ -63,6 +69,26 @@ class ThemeStyleTest {
     /** Whether a layer draws at MapLibre zoom [z]. */
     private fun at(layer: JsonObject, z: Double) =
         (layer["minzoom"]?.jsonPrimitive?.doubleOrNull ?: 0.0) <= z && z < (layer["maxzoom"]?.jsonPrimitive?.doubleOrNull ?: 99.0)
+
+    @Test
+    fun tracestrackLookConverts() {
+        val xml = tracestrack() ?: return
+        val layers = ThemeStyle.convert(xml).layers
+        assertTrue(layers.size > 100, "${layers.size} layers")
+        fun drawing(type: String, props: Map<String, String>, z: Double) =
+            layers.filter { it.type == type && at(it, z) && it.str("source") == MapStyle.OSM_SOURCE && matches(it, props) }
+        // Pale lime forest, and a grade-3 track brown at 80 % (Tracestrack's colours).
+        val forest = drawing("fill", mapOf("natural" to "wood"), 12.0).map { it["paint"]!!.jsonObject.str("fill-color") }
+        assertTrue("rgb(220,244,167)" in forest, forest.toString())
+        val track = mapOf("highway" to "track", "tracktype" to "grade3")
+        assertTrue(drawing("line", track, 14.0).any { lineColour(it, track) == "rgba(153,102,0,0.8)" })
+        // Its own peak icon, next to the theme.
+        assertTrue(layers.any { it.toString().contains(ThemeStyle.SYMBOL_PREFIX + "symbols/tracestrack/mountain.svg") })
+        // Topo's options, by the same ids (their names come from the texts).
+        val topoMenu = topo()?.let { app.maparound.map.StyleMenu.parse(it) } ?: return
+        val menu = assertNotNull(app.maparound.map.StyleMenu.parse(xml))
+        assertEquals(topoMenu.styles.single().overlays, menu.styles.single().overlays)
+    }
 
     @Test
     fun coloursOfOneKeyAreOneLayer() {

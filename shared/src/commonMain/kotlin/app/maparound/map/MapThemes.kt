@@ -22,6 +22,9 @@ object MapThemes {
     /** MapAround's hiking style (topo.xml). */
     const val TOPO = "topo"
 
+    /** MapAround's maps drawn like Tracestrack Topo (tracestrack.xml): Topo's rules, options and trails in other colours. */
+    const val TRACESTRACK = "tracestrack"
+
     /** mapsforge's default theme. */
     const val CLASSIC = "classic"
 
@@ -37,14 +40,22 @@ object MapThemes {
      * Whether the theme gets MapAround's own map data: contour lines and downloaded marked
      * trails (Topo styles them; an imported theme can, see docs/map-styles.md).
      */
-    fun drawsTerrain(themeId: String) = themeId == TOPO || themeId.startsWith(IMPORTED)
+    fun drawsTerrain(themeId: String) = themeId == TOPO || themeId == TRACESTRACK || themeId.startsWith(IMPORTED)
 
-    /** The style's name as people see it (Classic in the app's language; the others are names of their own). */
-    fun title(theme: MapTheme): String = if (theme.id == CLASSIC) T.map.styleClassic else theme.name
+    /** Whether the style has Topo's options (by their ids in topo.xml), named from the texts ([app.maparound.i18n.MapTexts.topoOption]). */
+    fun hasTopoOptions(themeId: String) = themeId == TOPO || themeId == TRACESTRACK
+
+    /** The style's name as people see it (Classic and Tracestrack look in the app's language; the others are names of their own). */
+    fun title(theme: MapTheme): String = when (theme.id) {
+        CLASSIC -> T.map.styleClassic
+        TRACESTRACK -> T.map.styleTracestrack
+        else -> theme.name
+    }
 
     /** What the style is, in the app's language: a built-in style's description, an imported one's folder. */
     fun about(theme: MapTheme): String = when (theme.id) {
         TOPO -> T.map.styleTopoAbout
+        TRACESTRACK -> T.map.styleTracestrackAbout
         CLASSIC -> T.map.styleClassicAbout
         OSMARENDER -> T.map.styleOsmarenderAbout
         BIKER -> T.map.styleBikerAbout

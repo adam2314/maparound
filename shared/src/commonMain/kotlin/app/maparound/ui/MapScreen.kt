@@ -2376,9 +2376,9 @@ private fun StyleOptions(themeId: String, lib: MapThemeLibrary) {
     val choices by prefs.styleChoices.collectAsState()
     val choice = choices[themeId] ?: StyleChoice()
     val style = menu.style(choice.style) ?: return
-    // In the app's language: the theme's own name in it if it has one, Topo's from the texts.
+    // In the app's language: the theme's own name in it if it has one, Topo's options' from the texts.
     fun nameOf(layer: StyleMenu.Layer): String =
-        layer.names[I18n.language.code] ?: T.map.topoOption(layer.id)?.takeIf { themeId == MapThemes.TOPO } ?: menu.name(layer)
+        layer.names[I18n.language.code] ?: T.map.topoOption(layer.id)?.takeIf { MapThemes.hasTopoOptions(themeId) } ?: menu.name(layer)
     if (menu.styles.size > 1) {
         Text(T.map.variant, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
         menu.styles.forEach { s ->
