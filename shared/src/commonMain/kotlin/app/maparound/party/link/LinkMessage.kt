@@ -107,7 +107,8 @@ sealed class LinkMessage {
         override val type: Int get() = LinkType.HELLO
 
         companion object {
-            const val NAME_MAX = 24
+            // Not NAME_MAX: Apple's C headers define that (255), which broke the iOS framework's header.
+            const val NAME_MAX_BYTES = 24
         }
     }
 
@@ -332,7 +333,7 @@ internal object LinkBodies {
             if (it.count > 0) b.int(it.hash)
         }
         m.live?.let { b.u32(it.until).u32(it.time).int(it.by) }
-        b.string(m.name, LinkMessage.Hello.NAME_MAX)
+        b.string(m.name, LinkMessage.Hello.NAME_MAX_BYTES)
     }
 
     private fun hello(r: ByteReader): LinkMessage.Hello {

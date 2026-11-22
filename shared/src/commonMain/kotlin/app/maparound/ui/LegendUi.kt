@@ -58,6 +58,10 @@ fun LegendSheet(
     trailOverlay: Boolean,
     symbol: suspend (String) -> ImageBitmap?,
     onDismiss: () -> Unit,
+    /** What's under the map, when it isn't plain (satellite imagery, a raster map), and what that leaves of it. */
+    under: String? = null,
+    /** The style drawn over satellite imagery: its samples over a ground like the imagery's. */
+    overSatellite: Boolean = false,
 ) {
     val platform = LocalPlatform.current
     val t = T.legend
@@ -79,6 +83,7 @@ fun LegendSheet(
                 OnlineLegends.Info.None -> item { Note(t.noLegend) }
                 null -> Unit
             }
+            under?.let { item { Note(it) } }
             if (trailOverlay) item { Note(t.trailOverlayNote) }
             if (sections != null) {
                 item { Note(t.drawnLikeThis) }
@@ -113,7 +118,7 @@ fun LegendSheet(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                         ) {
-                            LegendSample(entry.sample, symbol)
+                            LegendSample(entry.sample, symbol, overSatellite)
                             Text(entry.label, style = MaterialTheme.typography.bodyMedium.bigger())
                         }
                     }
@@ -133,9 +138,12 @@ private fun Note(text: String) {
     )
 }
 
-/** How the style draws a feature, small: its area, its lines (casing first), its dot, its icon. */
+/**
+ * How the style draws a feature, small: its area, its lines (casing first), its dot, its icon; on
+ * the map's own ground, or [overSatellite] on one like the imagery's (dark earth and green).
+ */
 @Composable
-private fun LegendSample(sample: MapLegend.Sample, symbol: suspend (String) -> ImageBitmap?) {
+private fun LegendSample(sample: MapLegend.Sample, symbol: suspend (String) -> ImageBitmap?, overSatellite: Boolean = false) {
     val icon by produceState<ImageBitmap?>(null, sample.symbol) {
         value = sample.symbol?.let { path ->
             try {
@@ -157,7 +165,11 @@ private fun LegendSample(sample: MapLegend.Sample, symbol: suspend (String) -> I
                 drawRoundRect(Brush.linearGradient(listOf(Color(0xFFF7F3EA), Color(0xFF8A7E6C)), Offset.Zero, Offset(size.width, size.height)), cornerRadius = corner)
                 return@Canvas
             }
-            drawRoundRect(ground, cornerRadius = corner)
+            if (overSatellite) {
+                drawRoundRect(Brush.linearGradient(listOf(Color(0xFF7A6E50), Color(0xFF3F4A30)), Offset.Zero, Offset(size.width, size.height)), cornerRadius = corner)
+            } else {
+                drawRoundRect(ground, cornerRadius = corner)
+            }
             for (a in sample.areas) {
                 a.fill?.let { drawRoundRect(Color(it.toInt()), cornerRadius = corner) }
                 if (a.stroke != null && a.strokeWidth > 0f) {

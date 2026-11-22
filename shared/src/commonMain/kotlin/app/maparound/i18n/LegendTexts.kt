@@ -154,6 +154,12 @@ open class LegendTexts {
     open val standardKeyNote = "This map is drawn like OpenStreetMap's standard map; its map key explains the colours and symbols."
     open val imageryNote = "Satellite and aerial photos: no legend needed, what you see is on the ground."
     open val noLegend = "This map's makers don't publish a legend MapAround knows of."
+
+    /** The offline map over satellite imagery or a raster map (Layers → background). */
+    open val overImagery = "Over the satellite imagery the map draws only its lines, icons and names, not its areas (forests, fields, water, buildings): this is what's left of it."
+    open val overRaster = "Over the raster map the map draws only its lines, icons and names, not its areas (forests, fields, water, buildings): this is what's left of it."
+    open val imageryAlone = "Satellite imagery alone: the map's own lines and names are off (Layers → Map)."
+    open val rasterAlone = "The raster map alone: the offline map's lines and names are off (Layers → Map)."
     open val trailOverlayNote = "Marked trails over the map (Waymarked Trails): the line's colour tells how far the route goes — international, national, regional or local."
 }
 
@@ -286,5 +292,9 @@ object LegendTextsHe : LegendTexts() {
     override val standardKeyNote = "המפה הזאת מצוירת כמו המפה הרגילה של OpenStreetMap; המקרא שלה מסביר את הצבעים והסמלים."
     override val imageryNote = "תצלומי לוויין ואוויר: אין צורך במקרא, מה שרואים זה מה שיש בשטח."
     override val noLegend = "יוצרי המפה הזאת לא מפרסמים מקרא ש־MapAround מכירה."
+    override val overImagery = "מעל תצלומי הלוויין המפה מציירת רק את הקווים, הסמלים והשמות שלה, בלי השטחים (יערות, שדות, מים, מבנים): זה מה שנשאר ממנה."
+    override val overRaster = "מעל מפת הרסטר המפה מציירת רק את הקווים, הסמלים והשמות שלה, בלי השטחים (יערות, שדות, מים, מבנים): זה מה שנשאר ממנה."
+    override val imageryAlone = "תצלומי לוויין בלבד: הקווים והשמות של המפה כבויים (שכבות ← מפה)."
+    override val rasterAlone = "מפת הרסטר בלבד: הקווים והשמות של המפה האופליין כבויים (שכבות ← מפה)."
     override val trailOverlayNote = "שבילים מסומנים מעל המפה (Waymarked Trails): צבע הקו מציין את היקף המסלול — בין־לאומי, ארצי, אזורי או מקומי."
 }

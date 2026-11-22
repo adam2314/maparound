@@ -56,7 +56,8 @@ data class Style(
 
 data class MarkText(val name: String, val note: String = "") {
     companion object {
-        const val NAME_MAX = 40
+        // Not NAME_MAX: Apple's C headers define that (255), which broke the iOS framework's header.
+        const val NAME_MAX_BYTES = 40
         const val NOTE_MAX = 120
     }
 }
@@ -190,7 +191,7 @@ internal object MarkCodec {
     }
 
     fun text(b: ByteWriter, t: MarkText) {
-        b.string(t.name, MarkText.NAME_MAX).string(t.note, MarkText.NOTE_MAX)
+        b.string(t.name, MarkText.NAME_MAX_BYTES).string(t.note, MarkText.NOTE_MAX)
     }
 
     fun text(r: ByteReader) = MarkText(r.string(), r.string())

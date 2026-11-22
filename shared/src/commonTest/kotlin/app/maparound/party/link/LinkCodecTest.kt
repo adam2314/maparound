@@ -211,8 +211,8 @@ class LinkCodecTest {
         assertEquals(2, ByteWriter().zz(64).size)
         // Cut on a character, never in one: Hebrew letters are two bytes, the emoji four.
         val hebrew = "נקודת מים ליד המעיין, שלושה ק״מ מהחניה ומעבר לגשר"
-        val cut = utf8Cut(hebrew, MarkText.NAME_MAX)
-        assertTrue(cut.size <= MarkText.NAME_MAX)
+        val cut = utf8Cut(hebrew, MarkText.NAME_MAX_BYTES)
+        assertTrue(cut.size <= MarkText.NAME_MAX_BYTES)
         assertTrue(hebrew.startsWith(cut.decodeToString()))
         assertEquals("a", utf8Cut("a😀", 4).decodeToString())
         val (_, packet) = roundTrip(LinkMessage.Text("x".repeat(300)))

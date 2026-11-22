@@ -47,9 +47,11 @@ object MapLegend {
     /**
      * The legend of the style [themeXml] with the options [categories] on (null: all), in the app's
      * language. Empty sections are left out. [zooms]: also find each entry's first zoom (the
-     * website's legend, tools/map-docs).
+     * website's legend, tools/map-docs). [overImagery]: the style drawn over satellite imagery or a
+     * raster map, as the map does then: without its areas (land cover, water, buildings), only its
+     * lines, dots, icons and shading.
      */
-    fun build(themeXml: String, categories: Set<String>? = null, zooms: Boolean = false): List<Section> {
+    fun build(themeXml: String, categories: Set<String>? = null, zooms: Boolean = false, overImagery: Boolean = false): List<Section> {
         val theme = runCatching { parse(themeXml, categories) }.getOrNull() ?: return emptyList()
         return LegendCatalog.sections.mapNotNull { spec ->
             val entries = ArrayList<Entry>()
@@ -59,7 +61,7 @@ object MapLegend {
                 val sample = if (item.hillshade) {
                     if (theme.hillshade) Sample(hillshade = true) else continue
                 } else {
-                    theme.sample(item.element, item.tags, item.closed, item.zoom)
+                    theme.sample(item.element, item.tags, item.closed, item.zoom).let { if (overImagery) it.copy(areas = emptyList()) else it }
                 }
                 if (sample.isEmpty) continue
                 val group = item.group

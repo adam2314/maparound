@@ -256,6 +256,11 @@
 - **The viewshed shows on the web and iPhone.** Its green and red ground was missing there: the
   map asked for its picture where it isn't made. The picture is now made by the shared tile
   service on every platform.
+- **The legend follows what's drawn, over satellite imagery too.** With satellite imagery or a
+  raster map under the offline map, the map draws only the style's lines, icons and names, and the
+  legend now shows just those (no forests, fields, water or buildings), on a ground like the
+  imagery's, and says why. With the map's lines off, it says the imagery is alone instead of
+  showing the style's legend.
 - **Saved routes can be edited.** Library → ⋮ → **Edit route** opens a route saved with its stops
   (planned or drawn in MapAround, or a GPX file with them) in the planner on the map: its stops,
   its way of travel, and its line as saved until a stop or the way changes (then it's calculated

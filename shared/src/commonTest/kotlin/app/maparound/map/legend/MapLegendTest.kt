@@ -104,5 +104,12 @@ class MapLegendTest {
         assertEquals("symbols/cable_car.svg", all.first { it.label == "Cable car" }.sample.symbol)
         assertNotNull(all.firstOrNull { it.label == "Contour line" })
         assertTrue(all.any { it.sample.symbol != null })
+
+        // Over satellite imagery (or a raster map) the map leaves the areas out: so does its legend.
+        val over = MapLegend.build(fileSystem.read(path) { readUtf8() }, overImagery = true).flatMap { it.entries }
+        assertTrue(all.any { it.sample.areas.isNotEmpty() })
+        assertTrue(over.none { it.sample.areas.isNotEmpty() })
+        assertTrue(over.any { it.label == "Dirt road, any vehicle" } && over.any { it.label == "Trail marked red" })
+        assertTrue(over.size < all.size, "${over.size} of ${all.size}")
     }
 }

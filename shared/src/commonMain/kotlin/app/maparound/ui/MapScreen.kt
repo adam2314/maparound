@@ -1733,11 +1733,16 @@ fun MapScreen(
         }
 
         if (showLegend) {
-            // The legend of what's on screen: the offline style (with its options), or the online map.
+            // The legend of what's on screen, made from it: the offline style (with its options, and
+            // over satellite imagery or a raster map only what it draws there), or the online map.
             val legendThemes = LocalMapThemes.current
-            val sections by produceState<List<app.maparound.map.legend.MapLegend.Section>?>(null, showingOffline, theme, categories, I18n.language) {
-                value = if (!showingOffline) null else withContext(Dispatchers.Default) {
-                    legendThemes.themeXml(theme)?.let { app.maparound.map.legend.MapLegend.build(it, categories) }
+            val satelliteUnder = background == app.maparound.data.Prefs.BACKGROUND_SATELLITE
+            val rasterUnder = background.startsWith(app.maparound.data.Prefs.BACKGROUND_RASTER)
+            val overImagery = showingOffline && (satelliteUnder || rasterUnder)
+            val styleShown = showingOffline && (!overImagery || vectorOnBackground)
+            val sections by produceState<List<app.maparound.map.legend.MapLegend.Section>?>(null, styleShown, overImagery, theme, categories, I18n.language) {
+                value = if (!styleShown) null else withContext(Dispatchers.Default) {
+                    legendThemes.themeXml(theme)?.let { app.maparound.map.legend.MapLegend.build(it, categories, overImagery = overImagery) }
                 }
             }
             val symbolPx = with(LocalDensity.current) { 22.dp.roundToPx() }
@@ -1745,10 +1750,19 @@ fun MapScreen(
             LegendSheet(
                 mapName = if (src != null) TileSources.title(src) else themes.firstOrNull { it.id == theme }?.let(MapThemes::title) ?: theme,
                 sections = sections,
-                online = src?.let { app.maparound.map.legend.OnlineLegends.of(it) },
+                online = src?.let { app.maparound.map.legend.OnlineLegends.of(it) }
+                    // Under the offline map: the imagery itself needs none; a raster map's own legend is on the sheet it scans.
+                    ?: if (overImagery) (if (satelliteUnder) app.maparound.map.legend.OnlineLegends.Info.Imagery else app.maparound.map.legend.OnlineLegends.Info.None) else null,
                 trailOverlay = trailOverlay,
                 symbol = { path -> legendThemes.symbol(theme, path, symbolPx) },
                 onDismiss = { showLegend = false },
+                under = when {
+                    !overImagery -> null
+                    !vectorOnBackground -> if (satelliteUnder) T.legend.imageryAlone else T.legend.rasterAlone
+                    satelliteUnder -> T.legend.overImagery
+                    else -> T.legend.overRaster
+                },
+                overSatellite = satelliteUnder && vectorOnBackground,
             )
         }
     }
