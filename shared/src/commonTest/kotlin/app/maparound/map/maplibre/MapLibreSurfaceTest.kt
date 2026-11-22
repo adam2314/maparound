@@ -62,7 +62,7 @@ class MapLibreSurfaceTest {
 
     private fun offline(background: String = Prefs.BACKGROUND_NONE, vectorOnTop: Boolean = true) = BaseMap.Offline(
         maps = emptyList(), theme = MapThemes.TOPO, categories = null, contours = false, hillshade = false, terrainVersion = 0,
-        trails = false, trailsVersion = 0, background = background, vectorOnTop = vectorOnTop, rasterMaps = emptyList(),
+        trails = false, background = background, vectorOnTop = vectorOnTop, rasterMaps = emptyList(),
     )
 
     @Test

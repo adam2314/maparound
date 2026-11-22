@@ -64,15 +64,14 @@ downloaded**.
 ## On this device
 
 **On this device** lists your maps and the space they take. Tap a map to see it on the map. The
-**⋮** button beside a map adds extras for its area:
+**⋮** button beside a map adds extras for its area (MapAround's maps have the marked trails built
+in: see [Marked trails]({{ '/guide/marked-trails' | relative_url }})):
 
-<p class="shots"><img src="{{ '/guide/img/offline-list.webp' | relative_url }}" alt="Offline maps: the map on the phone with its terrain, routing and trails, and the raster maps" width="720" height="1195" loading="lazy"><img src="{{ '/guide/img/offline-menu.webp' | relative_url }}" alt="A map's ⋮ menu: contours and hill shading, offline routing, marked trails, delete" width="720" height="1195" loading="lazy"></p>
+<p class="shots"><img src="{{ '/guide/img/offline-list.webp' | relative_url }}" alt="Offline maps: the map on the phone with its terrain, routing and trails, and the raster maps" width="720" height="1195" loading="lazy"><img src="{{ '/guide/img/offline-menu.webp' | relative_url }}" alt="A map's ⋮ menu: contours and hill shading, offline routing, delete" width="720" height="1195" loading="lazy"></p>
 
 - **Contours & hill shading**: elevation data for the whole map. See [Elevation data]({{ '/guide/elevation' | relative_url }}).
 - **Offline routing**: route planning without a connection (Android). See
   [Offline routing]({{ '/guide/offline-routing' | relative_url }}).
-- **Marked trails**: only for maps from elsewhere. MapAround's maps say **Marked trails: in this
-  map**. See [Marked trails]({{ '/guide/marked-trails' | relative_url }}).
 - **Delete map** frees its space. You can download it again later.
 
 ## Importing a map file

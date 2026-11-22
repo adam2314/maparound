@@ -78,9 +78,6 @@ enum class SourceKind(
     /** Marked trails over online maps. */
     TRAILS_OVERLAY(SourceGroup.MAPS, listOf(TileSources.WAYMARKED_HIKING), AddressKind.TILES),
 
-    /** Marked trails downloaded for the Topo style (Android): Overpass servers. */
-    TRAILS_DATA(SourceGroup.MAPS, listOf("https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter"), customFirst = true),
-
     /** Elevation tiles (contours, hill shading, line of sight, 3D): kept as their own setting. */
     ELEVATION(SourceGroup.TERRAIN, listOf(ElevationSources.DEFAULT_TILES), AddressKind.ELEVATION),
 
@@ -261,7 +258,7 @@ object Sources {
             AddressKind.TILES, AddressKind.RELIEF -> tileAt(address, lat, lon, 12)
             AddressKind.ELEVATION -> ElevationSources.tileUrl(address, app.maparound.terrain.DemIndex.nameFor(kotlin.math.floor(lat).toInt(), kotlin.math.floor(lon).toInt()))
             AddressKind.URL -> when (kind) {
-                SourceKind.TRAILS_DATA, SourceKind.CAMERAS -> "$address?data=" + "[out:json];out;".encodeUrl()
+                SourceKind.CAMERAS -> "$address?data=" + "[out:json];out;".encodeUrl()
                 SourceKind.SEARCH -> if (address.contains("nominatim", ignoreCase = true) || address.trimEnd('/').endsWith("/search")) {
                     "${address.trimEnd('/').removeSuffix("/search")}/search?format=jsonv2&limit=1&q=a"
                 } else {

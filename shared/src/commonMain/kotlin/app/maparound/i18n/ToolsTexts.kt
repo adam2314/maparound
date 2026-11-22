@@ -25,8 +25,9 @@ open class ToolsTexts {
 
     /** Under the distance and azimuth: "Magnetic 123° · 2187 mil · back 303°". */
     /** [mils]: null when directions are shown in mils already. */
-    open fun magneticMilsBack(magnetic: String, mils: Int?, back: String) =
-        "Magnetic $magnetic" + (if (mils != null) " · $mils mil" else "") + " · back $back"
+    /** Under the bearing: the other north's ([trueOther]: true north's), its [mils], and the back bearing. */
+    open fun otherNorthMilsBack(trueOther: Boolean, other: String, mils: Int?, back: String) =
+        (if (trueOther) "True" else "Magnetic") + " $other" + (if (mils != null) " · $mils mil" else "") + " · back $back"
 
     /**
      * "Height 120 → 340 m · Δ +220 m · +4.5°", and " · slant 2.8 km" when [slant] isn't null.
@@ -35,9 +36,10 @@ open class ToolsTexts {
     open fun heightChange(from: String, to: String, delta: String, angle: String, slant: String?) =
         "Height $from → $to · Δ $delta · $angle°" + (if (slant != null) " · slant $slant" else "")
 
-    /** [declination]: signed degrees, without the ° sign. */
-    open fun bearingNote(declination: String) =
-        "True north bearing along the great circle; magnetic from the WMM declination at A ($declination°)."
+    /** [magnetic]: the bearing is from magnetic north (as the compass is set); [declination]: signed degrees, without the ° sign. */
+    open fun bearingNote(magnetic: Boolean, declination: String) =
+        if (magnetic) "From magnetic north, as the compass is set: the true bearing along the great circle less the WMM declination at A ($declination°)."
+        else "From true north, as the compass is set, along the great circle; magnetic from the WMM declination at A ($declination°)."
 
     // ---- place B by bearing and distance ----
     open val placeBTitle = "Place B from A"
@@ -70,6 +72,10 @@ open class ToolsTexts {
     open val blockedByTerrain = "Blocked by terrain."
     open val sightNote = "Bare terrain with Earth curvature and refraction; trees and buildings aren't included."
 
+    /** A point on the line-of-sight graph: whether A sees the ground there. */
+    open val seenFromA = "Seen from A"
+    open val hiddenFromA = "Hidden from A"
+
     // ---- radio link ----
     open val radioBlocked = "Radio path blocked"
     open val radioClear = "Clear radio path"
@@ -97,6 +103,11 @@ open class ToolsTexts {
             ". The first Fresnel zone is $midRadius in radius halfway."
     open val radioNote = "Bare terrain, with radio's 4/3 Earth radius; trees, buildings, antenna gain and cable loss aren't " +
         "included. Terrain loss is the tightest point as a single knife edge (ITU-R P.526)."
+    /** A point on the radio link's graph: [percent] ("75%") of the first Fresnel zone's radius is clear there. */
+    open fun zoneClearHere(percent: String) = "Fresnel zone $percent clear"
+
+    /** A point on the radio link's graph where the ground reaches above the antennas' direct line. */
+    open val groundAboveLine = "Ground above the direct line"
     open val otherFrequency = "Other frequency…"
     open val chooseFrequency = "Choose a frequency"
 
@@ -206,13 +217,14 @@ object ToolsTextsHe : ToolsTexts() {
 
     override val measureTapA = "יש להקיש על המפה כדי להציב את A, הנקודה שממנה מודדים."
     override val measureTapB = "עכשיו יש להקיש כדי להציב את B. הקשות נוספות מזיזות את הנקודה שנבחרה (הקשה על A או B בוחרת בה); אפשר גם לגרור נקודה."
-    override fun magneticMilsBack(magnetic: String, mils: Int?, back: String) =
-        "מגנטי $magnetic" + (if (mils != null) " · $mils אלפיות" else "") + " · אזימוט חוזר $back"
+    override fun otherNorthMilsBack(trueOther: Boolean, other: String, mils: Int?, back: String) =
+        (if (trueOther) "אמיתי" else "מגנטי") + " $other" + (if (mils != null) " · $mils אלפיות" else "") + " · אזימוט חוזר $back"
     override fun heightChange(from: String, to: String, delta: String, angle: String, slant: String?) =
         "גובה $from ← $to · ${ltr("Δ $delta")} · ${ltr("$angle°")}" +
             (if (slant != null) " · מרחק אלכסוני $slant" else "")
-    override fun bearingNote(declination: String) =
-        "אזימוט לפי צפון אמיתי, לאורך המעגל הגדול; המגנטי לפי הסטייה המגנטית ב־A במודל WMM (${ltr("$declination°")})."
+    override fun bearingNote(magnetic: Boolean, declination: String) =
+        if (magnetic) "לפי צפון מגנטי, כמו שהמצפן מכוון: האזימוט האמיתי לאורך המעגל הגדול פחות הסטייה המגנטית ב־A במודל WMM (${ltr("$declination°")})."
+        else "לפי צפון אמיתי, כמו שהמצפן מכוון, לאורך המעגל הגדול; המגנטי לפי הסטייה המגנטית ב־A במודל WMM (${ltr("$declination°")})."
 
     override val placeBTitle = "הצבת B ביחס ל־A"
     override val degrees = "מעלות"
@@ -240,6 +252,8 @@ object ToolsTextsHe : ToolsTexts() {
         "חסום במרחק $distance מ־A, בקרקע בגובה $ground שמתנשאת $above מעל קו הראייה."
     override val blockedByTerrain = "פני השטח חוסמים את קו הראייה."
     override val sightNote = "לפי פני השטח בלבד, כולל עקמומיות כדור הארץ ושבירת האור; עצים ומבנים לא נלקחים בחשבון."
+    override val seenFromA = "נראה מ־A"
+    override val hiddenFromA = "מוסתר מ־A"
 
     override val radioBlocked = "נתיב הרדיו חסום"
     override val radioClear = "נתיב רדיו פנוי"
@@ -259,6 +273,8 @@ object ToolsTextsHe : ToolsTexts() {
             ". רדיוס אזור פרנל הראשון באמצע הדרך: ${ltr(midRadius)}."
     override val radioNote = "לפי פני השטח בלבד, ברדיוס כדור ארץ אפקטיבי של 4/3 כמקובל ברדיו; עצים, מבנים, הגבר אנטנות " +
         "והפסדי כבלים לא נלקחים בחשבון. הנחתת פני השטח מחושבת בנקודה הצרה ביותר כשפת סכין יחידה (ITU-R P.526)."
+    override fun zoneClearHere(percent: String) = "אזור פרנל פנוי ב־$percent"
+    override val groundAboveLine = "הקרקע מעל הקו הישיר"
     override val otherFrequency = "תדר אחר…"
     override val chooseFrequency = "בחירת תדר"
 

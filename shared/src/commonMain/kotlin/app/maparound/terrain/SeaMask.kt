@@ -8,6 +8,7 @@ import app.maparound.three.TileId
 import okio.FileHandle
 import kotlin.math.ceil
 import kotlin.math.floor
+import kotlin.math.roundToInt
 
 /**
  * Rasterises the sea of the installed vector maps onto an elevation tile's grid, with the
@@ -121,6 +122,45 @@ object SeaMask {
                 k += 2
             }
         }
+    }
+}
+
+/**
+ * The installed [maps]' sea, a 1° cell at a time ([SeaMask], made the first time the cell is
+ * asked about, then kept), for contour lines and hill shading to end at the coast where the
+ * elevation data spills land heights past it: also with elevation downloaded before the map, and
+ * in the web app, which doesn't cut it as it downloads. Use from one thread.
+ */
+class SeaCells(private val maps: List<MapsforgeFile>) {
+    private val cells = HashMap<Int, Bits?>()
+    private var lastKey = Int.MIN_VALUE
+    private var last: Bits? = null
+
+    /** Whether the maps say sea at this point. */
+    fun isSea(lat: Double, lon: Double): Boolean {
+        if (maps.isEmpty()) return false
+        val south = floor(lat).toInt()
+        val west = floor(lon).toInt()
+        val key = (south + 90) * 360 + (west + 180)
+        if (key != lastKey) {
+            if (key !in cells) {
+                // A few coastal cells at a time (180 kB each).
+                if (cells.size >= MAX_CELLS) cells.clear()
+                cells[key] = runCatching { SeaMask.build(maps, south, west, SIZE) }.getOrNull()
+            }
+            lastKey = key
+            last = cells[key]
+        }
+        val mask = last ?: return false
+        val r = ((south + 1 - lat) * (SIZE - 1)).roundToInt().coerceIn(0, SIZE - 1)
+        val c = ((lon - west) * (SIZE - 1)).roundToInt().coerceIn(0, SIZE - 1)
+        return mask[r * SIZE + c]
+    }
+
+    private companion object {
+        /** Samples per side: 3″, about 90 m. */
+        const val SIZE = 1201
+        const val MAX_CELLS = 24
     }
 }
 

@@ -115,13 +115,13 @@ class MapRegions private constructor(private val regions: List<Region>) {
          * The parts of a line ([coords]: lat, lon pairs in microdegrees) away from the region, each
          * at least two points: the line split where it crosses the outline, and in pieces of about
          * a kilometre, each dropped when it's in the region or within [marginM] of its outline
-         * (the same border, drawn coarser: the map draws its own), unless [keep] keeps it there.
+         * (the same border, drawn coarser: the map draws its own).
          */
-        fun cutOut(coords: IntArray, marginM: Double = OUTLINE_MARGIN_M, keep: ((Double, Double) -> Boolean)? = null): List<IntArray> {
+        fun cutOut(coords: IntArray, marginM: Double = OUTLINE_MARGIN_M): List<IntArray> {
             val margin = marginM / 111_320.0 * 1e6
             if (!GeoBox.of(coords).intersects(box.grow(margin.toInt(), (margin * 3).toInt()))) return listOf(coords)
             return cutPieces(coords, PIECE_MICRO, ::outlineCrossings) { mLat, mLon ->
-                (containsMicro(mLat, mLon) || nearOutline(mLat, mLon, margin)) && (keep == null || !keep(mLat, mLon))
+                containsMicro(mLat, mLon) || nearOutline(mLat, mLon, margin)
             }
         }
 

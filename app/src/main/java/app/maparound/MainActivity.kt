@@ -57,7 +57,6 @@ class MainActivity : ComponentActivity() {
                     downloads = AppGraph.downloader,
                     catalog = AppGraph.catalog,
                     terrain = AppGraph.terrain,
-                    trails = AppGraph.trails,
                     routing = AppGraph.routing,
                     builtInWorld = true,
                     streamed = AppGraph.streaming.maps,

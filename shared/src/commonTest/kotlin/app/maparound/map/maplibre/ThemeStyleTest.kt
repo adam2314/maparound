@@ -112,8 +112,8 @@ class ThemeStyleTest {
             </rendertheme>
         """.trimIndent()
         val layers = ThemeStyle.convert(xml).layers.drop(1)
-        // Red, blue and green: one layer (on each of the trail sources); white, wider, its own.
-        val trails = layers.filter { it.str("source") == ThemeStyle.TRAILS }
+        // Red, blue and green: one layer; white, wider, its own.
+        val trails = layers.filter { it.str("source-layer") == MapsforgeToMvt.TRAILS }
         assertEquals(2, trails.size, trails.toString())
         val trail = mapOf("trail" to "hiking")
         assertEquals("rgb(0,0,255)", lineColour(trails[0], trail + ("trail_colour" to "blue")))
@@ -235,7 +235,7 @@ class ThemeStyleTest {
         assertEquals(8, result.hillshade!!.minZoom)
 
         // Every layer is on a known source and its filter only uses what the evaluator knows.
-        val sources = setOf(MapStyle.OSM_SOURCE, ThemeStyle.CONTOURS, ThemeStyle.TRAILS)
+        val sources = setOf(MapStyle.OSM_SOURCE, ThemeStyle.CONTOURS)
         for (l in layers.drop(1)) {
             assertTrue(l.str("source") in sources, l.id)
             eval(l["filter"], emptyMap())
@@ -258,15 +258,14 @@ class ThemeStyleTest {
         assertTrue(drawn(mapOf("natural" to "sea"), "fill", "sea").isNotEmpty())
         assertTrue(layers.any { it.str("source") == ThemeStyle.CONTOURS && matches(it, mapOf("contour" to "major", "ele" to "1500")) })
         val trail = mapOf("trail" to "hiking", "trail_n" to "1", "trail_colour" to "red", "trail_offset" to "0")
-        assertTrue(layers.any { it.str("source") == ThemeStyle.TRAILS && matches(it, trail) })
-        // ...and the same trail lines when they're built into the map (MapAround's maps).
+        // The trail lines built into the map (MapAround's maps).
         assertTrue(drawn(trail, "line", MapsforgeToMvt.TRAILS).any { it.str("source") == MapStyle.OSM_SOURCE })
 
         // On a dirt road (the trail line knows: trail_track), from zoom 12 (MapLibre 11): the road's
         // edges in the trail's colour, dashed as the road's, the road's own edges rubbed out under
         // the dashes; no waymark dots.
         val onRoad = trail + ("trail_track" to "4x4")
-        val roadTrail = layers.filter { it.type == "line" && it.str("source") == ThemeStyle.TRAILS && matches(it, onRoad) && at(it, 14.5) }
+        val roadTrail = layers.filter { it.type == "line" && it.str("source-layer") == MapsforgeToMvt.TRAILS && matches(it, onRoad) && at(it, 14.5) }
         val red = roadTrail.filter { lineColour(it, onRoad) == "rgb(211,47,47)" }
         assertEquals(setOf(-3.9, 3.9), red.map { it["paint"]!!.jsonObject["line-offset"]!!.jsonPrimitive.doubleOrNull }.toSet())
         assertTrue(red.all { it["paint"]!!.jsonObject.containsKey("line-dasharray") })
@@ -274,16 +273,16 @@ class ThemeStyleTest {
         assertTrue(roadTrail.none { it["paint"]!!.jsonObject["line-offset"] == null })
         // Two colours on a dirt road: one on each edge.
         val second = mapOf("trail" to "hiking", "trail_track" to "any", "trail_offset" to "r05", "trail_colour" to "blue")
-        val blue = layers.filter { it.str("source") == ThemeStyle.TRAILS && matches(it, second) && at(it, 14.5) && lineColour(it, second) == "rgb(30,99,214)" }
+        val blue = layers.filter { it.str("source-layer") == MapsforgeToMvt.TRAILS && matches(it, second) && at(it, 14.5) && lineColour(it, second) == "rgb(30,99,214)" }
         assertEquals(listOf(3.9), blue.map { it["paint"]!!.jsonObject["line-offset"]!!.jsonPrimitive.doubleOrNull })
         // From zoom 12, where dirt roads are a double line already: the edges there too, no dots.
-        val roadTrail12 = layers.filter { it.type == "line" && it.str("source") == ThemeStyle.TRAILS && matches(it, onRoad) && at(it, 11.5) }
+        val roadTrail12 = layers.filter { it.type == "line" && it.str("source-layer") == MapsforgeToMvt.TRAILS && matches(it, onRoad) && at(it, 11.5) }
         assertTrue(roadTrail12.isNotEmpty())
         assertTrue(roadTrail12.none { it["paint"]!!.jsonObject["line-offset"] == null })
         // On a path at zoom 12: the dots (the most important colour).
-        assertTrue(layers.any { it.str("source") == ThemeStyle.TRAILS && matches(it, trail) && at(it, 11.5) && it["paint"]!!.jsonObject["line-offset"] == null })
-        // A trail's colours draw as one layer: the trail tiles' lines stay few.
-        val trailLayers = layers.count { it.str("source") == ThemeStyle.TRAILS }
+        assertTrue(layers.any { it.str("source-layer") == MapsforgeToMvt.TRAILS && matches(it, trail) && at(it, 11.5) && it["paint"]!!.jsonObject["line-offset"] == null })
+        // A trail's colours draw as one layer: the trail lines stay few.
+        val trailLayers = layers.count { it.str("source-layer") == MapsforgeToMvt.TRAILS }
         assertTrue(trailLayers < 300, "$trailLayers trail layers")
 
         // A bike every so often along bike paths, from zoom 15 (MapLibre 14).
@@ -320,7 +319,7 @@ class ThemeStyleTest {
         fun layers(trails: Boolean): List<JsonObject> {
             val base = app.maparound.map.BaseMap.Offline(
                 maps = emptyList(), theme = app.maparound.map.MapThemes.TOPO, categories = null, contours = false, hillshade = false, terrainVersion = 0,
-                trails = trails, trailsVersion = 0, background = app.maparound.data.Prefs.BACKGROUND_NONE, vectorOnTop = true, rasterMaps = emptyList(),
+                trails = trails, background = app.maparound.data.Prefs.BACKGROUND_NONE, vectorOnTop = true, rasterMaps = emptyList(),
             )
             val json = kotlinx.serialization.json.Json.parseToJsonElement(style.build(base, TileService())).jsonObject
             return json["layers"]!!.jsonArray.map { it.jsonObject }
@@ -345,7 +344,7 @@ class ThemeStyleTest {
         val style = MapStyle(ThemeStyle.convert(xml).layers, BasicLayers.GLYPHS)
         val base = app.maparound.map.BaseMap.Offline(
             maps = emptyList(), theme = app.maparound.map.MapThemes.TOPO, categories = null, contours = false, hillshade = false, terrainVersion = 0, trails = false,
-            trailsVersion = 0, background = app.maparound.data.Prefs.BACKGROUND_SATELLITE, vectorOnTop = true, rasterMaps = emptyList(),
+            background = app.maparound.data.Prefs.BACKGROUND_SATELLITE, vectorOnTop = true, rasterMaps = emptyList(),
         )
         val json = kotlinx.serialization.json.Json.parseToJsonElement(style.build(base, TileService())).jsonObject
         val layers = json["layers"]!!.jsonArray.map { it.jsonObject }

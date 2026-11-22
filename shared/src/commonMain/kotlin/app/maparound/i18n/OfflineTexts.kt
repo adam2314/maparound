@@ -1,6 +1,6 @@
 package app.maparound.i18n
 
-/** Offline maps: the download list, installed maps, terrain, trails, routing data, raster maps, and their messages. */
+/** Offline maps: the download list, installed maps, terrain, routing data, raster maps, and their messages. */
 open class OfflineTexts {
     // ---- the Offline maps screen ----
     open val screenTitle = "Offline maps"
@@ -23,10 +23,6 @@ open class OfflineTexts {
         "None yet: they come when something needs them (contours as you zoom in, line of sight, 3D), or for a whole map from its ⋮ menu."
     open val routingInfo = "Routing data from BRouter in 5°×5° blocks, so routes are worked out on the device without a connection."
     open val noRoutingYet = "None yet: get it for a map from its ⋮ menu."
-    open val trailsInfo =
-        "Marked hiking and walking routes from OpenStreetMap, downloaded by area, for maps that don't have them built in " +
-            "(the same routes Waymarked Trails shows)."
-    open val noTrailsYet = "None yet: get them for a map from its ⋮ menu. MapAround's own maps have them built in."
 
     // ---- where the elevation data comes from ----
     open val terrainSource = "Source"
@@ -65,8 +61,6 @@ open class OfflineTexts {
     open fun optionsFor(title: String) = "Options for $title"
     open val contoursAndHillShading = "Contours & hill shading"
     open val offlineRouting = "Offline routing"
-    open val markedTrails = "Marked trails"
-    open val markedTrailsInMap = "Marked trails: in this map"
     open val deleteMap = "Delete map"
 
     // ---- section headings ----
@@ -87,7 +81,7 @@ open class OfflineTexts {
     open val elevationData = "Elevation data"
     open fun elevationTiles(n: Int) = "$n tiles (1°×1°) · contour lines & hill shading"
     open val deleteAllTerrain = "Delete all terrain data"
-    open val tipAddOns = "Tip: use ⋮ next to a map to add contour lines & hill shading, offline routing and marked trails."
+    open val tipAddOns = "Tip: use ⋮ next to a map to add contour lines & hill shading and offline routing."
     open val tipTerrain =
         "Tip: use ⋮ next to a map to add contour lines & hill shading for all of it (they also come by themselves where you look closer)."
 
@@ -98,14 +92,6 @@ open class OfflineTexts {
     open fun routingBlock(size: String) = "5°×5° block · $size"
     open fun deleteRoutingData(name: String) = "Delete routing data $name"
 
-    // ---- marked trails on the screen ----
-    open fun downloadingTrails(label: String) = "Downloading trails · $label"
-    open fun trailsProgress(done: Int, total: Int, failed: Int) =
-        "$done / $total areas" + (if (failed > 0) " · $failed failed" else "") + " · keep MapAround open"
-    open val stopTrailDownload = "Stop trail download"
-    open val trailData = "Trail data"
-    open fun trailAreas(n: Int) = "$n areas (1°×1°) · shown in the Topo style"
-    open val deleteAllTrails = "Delete all trail data"
 
     // ---- the list to download from ----
     open val downloadOverWifiOnly = "Download over Wi‑Fi only"
@@ -141,10 +127,7 @@ open class OfflineTexts {
         "This map is ${size ?: "large"}B ($free free on the device). " +
             if (overWifi) "It will download over Wi‑Fi." else "Consider using Wi‑Fi."
     open fun downloadingRoutingFor(title: String) = "Downloading routing data for $title…"
-    open fun downloadingTrailsFor(title: String) = "Downloading marked trails for $title…"
     open fun downloadingTerrainFor(title: String) = "Downloading terrain for $title…"
-    open val confirmDeleteTrailsTitle = "Delete trail data?"
-    open val confirmDeleteTrailsText = "Marked trails are then shown only online, as an overlay."
     open val confirmDeleteTerrainTitle = "Delete terrain data?"
     open fun confirmDeleteTerrainText(size: String) = "Removes contour lines and hill shading for all maps and frees $size."
     open fun confirmDeleteMapTitle(title: String) = "Delete $title?"
@@ -170,18 +153,6 @@ open class OfflineTexts {
     open fun total(size: String) = "Total $size"
     open val cantCheckSizes = "Couldn't check sizes: no connection to brouter.de."
 
-    // ---- the trails dialog ----
-    open val trailsDialogText =
-        "Waymarked hiking routes from OpenStreetMap (for example red-white-red or the colour-marked trails), " +
-            "drawn in their colours with their names in the Topo style. Without this download, they are " +
-            "shown only online, as an overlay.\n\n" +
-            "It also brings the cliffs, arêtes and ridges, which the downloaded maps leave out. " +
-            "Areas fetched before they came along are downloaded again."
-    open fun installedAreas(n: Int) = "Installed ✓ ($n areas)"
-    open fun areasToDownload(missing: Int, total: Int) = "$missing of $total areas (1°×1°) to download"
-    open val trailsDownloadNote =
-        "Downloaded from the Overpass API one area at a time. Busy hiking regions like the Alps can take " +
-            "several minutes and up to ~50 MB per area; on the phone it is about 10× smaller."
 
     // ---- raster maps ----
     open val addRasterMapFormats = "Add a raster map (.tif, .rmap, .mbtiles, .sqlitedb)"
@@ -286,18 +257,7 @@ open class OfflineTexts {
     open fun areaNeedsTiles(n: Int) =
         "This area needs $n terrain tiles: download them with the map (Offline maps → ⋮ → Terrain)."
 
-    // ---- trail downloads ----
-    open val trailsAlreadyRunning = "A trail download is already running"
-    open fun trailsAlreadyInstalled(label: String) = "Trails for $label are already installed"
-    open fun trailsTooLarge(cells: Int) = "That area is too large for one trail download ($cells cells)"
-    open fun trailsReady(label: String) = "Marked trails and cliffs ready for $label"
-    open fun trailsFailed(label: String, failed: Int, total: Int) =
-        "Trails for $label: $failed of $total areas failed. Tap again to retry."
-    open val trailsStopped = "Trail download stopped"
 
-    /** What's fetched again by itself when the trail data changes (the notification: "Trails for …"). */
-    open val trailsYourAreas = "your downloaded areas"
-    open val trailsUpdated = "Marked trails updated: on dirt roads their colours are now on the road's edges"
 
     // ---- routing data downloads ----
     open val routingDownloadDescription = "MapAround offline routing"
@@ -305,24 +265,21 @@ open class OfflineTexts {
     open fun routingFailed(name: String) = "Routing data $name failed to download"
 
     // ---- the downloads notification (Android) ----
-    open val trails = "Trails"
 
     /** "Terrain for Austria": what downloads, for which map. */
     open fun whatFor(what: String, label: String) = "$what for $label"
 
-    /** "Terrain and trails": several downloads at once. */
+    /** "Terrain and routing": several downloads at once. */
     open fun together(whats: List<String>) = whats.joinToString(" and ") { it.lowercase() }.replaceFirstChar { it.uppercase() }
     open fun areasDone(done: Int, total: Int) = "$done of $total area${if (total == 1) "" else "s"}"
     open val downloadsFinished = "Downloads finished"
     open val channelDownloads = "Downloads"
-    open val channelDownloadsDescription = "Terrain and trail downloads in progress"
+    open val channelDownloadsDescription = "Terrain downloads in progress"
 
     // ---- not there yet (the web app, iPhone) ----
     open val comingToWeb = "Coming to the web app in a later version"
     open val comingToIphone = "Coming to iPhone in a later version"
 
-    /** [later]: [comingToWeb] or [comingToIphone]. */
-    open fun trailsLater(later: String) = "Marked trails: $later"
     open fun routingLater(later: String) = "Offline routing: $later"
     open fun rastersLater(later: String) = "Raster maps: $later"
 
@@ -365,10 +322,6 @@ object OfflineTextsHe : OfflineTexts() {
         "אין עדיין: הם מגיעים כשמשהו צריך אותם (קווי גובה כשמתקרבים, קו ראייה, תלת־ממד), או למפה שלמה מתפריט ⋮ שלה."
     override val routingInfo = "נתוני ניתוב של BRouter בבלוקים של ${iso("5°×5°")}, כדי לחשב מסלולים במכשיר בלי חיבור."
     override val noRoutingYet = "אין עדיין: מורידים אותם למפה מתפריט ⋮ שלה."
-    override val trailsInfo =
-        "מסלולי הליכה מסומנים מ־OpenStreetMap, לפי אזורים, למפות שאין בהן אותם " +
-            "(אותם מסלולים ש־Waymarked Trails מציג)."
-    override val noTrailsYet = "אין עדיין: מורידים אותם למפה מתפריט ⋮ שלה. במפות של MapAround הם כבר בפנים."
 
     override val terrainSource = "מקור"
     override val terrainSourceDefault = "Terrain Tiles ב־AWS (Mapzen)"
@@ -401,8 +354,6 @@ object OfflineTextsHe : OfflineTexts() {
     override fun optionsFor(title: String) = "אפשרויות עבור $title"
     override val contoursAndHillShading = "קווי גובה והצללת תבליט"
     override val offlineRouting = "ניתוב אופליין"
-    override val markedTrails = "שבילים מסומנים"
-    override val markedTrailsInMap = "שבילים מסומנים: כלולים במפה"
     override val deleteMap = "מחיקת המפה"
 
     // ---- section headings ----
@@ -419,7 +370,7 @@ object OfflineTextsHe : OfflineTexts() {
     override val elevationData = "אריחי גובה"
     override fun elevationTiles(n: Int) = "${tiles(n)} (${iso("1°×1°")}) · קווי גובה והצללת תבליט"
     override val deleteAllTerrain = "מחיקת כל נתוני הגובה"
-    override val tipAddOns = "טיפ: בתפריט ⋮ שליד מפה אפשר להוסיף לה קווי גובה והצללת תבליט, ניתוב אופליין ושבילים מסומנים."
+    override val tipAddOns = "טיפ: בתפריט ⋮ שליד מפה אפשר להוסיף לה קווי גובה והצללת תבליט וניתוב אופליין."
     override val tipTerrain =
         "טיפ: בתפריט ⋮ שליד מפה אפשר להוסיף קווי גובה והצללת תבליט לכל השטח שלה (הם גם מגיעים מעצמם במקומות שמתקרבים אליהם)."
 
@@ -429,14 +380,6 @@ object OfflineTextsHe : OfflineTexts() {
     override fun routingBlock(size: String) = "משבצת ${iso("5°×5°")} · $size"
     override fun deleteRoutingData(name: String) = "מחיקת נתוני הניתוב $name"
 
-    // ---- marked trails on the screen ----
-    override fun downloadingTrails(label: String) = "מוריד שבילים · $label"
-    override fun trailsProgress(done: Int, total: Int, failed: Int) =
-        "$done מתוך $total אזורים" + (if (failed > 0) " · $failed נכשלו" else "") + " · יש להשאיר את MapAround פתוחה"
-    override val stopTrailDownload = "עצירת ההורדה של השבילים"
-    override val trailData = "נתוני שבילים"
-    override fun trailAreas(n: Int) = "${areas(n)} (${iso("1°×1°")}) · מוצגים בסגנון Topo"
-    override val deleteAllTrails = "מחיקת כל נתוני השבילים"
 
     // ---- the list to download from ----
     override val downloadOverWifiOnly = "הורדה רק ב־Wi‑Fi"
@@ -468,10 +411,7 @@ object OfflineTextsHe : OfflineTexts() {
         (if (size != null) "גודל המפה ${size}B" else "המפה גדולה") + " (פנויים במכשיר $free). " +
             if (overWifi) "היא תורד ב־Wi‑Fi." else "כדאי להשתמש ב־Wi‑Fi."
     override fun downloadingRoutingFor(title: String) = "מוריד נתוני ניתוב עבור $title…"
-    override fun downloadingTrailsFor(title: String) = "מוריד שבילים מסומנים עבור $title…"
     override fun downloadingTerrainFor(title: String) = "מוריד נתוני גובה עבור $title…"
-    override val confirmDeleteTrailsTitle = "למחוק את נתוני השבילים?"
-    override val confirmDeleteTrailsText = "אחרי המחיקה, שבילים מסומנים יוצגו רק אונליין, כשכבת־על."
     override val confirmDeleteTerrainTitle = "למחוק את נתוני הגובה?"
     override fun confirmDeleteTerrainText(size: String) = "קווי הגובה והצללת התבליט יוסרו מכל המפות, ויתפנו $size."
     override fun confirmDeleteMapTitle(title: String) = "למחוק את $title?"
@@ -497,17 +437,6 @@ object OfflineTextsHe : OfflineTexts() {
     override fun total(size: String) = "סך הכול $size"
     override val cantCheckSizes = "אי אפשר לבדוק את הגדלים: אין חיבור ל־brouter.de."
 
-    // ---- the trails dialog ----
-    override val trailsDialogText =
-        "מסלולי הליכה מסומנים מ־OpenStreetMap (למשל אדום־לבן־אדום או השבילים המסומנים בצבעים), " +
-            "מצוירים בצבעים שלהם ועם השמות שלהם בסגנון Topo. בלי ההורדה הזו הם מוצגים רק אונליין, כשכבת־על.\n\n" +
-            "ההורדה מביאה גם מצוקים, רכסים חדים וקווי רכס, שהמפות שהורדו משמיטות. " +
-            "אזורים שהורדו לפני שאלה נוספו יורדו מחדש."
-    override fun installedAreas(n: Int) = "מותקן ✓ (${areas(n)})"
-    override fun areasToDownload(missing: Int, total: Int) = "$missing מתוך $total אזורים (${iso("1°×1°")}) להורדה"
-    override val trailsDownloadNote =
-        "ההורדה מ־Overpass API נעשית אזור אחר אזור. באזורי טיולים עמוסים כמו האלפים זה יכול לקחת כמה דקות " +
-            "ועד כ־50 MB לאזור; בטלפון הנתונים קטנים בערך פי 10."
 
     // ---- raster maps ----
     override val addRasterMapFormats = "הוספת מפת רסטר (${iso(".tif, .rmap, .mbtiles, .sqlitedb")})"
@@ -600,16 +529,6 @@ object OfflineTextsHe : OfflineTexts() {
     override fun areaNeedsTiles(n: Int) =
         "לאזור הזה צריך $n אריחי גובה: אפשר להוריד אותם עם המפה (מפות אופליין ← ⋮ ← קווי גובה והצללת תבליט)."
 
-    // ---- trail downloads ----
-    override val trailsAlreadyRunning = "כבר מתבצעת הורדה של שבילים"
-    override fun trailsAlreadyInstalled(label: String) = "השבילים עבור $label כבר מותקנים"
-    override fun trailsTooLarge(cells: Int) = "האזור גדול מדי להורדת שבילים אחת ($cells משבצות)"
-    override fun trailsReady(label: String) = "שבילים מסומנים ומצוקים מוכנים עבור $label"
-    override fun trailsFailed(label: String, failed: Int, total: Int) =
-        "שבילים עבור $label: $failed מתוך $total אזורים נכשלו. אפשר להקיש שוב כדי לנסות מחדש."
-    override val trailsStopped = "ההורדה של השבילים נעצרה"
-    override val trailsYourAreas = "האזורים שהורדו"
-    override val trailsUpdated = "השבילים המסומנים עודכנו: על דרכי עפר הצבעים שלהם נמצאים עכשיו בשולי הדרך"
 
     // ---- routing data downloads ----
     override val routingDownloadDescription = "ניתוב אופליין של MapAround"
@@ -617,18 +536,16 @@ object OfflineTextsHe : OfflineTexts() {
     override fun routingFailed(name: String) = "ההורדה של נתוני הניתוב $name נכשלה"
 
     // ---- the downloads notification (Android) ----
-    override val trails = "שבילים"
     override fun whatFor(what: String, label: String) = "$what עבור $label"
     override fun together(whats: List<String>) = whats.joinToString(" ו")
     override fun areasDone(done: Int, total: Int) = "$done מתוך ${areas(total)}"
     override val downloadsFinished = "ההורדות הסתיימו"
     override val channelDownloads = "הורדות"
-    override val channelDownloadsDescription = "הורדות של נתוני גובה ושבילים שמתבצעות עכשיו"
+    override val channelDownloadsDescription = "הורדות של נתוני גובה שמתבצעות עכשיו"
 
     // ---- not there yet (the web app, iPhone) ----
     override val comingToWeb = "בגרסה עתידית של אפליקציית הרשת"
     override val comingToIphone = "בגרסה עתידית ל־iPhone"
-    override fun trailsLater(later: String) = "שבילים מסומנים: $later"
     override fun routingLater(later: String) = "ניתוב אופליין: $later"
     override fun rastersLater(later: String) = "מפות רסטר: $later"
 

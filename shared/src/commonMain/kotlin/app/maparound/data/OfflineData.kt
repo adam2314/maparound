@@ -9,8 +9,8 @@ import app.maparound.terrain.GeoBounds
 import kotlinx.coroutines.flow.StateFlow
 import okio.use
 
-// What the Offline maps screen works with: installed maps, downloads, the catalog, terrain,
-// marked trails and routing data. Android implements these with its repositories
+// What the Offline maps screen works with: installed maps, downloads, the catalog, terrain
+// and routing data. Android implements these with its repositories
 // (DownloadManager, files in the app's folder); iOS with URLSession downloads (phase 3).
 
 /** A mapsforge map on the device. */
@@ -39,7 +39,7 @@ data class DownloadInfo(
     val progress: Float? get() = if (totalBytes > 0) downloadedBytes.toFloat() / totalBytes else null
 }
 
-/** Progress of a terrain or trails download (1° cells). */
+/** Progress of a terrain download (1° cells). */
 data class DownloadProgress(val label: String, val done: Int, val total: Int, val failed: Int) {
     val fraction: Float get() = if (total == 0) 0f else done.toFloat() / total
 }
@@ -51,8 +51,6 @@ data class TerrainState(
     val version: Int = 0,
     val progress: DownloadProgress? = null,
 )
-
-data class TrailState(val cells: Int = 0, val bytes: Long = 0, val version: Int = 0, val progress: DownloadProgress? = null)
 
 data class RoutingSegment(val name: String, val bytes: Long)
 
@@ -167,17 +165,6 @@ interface TerrainData {
     }
 }
 
-interface TrailData {
-    val state: StateFlow<TrailState>
-    fun cellsFor(bounds: GeoBounds): List<Pair<Int, Int>>
-    fun missingCells(bounds: GeoBounds): List<Pair<Int, Int>>
-
-    /** Returns an error message, or null when the download started. */
-    fun download(label: String, bounds: GeoBounds): String?
-    fun cancel()
-    fun deleteAll()
-}
-
 interface RoutingData {
     val state: StateFlow<RoutingDataState>
     fun isInstalled(name: String): Boolean
@@ -201,14 +188,13 @@ class OfflineData(
     val downloads: MapDownloads,
     val catalog: CatalogSource,
     val terrain: TerrainData,
-    val trails: TrailData,
     val routing: RoutingData,
     /**
      * The app has its own world map (land and sea, lakes, rivers, borders, names), so mapsforge's
      * world overview map isn't needed (Android).
      */
     val builtInWorld: Boolean = false,
-    /** Offline routing and marked trails can be added to a map (not in the web app yet). */
+    /** Offline routing can be added to a map (not in the web app yet). */
     val addOns: Boolean = true,
     /** Terrain (contour lines & hill shading) can be added to a map. */
     val terrainAddOn: Boolean = addOns,

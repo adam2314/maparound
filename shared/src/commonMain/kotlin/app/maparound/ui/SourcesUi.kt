@@ -92,7 +92,7 @@ internal fun SourcesPage() {
     val shown = SourceKind.entries.filter { k ->
         when (k) {
             SourceKind.STREAMED_MAPS -> offline.streamed != null
-            SourceKind.TRAILS_DATA, SourceKind.ROUTING_DATA -> offline.addOns
+            SourceKind.ROUTING_DATA -> offline.addOns
             // With elevation: one dialog has both.
             SourceKind.RELIEF_3D -> false
             SourceKind.PARTY -> !party.watchOnly
@@ -156,7 +156,6 @@ private fun title(k: SourceKind): String = when (k) {
     SourceKind.STREAMED_MAPS -> T.settings.streamedMaps
     SourceKind.SATELLITE -> T.settings.satellite
     SourceKind.TRAILS_OVERLAY -> T.settings.trailsOverlay
-    SourceKind.TRAILS_DATA -> T.settings.trailsData
     SourceKind.ELEVATION, SourceKind.RELIEF_3D -> T.settings.elevation
     SourceKind.ROUTING -> T.settings.routing
     SourceKind.ROUTING_DATA -> T.settings.routingData
@@ -316,7 +315,6 @@ private fun example(kind: SourceKind): String = when (kind.address) {
     AddressKind.TILES -> "https://tiles.example.org/{z}/{x}/{y}.png"
     else -> when (kind) {
         SourceKind.MAP_LIST -> "https://maps.example.org/catalog.json"
-        SourceKind.TRAILS_DATA -> "https://overpass.example.org/api/interpreter"
         SourceKind.ROUTING -> "https://brouter.example.org/brouter"
         SourceKind.ROUTING_DATA -> "https://brouter.example.org/segments4/"
         SourceKind.SEARCH -> "https://photon.example.org/api/"

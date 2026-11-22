@@ -24,16 +24,15 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
-import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
- * Keeps terrain and trail downloads going while MapAround is in the background or the screen is
- * off. The downloads themselves run in [TerrainStore] and [TrailRepository]; this foreground
- * service only keeps the app alive (and the CPU awake) while one of them runs, with their
- * progress in its notification, and says how they ended if the app isn't open by then.
+ * Keeps terrain downloads going while MapAround is in the background or the screen is off. The
+ * downloads themselves run in [TerrainStore]; this foreground service only keeps the app alive
+ * (and the CPU awake) while one runs, with its progress in its notification, and says how it
+ * ended if the app isn't open by then.
  */
 class DownloadService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -49,7 +48,6 @@ class DownloadService : Service() {
         if (intent?.action == ACTION_CANCEL) {
             cancelled = true
             AppGraph.terrain.cancel()
-            AppGraph.trails.cancel()
             // At once: a download waiting for a server's answer only ends when it comes.
             if (running) finish() else stopSelf()
             return START_NOT_STICKY
@@ -75,9 +73,9 @@ class DownloadService : Service() {
                 setReferenceCounted(false)
                 acquire(MAX_WAKE_MS)
             }
-        scope.launch { merge(AppGraph.terrain.events, AppGraph.trails.events).collect { messages += it } }
+        scope.launch { AppGraph.terrain.events.collect { messages += it } }
         scope.launch {
-            combine(AppGraph.terrain.state, AppGraph.trails.state) { _, _ -> downloads() }
+            AppGraph.terrain.state.map { downloads() }
                 .conflate()
                 .collect { list ->
                     if (list.isEmpty()) {
@@ -125,7 +123,6 @@ class DownloadService : Service() {
     /** The downloads running now, by what they fetch. */
     private fun downloads(): List<Pair<String, DownloadProgress>> = listOfNotNull(
         AppGraph.terrain.state.value.progress?.let { T.offline.terrain to it },
-        AppGraph.trails.state.value.progress?.let { T.offline.trails to it },
     )
 
     private fun progress(list: List<Pair<String, DownloadProgress>>): Notification {

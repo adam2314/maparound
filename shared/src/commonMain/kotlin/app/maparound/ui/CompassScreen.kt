@@ -46,7 +46,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.maparound.data.LocalPrefs
 import app.maparound.i18n.T
-import app.maparound.i18n.ltr
 import app.maparound.sensors.GeoFix
 import app.maparound.sensors.LocalDeviceSensors
 import app.maparound.sensors.Orientation
@@ -56,7 +55,6 @@ import app.maparound.shared.util.nowMillis
 import app.maparound.shared.util.toRadians
 import kotlin.math.abs
 import kotlin.math.cos
-import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -104,9 +102,7 @@ fun CompassScreen(hasLocation: Boolean, requestLocation: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            heading?.let {
-                if (app.maparound.i18n.Units.current.direction == app.maparound.i18n.DirectionFormat.MILS) Fmt.heading(it) else ltr("${it.roundToInt() % 360}°")
-            } ?: "—",
+            heading?.let { Fmt.compass(it) } ?: "—",
             style = MaterialTheme.typography.displayLarge,
             fontWeight = FontWeight.Bold,
         )

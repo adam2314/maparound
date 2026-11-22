@@ -270,7 +270,6 @@ fun MapScreen(
     val hillshade by prefs.hillshade.collectAsState()
     val terrain by offline.terrain.state.collectAsState()
     val trailsOn by prefs.trails.collectAsState()
-    val trailData by offline.trails.state.collectAsState()
     val background by prefs.mapBackground.collectAsState()
     val vectorOnBackground by prefs.vectorOnBackground.collectAsState()
     val rasterMaps by rastersLib.maps.collectAsState()
@@ -299,7 +298,6 @@ fun MapScreen(
         hillshade = hillshade,
         terrainVersion = terrain.version,
         trails = trailsOn,
-        trailsVersion = trailData.version,
         background = background,
         vectorOnTop = vectorOnBackground,
         rasterMaps = rasterMaps,
@@ -400,8 +398,8 @@ fun MapScreen(
             }
         }
     }
-    // Marked trails: drawn from downloaded data or the trails built into MapAround's maps in the
-    // Topo style, otherwise the online overlay.
+    // Marked trails: the ones built into MapAround's maps, in the Topo styles; otherwise the online
+    // overlay.
     val mapsWithTrails by produceState(false, localMaps) {
         value = withContext(Dispatchers.Default) { localMaps.any { MapAroundMaps.hasTrails(it.path) } }
     }
@@ -419,7 +417,7 @@ fun MapScreen(
             delay(OFFER_CHECK_MS)
         }
     }
-    val localTrails = trailsOn && showingOffline && MapThemes.drawsTerrain(theme) && (trailData.cells > 0 || mapsWithTrails || streamedTrailsHere)
+    val localTrails = trailsOn && showingOffline && MapThemes.drawsTerrain(theme) && (mapsWithTrails || streamedTrailsHere)
     val trailOverlay = trailsOn && !localTrails
     LaunchedEffect(trailOverlay) { controller.setTrailOverlay(trailOverlay) }
 
@@ -443,8 +441,10 @@ fun MapScreen(
         }
         controller.setPlannedRoute(line, if (planner.active) planner.waypoints else emptyList())
     }
-    LaunchedEffect(savedTracks, visibleTracks) {
-        controller.setShownTracks(savedTracks.filter { it.id in visibleTracks }.associate { it.id to it.track.points })
+    // The saved route being edited isn't drawn as well: the planner draws it.
+    val editingId = planner.editing?.id
+    LaunchedEffect(savedTracks, visibleTracks, editingId) {
+        controller.setShownTracks(savedTracks.filter { it.id in visibleTracks && it.id != editingId }.associate { it.id to it.track.points })
     }
     LaunchedEffect(recorder.points) { controller.setRecording(recorder.points) }
     val focus by MapFocus.request.collectAsState()
@@ -607,14 +607,16 @@ fun MapScreen(
 
     // The data view (the web app): countries and Israel's localities coloured by their figures.
     val stats = LocalStats.current
-    var dataView by rememberSaveable { mutableStateOf(false) }
-    var dataLayers by remember { mutableStateOf(DataLayers()) }
-    // The data view's explorer, in its drawer: opens with the view.
-    var explorerOpen by rememberSaveable { mutableStateOf(false) }
+    // Its state is shared with its explorer, which is in the side panel on a big screen ([DataView]).
+    var dataView by DataView::on
+    var dataLayers by DataView::layers
+    // The data view's explorer, in its drawer over the map on a phone: opens with the view.
+    var explorerOpen by DataView::explorerOpen
+    val sidePanels = LocalSidePanels.current
     var mapWidth by remember { mutableStateOf(0.dp) }
     val narrowScreen = mapWidth < NARROW_SCREEN
     val explorerWidth = minOf(EXPLORER_WIDTH, mapWidth * 0.88f)
-    val explorerBeside = dataView && explorerOpen && !narrowScreen
+    val explorerBeside = dataView && explorerOpen && !narrowScreen && !sidePanels
     val countryIndicator = dataLayers.country.takeUnless { dataLayers.timeZones }
     val localityIndicator = dataLayers.locality
     var hiddenCountryClasses by remember { mutableStateOf(emptySet<Int>()) }
@@ -649,6 +651,8 @@ fun MapScreen(
         }
         dataLayers = new
     }
+    // The explorer in the side panel picks through this too.
+    androidx.compose.runtime.SideEffect { DataView.pick = ::pickDataLayers }
     // The data view's effects, in a function of their own (see MapTop).
     @Composable
     fun DataViewEffects() {
@@ -694,17 +698,8 @@ fun MapScreen(
                 dataView = true
             }
         }
-        // The data view asked for from the side rail: on, with its explorer open.
-        LaunchedEffect(stats) {
-            if (stats == null) return@LaunchedEffect
-            DataViewLink.showExplorer.collect { show ->
-                if (!show) return@collect
-                DataViewLink.showExplorer.value = false
-                dataSelected = null
-                explorerOpen = true
-                dataView = true
-            }
-        }
+        // Left (here or in the side panel): nothing stays tapped.
+        LaunchedEffect(dataView) { if (!dataView) dataSelected = null }
         // The data view as it is now, for the web app's address.
         LaunchedEffect(dataView, dataLayers, dataSelected) {
             DataViewLink.current.value = if (dataView) MapAddress.data(dataLayers) else null
@@ -1262,7 +1257,7 @@ fun MapScreen(
                     },
                 )
             }
-            if (dataView && stats != null && pin == null && !(explorerOpen && narrowScreen)) {
+            if (dataView && stats != null && pin == null && !(explorerOpen && narrowScreen && !sidePanels)) {
                 // A tapped country or locality, else what colours the map.
                 val key = dataSelected
                 val country = key?.takeIf { it.startsWith(StatsLayers.TAP_COUNTRY) }?.let { statsCountries?.get(it.removePrefix(StatsLayers.TAP_COUNTRY)) }
@@ -1276,7 +1271,8 @@ fun MapScreen(
                     ?.let { ride -> live.buses.firstOrNull { it.rideId == ride } }
                 val camera = key?.takeIf { it.startsWith(app.maparound.stats.Cameras.TAP) }?.removePrefix(app.maparound.stats.Cameras.TAP)
                     ?.let { id -> live.cameras.firstOrNull { it.id == id } }
-                val showLocalities = dataZoom >= LOCALITIES_ZOOM
+                // Israel's localities' legend zoomed in, when they're on; else the countries'.
+                val showLocalities = dataZoom >= LOCALITIES_ZOOM && dataLayers.locality != null
                 when {
                     camera != null -> CameraCard(camera, onClose = { dataSelected = null })
                     weatherAt != null -> WeatherCard(weatherAt.first, weatherAt.second, stats, onClose = { dataSelected = null })
@@ -1567,22 +1563,13 @@ fun MapScreen(
             )
         }
         }
-        if (stats != null) DataExplorerDrawer(
+        // On a phone; on a big screen the explorer is in the side panel (Root).
+        if (stats != null && !sidePanels) DataExplorerDrawer(
             open = dataView && explorerOpen,
             narrow = narrowScreen,
             width = explorerWidth,
             layers = dataLayers,
-            offers = DataOffers(
-                timeZones = stats.hasTimeZones,
-                gpsTraces = gpsTraces != null,
-                radar = !Sources.isOff(app.maparound.sources.SourceKind.RAIN_RADAR),
-                weather = !Sources.isOff(app.maparound.sources.SourceKind.WEATHER),
-                photos = !Sources.isOff(app.maparound.sources.SourceKind.STREET_PHOTOS),
-                buses = stats.hasBuses,
-                cameras = !Sources.isOff(app.maparound.sources.SourceKind.CAMERAS),
-                weatherMaps = !Sources.isOff(app.maparound.sources.SourceKind.WEATHER_MAPS),
-                mapBuilds = stats.hasMapBuilds,
-            ),
+            offers = dataOffers(stats),
             onLayers = { pickDataLayers(it) },
             onClose = { explorerOpen = false },
             onLeave = {
@@ -1682,13 +1669,14 @@ fun MapScreen(
 
         if (saveDialog) {
             SaveRouteDialog(
-                suggested = Fmt.dayMonthTime(nowMillis()).let {
+                suggested = planner.editing?.name ?: Fmt.dayMonthTime(nowMillis()).let {
                     if (planner.profile == RouteProfile.LINE) T.map.drawnRouteName(it) else T.map.routeName(it)
                 },
+                editing = planner.editing != null,
                 onDismiss = { saveDialog = false },
-                onSave = { name ->
+                onSave = { name, asNew ->
                     saveDialog = false
-                    PlannerSession.save(name)
+                    PlannerSession.save(name, asNew)
                     PlannerSession.close()
                     scope.launch { snackbar.showSnackbar(T.map.savedToRoutes(name)) }
                 },
@@ -1705,7 +1693,7 @@ fun MapScreen(
                 hillshade = hillshade,
                 terrainTiles = terrain.tiles,
                 trails = trailsOn,
-                localTrails = trailData.cells > 0,
+                localTrails = localTrails,
                 places = placesOn,
                 inParty = party.party != null,
                 background = background,
@@ -2566,6 +2554,10 @@ private fun PlannerPanel(
                 Tip(T.map.closePlanner) { IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = T.map.closePlanner) } }
             }
             val route = state.route
+            // A saved route being edited: which one.
+            state.editing?.let { e ->
+                Text(T.map.editingRoute(e.name), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+            }
             when {
                 state.waypoints.isEmpty() -> Text(
                     T.map.plannerTapStart,
@@ -2582,6 +2574,7 @@ private fun PlannerPanel(
                         when (route.source) {
                             RouteResult.Source.OFFLINE -> T.map.routedOffline
                             RouteResult.Source.ONLINE -> T.map.routedOnline
+                            RouteResult.Source.SAVED -> T.map.routeAsSaved
                             RouteResult.Source.STRAIGHT ->
                                 if (route.points.any { it.ele != null }) T.map.straightWithHeights
                                 else T.map.straightNoHeights
@@ -2620,14 +2613,20 @@ private fun PlannerPanel(
     }
 }
 
+/** [editing]: a saved route being edited: saved over it, or as a new one besides. */
 @Composable
-private fun SaveRouteDialog(suggested: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+private fun SaveRouteDialog(suggested: String, editing: Boolean, onDismiss: () -> Unit, onSave: (name: String, asNew: Boolean) -> Unit) {
     var name by remember { mutableStateOf(suggested) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(T.map.saveRoute) },
+        title = { Text(if (editing) T.map.saveChanges else T.map.saveRoute) },
         text = { OutlinedTextField(name, { name = it }, label = { Text(T.map.nameField) }, singleLine = true) },
-        confirmButton = { TextButton(onClick = { onSave(name.trim().ifEmpty { suggested }) }) { Text(T.common.save) } },
+        confirmButton = {
+            Row {
+                if (editing) TextButton(onClick = { onSave(name.trim().ifEmpty { suggested }, true) }) { Text(T.map.saveAsNew) }
+                TextButton(onClick = { onSave(name.trim().ifEmpty { suggested }, false) }) { Text(T.common.save) }
+            }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text(T.common.cancel) } },
     )
 }

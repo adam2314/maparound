@@ -1,6 +1,7 @@
 package app.maparound.map
 
 import app.maparound.AppGraph
+import app.maparound.data.MapAroundMaps
 import app.maparound.party.PartySession
 import app.maparound.routing.NavigationSession
 import app.maparound.routing.PlannerSession
@@ -10,10 +11,12 @@ import app.maparound.ui.partyMapMarkers
 import app.maparound.ui.partyMarks
 import app.maparound.ui.partyTrails
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Keeps a map that isn't the phone's own (the car screen, a second screen) showing what the
@@ -41,7 +44,7 @@ class LiveMapFeed(
             combine(
                 listOf(
                     prefs.baseLayer, prefs.customSources, AppGraph.mapFiles.files, prefs.mapTheme, prefs.styleChoices, prefs.contours,
-                    prefs.hillshade, AppGraph.terrain.state, prefs.trails, AppGraph.trails.state,
+                    prefs.hillshade, AppGraph.terrain.state, prefs.trails,
                     prefs.mapBackground, prefs.vectorOnBackground, AppGraph.rasters.maps, AppGraph.streaming.maps,
                     app.maparound.shared.stream.MapStream.generation,
                 ),
@@ -97,7 +100,6 @@ class LiveMapFeed(
             hillshade = prefs.hillshade.value,
             terrainVersion = AppGraph.terrain.state.value.version,
             trails = prefs.trails.value,
-            trailsVersion = AppGraph.trails.state.value.version,
             // Same background as the phone (satellite / raster map under the vector map).
             background = prefs.mapBackground.value,
             vectorOnTop = prefs.vectorOnBackground.value,
@@ -105,7 +107,9 @@ class LiveMapFeed(
             streamed = AppGraph.streaming.maps.value,
         )
         map.setBaseMap(base)
-        val localTrails = online == null && prefs.trails.value && MapThemes.drawsTerrain(theme) && AppGraph.trails.state.value.cells > 0
+        // The marked trails built into MapAround's maps, else the online overlay (as on the phone).
+        val builtIn = base is BaseMap.Offline && withContext(Dispatchers.IO) { base.maps.any { MapAroundMaps.hasTrails(it.path) } }
+        val localTrails = prefs.trails.value && MapThemes.drawsTerrain(theme) && builtIn
         map.setTrailOverlay(prefs.trails.value && !localTrails)
     }
 }

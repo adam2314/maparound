@@ -54,6 +54,8 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.MutableState
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.graphics.vector.ImageVector
 import app.maparound.i18n.ltr
@@ -112,12 +114,12 @@ internal fun hexColor(hex: String): Color = Color(0xFF000000 or hex.removePrefix
 
 /** What the data view shows: its layers, as the explorer's tree has them. */
 data class DataLayers(
-    /** What colours the countries; null: nothing (or the time zones do). */
-    val country: CountryIndicator? = CountryIndicator.POPULATION,
+    /** What colours the countries; null: nothing (or the time zones do). Nothing on to start with. */
+    val country: CountryIndicator? = null,
     /** The time zones colour the world instead of a country figure. */
     val timeZones: Boolean = false,
     /** What colours Israel's localities; null: they're hidden. */
-    val locality: LocalityIndicator? = LocalityIndicator.SIZE,
+    val locality: LocalityIndicator? = null,
     val gpsTraces: Boolean = false,
     val rainRadar: Boolean = false,
     /** What the weather's points show; null: none. */
@@ -163,8 +165,6 @@ object DataViewLink {
     val current = MutableStateFlow<String?>(null)
     val currentSelected = MutableStateFlow<String?>(null)
 
-    /** The data view asked for with its explorer open (from the side rail): the map screen opens it, then sets this back. */
-    val showExplorer = MutableStateFlow(false)
 }
 
 /** What the data view can offer: the layers there's data for, whose source isn't off. */
@@ -293,6 +293,112 @@ val EXPLORER_WIDTH = 380.dp
  * It folds away ([onClose]) with the data staying on the map; while the data view is on ([inView])
  * and it's folded, a tab on the screen's edge brings it back ([onOpen]).
  */
+/**
+ * The data view's state, shared by the map (what it draws) and the explorer, which is in the side
+ * panel on a big screen (like the tabs) and in a drawer over the map on a phone.
+ */
+object DataView {
+    /** Whether it's on the map. */
+    var on by mutableStateOf(false)
+
+    /** What it shows: nothing to start with, until picked. */
+    var layers by mutableStateOf(DataLayers())
+
+    /** Whether its explorer is open. */
+    var explorerOpen by mutableStateOf(false)
+
+    /**
+     * Layers picked in the explorer: the map screen sets this to its own (which also brings back
+     * the classes hidden in the legend of what changed).
+     */
+    var pick: (DataLayers) -> Unit = { layers = it }
+
+    /** On, with the explorer open. */
+    fun open() {
+        on = true
+        explorerOpen = true
+    }
+
+    /** Off, the explorer closed. */
+    fun leave() {
+        on = false
+        explorerOpen = false
+    }
+}
+
+/** What the data view can offer here: what [stats] has, the sources that aren't off. */
+fun dataOffers(stats: app.maparound.stats.StatsData): DataOffers = DataOffers(
+    timeZones = stats.hasTimeZones,
+    gpsTraces = app.maparound.map.TileSources.gpsTraces != null,
+    radar = !app.maparound.sources.Sources.isOff(app.maparound.sources.SourceKind.RAIN_RADAR),
+    weather = !app.maparound.sources.Sources.isOff(app.maparound.sources.SourceKind.WEATHER),
+    photos = !app.maparound.sources.Sources.isOff(app.maparound.sources.SourceKind.STREET_PHOTOS),
+    buses = stats.hasBuses,
+    cameras = !app.maparound.sources.Sources.isOff(app.maparound.sources.SourceKind.CAMERAS),
+    weatherMaps = !app.maparound.sources.Sources.isOff(app.maparound.sources.SourceKind.WEATHER_MAPS),
+    mapBuilds = stats.hasMapBuilds,
+)
+
+/**
+ * The explorer: what's on the map, the search, the tree of what the data view can show, and
+ * leaving it at the bottom. [header]: its top row (the drawer's, or the side panel's with its ✕);
+ * [bottomEnd]: after "Leave". [query] and [expanded] are kept by whoever keeps them across closing.
+ */
+@Composable
+fun DataExplorer(
+    layers: DataLayers,
+    offers: DataOffers,
+    onLayers: (DataLayers) -> Unit,
+    onLeave: () -> Unit,
+    modifier: Modifier = Modifier,
+    query: MutableState<String> = rememberSaveable { mutableStateOf("") },
+    expanded: MutableMap<String, Boolean> = remember { mutableStateMapOf() },
+    header: @Composable RowScope.() -> Unit,
+    bottomEnd: @Composable RowScope.() -> Unit = {},
+) {
+    val s = T.stats
+    Column(modifier.fillMaxSize()) {
+        Row(Modifier.padding(start = 4.dp, end = 4.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically, content = header)
+        OutlinedTextField(
+            value = query.value,
+            onValueChange = { query.value = it },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            singleLine = true,
+            placeholder = { Text(s.findData) },
+            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+            trailingIcon = if (query.value.isNotEmpty()) ({
+                Tip(T.library.clear) { IconButton(onClick = { query.value = "" }) { Icon(Icons.Filled.Close, contentDescription = T.library.clear) } }
+            }) else null,
+        )
+        val tree = branches(layers, offers, onLayers)
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+            OnTheMap(tree, onClear = { onLayers(DataLayers()) })
+            Tree(tree, query.value, expanded)
+        }
+        HorizontalDivider()
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onLeave) {
+                Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(s.leaveDataView)
+            }
+            Spacer(Modifier.weight(1f))
+            bottomEnd()
+        }
+    }
+}
+
+/** The explorer's title: the layers' icon, "Data view" and what it's for. */
+@Composable
+fun RowScope.DataExplorerTitle() {
+    Icon(Icons.Filled.Layers, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 12.dp))
+    Column(Modifier.weight(1f)) {
+        Text(T.stats.dataView, style = MaterialTheme.typography.titleMedium)
+        Text(T.stats.explorerSubtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** The explorer in a drawer over the map's side (a phone; on a big screen it's in the side panel). */
 @Composable
 fun DataExplorerDrawer(
     open: Boolean,
@@ -308,7 +414,7 @@ fun DataExplorerDrawer(
 ) {
     val s = T.stats
     // Kept while it's closed: what was being looked for, which branches are open.
-    var query by rememberSaveable { mutableStateOf("") }
+    val query = rememberSaveable { mutableStateOf("") }
     val expandedBranches = remember { mutableStateMapOf<String, Boolean>() }
     val ltr = LocalLayoutDirection.current == LayoutDirection.Ltr
     Box(Modifier.fillMaxSize()) {
@@ -351,46 +457,18 @@ fun DataExplorerDrawer(
                 tonalElevation = 2.dp,
                 shadowElevation = 8.dp,
             ) {
-                Column(Modifier.fillMaxSize()) {
-                    Row(Modifier.padding(start = 16.dp, end = 4.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.Layers, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(s.dataView, style = MaterialTheme.typography.titleMedium)
-                            Text(s.explorerSubtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+                DataExplorer(
+                    layers, offers, onLayers, onLeave,
+                    query = query, expanded = expandedBranches,
+                    header = {
+                        DataExplorerTitle()
                         // Folds it away; the data stays on the map (leaving the data view is at the bottom).
                         Tip(s.showTheMap) {
                             IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = s.showTheMap) }
                         }
-                    }
-                    OutlinedTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-                        singleLine = true,
-                        placeholder = { Text(s.findData) },
-                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                        trailingIcon = if (query.isNotEmpty()) ({
-                            Tip(T.library.clear) { IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, contentDescription = T.library.clear) } }
-                        }) else null,
-                    )
-                    val tree = branches(layers, offers, onLayers)
-                    Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
-                        OnTheMap(tree, onClear = { onLayers(DataLayers(country = null, locality = null)) })
-                        Tree(tree, query, expandedBranches)
-                    }
-                    HorizontalDivider()
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = onLeave) {
-                            Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text(s.leaveDataView)
-                        }
-                        Spacer(Modifier.weight(1f))
-                        if (narrow) Button(onClick = onClose) { Text(s.showTheMap) }
-                    }
-                }
+                    },
+                    bottomEnd = { if (narrow) Button(onClick = onClose) { Text(s.showTheMap) } },
+                )
             }
         }
     }
@@ -583,7 +661,7 @@ fun DataViewPanel(
                 }
                 !showLocalities && country != null -> {
                     Legend(country.classes, hidden, onToggleClass)
-                    Hint(s.zoomInForLocalities, s.localities, onGoTo)
+                    if (locality != null) Hint(s.zoomInForLocalities, s.localities, onGoTo)
                 }
                 layers.coloured -> Hint(null, if (showLocalities) s.countries else s.localities, onGoTo)
             }

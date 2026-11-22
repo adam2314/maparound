@@ -57,6 +57,9 @@ open class LibraryTexts {
     /** A track kept from a recording that was cut off (app killed). */
     open fun recoveredTrackName(name: String) = "$name (recovered)"
 
+    /** Stop & save couldn't write the track; its points are kept and saved at the next start. */
+    open val recordingNotSaved = "Couldn't save the recording (is the storage full?). Its points are kept and saved when the app next starts."
+
     /** An imported track's name when its file gives none. */
     open val importedTrackName = "Imported"
 
@@ -69,6 +72,7 @@ open class LibraryTexts {
     open val recordingTrack = "Recording track"
     open val waitingForGps = "Waiting for GPS…"
     open val stopAndSave = "Stop & save"
+    open val editRoute = "Edit route"
 
     // ---- places: add / edit ----
     open val savePlace = "Save place"
@@ -161,6 +165,7 @@ object LibraryTextsHe : LibraryTexts() {
 
     override fun recordedTrackName(dateTime: String) = "מסלול מוקלט $dateTime"
     override fun recoveredTrackName(name: String) = "$name (שוחזר)"
+    override val recordingNotSaved = "לא ניתן היה לשמור את ההקלטה (האחסון מלא?). הנקודות שלה נשמרות בצד ויישמרו כשהאפליקציה תיפתח שוב."
     override val importedTrackName = "מסלול מיובא"
     override val noTrackInGpx = "אין מסלול בקובץ ה־GPX הזה"
 
@@ -169,6 +174,7 @@ object LibraryTextsHe : LibraryTexts() {
     override val recordingTrack = "הקלטת מסלול פעילה"
     override val waitingForGps = "המתנה ל־GPS…"
     override val stopAndSave = "עצירה ושמירה"
+    override val editRoute = "עריכת המסלול"
 
     override val savePlace = "שמירת מקום"
     override val editPlace = "עריכת מקום"

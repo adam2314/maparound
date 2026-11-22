@@ -5,7 +5,7 @@ import okio.BufferedSource
 import okio.ByteString
 import okio.ByteString.Companion.encodeUtf8
 
-// A small, forgiving, streaming XML reader with SAX-style callbacks, for GPX and Overpass files
+// A small, forgiving, streaming XML reader with SAX-style callbacks, for GPX and other XML files
 // (Java's SAX parser isn't available on iOS). Handles the XML declaration, comments, CDATA,
 // processing instructions, a DOCTYPE (internal subset skipped), the five named entities and
 // numeric character references. Namespace prefixes are kept in names (callers strip them).

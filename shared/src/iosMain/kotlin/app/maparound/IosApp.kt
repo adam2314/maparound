@@ -17,7 +17,6 @@ import app.maparound.ios.IosMapDownloads
 import app.maparound.ios.freeBytes
 import app.maparound.ios.PendingRouting
 import app.maparound.data.TerrainStore
-import app.maparound.ios.PendingTrails
 import app.maparound.map.MapTheme
 import app.maparound.map.MapThemeLibrary
 import app.maparound.map.MapThemes
@@ -100,7 +99,6 @@ object IosApp {
         downloads = downloads,
         catalog = MapAroundCatalog(),
         terrain = terrain,
-        trails = PendingTrails,
         routing = PendingRouting,
     )
 

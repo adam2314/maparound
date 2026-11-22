@@ -54,7 +54,7 @@ fun AndroidRoot() {
     MapAroundRoot(
         hasLocation = hasLocation,
         requestLocation = requestLocation,
-        messages = remember { merge(AppGraph.downloader.events, AppGraph.terrain.events, AppGraph.trails.events, AppGraph.routing.events) },
+        messages = remember { merge(AppGraph.downloader.events, AppGraph.terrain.events, AppGraph.routing.events) },
         onStart = {
             coroutineScope {
                 // Finish downloads that completed while the app was closed.

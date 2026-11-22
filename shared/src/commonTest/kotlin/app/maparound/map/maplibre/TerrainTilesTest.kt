@@ -85,13 +85,36 @@ class TerrainTilesTest {
     }
 
     @Test
+    fun contoursAndShadingStopAtTheSea() {
+        writeSlope()
+        // The sea east of 9.5°E, where the slope is 1200 m and more.
+        val tiles = TerrainTiles(DemIndex(dir)) { { _, lon -> lon > 9.5 } }
+        val (x, y) = tileOf(47.5, 9.5, 12)
+        val n = (1 shl 12).toDouble()
+        fun lonOf(px: Double) = (x + px / 256) / n * 360 - 180
+        // Shading: the land's heights, 0 m at sea.
+        val pixels = decodeRgb(assertNotNull(tiles.terrarium(12, x, y)))
+        for (px in 0 until 256 step 15) {
+            val i = (128 * 256 + px) * 3
+            val h = (pixels[i].toInt() and 0xFF) * 256 + (pixels[i + 1].toInt() and 0xFF) - 32768
+            val lon = lonOf(px + 0.5)
+            if (lon > 9.502) assertEquals(0, h, "pixel $px at $lon") else if (lon < 9.498) assertTrue(h > 1000, "pixel $px: $h m")
+        }
+        // Contour lines: none at all where it's all sea.
+        assertTrue(TerrainTiles(DemIndex(dir)).contours(12, x, y).size > 100)
+        assertTrue(TerrainTiles(DemIndex(dir)) { { _, _ -> true } }.contours(12, x, y).size < 10)
+    }
+
+    @Test
     fun styleGetsContoursAndHillShadingWithTerrain() {
         writeSlope()
         val service = TileService(dir).apply { baseUrl = "http://127.0.0.1:9" }
         assertNotNull(service.refreshTerrain())
         val (x, y) = tileOf(47.5, 9.5, 11)
-        assertEquals("image/png", service.respond("/dem/${service.terrainVersion}/11/$x/$y.png")?.contentType)
-        assertNotNull(service.respond("/contours/${service.terrainVersion}/11/$x/$y.pbf"))
+        assertEquals("image/png", service.respond("/dem/${service.terrainKey}/11/$x/$y.png")?.contentType)
+        assertNotNull(service.respond("/contours/${service.terrainKey}/11/$x/$y.pbf"))
+        // The tiles' address changes with the maps too (their sea cuts the lines).
+        assertTrue(service.terrainKey!!.startsWith(service.terrainVersion!!))
 
         val theme = ThemeStyle.Hillshade(index = 1, minZoom = 8, maxZoom = 18, magnitude = 55)
         val style = MapStyle(BasicLayers.layers, BasicLayers.GLYPHS, theme)
@@ -99,7 +122,7 @@ class TerrainTilesTest {
             style.build(
                 BaseMap.Offline(
                     maps = emptyList(), theme = MapThemes.TOPO, categories = null, contours = contours, hillshade = hillshade, terrainVersion = 1, trails = false,
-                    trailsVersion = 0, background = Prefs.BACKGROUND_NONE, vectorOnTop = true, rasterMaps = emptyList(),
+                    background = Prefs.BACKGROUND_NONE, vectorOnTop = true, rasterMaps = emptyList(),
                 ),
                 service,
             ),
@@ -119,8 +142,26 @@ class TerrainTilesTest {
         assertEquals(0xAE426082L.toInt(), Png.crc32(0xFFFFFFFFL.toInt(), "IEND".encodeToByteArray()).inv())
     }
 
-    /** The pixels of an 8-bit RGB PNG with unfiltered rows (what [Png] writes). */
-    private fun decodeRgb(png: ByteArray): ByteArray {
+    @Test
+    fun viewshedImageIsServed() {
+        // 2 × 2 cells: in sight, hidden / outside the circle, in sight.
+        val vs = app.maparound.tools.Viewshed(
+            app.maparound.routing.GeoPoint(32.0, 35.0), 100.0, 2, 0.0, 0.0, 200.0, 200.0, byteArrayOf(1, 0, -1, 1),
+        )
+        val service = TileService()
+        service.viewshed = vs
+        val r = assertNotNull(service.respond("/viewshed/${MapStyle.viewshedKey(vs)}.png"))
+        assertEquals("image/png", r.contentType)
+        val seen = listOf(67, 160, 71, 80)
+        val hidden = listOf(198, 40, 40, 115)
+        val clear = listOf(0, 0, 0, 0)
+        assertEquals(seen + hidden + clear + seen, decodeRgb(r.bytes, channels = 4).map { it.toInt() and 0xFF })
+        // An older viewshed's address gets nothing.
+        assertNull(service.respond("/viewshed/0.png"))
+    }
+
+    /** The pixels of an 8-bit RGB (or RGBA) PNG with unfiltered rows (what [Png] writes). */
+    private fun decodeRgb(png: ByteArray, channels: Int = 3): ByteArray {
         val b = Buffer().write(png)
         b.skip(8)
         val idat = Buffer()
@@ -136,9 +177,9 @@ class TerrainTilesTest {
             }
         }
         val raw = InflaterSource(idat, Inflater()).buffer().readByteArray()
-        val stride = 1 + width * 3
+        val stride = 1 + width * channels
         val out = Buffer()
-        for (row in 0 until raw.size / stride) out.write(raw, row * stride + 1, width * 3)
+        for (row in 0 until raw.size / stride) out.write(raw, row * stride + 1, width * channels)
         return out.readByteArray()
     }
 }

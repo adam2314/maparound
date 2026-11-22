@@ -16,8 +16,10 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
@@ -27,14 +29,10 @@ import app.maparound.R
 import app.maparound.i18n.T
 import app.maparound.routing.Geo
 import app.maparound.routing.GeoPoint
-import app.maparound.routing.TrackStats
 import app.maparound.sensors.bestAltitude
+import app.maparound.share.Incoming
 import app.maparound.ui.Fmt
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import java.io.FileWriter
-import java.util.Locale
+import java.util.concurrent.Executors
 
 /** Starts and stops the recording service (state in the shared [TrackRecorder]). */
 object Recorder {
@@ -48,21 +46,31 @@ object Recorder {
 }
 
 /**
- * Foreground service that records GPS fixes while the screen is off. Every point is appended to
- * a journal file first, so a killed app still keeps the track (see TrackRepository).
+ * Foreground service that records GPS fixes while the screen is off. Every point goes to a journal
+ * file as it comes, forced onto the storage every half minute ([RecordingJournal]), so a killed app
+ * or a phone that dies keeps the track (see TrackRepository).
  */
 class RecordingService : Service() {
     private var listener: LocationListener? = null
-    private var journal: FileWriter? = null
+    private var journal: RecordingJournal? = null
     private var lastNotified = 0L
+
+    /** The journal's writes, its forcing onto the storage and the saving at Stop: in order, off the main thread. */
+    private val io = Executors.newSingleThreadExecutor()
+    private val main = Handler(Looper.getMainLooper())
+
+    /** Saving after Stop; a Record meanwhile starts when that's done. */
+    private var stopping = false
+    private var startAfterStop = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> stopRecording()
-            ACTION_START -> startRecording(resume = false)
-            else -> startRecording(resume = true) // restarted by the system after the app was killed
+            ACTION_START -> if (stopping) startAfterStop = true else startRecording(resume = false)
+            // Restarted by the system after the app was killed.
+            else -> if (!stopping) startRecording(resume = true)
         }
         return START_STICKY
     }
@@ -90,7 +98,7 @@ class RecordingService : Service() {
         if (!resume) repo.recoverInterruptedRecording()
         val restored = if (resume) repo.readJournal() else emptyList()
         TrackRecorder.begin(restored.firstOrNull()?.time ?: System.currentTimeMillis(), restored)
-        journal = FileWriter(repo.journalPath, true)
+        journal = RecordingJournal(repo.journalPath)
 
         val lm = getSystemService(LocationManager::class.java)
         val l = object : LocationListener {
@@ -107,22 +115,23 @@ class RecordingService : Service() {
 
     private fun onFix(location: Location) {
         val accuracy = if (location.hasAccuracy()) location.accuracy else null
+        val j = journal
         // Skip poor fixes and jitter while standing still.
         if (accuracy != null && accuracy > MAX_ACCURACY_M) {
             TrackRecorder.accuracy(accuracy)
+            // Standing still or waiting for the sky: the last points still go onto the storage in time.
+            j?.let { io.execute { it.syncIfDue() } }
             return
         }
         val p = GeoPoint(location.latitude, location.longitude, location.bestAltitude(), location.time)
         val last = TrackRecorder.state.value.points.lastOrNull()
         if (last != null && Geo.distance(last, p) < MIN_STEP_M) {
             TrackRecorder.accuracy(accuracy)
+            j?.let { io.execute { it.syncIfDue() } }
             return
         }
         TrackRecorder.append(p, accuracy)
-        journal?.apply {
-            write(String.format(Locale.ROOT, "%.7f,%.7f,%s,%d\n", p.lat, p.lon, p.ele?.let { "%.1f".format(Locale.ROOT, it) } ?: "", p.time ?: 0L))
-            flush()
-        }
+        j?.let { io.execute { if (!it.append(p)) Log.w(TAG, "Recording journal not written") } }
         val now = System.currentTimeMillis()
         if (now - lastNotified > 10_000) {
             lastNotified = now
@@ -132,25 +141,43 @@ class RecordingService : Service() {
         }
     }
 
+    /**
+     * Saves the track (off the main thread) and stops. The recording shows as going on until it's
+     * saved, so the app's start-up recovery leaves the journal alone meanwhile.
+     */
     private fun stopRecording() {
+        if (stopping) return
+        stopping = true
         listener?.let { getSystemService(LocationManager::class.java).removeUpdates(it) }
         listener = null
-        journal?.close()
+        val j = journal
         journal = null
-        val state = TrackRecorder.end()
+        val state = TrackRecorder.state.value
         val repo = AppGraph.tracks
-        if (state.points.size >= 2) {
-            val start = state.startedAt ?: state.points.first().time ?: System.currentTimeMillis()
-            repo.save(Track(TrackRepository.defaultName(start), TrackKind.RECORDED, state.points, start))
+        io.execute {
+            j?.close()
+            // Memory's points; after the app was killed (Stop from the notification or the watch), the journal's.
+            val saved = repo.saveRecording(state.points, state.startedAt)
+            saved.exceptionOrNull()?.let { Log.w(TAG, "Recording not saved", it) }
+            main.post {
+                TrackRecorder.end()
+                if (saved.isFailure) Incoming.pending.value = Incoming.Item.Message(T.library.recordingNotSaved)
+                stopping = false
+                if (startAfterStop) {
+                    startAfterStop = false
+                    startRecording(resume = false)
+                } else {
+                    ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+                    stopSelf()
+                }
+            }
         }
-        java.io.File(repo.journalPath).delete()
-        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
-        stopSelf()
     }
 
     override fun onDestroy() {
         listener?.let { getSystemService(LocationManager::class.java).removeUpdates(it) }
-        journal?.close()
+        journal?.let { j -> io.execute { j.close() } }
+        io.shutdown()
         super.onDestroy()
     }
 
@@ -186,6 +213,7 @@ class RecordingService : Service() {
     }
 
     companion object {
+        private const val TAG = "RecordingService"
         const val ACTION_START = "app.maparound.record.START"
         const val ACTION_STOP = "app.maparound.record.STOP"
         private const val CHANNEL = "recording"

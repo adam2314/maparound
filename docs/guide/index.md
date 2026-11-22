@@ -18,8 +18,8 @@ the space it takes and what it shares. The **Offline maps** and **Party** screen
   shading, line of sight and the 3D view, and how to use another source.
 - [Offline routing]({{ '/guide/offline-routing' | relative_url }}): planning routes on the phone
   with BRouter, without a connection.
-- [Marked trails]({{ '/guide/marked-trails' | relative_url }}): waymarked hiking routes, built in,
-  downloaded or online.
+- [Marked trails]({{ '/guide/marked-trails' | relative_url }}): waymarked hiking routes, built in or
+  online.
 - [Parties]({{ '/guide/party' | relative_url }}): several parties at once, and each one on the map:
   members, trails, the meeting point and marks, and the connections.
 - [Party server]({{ '/guide/party-server' | relative_url }}): how the party's messages travel, what

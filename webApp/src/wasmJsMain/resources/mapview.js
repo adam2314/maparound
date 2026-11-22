@@ -79,8 +79,9 @@
   }
 
   // The offline map's tiles: from the worker; without one, from Kotlin on the page (the built-in world).
+  // The viewshed's image always from the page: the tools reckon it there, the worker doesn't have it.
   maplibregl.addProtocol('maparound', (params) => new Promise((resolve, reject) => {
-    if (tiles.worker) {
+    if (tiles.worker && !/^maparound:\/\/t\/viewshed\//.test(params.url)) {
       const id = tiles.next++;
       tiles.pending.set(id, { resolve: resolve, reject: reject });
       tiles.worker.postMessage({ type: 'tile', id: id, path: params.url.replace(/^maparound:\/\/t/, '') });

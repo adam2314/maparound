@@ -76,6 +76,50 @@ class TrackRepositoryTest {
     }
 
     @Test
+    fun stopAfterTheAppWasKilledSavesTheJournal() {
+        val repo = TrackRepository(base.toString(), Store())
+        RecordingJournal(repo.journalPath).apply { line.forEach { append(it) }; close() }
+        // Stop from the notification after a restart: nothing in memory, the journal has it all.
+        val saved = repo.saveRecording(emptyList(), null).getOrThrow()
+        assertEquals(line, saved?.track?.points)
+        assertTrue(!fileSystem.exists(repo.journalPath.toPath()))
+        // Written whole under its own name, nothing half-done left beside it.
+        assertEquals(listOf(saved!!.id), fileSystem.list(base / "tracks").map { it.name })
+        // Too short to keep: nothing saved, and the journal goes.
+        RecordingJournal(repo.journalPath).apply { append(line[0]); close() }
+        assertEquals(null, repo.saveRecording(emptyList(), null).getOrThrow())
+        assertTrue(!fileSystem.exists(repo.journalPath.toPath()))
+    }
+
+    @Test
+    fun aSavedRouteIsEditedAndSavedOverItself() {
+        val repo = TrackRepository(base.toString(), Store())
+        val saved = repo.save(Track("Loop", TrackKind.PLANNED, line, 1_700_000_000_000, app.maparound.routing.RouteProfile.BIKE, waypoints = line))
+        app.maparound.routing.PlannerSession.library = repo
+        try {
+            // In the planner: its stops, its way of travel, its line as saved.
+            app.maparound.routing.PlannerSession.editSaved(saved)
+            val s = app.maparound.routing.PlannerSession.state.value
+            assertEquals(saved.id, s.editing?.id)
+            assertEquals(line, s.waypoints)
+            assertEquals(app.maparound.routing.RouteProfile.BIKE, s.profile)
+            assertEquals(app.maparound.routing.RouteResult.Source.SAVED, s.route?.source)
+            // Saved over itself, renamed: the same file, still made when it was.
+            app.maparound.routing.PlannerSession.save("Loop 2")
+            assertEquals(listOf(saved.id), repo.tracks.value.map { it.id })
+            assertEquals("Loop 2", repo.get(saved.id)?.track?.name)
+            assertEquals(1_700_000_000_000, repo.get(saved.id)?.track?.created)
+            // Or as a new one beside it.
+            app.maparound.routing.PlannerSession.editSaved(repo.get(saved.id)!!)
+            app.maparound.routing.PlannerSession.save("Copy", asNew = true)
+            assertEquals(2, repo.tracks.value.size)
+        } finally {
+            app.maparound.routing.PlannerSession.close()
+            app.maparound.routing.PlannerSession.library = null
+        }
+    }
+
+    @Test
     fun defaultNames() {
         assertTrue(Regex("""Track \d{4}-\d{2}-\d{2} \d{2}:\d{2}""").matches(TrackRepository.defaultName(1_700_000_000_000)))
     }

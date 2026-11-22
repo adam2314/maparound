@@ -88,10 +88,13 @@ class WorldVectorTilesTest {
 
     @Test
     fun zoomedInWhereNoMapIsInstalledItIsStillTheWorld() {
-        // MapLibre 9 (mapsforge 10) over the Pyrenees, with no country map: land, borders, names.
+        // MapLibre 9 (mapsforge 10) over the Pyrenees, with no country map: land and names; no
+        // borders (the world's are only zoomed out, the maps draw their own).
         val layers = decode(MapTiles(emptyList(), world).tile(9, 258, 189))
         assertTrue(layers["area"]!!.any { it["natural"] == "nosea" })
-        assertTrue(layers["line"]!!.any { it["admin_level"] == "2" })
+        assertTrue(layers["line"].orEmpty().none { it["admin_level"] == "2" })
+        // Zoomed out (MapLibre 6), the world's borders.
+        assertTrue(decode(MapTiles(emptyList(), world).tile(6, 32, 23))["line"]!!.any { it["admin_level"] == "2" })
     }
 
     private companion object {

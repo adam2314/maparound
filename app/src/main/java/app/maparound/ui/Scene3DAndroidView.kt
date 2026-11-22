@@ -217,7 +217,6 @@ private fun makeEngine(ctx: Context, satellite: Boolean, grid: app.maparound.too
         hillshade = false,
         terrainVersion = AppGraph.terrain.state.value.version,
         trails = prefs.trails.value,
-        trailsVersion = AppGraph.trails.state.value.version,
         background = prefs.mapBackground.value,
         vectorOnTop = prefs.vectorOnBackground.value,
         rasterMaps = AppGraph.rasters.maps.value,

@@ -15,8 +15,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import app.maparound.data.RoutingData
 import app.maparound.data.RoutingDataState
-import app.maparound.data.TrailData
-import app.maparound.data.TrailState
 import app.maparound.places.PlaceRepository
 import app.maparound.routing.GeoPoint
 import app.maparound.routing.Segments
@@ -37,7 +35,6 @@ import platform.Foundation.NSLocale
 import platform.Foundation.NSNumber
 import platform.Foundation.currentLocale
 import platform.Foundation.languageCode
-import kotlin.math.floor
 
 /** Free space on the volume of [path], bytes. */
 fun freeBytes(path: String): Long {
@@ -132,23 +129,6 @@ class IosSearcher(private val places: PlaceRepository, private val maps: Install
 private val LATER: String get() = T.offline.comingToIphone
 
 // What phase 3 hasn't built yet on iOS: answers that say so instead of doing nothing.
-
-private fun cells(bounds: GeoBounds): List<Pair<Int, Int>> {
-    val out = ArrayList<Pair<Int, Int>>()
-    for (lat in floor(bounds.minLat).toInt()..floor(bounds.maxLat - 1e-9).toInt()) {
-        for (lon in floor(bounds.minLon).toInt()..floor(bounds.maxLon - 1e-9).toInt()) out += lat to lon
-    }
-    return out
-}
-
-object PendingTrails : TrailData {
-    override val state: StateFlow<TrailState> = MutableStateFlow(TrailState())
-    override fun cellsFor(bounds: GeoBounds) = cells(bounds)
-    override fun missingCells(bounds: GeoBounds) = cells(bounds)
-    override fun download(label: String, bounds: GeoBounds): String = T.offline.trailsLater(LATER)
-    override fun cancel() = Unit
-    override fun deleteAll() = Unit
-}
 
 object PendingRouting : RoutingData {
     override val state: StateFlow<RoutingDataState> = MutableStateFlow(RoutingDataState())

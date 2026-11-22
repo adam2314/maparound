@@ -122,8 +122,8 @@ open class MapTexts {
     open val vectorOnTopHint = "From the offline vector map, drawn over the background"
     open val overlays = "Overlays"
     open val markedTrails = "Marked hiking trails"
-    open val trailsOfflineInTopo = "Offline in the Topo style; online overlay on other maps"
-    open val trailsOnline = "Online overlay (waymarkedtrails.org). Download them per map for offline use."
+    open val trailsOfflineInTopo = "Offline from MapAround's maps, in the Topo styles; online overlay on other maps"
+    open val trailsOnline = "Online overlay (waymarkedtrails.org). MapAround's maps have them built in, for offline use."
     open val savedPlaces = "Saved places"
     open val savedPlacesHint = "Your places from Library → Places"
     open val baseMap = "Map"
@@ -253,6 +253,13 @@ open class MapTexts {
     open val reverseDirection = "Reverse direction"
     open val clearAllPoints = "Clear all points"
     open val shareRoute = "Share route"
+    /** Saving a saved route that was edited. */
+    open val saveChanges = "Save changes"
+    open val saveAsNew = "Save as new"
+    open fun editingRoute(name: String) = "Editing: $name"
+
+    /** A saved route being edited, before a stop changes. */
+    open val routeAsSaved = "As saved; changing a stop or the travel mode calculates it again."
     open val saveRoute = "Save route"
 
     /** A route's name the app gives it: "Route 11 Nov". */
@@ -475,8 +482,8 @@ object MapTextsHe : MapTexts() {
     override val vectorOnTopHint = "ממפת האופליין הווקטורית, מעל הרקע"
     override val overlays = "שכבות־על"
     override val markedTrails = "שבילי הליכה מסומנים"
-    override val trailsOfflineInTopo = "אופליין בסגנון Topo; שכבה אונליין במפות אחרות"
-    override val trailsOnline = "שכבה אונליין (waymarkedtrails.org). אפשר להוריד את השבילים לכל מפה לשימוש אופליין."
+    override val trailsOfflineInTopo = "אופליין מהמפות של MapAround, בסגנונות Topo; שכבה אונליין במפות אחרות"
+    override val trailsOnline = "שכבה אונליין (waymarkedtrails.org). במפות של MapAround הם מובנים, לשימוש אופליין."
     override val savedPlaces = "מקומות שמורים"
     override val savedPlacesHint = "המקומות שלך מספרייה ← מקומות"
     override val baseMap = "מפה"
@@ -604,6 +611,10 @@ object MapTextsHe : MapTexts() {
     override val reverseDirection = "היפוך כיוון"
     override val clearAllPoints = "ניקוי כל הנקודות"
     override val shareRoute = "שיתוף המסלול"
+    override val saveChanges = "שמירת השינויים"
+    override val saveAsNew = "שמירה כמסלול חדש"
+    override fun editingRoute(name: String) = "עריכה: $name"
+    override val routeAsSaved = "כפי שנשמר; שינוי של נקודת עצירה או של סוג המסלול יחשב אותו מחדש."
     override val saveRoute = "שמירת מסלול"
     override fun routeName(date: String) = "מסלול $date"
     override fun drawnRouteName(date: String) = "מסלול משורטט $date"

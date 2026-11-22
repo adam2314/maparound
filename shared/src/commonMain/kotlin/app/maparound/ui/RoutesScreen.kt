@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.EditRoad
 import androidx.compose.material.icons.filled.FiberManualRecord
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.Link
@@ -119,6 +120,14 @@ fun RoutesScreen(
     }
 
     fun share(t: SavedTrack) = platform.shareRoute(t.track, repo.pathOf(t.id))
+
+    /** A route saved with its stops, in the planner on the map, to change and save over itself. */
+    fun editRoute(t: SavedTrack) {
+        ToolsSession.close()
+        PlannerSession.editSaved(t)
+        MapFocus.show(t.track.points)
+        onShowMap()
+    }
 
     // Navigation along it: a planned route is calculated again along its stops (for its turns);
     // a track, or a route that can't be, is followed as it is (a track asks how first).
@@ -235,6 +244,7 @@ fun RoutesScreen(
                     onClick = { detail = t },
                     onToggle = { repo.setVisible(t.id, t.id !in visible) },
                     onShowOnMap = { showOnMap(t) },
+                    onEdit = { editRoute(t) },
                     onNavigate = { navigate(t) },
                     onShare = { share(t) },
                     onEmbed = { embed(t) },
@@ -339,6 +349,7 @@ private fun TrackRow(
     onClick: () -> Unit,
     onToggle: () -> Unit,
     onShowOnMap: () -> Unit,
+    onEdit: () -> Unit,
     onNavigate: () -> Unit,
     onShare: () -> Unit,
     onEmbed: () -> Unit,
@@ -368,6 +379,10 @@ private fun TrackRow(
                             DropdownMenuItem(text = { Text(T.library.navigate) }, leadingIcon = { Icon(Icons.Filled.Navigation, null) }, onClick = { menu = false; onNavigate() })
                         }
                         DropdownMenuItem(text = { Text(T.common.showOnMap) }, leadingIcon = { Icon(Icons.Filled.Map, null) }, onClick = { menu = false; onShowOnMap() })
+                        // Saved with its stops (planned, drawn, or a GPX with them): in the planner.
+                        if (t.track.waypoints.size >= 2) {
+                            DropdownMenuItem(text = { Text(T.library.editRoute) }, leadingIcon = { Icon(Icons.Filled.EditRoad, null) }, onClick = { menu = false; onEdit() })
+                        }
                         DropdownMenuItem(text = { Text(T.library.shareGpxAndLinks) }, leadingIcon = { Icon(Icons.Filled.Share, null) }, onClick = { menu = false; onShare() })
                         if (RouteText.hasLink(t.track)) {
                             DropdownMenuItem(text = { Text(T.library.shareLinkOnly) }, leadingIcon = { Icon(Icons.Filled.Link, null) }, onClick = { menu = false; platform.shareRouteLink(t.track) })

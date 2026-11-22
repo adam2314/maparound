@@ -31,13 +31,11 @@ import app.maparound.map.BorderLines
 import app.maparound.map.WorldData
 import app.maparound.map.WorldTile
 import app.maparound.map.gl.GlTiles
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import app.maparound.tools.ToolsSession
 import app.maparound.tracks.TrackRepository
-import app.maparound.data.TrailRepository
 
 class MapAroundApp : Application() {
     override fun onCreate() {
@@ -61,8 +59,6 @@ object AppGraph {
     lateinit var routing: RoutingDataRepository
         private set
     lateinit var planner: RoutePlanner
-        private set
-    lateinit var trails: TrailRepository
         private set
     lateinit var tracks: TrackRepository
         private set
@@ -111,10 +107,11 @@ object AppGraph {
         ToolsSession.terrainData = terrain
         routing = RoutingDataRepository(app)
         planner = RoutePlanner(app, routing, terrain.demDir)
-        trails = TrailRepository(app, prefs)
-        // A terrain or trail download started: keep it going if the app goes to the background.
+        // The marked trails downloaded from Overpass before MapAround's maps had them built in: gone.
+        MainScope().launch(Dispatchers.IO) { java.io.File(app.getExternalFilesDir(null) ?: app.filesDir, "trails").deleteRecursively() }
+        // A terrain download started: keep it going if the app goes to the background.
         MainScope().launch {
-            combine(terrain.state, trails.state) { t, r -> t.progress != null || r.progress != null }
+            terrain.state.map { it.progress != null }
                 .distinctUntilChanged()
                 .collect { running -> if (running) DownloadService.start(app) }
         }

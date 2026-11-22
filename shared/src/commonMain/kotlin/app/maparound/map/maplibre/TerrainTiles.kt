@@ -16,9 +16,17 @@ import kotlin.math.floor
 /**
  * Tiles made from the elevation files ([dem]) for MapLibre: contour lines as vector tiles (layer
  * `contours`, tagged like the Android map's contours, so topo.xml styles them) and elevation as
- * Terrarium-encoded PNGs for MapLibre's own hill shading. Safe to use from one thread at a time.
+ * Terrarium-encoded PNGs for MapLibre's own hill shading. Where [sea] says sea (given per
+ * tile: the maps' sea, [app.maparound.terrain.SeaCells]), the ground is taken as 0 m, so lines and shading end at the coast (elevation data spills land
+ * heights a few hundred metres past it). Safe to use from one thread at a time.
  */
-class TerrainTiles(private val dem: DemIndex) {
+class TerrainTiles(private val dem: DemIndex, private val sea: () -> ((lat: Double, lon: Double) -> Boolean)? = { null }) {
+    /** The ground's height for drawing: 0 m at sea. */
+    private fun ground(isSea: ((Double, Double) -> Boolean)?, lat: Double, lon: Double): Float {
+        val h = dem.elevation(lat, lon)
+        return if (isSea != null && !h.isNaN() && h != 0f && isSea(lat, lon)) 0f else h
+    }
+
     /** The ground's height in metres (bilinear), NaN where there's no data. */
     fun elevation(lat: Double, lon: Double): Float = dem.elevation(lat, lon)
 
@@ -43,10 +51,11 @@ class TerrainTiles(private val dem: DemIndex) {
         val left = west - stepLon
         val grid = FloatArray(gCols * gRows)
         var valid = 0
+        val s = sea()
         for (r in 0 until gRows) {
             val lat = (top - r * stepLat).coerceIn(-85.0, 85.0)
             for (c in 0 until gCols) {
-                val v = dem.elevation(lat, left + c * stepLon)
+                val v = ground(s, lat, left + c * stepLon)
                 grid[r * gCols + c] = v
                 if (!v.isNaN()) valid++
             }
@@ -79,11 +88,12 @@ class TerrainTiles(private val dem: DemIndex) {
         val n = (1L shl z).toDouble()
         val lons = DoubleArray(DEM_SIZE) { (x + (it + 0.5) / DEM_SIZE) / n * 360.0 - 180.0 }
         val rgb = ByteArray(DEM_SIZE * DEM_SIZE * 3)
+        val s = sea()
         for (py in 0 until DEM_SIZE) {
             val m = PI * (1 - 2 * (y + (py + 0.5) / DEM_SIZE) / n)
             val lat = atan((exp(m) - exp(-m)) / 2) * 180 / PI
             for (px in 0 until DEM_SIZE) {
-                val h = dem.elevation(lat, lons[px])
+                val h = ground(s, lat, lons[px])
                 val v = (if (h.isNaN()) 0.0 else h.toDouble()) + 32768.0
                 val i = (py * DEM_SIZE + px) * 3
                 val whole = floor(v)
@@ -108,20 +118,27 @@ class TerrainTiles(private val dem: DemIndex) {
     }
 }
 
-/** A minimal PNG writer (8-bit RGB, zlib-compressed). */
+/** A minimal PNG writer (8-bit RGB or RGBA, zlib-compressed). */
 object Png {
-    fun rgb(width: Int, height: Int, rgb: ByteArray): ByteArray {
-        require(rgb.size == width * height * 3)
+    fun rgb(width: Int, height: Int, rgb: ByteArray): ByteArray = encode(width, height, rgb, 3)
+
+    /** With transparency: four bytes a pixel (red, green, blue, alpha). */
+    fun rgba(width: Int, height: Int, rgba: ByteArray): ByteArray = encode(width, height, rgba, 4)
+
+    private fun encode(width: Int, height: Int, pixels: ByteArray, channels: Int): ByteArray {
+        require(pixels.size == width * height * channels)
         val raw = Buffer()
         for (row in 0 until height) {
             raw.writeByte(0) // no filter
-            raw.write(rgb, row * width * 3, width * 3)
+            raw.write(pixels, row * width * channels, width * channels)
         }
         val compressed = zlibDeflate(raw.readByteArray())
 
         val out = Buffer()
         out.write(SIGNATURE)
-        chunk(out, "IHDR", Buffer().writeInt(width).writeInt(height).writeByte(8).writeByte(2).writeByte(0).writeByte(0).writeByte(0).readByteArray())
+        // Colour type 2: RGB; 6: RGBA.
+        val colourType = if (channels == 4) 6 else 2
+        chunk(out, "IHDR", Buffer().writeInt(width).writeInt(height).writeByte(8).writeByte(colourType).writeByte(0).writeByte(0).writeByte(0).readByteArray())
         chunk(out, "IDAT", compressed)
         chunk(out, "IEND", ByteArray(0))
         return out.readByteArray()

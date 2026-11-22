@@ -6,8 +6,6 @@ import app.maparound.map.gl.AndroidNativeMap
 import app.maparound.map.gl.GlStyles
 import app.maparound.map.gl.GlTiles
 import app.maparound.map.maplibre.MapLibreSurface
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 /**
  * The shared map screen's [MapSurface] on Android: MapLibre ([AndroidNativeMap]) driven by the
@@ -26,12 +24,8 @@ class AndroidMapSurface private constructor(
 
     override suspend fun setBaseMap(base: BaseMap) {
         if (base is BaseMap.Offline) {
-            // The style's own symbols, and the downloaded trails (reading their index: off the main thread).
+            // The style's own symbols.
             native.symbols = { path -> AppGraph.themes.openSymbol(base.theme, path) }
-            withContext(Dispatchers.IO) {
-                val hasTrails = AppGraph.trails.state.value.cells > 0
-                GlTiles.setTrails(if (hasTrails) base.trailsVersion else -1, base.trails, base.drawsTerrain)
-            }
         }
         surface.setBaseMap(base)
     }

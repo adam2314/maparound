@@ -18,19 +18,20 @@ import kotlin.math.roundToLong
  * platforms draw from one theme file. Every render instruction becomes a layer, in theme order
  * (mapsforge draws in that order too); rule conditions become layer filters and zoom ranges.
  *
- * Sources: the offline map's vector tiles ([MapStyle.OSM_SOURCE]: poi, line, area, sea), and
- * for rules on `contour…` and `trail…` keys the contour and marked-trail tiles ([CONTOURS],
- * [TRAILS]); trail rules also draw the trail lines built into MapAround's maps (the map tiles'
- * "trails" layer). Symbols are images named [SYMBOL_PREFIX] + their theme path (the platform draws
+ * Sources: the offline map's vector tiles ([MapStyle.OSM_SOURCE]: poi, line, area, sea, and the
+ * marked trails built into MapAround's maps, its "trails" layer, for rules on `trail…` keys), and
+ * for rules on `contour…` keys the contour tiles ([CONTOURS]). Symbols are images named [SYMBOL_PREFIX] + their theme path (the platform draws
  * them: iOS from PNGs made of the theme's SVGs); line symbols are icons repeated along the line.
  * Lines that differ only in their colour, one rule per value of a key (a trail's colours), are
  * one layer coloured by that key. Not drawn yet: area patterns.
  */
 object ThemeStyle {
     const val CONTOURS = "contours"
-    const val TRAILS = "trails"
 
-    /** The keys of the marked-trail lines (MapAround's maps and the trail tiles); their rules read those. */
+    /** While converting, trail rules' source: they draw the map tiles' trails layer ([Converter.add]). */
+    private const val TRAIL_RULES = "trail-rules"
+
+    /** The keys of the marked-trail lines built into MapAround's maps; their rules read those. */
     private val TRAIL_KEYS = setOf("trail", "trail_colour", "trail_offset", "trail_n", "trail_track")
 
     /** Image names of theme symbols: "sym:" + the path in the theme, e.g. `sym:symbols/peak.svg`. */
@@ -384,14 +385,10 @@ object ThemeStyle {
             val max = if (ctx.zoomMax >= 99) null else ctx.zoomMax
             if (max != null && max <= min) return
             val conditions = ctx.matchers.mapNotNull { it.expression() } + listOfNotNull(labelFilter)
-            // Trail rules draw the downloaded trail tiles and the trail lines built into the maps.
-            val targets = if (source == TRAILS) {
-                listOf(TRAILS to TRAILS, MapStyle.OSM_SOURCE to MapsforgeToMvt.TRAILS)
-            } else {
-                listOf(source to sourceLayer)
-            }
-            val fresh = targets.mapIndexed { k, (src, srcLayer) ->
-                layer("t${layers.size + k}-$type", type, if (area) AREA_FLAG else null) {
+            // Trail rules draw the trail lines built into the maps.
+            val (src, srcLayer) = if (source == TRAIL_RULES) MapStyle.OSM_SOURCE to MapsforgeToMvt.TRAILS else source to sourceLayer
+            val fresh = listOf(
+                layer("t${layers.size}-$type", type, if (area) AREA_FLAG else null) {
                     put("source", src)
                     put("source-layer", srcLayer)
                     if (min > 0) put("minzoom", min)
@@ -402,8 +399,8 @@ object ThemeStyle {
                         else -> put("filter", JsonArray(listOf(JsonPrimitive("all")) + conditions))
                     }
                     body()
-                }
-            }
+                },
+            )
             if (!mergeIntoLast(fresh)) {
                 last = layers.size until layers.size + fresh.size
                 layers += fresh
@@ -483,7 +480,7 @@ object ThemeStyle {
         return when {
             "contour" in keys -> CONTOURS to CONTOURS
             // MapAround's marked-trail lines (not OpenStreetMap's trail_visibility, which is on paths).
-            keys.any { it in TRAIL_KEYS } -> TRAILS to TRAILS
+            keys.any { it in TRAIL_KEYS } -> TRAIL_RULES to TRAIL_RULES
             else -> MapStyle.OSM_SOURCE to osmLayer
         }
     }

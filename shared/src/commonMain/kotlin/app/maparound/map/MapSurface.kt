@@ -86,9 +86,8 @@ sealed class BaseMap {
         val hillshade: Boolean,
         /** Changes when terrain tiles are added or removed. */
         val terrainVersion: Int,
+        /** The marked trails built into MapAround's maps, drawn (the style permitting). */
         val trails: Boolean,
-        /** Changes when trail data is added or removed. */
-        val trailsVersion: Int,
         /** [Prefs.BACKGROUND_NONE], [Prefs.BACKGROUND_SATELLITE] or [Prefs.BACKGROUND_RASTER] + id. */
         val background: String,
         /** Roads, trails and labels drawn over the background. */
@@ -103,7 +102,7 @@ sealed class BaseMap {
         /** The Topo style (MapAround's contours and trails are styled). */
         val topo: Boolean get() = theme == MapThemes.TOPO
 
-        /** Whether contours and downloaded trails go to the renderer (see [MapThemes.drawsTerrain]). */
+        /** Whether contours and marked trails go to the renderer (see [MapThemes.drawsTerrain]). */
         val drawsTerrain: Boolean get() = MapThemes.drawsTerrain(theme)
     }
 }

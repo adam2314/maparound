@@ -119,7 +119,6 @@ class WebApp(
         // mapsforge.org's server doesn't let a web page read its lists: MapAround's catalog only.
         catalog = MapAroundCatalog(useMapsforge = false),
         terrain = terrain,
-        trails = PendingTrails,
         routing = PendingRouting,
         builtInWorld = true,
         addOns = false,

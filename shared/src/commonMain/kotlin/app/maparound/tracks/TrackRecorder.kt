@@ -23,15 +23,18 @@ object TrackRecorder {
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
 
+    /** The stats so far, added to point by point: a long recording isn't gone over at every fix. */
+    private var stats = TrackStats.Adder()
+
     fun begin(startedAt: Long, restored: List<GeoPoint>) {
-        _state.value = State(recording = true, points = restored, startedAt = startedAt, stats = TrackStats.of(restored))
+        stats = TrackStats.Adder().apply { restored.forEach(::add) }
+        _state.value = State(recording = true, points = restored, startedAt = startedAt, stats = stats.stats)
     }
 
     fun append(p: GeoPoint, accuracy: Float?) {
         val s = _state.value
-        val pts = s.points + p
-        // Incremental stats would be cheaper, but a few thousand points recompute in well under 1 ms.
-        _state.value = s.copy(points = pts, stats = TrackStats.of(pts), accuracyM = accuracy)
+        stats.add(p)
+        _state.value = s.copy(points = s.points + p, stats = stats.stats, accuracyM = accuracy)
     }
 
     fun accuracy(accuracy: Float?) {

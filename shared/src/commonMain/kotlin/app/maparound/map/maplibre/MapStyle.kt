@@ -85,7 +85,7 @@ class MapStyle(
                     put("maxzoom", OSM_MAX_ZOOM)
                     put("attribution", "© OpenStreetMap contributors")
                 }
-                val terrain = tiles.terrainVersion
+                val terrain = tiles.terrainKey
                 val theme = base.categories?.let { cats -> variant?.let { v -> variants.getOrPut(cats) { v(cats) } } }
                 val shading = theme?.hillshade ?: hillshade
                 val themeLayers = (theme?.layers ?: vectorLayers).toMutableList()
@@ -111,16 +111,6 @@ class MapStyle(
                 // Marked trails built into the maps (MapAround's own), when they're switched on.
                 if (!base.trails || !base.drawsTerrain) {
                     themeLayers.removeAll { it.source() == OSM_SOURCE && it.sourceLayer() == MapsforgeToMvt.TRAILS }
-                }
-                // Downloaded marked trails (the platform serves them), for the styles that draw them.
-                val trails = tiles.trailsVersion
-                if (trails != null && base.trails && base.drawsTerrain) {
-                    sources[ThemeStyle.TRAILS] = buildJsonObject {
-                        put("type", "vector")
-                        putJsonArray("tiles") { add(JsonPrimitive("$tilesBaseUrl/trails/$trails/{z}/{x}/{y}.pbf")) }
-                        put("minzoom", TRAILS_MIN_ZOOM)
-                        put("maxzoom", OSM_MAX_ZOOM)
-                    }
                 }
                 val satellite = base.background == Prefs.BACKGROUND_SATELLITE
                 val raster = base.background.takeIf { it.startsWith(Prefs.BACKGROUND_RASTER) }
@@ -485,6 +475,7 @@ class MapStyle(
         },
         line("tracks-casing", TRACKS, "#FFFFFF", 7.0),
         line("tracks-line", TRACKS, "#E65100", 4.0),
+        arrows("tracks-arrows", TRACKS, "#E65100"),
         line("recording", RECORDING, "#D50000", 4.0),
         // The parties' marks: areas and circles filled as set, lines (and outlines) solid, dashed or
         // dotted in their colour and width, points as badges, names alone as labels. All tappable.
@@ -537,8 +528,10 @@ class MapStyle(
                 "line-opacity" to arr("match", arr("get", "role"), "done", 1.0, 0.45),
             ))
         },
-        line("route-casing", ROUTE, "#FFFFFF", 8.0, role = "line"),
-        line("route-line", ROUTE, "#6A1B9A", 5.0, role = "line"),
+        // The route a little wider closer in, and which way it goes.
+        line("route-casing", ROUTE, "#FFFFFF", widerIn(8.0, 11.0), role = "line"),
+        line("route-line", ROUTE, "#6A1B9A", widerIn(5.0, 7.0), role = "line"),
+        arrows("route-arrows", ROUTE, "#6A1B9A", role = "line"),
         line("tools-ring", TOOLS, "rgba(33,33,33,0.78)", 2.0, role = "ring"),
         line("tools-casing", TOOLS, "#FFFFFF", 7.0, role = "line"),
         layer("tools-line", "line") {
@@ -574,11 +567,37 @@ class MapStyle(
         symbols("pin", PIN, anchor = "bottom"),
     )
 
-    private fun line(id: String, source: String, color: String, width: Double, role: String? = null) = layer(id, "line") {
+    private fun line(id: String, source: String, color: String, width: Any, role: String? = null) = layer(id, "line") {
         put("source", source)
         if (role != null) put("filter", eq("role", role))
         put("layout", ROUND)
         put("paint", obj("line-color" to color, "line-width" to width))
+    }
+
+    /** A width growing from [near10] at zoom 10 to [near16] at 16. */
+    private fun widerIn(near10: Double, near16: Double) = arr("interpolate", arr("linear"), arr("zoom"), 10, near10, 16, near16)
+
+    /**
+     * Which way a line goes: small white arrowheads along it, every so often, edged in its
+     * [color] (a glyph of the labels' font, so every platform draws it), from zoom 10.
+     */
+    private fun arrows(id: String, source: String, color: String, role: String? = null) = layer(id, "symbol") {
+        put("source", source)
+        if (role != null) put("filter", eq("role", role))
+        put("minzoom", ARROWS_MIN_ZOOM)
+        put("layout", obj(
+            "symbol-placement" to "line",
+            "symbol-spacing" to 110,
+            "text-field" to "▶",
+            "text-font" to arr("Noto Sans Bold"),
+            "text-size" to 12,
+            "text-keep-upright" to false,
+            "text-rotation-alignment" to "map",
+            "text-allow-overlap" to true,
+            "text-ignore-placement" to true,
+            "text-padding" to 0,
+        ))
+        put("paint", obj("text-color" to "#FFFFFF", "text-halo-color" to color, "text-halo-width" to 1.2))
     }
 
     private fun symbols(id: String, source: String, role: String? = null, anchor: String = "center") = layer(id, "symbol") {
@@ -601,6 +620,9 @@ class MapStyle(
 
         /** Deepest zoom the tile server is asked for; MapLibre scales those tiles further. */
         const val OSM_MAX_ZOOM = 16
+
+        /** Routes' and tracks' arrows from here (MapLibre zooms). */
+        const val ARROWS_MIN_ZOOM = 10
 
         /** Marked trails from here (MapLibre zooms; the trail data starts at mapsforge's 11). */
         const val TRAILS_MIN_ZOOM = 10

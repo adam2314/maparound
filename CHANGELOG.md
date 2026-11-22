@@ -219,6 +219,25 @@
   now starts it again (sending your position), as opening the app on the phone does. Before, with
   the phone in a pocket for the whole drive, it didn't send. Not yet tried in a car.
 
+### Recording: nothing lost
+- **On the storage every half minute.** Each point went into the recording's journal as it came,
+  so a killed app kept its track, but the phone held it in memory until it got round to writing it.
+  The journal is now forced onto the storage every 30 seconds (also while you stand still), so a
+  phone that dies, crashes or restarts loses at most the last half minute. The writing is off the
+  screen's thread, so the map doesn't stutter for it.
+- **Stop & save keeps the track whatever happens.** It's saved under a temporary name, made sure
+  of on the storage and only then given its own, and only then is the journal let go. A phone that
+  dies at that moment keeps one or the other, never half a file and no journal. A Stop
+  that finds nothing in the app's memory (Android restarted the app) saves from the journal
+  instead of throwing it away. If the track can't be written (the storage full), the app says so
+  and the journal stays, to be saved as a recovered track when the app next starts; it used to
+  crash. Renaming a track is written the same safe way.
+- **A point cut short** (the app killed in the middle of writing one) is left out instead of
+  spoiling the next one or giving the track a time from 1970.
+- **Long recordings stay light.** The distance and climb are added up point by point, instead of
+  going over the whole track again at every fix (every second, on a ten-hour hike tens of thousands
+  of points).
+
 ### The map
 - **Topo v2, the new default style**: Topo in the look of Tracestrack Topo, the map on
   openstreetmap.org. Light land, pale green forests, bright blue water, OpenStreetMap's road colours
@@ -229,6 +248,47 @@
   difficulty, marked trails in their waymark colours, blue bike paths with their bike signs, and
   Topo's options. The maps are drawn in it on Android, iPhone and the web (an embedded map too)
   unless another style was picked; Topo is still in Layers → Map → Style.
+- **The graphs say what's under the pointer.** Resting the mouse on a track's or a planned route's
+  elevation graph, or on the line-of-sight graph, shows the distance there and the height (a
+  recorded track: the time too), with a dot on the line; on a phone, a tap or a sideways slide
+  shows it, and it stays after the finger lifts. On the line-of-sight graph it also says whether A
+  sees that ground; on a radio link, how much of the Fresnel zone is clear there.
+- **The viewshed shows on the web and iPhone.** Its green and red ground was missing there: the
+  map asked for its picture where it isn't made. The picture is now made by the shared tile
+  service on every platform.
+- **Saved routes can be edited.** Library → ⋮ → **Edit route** opens a route saved with its stops
+  (planned or drawn in MapAround, or a GPX file with them) in the planner on the map: its stops,
+  its way of travel, and its line as saved until a stop or the way changes (then it's calculated
+  again). The card says which route it is. **Save** writes over it (the same file, its place in
+  the list, still shown), or **Save as new** keeps both. While it's edited, its saved line isn't
+  drawn under the planner's.
+- **Routes show which way they go.** Small white arrowheads along the planned or navigated route
+  and the saved routes and tracks on the map, from zoom 10, and the route's line a little wider
+  closer in, so it stands out from the map's own lines.
+- **The azimuth tool reads like the compass.** Its bearing is in the compass's units, degrees or
+  mils (never compass points like "NE", which a compass can't be followed by), and from the north
+  the compass is set to: a **Magnetic | True north** switch under it is the compass's own, so
+  setting either sets both. Below: the other north's bearing, mils besides, and the back bearing
+  (as from B). **Place B by bearing** starts in the same north and units, and line of sight and
+  the folded tools say their bearing the same way.
+- **Marked trails drawn once.** Where an area had both a MapAround map (trails built in) and the
+  older **Marked trails** download (Android), the Topo styles drew both, from slightly different
+  lines, so trails showed twice, side by side, and the download's cliffs and ridges were added
+  over the map's own. MapAround's maps have the trails built in, so the download is gone: the ⋮ →
+  Marked trails item, the Marked trails section of Offline maps, its server in Settings → Sources,
+  and its data on the phone (deleted at start). Other maps (online, the basic mapsforge.org maps,
+  imported ones) show the online Waymarked Trails overlay, as before when nothing was downloaded;
+  the car screen now uses the maps' own trails too, instead of the overlay.
+- **Country borders drawn once.** Zoomed out, where the built-in world is the whole map, its
+  borders; from the zoom the downloaded maps take over (8), the maps' own alone. The world's
+  (Natural Earth's) are a kilometre or two off, and they used to stay beside the maps' wherever they
+  strayed more than 2 km from them, and in the country next door: Israel's borders with Egypt
+  and Jordan ran double. Where no map is downloaded, there are no borders when zoomed in.
+- **No contour lines or hill shading in the sea.** Elevation data spills land heights a few hundred
+  metres past the coast, so contours and shading showed in the water (the Gulf of Eilat off Eilat,
+  Taba and Aqaba). The sea of your maps now cuts them as they're drawn, so they end at the coast,
+  on Android, iPhone and the web. It used to be cut only as the elevation was downloaded, and only
+  by maps already there then; the web app didn't cut it at all.
 - **Imported styles get mapsforge's icons** (Android). A style that names mapsforge's own symbols
   (`jar:…`) drew none of them: only the files next to it were looked for.
 - **Layers in tabs.** The layers sheet has three: **Map** (offline or online, its style, the
@@ -269,6 +329,13 @@
   2D and 3D.
 
 ### The web app
+- **The data view's explorer is the side panel**, as Library, Party and Offline are, on a big
+  screen: its rail button opens it there with its ✕, and opening another tab or Settings takes its
+  place, instead of a card of its own beside them. Its data stays on the map when the panel
+  closes; "Leave the data view" turns it off. On a phone it's the drawer over the map, as before.
+- **The data view starts with nothing on**, instead of the world's population and Israel's
+  localities: pick what to show. The legend follows what's on (the countries' when only they are,
+  also zoomed in over Israel).
 - **The address keeps what's on the map**, so a link or a reload shows the same: the map
   (`layer=`), what's over it (`ov=trails,party…`), the data view's layers (`data=c.population,l.size`)
   and what's tapped in it (`sel=c:RUS`), with where the map looks (`map=`) and the pin as before.

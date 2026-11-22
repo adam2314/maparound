@@ -29,7 +29,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Hiking
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Public
@@ -189,16 +188,13 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
     var deleteTarget by remember { mutableStateOf<LocalMap?>(null) }
     var terrainTarget by remember { mutableStateOf<LocalMap?>(null) }
     var routingTarget by remember { mutableStateOf<LocalMap?>(null) }
-    var trailsTarget by remember { mutableStateOf<LocalMap?>(null) }
     var confirmDeleteTerrain by remember { mutableStateOf(false) }
-    var confirmDeleteTrails by remember { mutableStateOf(false) }
     var importing by remember { mutableStateOf(false) }
 
     val terrainState by offline.terrain.state.collectAsState()
     val routingState by offline.routing.state.collectAsState()
-    val trailState by offline.trails.state.collectAsState()
     // Map file name -> which extras are fully installed for it.
-    val extras by produceState(emptyMap<String, Extras>(), installed, terrainState.version, routingState.installed, trailState.version) {
+    val extras by produceState(emptyMap<String, Extras>(), installed, terrainState.version, routingState.installed) {
         value = withContext(Dispatchers.Default) {
             installed.filterNot { it.isWorld }.mapNotNull { m ->
                 val builtInTrails = MapAroundMaps.hasTrails(m.path)
@@ -207,7 +203,6 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                         terrain = offline.terrain.missingCells(bb).isEmpty(),
                         // The block with the map's centre is enough to route most trips there.
                         routing = offline.routing.isInstalled(Segments.nameFor(bb.centerLat, bb.centerLon)),
-                        trails = offline.trails.missingCells(bb).isEmpty() || builtInTrails,
                         builtInTrails = builtInTrails,
                     )
                 }
@@ -339,7 +334,7 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                                 T.offline.worldNotNeeded.takeIf { map.isWorld && offline.builtInWorld },
                                 T.offline.terrainTag.takeIf { ex?.terrain == true },
                                 T.offline.routingTag.takeIf { ex?.routing == true },
-                                T.offline.trailsTag.takeIf { ex?.trails == true },
+                                T.offline.trailsTag.takeIf { ex?.builtInTrails == true },
                             ).joinToString(" · "),
                         )
                     },
@@ -363,13 +358,6 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                                         leadingIcon = { Icon(Icons.Filled.Route, null) },
                                         trailingIcon = { if (ex?.routing == true) Icon(Icons.Filled.Check, null) },
                                         onClick = { menu = false; routingTarget = map },
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(if (ex?.builtInTrails == true) T.offline.markedTrailsInMap else T.offline.markedTrails) },
-                                        leadingIcon = { Icon(Icons.Filled.Hiking, null) },
-                                        trailingIcon = { if (ex?.trails == true) Icon(Icons.Filled.Check, null) },
-                                        enabled = ex?.builtInTrails != true,
-                                        onClick = { menu = false; trailsTarget = map },
                                     )
                                 }
                                 DropdownMenuItem(
@@ -519,64 +507,6 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                 }
             }
 
-            // ---- marked trails ----
-            val trailProgress = trailState.progress
-            if (offline.addOns) {
-                item {
-                    Column {
-                        SectionHeader(
-                            T.offline.markedTrails,
-                            Fmt.fileSize(trailState.bytes).takeIf { trailState.cells > 0 },
-                        )
-                        SectionInfo(T.offline.trailsInfo, SourceSite("Waymarked Trails", "https://waymarkedtrails.org/"), Guides.MARKED_TRAILS)
-                    }
-                }
-                if (trailState.cells == 0 && trailProgress == null) {
-                    item {
-                        Text(
-                            T.offline.noTrailsYet,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                        )
-                    }
-                }
-                if (trailProgress != null) {
-                    item {
-                        ListItem(
-                            headlineContent = { Text(T.offline.downloadingTrails(trailProgress.label)) },
-                            supportingContent = {
-                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    LinearProgressIndicator(progress = { trailProgress.fraction }, modifier = Modifier.fillMaxWidth())
-                                    Text(
-                                        T.offline.trailsProgress(trailProgress.done, trailProgress.total, trailProgress.failed),
-                                        style = MaterialTheme.typography.bodySmall,
-                                    )
-                                }
-                            },
-                            trailingContent = {
-                                Tip(T.offline.stopTrailDownload) { IconButton(onClick = { offline.trails.cancel() }) {
-                                    Icon(Icons.Filled.Close, contentDescription = T.offline.stopTrailDownload)
-                                } }
-                            },
-                        )
-                    }
-                }
-                if (trailState.cells > 0) {
-                    item {
-                        ListItem(
-                            leadingContent = { Icon(Icons.Filled.Hiking, contentDescription = null) },
-                            headlineContent = { Text(T.offline.trailData) },
-                            supportingContent = { Text(T.offline.trailAreas(trailState.cells)) },
-                            trailingContent = {
-                                Tip(T.offline.deleteAllTrails) { IconButton(onClick = { confirmDeleteTrails = true }) {
-                                    Icon(Icons.Filled.Delete, contentDescription = T.offline.deleteAllTrails)
-                                } }
-                            },
-                        )
-                    }
-                }
-            }
-
             if (downloads.isNotEmpty()) {
                 item { SectionHeader(T.offline.downloading, null) }
                 items(downloads, key = { "dl-${it.id}" }) { d -> DownloadRow(d, onCancel = { downloader.cancel(d.id) }) }
@@ -703,33 +633,6 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                 val error = offline.routing.download(names, wifiOnly)
                 scope.launch { snackbar.showSnackbar(error ?: T.offline.downloadingRoutingFor(map.title)) }
             },
-        )
-    }
-
-    trailsTarget?.let { map ->
-        TrailsDialog(
-            map = map,
-            onDismiss = { trailsTarget = null },
-            onStart = { bbox ->
-                trailsTarget = null
-                val error = offline.trails.download(map.title, bbox)
-                scope.launch { snackbar.showSnackbar(error ?: T.offline.downloadingTrailsFor(map.title)) }
-            },
-        )
-    }
-
-    if (confirmDeleteTrails) {
-        AlertDialog(
-            onDismissRequest = { confirmDeleteTrails = false },
-            title = { Text(T.offline.confirmDeleteTrailsTitle) },
-            text = { Text(T.offline.confirmDeleteTrailsText) },
-            confirmButton = {
-                TextButton(onClick = {
-                    offline.trails.deleteAll()
-                    confirmDeleteTrails = false
-                }) { Text(T.common.delete) }
-            },
-            dismissButton = { TextButton(onClick = { confirmDeleteTrails = false }) { Text(T.common.cancel) } },
         )
     }
 
@@ -1100,7 +1003,7 @@ private fun DetailOption(selected: Boolean, title: String, subtitle: String, onC
 }
 
 /** Which offline extras are installed for a map. */
-private data class Extras(val terrain: Boolean, val routing: Boolean, val trails: Boolean, val builtInTrails: Boolean = false)
+private data class Extras(val terrain: Boolean, val routing: Boolean, val builtInTrails: Boolean = false)
 
 @Composable
 private fun RoutingDialog(map: LocalMap, onDismiss: () -> Unit, onStart: (List<String>) -> Unit) {
@@ -1160,54 +1063,6 @@ private fun RoutingDialog(map: LocalMap, onDismiss: () -> Unit, onStart: (List<S
         },
         dismissButton = {
             if (current != null && current.first.isNotEmpty()) TextButton(onClick = onDismiss) { Text(T.common.cancel) }
-        },
-    )
-}
-
-@Composable
-private fun TrailsDialog(map: LocalMap, onDismiss: () -> Unit, onStart: (GeoBounds) -> Unit) {
-    val trails = LocalOfflineData.current.trails
-    // bbox, total cells, missing cells
-    val info by produceState<Triple<GeoBounds, Int, Int>?>(null, map) {
-        value = withContext(Dispatchers.Default) {
-            mapBounds(map.path)?.let { bb -> Triple(bb, trails.cellsFor(bb).size, trails.missingCells(bb).size) }
-        }
-    }
-    val current = info
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(T.offline.markedTrails) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    T.offline.trailsDialogText,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                when {
-                    current == null -> LinearProgressIndicator(Modifier.fillMaxWidth())
-                    current.third == 0 -> Text(
-                        T.offline.installedAreas(current.second), color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.titleSmall,
-                    )
-                    else -> {
-                        Text(T.offline.areasToDownload(current.third, current.second), style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            T.offline.trailsDownloadNote,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            if (current != null && current.third > 0) {
-                TextButton(onClick = { onStart(current.first) }) { Text(T.common.download) }
-            } else {
-                TextButton(onClick = onDismiss) { Text(T.common.close) }
-            }
-        },
-        dismissButton = {
-            if (current != null && current.third > 0) TextButton(onClick = onDismiss) { Text(T.common.cancel) }
         },
     )
 }

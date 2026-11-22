@@ -46,6 +46,9 @@ class MapTiles(paths: List<String>, private val world: WorldTile? = null, privat
 
     val mapCount: Int get() = maps.size
 
+    /** Where the installed maps have sea, for the contours and hill shading to stop at the coast. */
+    val sea: app.maparound.terrain.SeaCells by lazy { app.maparound.terrain.SeaCells(maps) }
+
     /** The remote maps opened (their headers read), by address; and those that aren't maps. */
     private val streamed = HashMap<String, MapsforgeFile>()
     private val broken = HashSet<String>()
@@ -64,8 +67,8 @@ class MapTiles(paths: List<String>, private val world: WorldTile? = null, privat
             maps.maxOf { it.header.maxLat }, maps.maxOf { it.header.maxLon },
         )
 
-    /** The tile z/x/y; [extra] adds the platform's own features (see TileService.osmExtra). */
-    fun tile(z: Int, x: Int, y: Int, extra: ((MvtTile, Int, Int, Int) -> Unit)? = null, ground: ((Double, Double) -> Float)? = null): ByteArray {
+    /** The tile z/x/y; [ground]: the terrain's height at a point, for buildings' relief. */
+    fun tile(z: Int, x: Int, y: Int, ground: ((Double, Double) -> Float)? = null): ByteArray {
         // MapLibre's tiles are 512 px: shown like 256-pixel tiles one zoom deeper.
         val zoom = z + 1
         val countries = zoom >= WorldTile.COUNTRY_MAPS_FROM_ZOOM
@@ -81,7 +84,6 @@ class MapTiles(paths: List<String>, private val world: WorldTile? = null, privat
             t = make(z, x, y, box, countries, emptyList(), ground)
         }
         if (!complete) MapStream.missed()
-        extra?.invoke(t, z, x, y)
         return t.encode()
     }
 
@@ -92,16 +94,14 @@ class MapTiles(paths: List<String>, private val world: WorldTile? = null, privat
             if (world == null) {
                 MapsforgeToMvt.fill(t, all, z, x, y, ground = ground)
             } else {
-                // The maps' own country borders: the world's stay where they have none.
-                val own = if (countries) ArrayList<IntArray>() else null
-                if (countries) MapsforgeToMvt.fill(t, all, z, x, y, ground = ground, borders = own)
+                if (countries) MapsforgeToMvt.fill(t, all, z, x, y, ground = ground)
                 var holes = if (countries) areas.filter { it.intersects(box) } else emptyList()
                 var inTile = if (countries) covers.filter { it.box.intersects(box) } else emptyList()
                 if (far.isNotEmpty()) {
                     holes = holes + far.map { (_, m) -> m.area() }
                     inTile = inTile + far.map { (r, m) -> Coverage(m.area(), MapRegions.bundled?.byFileName(r.fileName)) }
                 }
-                world.draw(box, z + 1, holes, WorldToMvt(t), covers = inTile, ownBorders = own)
+                world.draw(box, z + 1, holes, WorldToMvt(t), covers = inTile)
             }
         } catch (e: StreamUnavailable) {
             complete = false

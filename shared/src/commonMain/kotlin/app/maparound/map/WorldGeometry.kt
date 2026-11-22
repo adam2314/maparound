@@ -464,23 +464,6 @@ fun cutOutBox(coords: IntArray, box: GeoBox): List<IntArray> {
 }
 
 /**
- * The parts of a polyline outside [box], and inside it those [keep] keeps (by a piece's middle,
- * in pieces of about [pieceMicro]), each at least 2 points.
- */
-fun cutOutBox(coords: IntArray, box: GeoBox, keep: (Double, Double) -> Boolean, pieceMicro: Double = 9000.0): List<IntArray> {
-    if (!GeoBox.of(coords).intersects(box)) return listOf(coords)
-    return cutPieces(coords, pieceMicro, { aLat, aLon, bLat, bLon, cuts ->
-        // Where the segment crosses the box's edges.
-        for (edge in doubleArrayOf(box.minLat.toDouble(), box.maxLat.toDouble())) {
-            if ((aLat - edge) * (bLat - edge) < 0) cuts += (edge - aLat) / (bLat - aLat)
-        }
-        for (edge in doubleArrayOf(box.minLon.toDouble(), box.maxLon.toDouble())) {
-            if ((aLon - edge) * (bLon - edge) < 0) cuts += (edge - aLon) / (bLon - aLon)
-        }
-    }) { lat, lon -> lat >= box.minLat && lat <= box.maxLat && lon >= box.minLon && lon <= box.maxLon && !keep(lat, lon) }
-}
-
-/**
  * The parts of a polyline that stay, each at least 2 points: every segment split where
  * [crossings] adds edges it crosses (fractions along it) and in pieces of about [pieceMicro]
  * microdegrees, and each piece dropped when [drop] says so of its middle.
@@ -527,38 +510,6 @@ internal fun cutPieces(
     }
     flush()
     return out
-}
-
-/** Whether points are within [marginMicro] (microdegrees of latitude) of any of [lines] (lat, lon pairs in microdegrees). */
-class NearLines(private val lines: List<IntArray>, private val marginMicro: Double) {
-    private val boxes = lines.map { GeoBox.of(it) }
-
-    fun near(lat: Double, lon: Double): Boolean {
-        val k = kotlin.math.cos(lat / 1e6 * kotlin.math.PI / 180).coerceAtLeast(0.05)
-        val d = marginMicro
-        val dx = d / k
-        for ((n, line) in lines.withIndex()) {
-            val b = boxes[n]
-            if (lat < b.minLat - d || lat > b.maxLat + d || lon < b.minLon - dx || lon > b.maxLon + dx) continue
-            for (i in 0 until line.size / 2 - 1) {
-                val pLat = line[2 * i].toDouble()
-                val pLon = line[2 * i + 1].toDouble()
-                val qLat = line[2 * i + 2].toDouble()
-                val qLon = line[2 * i + 3].toDouble()
-                if (lat < min(pLat, qLat) - d || lat > max(pLat, qLat) + d) continue
-                if (lon < min(pLon, qLon) - dx || lon > max(pLon, qLon) + dx) continue
-                // Distance to the segment, with longitudes shrunk to the latitude's scale.
-                val ex = (qLon - pLon) * k
-                val ey = qLat - pLat
-                val px = (lon - pLon) * k
-                val py = lat - pLat
-                val len2 = ex * ex + ey * ey
-                val t = if (len2 > 0) ((px * ex + py * ey) / len2).coerceIn(0.0, 1.0) else 0.0
-                if (hypot(px - t * ex, py - t * ey) < d) return true
-            }
-        }
-        return false
-    }
 }
 
 /** The parts of a polyline inside [clip] (Liang–Barsky per segment), each at least 2 points. */

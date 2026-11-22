@@ -13,7 +13,7 @@ class MapAddressTest {
     @Test
     fun theDataViewGoesToAnAddressAndBack() {
         val all = listOf(
-            DataLayers(),
+            DataLayers(country = CountryIndicator.POPULATION, locality = LocalityIndicator.SIZE),
             DataLayers(country = CountryIndicator.GDP, locality = LocalityIndicator.YOUNG_ADULTS),
             DataLayers(country = null, timeZones = true, locality = null),
             DataLayers(country = null, locality = null, mapBuilds = true),
@@ -22,8 +22,9 @@ class MapAddressTest {
             DataLayers(country = null, locality = null),
         )
         for (l in all) assertEquals(MapAddress.data(l), l, MapAddress.data(MapAddress.data(l)))
-        assertEquals("c.population,l.size", MapAddress.data(DataLayers()))
-        assertEquals("none", MapAddress.data(DataLayers(country = null, locality = null)))
+        assertEquals("c.population,l.size", MapAddress.data(DataLayers(country = CountryIndicator.POPULATION, locality = LocalityIndicator.SIZE)))
+        // Nothing on to start with.
+        assertEquals("none", MapAddress.data(DataLayers()))
     }
 
     @Test

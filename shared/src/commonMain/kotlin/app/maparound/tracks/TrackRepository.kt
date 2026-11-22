@@ -17,6 +17,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import okio.Path
 import okio.Path.Companion.toPath
+import okio.use
 
 /** A track/route in the library; [id] is its GPX file name. */
 data class SavedTrack(val id: String, val track: Track)
@@ -74,6 +75,14 @@ class TrackRepository(baseDir: String, private val store: KeyValueStore) {
         return SavedTrack(file.name, track)
     }
 
+    /** Writes [track] over the saved [id] (an edited route): the same file, shown on the map if it was. */
+    fun replace(id: String, track: Track): SavedTrack {
+        write(dirPath / id, track)
+        synchronized(lock) { cache.remove(id) }
+        refresh()
+        return SavedTrack(id, track)
+    }
+
     fun rename(id: String, name: String) {
         val t = get(id)?.track ?: return
         write(dirPath / id, t.copy(name = name))
@@ -100,9 +109,19 @@ class TrackRepository(baseDir: String, private val store: KeyValueStore) {
         save(Gpx.read(bytes, name, nowMillis()))
     }
 
+    /**
+     * Writes the GPX whole and onto the storage under another name first, then gives it [file]'s:
+     * a crash or a phone that dies mid-way leaves the old file (or none), never half of one.
+     */
     private fun write(file: Path, track: Track) {
-        val text = Gpx.toXml(track)
-        fileSystem.write(file) { writeUtf8(text) }
+        val bytes = Gpx.toXml(track).encodeToByteArray()
+        val part = dirPath / (file.name + PART)
+        fileSystem.openReadWrite(part).use { h ->
+            h.resize(0)
+            h.write(0, bytes, 0, bytes.size)
+            h.flush()
+        }
+        fileSystem.atomicMove(part, file)
     }
 
     private fun uniqueFile(name: String): Path {
@@ -116,7 +135,7 @@ class TrackRepository(baseDir: String, private val store: KeyValueStore) {
 
     // ---- crash safety for recordings ----
 
-    /** File the recording service appends points to, one "lat,lon,ele,time" line each. */
+    /** File the recording service appends points to ([RecordingJournal]). */
     val journalPath: String get() = (dirPath / "recording.journal").toString()
 
     /**
@@ -128,29 +147,43 @@ class TrackRepository(baseDir: String, private val store: KeyValueStore) {
         if (!fileSystem.exists(journal) || TrackRecorder.state.value.recording) return
         val points = readJournal()
         val modified = runCatching { fileSystem.metadata(journal).lastModifiedAtMillis }.getOrNull() ?: nowMillis()
-        if (points.size >= 2) {
-            val start = points.first().time ?: modified
-            val name = T.library.recoveredTrackName(defaultName(start))
-            write(uniqueFile(name), Track(name, TrackKind.RECORDED, points, start))
+        val saved = runCatching {
+            if (points.size >= 2) {
+                val start = points.first().time ?: modified
+                val name = T.library.recoveredTrackName(defaultName(start))
+                write(uniqueFile(name), Track(name, TrackKind.RECORDED, points, start))
+            }
         }
-        runCatching { fileSystem.delete(journal) }
+        // Not saved (storage full?): the journal stays for the next try.
+        if (saved.isSuccess) runCatching { fileSystem.delete(journal) }
         refresh()
     }
 
-    fun readJournal(): List<GeoPoint> {
-        val journal = journalPath.toPath()
-        if (!fileSystem.exists(journal)) return emptyList()
-        return fileSystem.read(journal) { readUtf8() }.lines().mapNotNull { line ->
-            val p = line.split(',')
-            if (p.size < 4) return@mapNotNull null
-            val lat = p[0].toDoubleOrNull() ?: return@mapNotNull null
-            val lon = p[1].toDoubleOrNull() ?: return@mapNotNull null
-            GeoPoint(lat, lon, p[2].toDoubleOrNull(), p[3].toLongOrNull())
+    fun readJournal(): List<GeoPoint> = RecordingJournal.read(journalPath)
+
+    /**
+     * Saves a finished recording ([points], or the journal's when it has more: after the app was
+     * killed, memory has none) and then lets the journal go. When it can't be saved (storage
+     * full?), the journal stays, so it's saved as a recovered track when the app next starts.
+     * Returns the track saved, or null (fewer than two points, or not saved: [Result.isFailure]).
+     */
+    fun saveRecording(points: List<GeoPoint>, startedAt: Long?): Result<SavedTrack?> {
+        val journal = readJournal()
+        val all = if (journal.size > points.size) journal else points
+        val saved = runCatching {
+            if (all.size < 2) return@runCatching null
+            val start = startedAt ?: all.first().time ?: nowMillis()
+            save(Track(defaultName(start), TrackKind.RECORDED, all, start))
         }
+        if (saved.isSuccess) runCatching { fileSystem.delete(journalPath.toPath()) }
+        return saved
     }
 
     companion object {
         private const val KEY_VISIBLE = "visible"
+
+        /** A GPX file being written, before it takes its name. */
+        private const val PART = ".part"
 
         private val NUMBERS = setOf(CharCategory.DECIMAL_DIGIT_NUMBER, CharCategory.LETTER_NUMBER, CharCategory.OTHER_NUMBER)
 

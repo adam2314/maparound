@@ -111,6 +111,13 @@ object Fmt {
         }
     }
 
+    /**
+     * A bearing as the compass shows it, to follow it with one: "123°", or "2187 mil" when
+     * directions are in mils (never compass points, which a compass can't be set to).
+     */
+    fun compass(deg: Float): String =
+        heading(deg, if (Units.current.direction == DirectionFormat.MILS) DirectionFormat.MILS else DirectionFormat.DEGREES)
+
     fun latLon(lat: Double, lon: Double): String = "${fixed(lat, 5)}, ${fixed(lon, 5)}"
 
     /**

@@ -40,7 +40,6 @@ Map extras per area (all optional):
 |---|---|---|---|
 | Contours & hill shading | AWS Terrain Tiles | 30 m: ~26 MB per 1°×1°; 90 m: ~3 MB | Contour lines are generated on the phone. |
 | Offline routing | brouter.de (BRouter) | 5°×5° blocks, 2–300 MB each | Without it, routes are calculated online by brouter.de. |
-| Marked trails & cliffs | OpenStreetMap via Overpass API | ~0.5–8 MB per 1°×1° on the phone | Only for maps from elsewhere (mapsforge.org, imported): MapAround's maps have them built in. Without it, trails are an online overlay (waymarkedtrails.org) and the Topo style has no cliffs. |
 
 Missing sensors (no barometer, no GPS, and so on) show an explanation instead of crashing.
 
@@ -132,9 +131,6 @@ dependencies):
 ./gradlew :shared:compileDebugKotlinAndroid   # the shared code it uses (again after changing it)
 ./gradlew -p tools/topo-preview run --args="prep raw-hgt/ dem/ high maps/"
 ./gradlew -p tools/topo-preview run --args="app/src/main/assets/themes/topo.xml maps/ dem/ out/ alps:47.13:9.58:15"
-# marked trails: convert an Overpass XML download, then add trails=<dir> when rendering
-./gradlew -p tools/topo-preview run --args="trailprep N47E009.xml trails/N47E009.trails"
-./gradlew -p tools/topo-preview run --args="app/src/main/assets/themes/topo.xml maps/ dem/ out/ trails=trails/ alps:47.13:9.58:13"
 ```
 
 Get the raw `.hgt` files from `https://elevation-tiles-prod.s3.amazonaws.com/skadi/N47/N47E009.hgt.gz` and unzip them. In Git Bash
@@ -178,20 +174,10 @@ on Windows, prefix the commands with `MSYS_NO_PATHCONV=1`.
   last) is appended to `recording.journal` first. If Android restarts the service after killing
   the app, the same track continues; a cut-off recording is saved as a "(recovered)" track. Climb
   uses a 4 m hysteresis to ignore GPS noise.
-- **Marked trails** (`trails/`): OSM `route=hiking|foot` relations are downloaded per 1°×1° cell from
-  the Overpass API and stored compactly (`TrailCellIO`, ~10× smaller than the download).
-  `TrailDataStore` feeds them to the renderer one line per waymark colour (from `osmc:symbol` or
-  `colour`), offset side by side where routes share a path, as Waymarked Trails does. The same
-  request also fetches `natural=cliff|arete|ridge|earth_bank` ways, which the mapsforge maps leave
-  out; the data store gives them to the renderer as in OSM (from zoom 13, also with the trail lines
-  off), so Topo's cliff rules draw them. Cells from before (format 1) are fetched again for them.
-
-## Party location sharing
-
-The party runs on **Link v1**, MapAround's own protocol, specified in
-[docs/LINK_PROTOCOL.md](docs/LINK_PROTOCOL.md). Its code is shared by Android and the web app
-(`party/link/`); the platforms give it their sockets, radios and location.
-
+- **Marked trails**: built into MapAround's own maps (their "trails" layer, one line per waymark
+  colour, side by side where routes share a path); the Topo styles draw them. Other maps get the
+  online overlay from waymarkedtrails.org. (The per-area download from the Overpass API is gone;
+  its old files in `files/trails/` are deleted at start.)
 - **Party = 16-byte id + 32-byte secret**, shared as the web link
   `https://maparound.app/party#<code>?n=<name>` (QR code or link; `&s=<server>` for each of the
   party's own servers), so messaging apps make it tappable and a phone camera opens it. The page
@@ -353,7 +339,8 @@ like on the iPhone, and driven by the same shared code (`map/maplibre/MapLibreSu
 
 - **Offline maps become vector tiles on the phone.** The shared `TileService` reads the mapsforge
   `.map` files with its own Kotlin reader and writes Mapbox vector tiles (`shared/mvt/`), with the
-  built-in world (Natural Earth) where no map is installed and below zoom 8; contours and
+  built-in world (Natural Earth) where no map is installed and below zoom 8 (its country borders
+  only below zoom 8: from there the maps' own, so the two never run side by side); contours and
   Terrarium elevation tiles for hill shading come from the elevation files. MapLibre asks for them
   over HTTP from a host that never resolves (`tiles.maparound.invalid`): an interceptor in its OkHttp
   client (`map/gl/GlTiles.kt`) answers on the phone, a few tiles at a time on a small pool of
@@ -698,12 +685,11 @@ app/src/main/java/app/maparound/
   map/                     the map screen's MapSurface on MapLibre (AndroidMapSurface), the styles
                            (AndroidMapThemes: built in and imported), the 3D view's mapsforge data
     gl/                    MapLibre on Android: the MapView wrapper, marker images, the
-                           tile server (GlTiles: shared TileService plus raster maps, trails,
-                           viewshed) and the styles made from the mapsforge themes (GlStyles)
+                           tile server (GlTiles: shared TileService plus raster maps) and
+                           the styles made from the mapsforge themes (GlStyles)
   terrain/                 elevation tiles, contour tracing, contour data source, coast mask
   routing/                 BRouter wrapper, online router, routing data, navigation service & voice
   tracks/                  GPX read/write, track library, GPS recording service
-  trails/                  marked hiking trails: Overpass parsing, cell files, index, data source
   share/                   link parsing/building, sharing out, handling what other apps send in
   tools/                   map tools: geodesy, line of sight, viewshed, coordinate formats, tools session
   places/                  saved places (POIs): categories, GPX read/write, search, repository
@@ -847,4 +833,4 @@ The app's privacy policy (also for the stores) is [docs/privacy.md](docs/privacy
 - **Wikipedia**: *What's here?* uses the [MediaWiki API](https://www.mediawiki.org/wiki/API:Geosearch) of wikipedia.org and the [Wikidata API](https://www.wikidata.org/wiki/Wikidata:Data_access) (articles CC BY-SA 4.0, opened in the browser; nothing is copied into the app). Photos from [Wikimedia Commons](https://commons.wikimedia.org), under their authors' free licences, credited in the app with each photo's author and licence and linked to its page.
 - **RMAP format**: as read by [QMapShack](https://github.com/Maproom/qmapshack)'s `CMapRMAP` (GPL-3.0); MapAround's reader is its own Kotlin implementation.
 - **Routing**: [BRouter](https://github.com/abrensch/brouter) (MIT) and its data and server at brouter.de, from OpenStreetMap (ODbL).
-- **Marked trails**: © OpenStreetMap contributors (ODbL), downloaded through the [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) (fair-use policy). The online overlay is from [Waymarked Trails](https://waymarkedtrails.org); I couldn't find written tile-usage terms, so check with them before any large-scale use.
+- **Marked trails**: © OpenStreetMap contributors (ODbL), built into MapAround's maps. The online overlay is from [Waymarked Trails](https://waymarkedtrails.org); I couldn't find written tile-usage terms, so check with them before any large-scale use.

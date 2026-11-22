@@ -137,12 +137,13 @@ fun ToolsPanel(
     onFold: (Boolean) -> Unit = {},
 ) {
     val format by LocalPrefs.current.coordFormat.collectAsState()
+    val bearing = rememberCompassBearing()
     MapDrawer(
         folded, onFold,
         summary = {
             Text(state.mode.label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
             Spacer(Modifier.width(10.dp))
-            Text(toolsSummary(state, format), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(toolsSummary(state, format, bearing), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (state.busy) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
             Tip(T.tools.closeTools) { IconButton(onClick = { ToolsSession.close() }) { Icon(Icons.Filled.Close, contentDescription = T.tools.closeTools) } }
         },
@@ -166,7 +167,7 @@ fun ToolsPanel(
             }
             when (state.mode) {
                 Mode.MEASURE -> MeasureBody(state, myLocation)
-                Mode.SIGHT -> SightBody(state, myLocation, onGetTerrain)
+                Mode.SIGHT -> SightBody(state, myLocation, onGetTerrain, bearing)
                 Mode.VIEW -> ViewshedBody(state, myLocation, onGetTerrain)
                 Mode.COORDS -> CoordsBody(state, myLocation, mapCenter, onShowPoint, onShare)
             }
@@ -174,8 +175,8 @@ fun ToolsPanel(
     }
 }
 
-/** The tool's result in a line, for its folded drawer: "1.2 km · 45° NE", "B is in sight from A · 3 km"… */
-private fun toolsSummary(s: ToolsSession.State, format: CoordFormat): String {
+/** The tool's result in a line, for its folded drawer: "1.2 km · 45°", "B is in sight from A · 3 km"… */
+private fun toolsSummary(s: ToolsSession.State, format: CoordFormat, bearing: (GeoPoint, GeoPoint) -> String): String {
     val a = s.a
     val b = s.b
     return when (s.mode) {
@@ -186,7 +187,7 @@ private fun toolsSummary(s: ToolsSession.State, format: CoordFormat): String {
             s.mode == Mode.SIGHT -> s.los?.let { los ->
                 (if (los.targetVisible) T.tools.bInSight else T.tools.bHidden) + " · " + Fmt.distance(los.distanceM.toFloat())
             } ?: "…"
-            else -> Geodesy.bearing(a, b).let { az -> "${Fmt.distance(Geo.distance(a, b).toFloat())} · ${Fmt.heading(az.toFloat())}" }
+            else -> "${Fmt.distance(Geo.distance(a, b).toFloat())} · ${bearing(a, b)}"
         }
         Mode.VIEW -> when {
             a == null -> T.tools.chipTapMap(T.tools.observer)
@@ -247,9 +248,29 @@ private fun Hint(text: String) {
 
 // ---- azimuth & range ----------------------------------------------------------------------------------
 
+/** The magnetic bearing for a true one, at [at] (WMM declination). */
+private fun magnetic(sensors: DeviceSensors, trueDeg: Double, at: GeoPoint): Double =
+    ((trueDeg - declinationAt(sensors, at)) % 360 + 360) % 360
+
+/**
+ * A bearing from A to B as the compass shows it, to follow it with one: from the north it's set to
+ * (true or magnetic, on its screen or the azimuth tool's), in degrees or mils ([Fmt.compass]).
+ */
+@Composable
+private fun rememberCompassBearing(): (GeoPoint, GeoPoint) -> String {
+    val sensors = LocalDeviceSensors.current
+    val trueNorth by LocalPrefs.current.trueNorth.collectAsState()
+    return { a, b ->
+        val az = Geodesy.bearing(a, b)
+        Fmt.compass((if (trueNorth) az else magnetic(sensors, az, a)).toFloat())
+    }
+}
+
 @Composable
 private fun MeasureBody(state: ToolsSession.State, myLocation: GeoFix?) {
     val sensors = LocalDeviceSensors.current
+    val prefs = LocalPrefs.current
+    val trueNorth by prefs.trueNorth.collectAsState()
     var project by remember { mutableStateOf(false) }
     PointsRow(state, myLocation, onProject = { project = true })
     val a = state.a
@@ -258,19 +279,32 @@ private fun MeasureBody(state: ToolsSession.State, myLocation: GeoFix?) {
         Hint(if (a == null) T.tools.measureTapA else T.tools.measureTapB)
     } else {
         val dist = Geo.distance(a, b)
+        // From the north the compass is set to (and the back bearing too, as at B), in its units.
         val az = Geodesy.bearing(a, b)
         val back = Geodesy.bearing(b, a)
-        val mag = (az - declinationAt(sensors, a) + 360) % 360
+        val main = if (trueNorth) az else magnetic(sensors, az, a)
+        val other = if (trueNorth) magnetic(sensors, az, a) else az
+        val backMain = if (trueNorth) back else magnetic(sensors, back, b)
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(Fmt.distance(dist.toFloat()), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text(Fmt.heading(az.toFloat()), style = MaterialTheme.typography.headlineSmall)
+            Text(Fmt.compass(main.toFloat()), style = MaterialTheme.typography.headlineSmall)
+        }
+        // The same switch as the compass's: either one sets both.
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            SegmentedButton(selected = !trueNorth, onClick = { prefs.setTrueNorth(false) }, shape = SegmentedButtonDefaults.itemShape(0, 2), icon = {}) {
+                Text(T.sensors.magneticNorth, maxLines = 1, style = MaterialTheme.typography.labelMedium)
+            }
+            SegmentedButton(selected = trueNorth, onClick = { prefs.setTrueNorth(true) }, shape = SegmentedButtonDefaults.itemShape(1, 2), icon = {}) {
+                Text(T.sensors.trueNorth, maxLines = 1, style = MaterialTheme.typography.labelMedium)
+            }
         }
         Text(
-            // Mils besides, unless directions are shown in mils already.
-            T.tools.magneticMilsBack(
-                Fmt.heading(mag.toFloat()),
-                Geodesy.mils(az).takeIf { app.maparound.i18n.Units.current.direction != app.maparound.i18n.DirectionFormat.MILS },
-                Fmt.heading(back.toFloat()),
+            // The other north; mils besides, unless directions are in mils already.
+            T.tools.otherNorthMilsBack(
+                trueOther = !trueNorth,
+                other = Fmt.compass(other.toFloat()),
+                mils = Geodesy.mils(main).takeIf { app.maparound.i18n.Units.current.direction != app.maparound.i18n.DirectionFormat.MILS },
+                back = Fmt.compass(backMain.toFloat()),
             ),
             style = MaterialTheme.typography.bodyMedium,
         )
@@ -288,25 +322,26 @@ private fun MeasureBody(state: ToolsSession.State, myLocation: GeoFix?) {
             )
         }
         Text(
-            T.tools.bearingNote(localSigned(declinationAt(sensors, a).toDouble(), 1)),
+            T.tools.bearingNote(magnetic = !trueNorth, declination = localSigned(declinationAt(sensors, a).toDouble(), 1)),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
     if (project && a != null) {
-        ProjectDialog(a, onDismiss = { project = false }) { ToolsSession.setB(it); project = false }
+        ProjectDialog(a, trueNorth, onDismiss = { project = false }) { ToolsSession.setB(it); project = false }
     }
 }
 
 private fun signed(v: Int) = if (v > 0) "+$v" else "$v"
 
 @Composable
-private fun ProjectDialog(from: GeoPoint, onDismiss: () -> Unit, onPlace: (GeoPoint) -> Unit) {
+private fun ProjectDialog(from: GeoPoint, trueNorth: Boolean, onDismiss: () -> Unit, onPlace: (GeoPoint) -> Unit) {
     val sensors = LocalDeviceSensors.current
     var bearing by remember { mutableStateOf("") }
     var distance by remember { mutableStateOf("") }
-    var mils by remember { mutableStateOf(false) }
-    var magnetic by remember { mutableStateOf(false) }
+    // As the compass reads, to start with.
+    var mils by remember { mutableStateOf(app.maparound.i18n.Units.current.direction == app.maparound.i18n.DirectionFormat.MILS) }
+    var magnetic by remember { mutableStateOf(!trueNorth) }
     val b = bearing.replace(',', '.').toDoubleOrNull()
     val d = parseDistance(distance)
     val max = if (mils) 6400.0 else 360.0
@@ -363,7 +398,7 @@ private fun parseDistance(text: String): Double? {
 // ---- line of sight -------------------------------------------------------------------------------------
 
 @Composable
-private fun SightBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTerrain: (() -> Unit)?) {
+private fun SightBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTerrain: (() -> Unit)?, bearing: (GeoPoint, GeoPoint) -> String) {
     PointsRow(state, myLocation)
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Filled.CellTower, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
@@ -387,7 +422,7 @@ private fun SightBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTerra
         a == null -> Hint(if (state.radio) T.tools.radioTapA else T.tools.sightTapA)
         b == null -> Hint(if (state.radio) T.tools.radioTapB else T.tools.sightTapB)
         state.needsTerrain -> TerrainNeeded(state, onGetTerrain)
-        state.los?.fresnel != null -> RadioResult(state.los, a, b)
+        state.los?.fresnel != null -> RadioResult(state.los, a, b, bearing)
         state.los != null -> {
             val los = state.los
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -403,7 +438,7 @@ private fun SightBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTerra
                     fontWeight = FontWeight.Bold,
                 )
                 Spacer(Modifier.weight(1f))
-                Text("${Fmt.distance(los.distanceM.toFloat())} · ${Fmt.heading(Geodesy.bearing(a, b).toFloat())}", style = MaterialTheme.typography.bodyMedium)
+                Text("${Fmt.distance(los.distanceM.toFloat())} · ${bearing(a, b)}", style = MaterialTheme.typography.bodyMedium)
             }
             val o = los.obstacle
             Text(
@@ -429,7 +464,7 @@ private fun SightBody(state: ToolsSession.State, myLocation: GeoFix?, onGetTerra
 
 /** A radio link's verdict: how much of the first Fresnel zone is clear, and the path loss. */
 @Composable
-private fun RadioResult(los: LineOfSight, a: GeoPoint, b: GeoPoint) {
+private fun RadioResult(los: LineOfSight, a: GeoPoint, b: GeoPoint, bearing: (GeoPoint, GeoPoint) -> String) {
     val f = los.fresnel ?: return
     val t = f.tightest
     val (title, color) = when {
@@ -441,7 +476,7 @@ private fun RadioResult(los: LineOfSight, a: GeoPoint, b: GeoPoint) {
         Icon(Icons.Filled.CellTower, contentDescription = null, tint = color)
         Text(title, style = MaterialTheme.typography.titleMedium, color = color, fontWeight = FontWeight.Bold)
         Spacer(Modifier.weight(1f))
-        Text("${Fmt.distance(los.distanceM.toFloat())} · ${Fmt.heading(Geodesy.bearing(a, b).toFloat())}", style = MaterialTheme.typography.bodyMedium)
+        Text("${Fmt.distance(los.distanceM.toFloat())} · ${bearing(a, b)}", style = MaterialTheme.typography.bodyMedium)
     }
     // The tightest point's distance from A.
     val where = t?.let { Fmt.distance(it.distanceM.toFloat()) } ?: ""
@@ -602,15 +637,21 @@ private fun TerrainNeeded(state: ToolsSession.State, onGetTerrain: (() -> Unit)?
     }
 }
 
-/** Terrain between A and B (with Earth curvature applied) and the straight sight line. */
+/**
+ * Terrain between A and B (with Earth curvature applied) and the straight sight line. Pointed at
+ * ([pointedAt]), it tells the distance from A there, the ground's height, and whether A sees it
+ * (a radio link: how much of the Fresnel zone is clear there).
+ */
 @Composable
 private fun SightProfile(los: LineOfSight, modifier: Modifier = Modifier) {
     val measurer = rememberTextMeasurer()
     val ground = MaterialTheme.colorScheme.outline
     val fill = MaterialTheme.colorScheme.surfaceVariant
     val label = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
-    // Distance, ground as seen from A (curvature applied), and its colour.
-    class Point(val d: Double, val e: Double, val color: Color)
+    val tip = graphTipStyle()
+    val pointed = remember(los) { mutableStateOf<Float?>(null) }
+    // Distance, ground as seen from A (curvature applied), its colour, and the sample.
+    class Point(val d: Double, val e: Double, val color: Color, val sample: LineOfSight.Sample)
     val fresnel = los.fresnel
     val series = remember(los) {
         los.samples.filter { !it.groundM.isNaN() }.map {
@@ -620,7 +661,7 @@ private fun SightProfile(los: LineOfSight, modifier: Modifier = Modifier) {
                 it.zone > 0 -> Partial
                 else -> Hidden
             }
-            Point(it.distanceM, it.groundM - los.drop(it.distanceM), color)
+            Point(it.distanceM, it.groundM - los.drop(it.distanceM), color, it)
         }
     }
     // The first Fresnel zone around the direct line, as (distance, top, bottom).
@@ -628,7 +669,7 @@ private fun SightProfile(los: LineOfSight, modifier: Modifier = Modifier) {
         fresnel?.let { f -> (0..80).map { i -> val d = los.distanceM * i / 80; Triple(d, los.lineAt(d) + f.radiusAt(d, los.distanceM), los.lineAt(d) - f.radiusAt(d, los.distanceM)) } }
     }
     if (series.size < 2) return
-    Canvas(modifier) {
+    Canvas(modifier.pointedAt(pointed)) {
         val total = los.distanceM
         val targetEff = los.lineAt(total)
         val lo = minOf(series.minOf { it.e }, zone?.minOf { it.third } ?: Double.MAX_VALUE)
@@ -695,6 +736,24 @@ private fun SightProfile(los: LineOfSight, modifier: Modifier = Modifier) {
         drawText(measurer, Fmt.height(lo), topLeft = Offset(10.dp.toPx(), y(lo) - 15.dp.toPx()), style = label)
         val km = measurer.measure(Fmt.distance(total.toFloat()), label)
         drawText(km, topLeft = Offset(size.width - km.size.width - 10.dp.toPx(), size.height - km.size.height))
+
+        // Pointed at: the sample nearest.
+        pointed.value?.let { px ->
+            val d = (px / size.width).coerceIn(0f, 1f) * total
+            val p = series.minBy { abs(it.d - d) }
+            val s = p.sample
+            val state = when {
+                fresnel == null -> if (s.visible) T.tools.seenFromA else T.tools.hiddenFromA
+                s.zone.isNaN() || s.zone >= 1 -> T.tools.zoneClearHere(percent(1.0))
+                s.zone < 0 -> T.tools.groundAboveLine
+                else -> T.tools.zoneClearHere(percent(s.zone))
+            }
+            graphTip(
+                measurer, tip, x(p.d), y(p.e),
+                listOf(AnnotatedString("${Fmt.distance(p.d.toFloat())} · ${Fmt.height(s.groundM)}"), tipLine(state, p.color)),
+                dot = p.color,
+            )
+        }
     }
 }
 

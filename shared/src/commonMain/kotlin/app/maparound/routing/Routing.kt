@@ -42,7 +42,8 @@ data class RouteResult(
     /** The router's turn instructions (BRouter's turn hints); empty for straight lines. */
     val maneuvers: List<Maneuver> = emptyList(),
 ) {
-    enum class Source { OFFLINE, ONLINE, STRAIGHT }
+    /** [SAVED]: a saved route's line, as it was saved (being edited, until a stop changes). */
+    enum class Source { OFFLINE, ONLINE, STRAIGHT, SAVED }
 }
 
 class RoutingException(message: String) : Exception(message)
@@ -62,28 +63,49 @@ data class TrackStats(
         /** Climb below this is treated as GPS / elevation-model noise. */
         private const val HYSTERESIS_M = 4.0
 
-        fun of(points: List<GeoPoint>): TrackStats {
-            if (points.isEmpty()) return EMPTY
-            var dist = 0.0
-            for (i in 1 until points.size) dist += Geo.distance(points[i - 1], points[i])
+        fun of(points: List<GeoPoint>): TrackStats = Adder().apply { points.forEach(::add) }.stats
+    }
 
-            val eles = points.mapNotNull { it.ele }
-            var up: Double? = null
-            var down: Double? = null
-            if (eles.size >= 2) {
-                var u = 0.0
-                var d = 0.0
-                var ref = eles[0]
-                for (e in eles) {
-                    if (e - ref >= HYSTERESIS_M) { u += e - ref; ref = e }
-                    else if (ref - e >= HYSTERESIS_M) { d += ref - e; ref = e }
-                }
-                up = u
-                down = d
+    /**
+     * The stats of points as they come, one at a time (a recording): after each [add], [stats] is
+     * [of] all the points so far, without going over them again.
+     */
+    class Adder {
+        private var last: GeoPoint? = null
+        private var dist = 0.0
+        private var eles = 0
+        private var ref = 0.0
+        private var up = 0.0
+        private var down = 0.0
+        private var min = Double.MAX_VALUE
+        private var max = -Double.MAX_VALUE
+        private var times = 0
+        private var firstTime = 0L
+        private var lastTime = 0L
+
+        var stats: TrackStats = EMPTY
+            private set
+
+        fun add(p: GeoPoint) {
+            last?.let { dist += Geo.distance(it, p) }
+            last = p
+            p.ele?.let { e ->
+                if (eles++ == 0) ref = e
+                if (e - ref >= HYSTERESIS_M) { up += e - ref; ref = e }
+                else if (ref - e >= HYSTERESIS_M) { down += ref - e; ref = e }
+                if (e < min) min = e
+                if (e > max) max = e
             }
-            val times = points.mapNotNull { it.time }
-            val elapsed = if (times.size >= 2) (times.last() - times.first()) / 1000 else null
-            return TrackStats(dist, up, down, eles.minOrNull(), eles.maxOrNull(), elapsed)
+            p.time?.let { t ->
+                if (times++ == 0) firstTime = t
+                lastTime = t
+            }
+            stats = TrackStats(
+                dist,
+                up.takeIf { eles >= 2 }, down.takeIf { eles >= 2 },
+                min.takeIf { eles > 0 }, max.takeIf { eles > 0 },
+                ((lastTime - firstTime) / 1000).takeIf { times >= 2 },
+            )
         }
     }
 }

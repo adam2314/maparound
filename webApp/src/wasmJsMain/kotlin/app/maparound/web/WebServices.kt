@@ -16,8 +16,6 @@ import app.maparound.data.LocalMap
 import app.maparound.data.MapDownloads
 import app.maparound.data.RoutingData
 import app.maparound.data.RoutingDataState
-import app.maparound.data.TrailData
-import app.maparound.data.TrailState
 import app.maparound.i18n.T
 import app.maparound.map.MapTheme
 import app.maparound.map.MapThemeLibrary
@@ -61,7 +59,6 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.emptyFlow
 import okio.Path.Companion.toPath
 import kotlin.math.PI
-import kotlin.math.floor
 
 internal val LATER: String get() = T.offline.comingToWeb
 
@@ -438,23 +435,6 @@ object WebDownloads : MapDownloads {
     override fun cancel(id: Long) = Unit
     override fun poll(): List<DownloadInfo> = emptyList()
     override val canWaitForWifi: Boolean get() = false
-}
-
-private fun cells(bounds: GeoBounds): List<Pair<Int, Int>> {
-    val out = ArrayList<Pair<Int, Int>>()
-    for (lat in floor(bounds.minLat).toInt()..floor(bounds.maxLat - 1e-9).toInt()) {
-        for (lon in floor(bounds.minLon).toInt()..floor(bounds.maxLon - 1e-9).toInt()) out += lat to lon
-    }
-    return out
-}
-
-object PendingTrails : TrailData {
-    override val state: StateFlow<TrailState> = MutableStateFlow(TrailState())
-    override fun cellsFor(bounds: GeoBounds) = cells(bounds)
-    override fun missingCells(bounds: GeoBounds) = cells(bounds)
-    override fun download(label: String, bounds: GeoBounds): String = T.offline.trailsLater(LATER)
-    override fun cancel() = Unit
-    override fun deleteAll() = Unit
 }
 
 object PendingRouting : RoutingData {

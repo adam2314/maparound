@@ -31,23 +31,10 @@ class TileService(private val demDir: String? = null, private val fontsDir: Stri
     var glyphSource: ((font: String, range: String) -> ByteArray?)? = null
 
     /**
-     * Answers for paths the platform makes itself (Android: `raster/…`, `trails/…`,
-     * `viewshed/…`), given the path's parts; null to go on with the shared ones.
+     * Answers for paths the platform makes itself (Android: `raster/…`), given the path's parts;
+     * null to go on with the shared ones.
      */
     var extra: ((parts: List<String>) -> Response?)? = null
-
-    /** Like [version], for the downloaded marked-trail data the platform serves under `trails/`; null when none. */
-    @Volatile
-    var trailsVersion: String? = null
-
-    /**
-     * Adds the platform's own features to the offline map's tiles (Android: the cliffs and ridges
-     * of the trail download), whose version is [osmExtraVersion].
-     */
-    var osmExtra: ((app.maparound.shared.mvt.MvtTile, Int, Int, Int) -> Unit)? = null
-
-    @Volatile
-    var osmExtraVersion: String? = null
 
     /**
      * Buildings in the offline map's tiles get how the ground varies under them (from the elevation
@@ -55,9 +42,9 @@ class TileService(private val demDir: String? = null, private val fontsDir: Stri
      */
     var buildingRelief: Boolean = false
 
-    /** The offline map tiles' version in their URLs: the maps', the extras', and the terrain's when it's in them. */
+    /** The offline map tiles' version in their URLs: the maps', and the terrain's when it's in them. */
     val osmVersion: String
-        get() = (osmExtraVersion?.let { "$version-$it" } ?: version) +
+        get() = version +
             (if (buildingRelief) terrainVersion?.let { "-t$it" }.orEmpty() else "") +
             // Streamed maps readable again after tiles were made without them: asked for anew.
             (if (remoteMaps.isNotEmpty()) "-s${app.maparound.shared.stream.MapStream.generation.value}" else "")
@@ -113,6 +100,12 @@ class TileService(private val demDir: String? = null, private val fontsDir: Stri
     var terrainVersion: String? = null
         private set
 
+    /**
+     * The contour and hill-shading tiles' version in their URLs: the elevation files', and the
+     * maps' (whose sea they're cut at); null when there are no elevation files.
+     */
+    val terrainKey: String? get() = terrainVersion?.let { "$it-$version" }
+
     /** Looks at the elevation files again (after downloads). Returns [terrainVersion]. */
     fun refreshTerrain(): String? {
         val dem = demDir?.let(::DemIndex)
@@ -122,7 +115,8 @@ class TileService(private val demDir: String? = null, private val fontsDir: Stri
         } else {
             val key = (dem.fingerprint.hashCode().toLong() and 0xFFFFFFFFL).toString(16)
             if (key != terrainVersion) {
-                terrain = TerrainTiles(dem)
+                // Contours and shading stop at the coast of the maps served then.
+                terrain = TerrainTiles(dem) { tiles.takeIf { it.mapCount > 0 }?.sea?.let { s -> s::isSea } }
                 terrainVersion = key
             }
         }
@@ -137,6 +131,7 @@ class TileService(private val demDir: String? = null, private val fontsDir: Stri
         val parts = path.substringBefore('?').trim('/').split('/')
         extra?.invoke(parts)?.let { return it }
         if (parts.size == 3 && parts[0] == "fonts") return glyphs(urlDecode(parts[1]), parts[2])
+        if (parts.size == 2 && parts[0] == "viewshed") return viewshedImage(parts[1])
         if (parts.size != 5) return null
         val z = parts[2].toIntOrNull() ?: return null
         val x = parts[3].toIntOrNull() ?: return null
@@ -144,7 +139,7 @@ class TileService(private val demDir: String? = null, private val fontsDir: Stri
         if (z !in 0..22 || x !in 0 until (1 shl z) || y !in 0 until (1 shl z)) return null
         return when (parts[0]) {
             "osm" -> tiles.let { m ->
-                val bytes = m.tile(z, x, y, osmExtra, ground = terrain?.takeIf { buildingRelief }?.let { t -> t::elevation })
+                val bytes = m.tile(z, x, y, ground = terrain?.takeIf { buildingRelief }?.let { t -> t::elevation })
                 Response(bytes, PBF, temporary = !m.complete)
             }
             "contours" -> terrain?.let { Response(it.contours(z, x, y), PBF) }
@@ -168,7 +163,30 @@ class TileService(private val demDir: String? = null, private val fontsDir: Stri
         return Response(bytes, PBF)
     }
 
+    /**
+     * The [viewshed] as an image, one pixel a cell: green where it's in sight, red where hidden,
+     * clear outside the circle. Only the one shown now ([name] is its key): an older one's URL gets
+     * nothing.
+     */
+    private fun viewshedImage(name: String): Response? {
+        val vs = viewshed ?: return null
+        if (name != "${MapStyle.viewshedKey(vs)}.png") return null
+        val pixels = ByteArray(vs.size * vs.size * 4)
+        for (i in 0 until vs.size * vs.size) {
+            val colour = when (vs.cells[i].toInt()) {
+                1 -> VIEWSHED_SEEN
+                0 -> VIEWSHED_HIDDEN
+                else -> continue
+            }
+            for (c in 0 until 4) pixels[i * 4 + c] = colour[c]
+        }
+        return Response(Png.rgba(vs.size, vs.size, pixels), "image/png")
+    }
+
     private companion object {
+        /** In sight and hidden: red, green, blue and alpha. */
+        val VIEWSHED_SEEN = byteArrayOf(67, 160.toByte(), 71, 80)
+        val VIEWSHED_HIDDEN = byteArrayOf(198.toByte(), 40, 40, 115)
         const val PBF = "application/x-protobuf"
         val RANGE = Regex("[0-9]+-[0-9]+[.]pbf")
     }

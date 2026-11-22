@@ -182,10 +182,33 @@ fun MapAroundRoot(
     }
     // Each panel keeps its place (a folder open, how far down) while another is shown.
     val panels = rememberSaveableStateHolder()
+    val stats = LocalStats.current
+    if (big) {
+        // The data view's explorer opened (the rail, the layers, its legend): the one panel open.
+        LaunchedEffect(DataView.explorerOpen) {
+            if (DataView.explorerOpen) {
+                tab = Tab.Map
+                settingsOpen = false
+            }
+        }
+    }
     @Composable
     fun Panel(floating: Boolean, modifier: Modifier = Modifier) {
         if (settingsOpen) {
             SidePanel("settings", panels, floating, modifier, onClose = { settingsOpen = false }) { SettingsPanel(onClose = { settingsOpen = false }) }
+        } else if (DataView.explorerOpen && stats != null) {
+            // The data view's explorer, as the tabs are; the data stays on the map when it closes.
+            SidePanel("data", panels, floating, modifier, onClose = { DataView.explorerOpen = false }) {
+                DataExplorer(
+                    DataView.layers, dataOffers(stats),
+                    onLayers = { DataView.pick(it) },
+                    onLeave = { DataView.leave() },
+                    header = {
+                        ClosePanelButton()
+                        DataExplorerTitle()
+                    },
+                )
+            }
         } else if (tab != Tab.Map) {
             SidePanel(tab.name, panels, floating, modifier, onClose = { tab = Tab.Map }) { TabScreen(tab) }
         }
@@ -210,33 +233,40 @@ fun MapAroundRoot(
     ) { padding ->
         Row(Modifier.padding(padding).fillMaxSize()) {
             if (rail) {
-                val dataOn = DataViewLink.current.collectAsState().value != null
                 SideRail(
                     tabs = tabs,
-                    open = tab.takeIf { it != Tab.Map && !settingsOpen },
+                    open = tab.takeIf { it != Tab.Map && !settingsOpen && !DataView.explorerOpen },
                     settingsOpen = settingsOpen,
-                    dataOn = dataOn,
-                    // The data view (the web app's): on the map, with its explorer.
-                    onData = if (LocalStats.current != null) ({
-                        settingsOpen = false
-                        tab = Tab.Map
-                        DataViewLink.showExplorer.value = true
+                    dataOn = DataView.explorerOpen && !settingsOpen,
+                    // The data view (the web app's): on the map, its explorer in the panel; again, the
+                    // panel closes (the data stays on the map).
+                    onData = if (stats != null) ({
+                        if (DataView.explorerOpen && !settingsOpen) {
+                            DataView.explorerOpen = false
+                        } else {
+                            settingsOpen = false
+                            tab = Tab.Map
+                            DataView.open()
+                        }
                     }) else null,
                     // The open one again closes it.
                     onTab = { t ->
                         tab = if (tab == t && !settingsOpen) Tab.Map else t
                         settingsOpen = false
+                        DataView.explorerOpen = false
                     },
                     onSettings = {
                         settingsOpen = !settingsOpen
                         tab = Tab.Map
+                        DataView.explorerOpen = false
                     },
                 )
                 if (beside) Panel(floating = false)
             }
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 val shown = if (big) Tab.Map else tab
-                if (shown == Tab.Map) MapScreen(
+                // The map's own drawers give way to the side panel (the data view's explorer).
+                if (shown == Tab.Map) CompositionLocalProvider(LocalSidePanels provides rail) { MapScreen(
                     hasLocation = hasLocation,
                     requestLocation = requestLocation,
                     // Platforms without the Offline tab yet don't offer to go there.
@@ -246,7 +276,7 @@ fun MapAroundRoot(
                     mapView = mapView,
                     view3d = view3d,
                     openFull = openFull,
-                ) else TabScreen(shown)
+                ) } else TabScreen(shown)
                 if (rail && !beside) Panel(floating = true, Modifier.align(Alignment.TopStart))
             }
         }
@@ -256,6 +286,9 @@ fun MapAroundRoot(
     }
     }
 }
+
+/** The tabs are in the side panel (a big screen): the map's own drawers (the data view's explorer) give way to it. */
+val LocalSidePanels = compositionLocalOf { false }
 
 /** In the side panel beside the map (a big screen): closes it, for its top bar's ✕ ([ClosePanelButton]). */
 val LocalClosePanel = compositionLocalOf<(() -> Unit)?> { null }

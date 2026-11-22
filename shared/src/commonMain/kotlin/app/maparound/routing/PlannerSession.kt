@@ -31,7 +31,12 @@ object PlannerSession {
         val error: String? = null,
         /** While a stop is dragged: the line to draw instead of the route (straight to the stop). */
         val preview: List<GeoPoint>? = null,
+        /** The saved route being edited ([editSaved]), which saving writes over; null for a new one. */
+        val editing: Editing? = null,
     )
+
+    /** A saved route being edited: its file ([SavedTrack.id]), its name and when it was made. */
+    data class Editing(val id: String, val name: String, val created: Long)
 
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
@@ -75,6 +80,27 @@ object PlannerSession {
         drag = null
         _state.value = State(active = true, profile = profile ?: _state.value.profile, waypoints = points)
         recompute()
+    }
+
+    /**
+     * Opens a saved route to change: its stops and way of travel, and its line as it was saved
+     * until a stop or the way changes (then it's calculated again). Saving writes over it, or makes
+     * a new one ([save]). Only routes saved with their stops ([Track.waypoints]) can be.
+     */
+    fun editSaved(saved: SavedTrack) {
+        val t = saved.track
+        if (t.waypoints.size < 2) return
+        job?.cancel()
+        undo.clear()
+        drag = null
+        val profile = t.profile ?: if (t.kind == TrackKind.DRAWN) RouteProfile.LINE else RouteProfile.HIKE
+        val stats = t.stats
+        val duration = if (profile == RouteProfile.HIKE || profile == RouteProfile.LINE) Geo.hikingTimeSeconds(stats.distanceM, stats.ascentM, stats.descentM) else null
+        _state.value = State(
+            active = true, profile = profile, waypoints = t.waypoints,
+            route = RouteResult(t.points, stats, duration, RouteResult.Source.SAVED),
+            editing = Editing(saved.id, t.name, t.created),
+        )
     }
 
     /** The current route as a track (for saving or sharing), or null while there is none. */
@@ -158,8 +184,16 @@ object PlannerSession {
 
     val canUndo: Boolean get() = undo.isNotEmpty()
 
-    /** Saves the planned route to the library (and shows it on the map). */
-    fun save(name: String): SavedTrack? = currentTrack(name)?.let { library?.save(it) }
+    /**
+     * Saves the planned route to the library (and shows it on the map): a saved route being edited
+     * over itself (its file, its place in the list), unless [asNew].
+     */
+    fun save(name: String, asNew: Boolean = false): SavedTrack? {
+        val track = currentTrack(name) ?: return null
+        val editing = _state.value.editing
+        return if (editing != null && !asNew) library?.replace(editing.id, track.copy(created = editing.created))
+        else library?.save(track)
+    }
 
     private fun edit(waypoints: List<GeoPoint>, before: List<GeoPoint> = _state.value.waypoints) {
         drag = null
