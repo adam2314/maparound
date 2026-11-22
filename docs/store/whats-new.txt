@@ -1,16 +1,16 @@
 <en-US>
-• Settings in one place: units and formats (miles, feet, 12-hour…), how long the screen stays on, your party name and server, and every online source: default, your own server, or off.
-• Navigate a saved route or track from Library.
-• 2D/3D button, now on Android Auto too.
-• A coordinate grid on the map; the converter reads 9 more formats.
-• Party: only a real GPS fix moves a member's marker.
-• Opens where you are the first time.
+• New default map style, Topo v2: Topo in Tracestrack's look. On tablets and computers the tabs are beside the map.
+• Party rebuilt (all members need this version): up to 4 parties at once, each in its colour, with trails; easier on the battery; your own server.
+• Each turn buzzes on any watch that shows the phone's notifications.
+• Layers in tabs; query mode: tap anything on the map to see what it is.
+• 3D: solid ground while loading, relief far away.
+• Settings from the gear on every screen.
 </en-US>
 <iw-IL>
-• כל ההגדרות במקום אחד: יחידות ותבניות (מיילים, רגל, 12 שעות…), כמה זמן המסך דולק, השם והשרת בקבוצה, וכל מקור מקוון: ברירת מחדל, שרת משלך או כבוי.
-• ניווט במסלול שמור מהספרייה.
-• כפתור דו־ממד/תלת־ממד, עכשיו גם ב־Android Auto.
-• רשת קואורדינטות על המפה; הממיר קורא 9 פורמטים נוספים.
-• קבוצה: רק קליטת GPS אמיתית מזיזה את הסמן של משתתף.
-• בפתיחה הראשונה המפה נפתחת במקום שבו אתם נמצאים.
+• סגנון מפה חדש כברירת מחדל, Topo v2: ‏Topo במראה של Tracestrack. בטאבלט ובמחשב הלשוניות לצד המפה.
+• הקבוצה נבנתה מחדש (כולם צריכים את הגרסה הזו): עד 4 קבוצות בבת אחת, כל אחת בצבע שלה, עם המסלולים של המשתתפים; חסכונית בסוללה; שרת משלך.
+• כל פנייה מרטטת בכל שעון שמציג את ההתראות של הטלפון.
+• שכבות בלשוניות; מצב זיהוי: הקשה על כל דבר במפה מראה מה הוא.
+• תלת־ממד: קרקע יציבה בזמן הטעינה, ותבליט גם במרחק.
+• ההגדרות מגלגל השיניים בכל מסך.
 </iw-IL>

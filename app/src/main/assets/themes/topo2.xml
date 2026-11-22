@@ -612,17 +612,18 @@
         <rule e="way" k="waterway" v="ditch|drain" zoom-min="14">
             <line stroke="#99D4F2" stroke-width="0.6" />
         </rule>
-        <!-- streams: flowing all year solid, seasonal (intermittent or seasonal) dashed -->
+        <!-- streams as Topo draws them, thin with long dashes when seasonal: Tracestrack's short light-blue
+             dashes looked like Topo's blue-dashed paths (a desert's dry streams like a net of trails) -->
         <rule e="way" k="waterway" v="stream" zoom-min="11">
             <rule e="way" k="intermittent" v="yes">
-                <line stroke="#99D4F2" stroke-dasharray="4,3" stroke-linecap="butt" stroke-width="0.9" />
+                <line stroke="#86B6EA" stroke-dasharray="9,4.5" stroke-linecap="butt" stroke-width="0.75" />
             </rule>
             <rule e="way" k="intermittent" v="~|no">
                 <rule e="way" k="seasonal" v="yes">
-                    <line stroke="#99D4F2" stroke-dasharray="4,3" stroke-linecap="butt" stroke-width="0.9" />
+                    <line stroke="#86B6EA" stroke-dasharray="9,4.5" stroke-linecap="butt" stroke-width="0.75" />
                 </rule>
                 <rule e="way" k="seasonal" v="~|no">
-                    <line stroke="#99D4F2" stroke-width="1.2" />
+                    <line stroke="#5AA0EC" stroke-width="1.2" />
                 </rule>
             </rule>
         </rule>
