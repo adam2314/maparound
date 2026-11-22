@@ -15,10 +15,10 @@ targets:
     scheme: {}
     sources:
       - path: MapAround
-      # The Android map's themes (Topo, Tracestrack look): the iOS map styles are made from them (ThemeStyle.kt).
+      # The Android map's themes (Topo, Topo v2): the iOS map styles are made from them (ThemeStyle.kt).
       - path: ../app/src/main/assets/themes/topo.xml
         buildPhase: resources
-      - path: ../app/src/main/assets/themes/tracestrack.xml
+      - path: ../app/src/main/assets/themes/topo2.xml
         buildPhase: resources
       # The download regions' outlines: which map is made for where the map looks, regional sources.
       - path: ../app/src/main/assets/regions.bin

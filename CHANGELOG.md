@@ -220,12 +220,15 @@
   the phone in a pocket for the whole drive, it didn't send. Not yet tried in a car.
 
 ### The map
-- **A second style: Tracestrack look.** The offline maps drawn like Tracestrack Topo, the map on
-  openstreetmap.org: light land, pale green forests, bright blue water, OpenStreetMap's road colours
-  with their edges, brown tracks dashed by their grade (solid for good, dotted for rough), thin
-  salmon footpaths, grey contour lines, near-white buildings, brown peaks. Its colours come from
-  Tracestrack's own stylesheet (open, CC0). Marked trails, points of interest and Topo's options
-  are as in Topo. Layers → Map → Style, on Android, iPhone and the web.
+- **Topo v2, the new default style**: Topo in the look of Tracestrack Topo, the map on
+  openstreetmap.org. Light land, pale green forests, bright blue water, OpenStreetMap's road colours
+  with their edges, grey contour lines, near-white buildings, brown peaks, at Tracestrack's sizes:
+  each road as wide as Tracestrack's at every zoom, small icons, buildings from zoom 16 and shops,
+  cafés and hotels from 17. Its colours and sizes come from Tracestrack's own stylesheet (open,
+  CC0). What matters on a hike stays Topo's: dirt roads by how passable they are, paths coloured by
+  difficulty, marked trails in their waymark colours, blue bike paths with their bike signs, and
+  Topo's options. The maps are drawn in it on Android, iPhone and the web (an embedded map too)
+  unless another style was picked; Topo is still in Layers → Map → Style.
 - **Imported styles get mapsforge's icons** (Android). A style that names mapsforge's own symbols
   (`jar:…`) drew none of them: only the files next to it were looked for.
 - **Layers in tabs.** The layers sheet has three: **Map** (offline or online, its style, the

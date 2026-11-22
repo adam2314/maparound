@@ -70,14 +70,14 @@ object IosApp {
     /** Label fonts in the app bundle (iosApp/fetch-fonts.sh); online fonts when they're missing. */
     private val fonts: String? = NSBundle.mainBundle.resourcePath?.let { "$it/Fonts" }?.takeIf { fileSystem.exists(it.toPath()) }
     val tiles = TileService("$documents/dem", fonts)
-    /** One of the Android map's themes in the app bundle (topo.xml, tracestrack.xml). */
+    /** One of the Android map's themes in the app bundle (topo.xml, topo2.xml). */
     private fun bundledTheme(name: String): String? = runCatching {
         val path = NSBundle.mainBundle.pathForResource(name, "xml") ?: error("$name.xml is not in the app")
         fileSystem.read(path.toPath()) { readUtf8() }
     }.onFailure { println("MapAround: map theme $name not loaded ($it)") }.getOrNull()
 
-    /** Topo and Tracestrack look: their rules become MapLibre layers. Importing styles is Android-only for now. */
-    val themes: MapThemeLibrary = IosMapThemes(bundledTheme("topo"), bundledTheme("tracestrack"))
+    /** Topo and Topo v2: their rules become MapLibre layers. Importing styles is Android-only for now. */
+    val themes: MapThemeLibrary = IosMapThemes(bundledTheme("topo"), bundledTheme("topo2"))
 
     /** The map styles, one per style, made from their themes when first shown (the basic one if a theme can't be read). */
     val styles = ThemeStyles(BasicLayers.GLYPHS, themes::themeXml)
@@ -169,22 +169,23 @@ object IosApp {
     }
 }
 
-/** The styles on iPhone: Topo and Tracestrack look, with their options. */
-private class IosMapThemes(private val topoXml: String?, private val tracestrackXml: String?) : MapThemeLibrary {
+/** The styles on iPhone: Topo and Topo v2, with their options. */
+private class IosMapThemes(private val topoXml: String?, private val topo2Xml: String?) : MapThemeLibrary {
 
     override fun themeXml(themeId: String): String? = when (themeId) {
         MapThemes.TOPO -> topoXml
-        MapThemes.TRACESTRACK -> tracestrackXml
+        MapThemes.TOPO2 -> topo2Xml
         else -> null
     }
 
-    private val menus = mapOf(MapThemes.TOPO to topoXml, MapThemes.TRACESTRACK to tracestrackXml)
+    private val menus = mapOf(MapThemes.TOPO to topoXml, MapThemes.TOPO2 to topo2Xml)
         .mapValues { (_, xml) -> xml?.let { runCatching { StyleMenu.parse(it) }.getOrNull() } }
     override val themes: StateFlow<List<MapTheme>> =
         // Their names and descriptions in the app's language: MapThemes.title / about.
         MutableStateFlow(listOfNotNull(
+            // Topo v2 first: the default (MapThemes.DEFAULT).
+            topo2Xml?.let { MapTheme(MapThemes.TOPO2, "Topo v2", "") },
             MapTheme(MapThemes.TOPO, "Topo", ""),
-            tracestrackXml?.let { MapTheme(MapThemes.TRACESTRACK, "Tracestrack look", "") },
         ))
     override fun menu(themeId: String): StyleMenu? = menus[themeId]
     override val canImport = false

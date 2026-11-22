@@ -102,13 +102,13 @@ val uiFontFiles = layout.buildDirectory.dir("uifonts").also { dir ->
     }
 }
 
-/** What the app loads besides its code: the styles (Topo, Tracestrack look), label fonts, the world map, symbols, MapLibre. */
+/** What the app loads besides its code: the styles (Topo, Topo v2), label fonts, the world map, symbols, MapLibre. */
 val webAssets by tasks.registering(Sync::class) {
     into(assetsDir)
     from("../app/src/main/assets") {
-        include("themes/topo.xml", "themes/tracestrack.xml", "fonts/**", "world.bin", "borders.bin", "regions.bin")
+        include("themes/topo.xml", "themes/topo2.xml", "fonts/**", "world.bin", "borders.bin", "regions.bin")
     }
-    // The symbols the styles use (jar:symbols/…), at mapsforge/symbols/…, with their own (file:symbols/maparound/…, symbols/tracestrack/…).
+    // The symbols the styles use (jar:symbols/…), at mapsforge/symbols/…, with their own (file:symbols/maparound/…, symbols/tracestrack/…, Topo v2's icons).
     from({ zipTree(mapsforgeThemes.singleFile) }) {
         include("assets/symbols/**", "assets/patterns/**")
         eachFile { path = "mapsforge/" + path.removePrefix("assets/") }

@@ -1,7 +1,7 @@
 package app.maparound.map.maplibre
 
 /**
- * The offline map's MapLibre styles, one per map style (Topo, Tracestrack look): the theme's
+ * The offline map's MapLibre styles, one per map style (Topo, Topo v2): the theme's
  * rules made into layers by [ThemeStyle], and again with fewer rule categories for its options.
  * Made on first use and kept. The web's and iPhone's; Android's are map/gl/GlStyles.
  * [xml]: a style's render theme, null when there's none.

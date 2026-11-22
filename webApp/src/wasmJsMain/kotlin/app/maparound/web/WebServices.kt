@@ -489,19 +489,20 @@ object PendingRasters : RasterLibrary {
     }
 }
 
-/** The styles on the web: Topo and Tracestrack look, with their options (as on iPhone). */
+/** The styles on the web: Topo and Topo v2, with their options (as on iPhone). */
 class WebMapThemes(
     private val topoXml: String?,
-    private val tracestrackXml: String? = null,
+    private val topo2Xml: String? = null,
     private val symbolBase: String = "",
 ) : MapThemeLibrary {
-    private val menus = mapOf(MapThemes.TOPO to topoXml, MapThemes.TRACESTRACK to tracestrackXml)
+    private val menus = mapOf(MapThemes.TOPO to topoXml, MapThemes.TOPO2 to topo2Xml)
         .mapValues { (_, xml) -> xml?.let { runCatching { StyleMenu.parse(it) }.getOrNull() } }
     override val themes: StateFlow<List<MapTheme>> =
         // Their names and descriptions in the app's language: MapThemes.title / about.
         MutableStateFlow(listOfNotNull(
-            MapTheme(MapThemes.TOPO, "Topo", ""),
-            tracestrackXml?.let { MapTheme(MapThemes.TRACESTRACK, "Tracestrack look", "") },
+            // Topo v2 first: the default (MapThemes.DEFAULT). Embedded, only it.
+            topo2Xml?.let { MapTheme(MapThemes.TOPO2, "Topo v2", "") },
+            topoXml?.let { MapTheme(MapThemes.TOPO, "Topo", "") },
         ))
     override fun menu(themeId: String): StyleMenu? = menus[themeId]
     override val canImport = false
@@ -511,7 +512,7 @@ class WebMapThemes(
 
     override fun themeXml(themeId: String): String? = when (themeId) {
         MapThemes.TOPO -> topoXml
-        MapThemes.TRACESTRACK -> tracestrackXml
+        MapThemes.TOPO2 -> topo2Xml
         else -> null
     }
 

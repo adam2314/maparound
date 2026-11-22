@@ -5,7 +5,7 @@
 // browser's file storage, not in this cache.
 const CACHE = 'maparound-app-v1';
 const CORE = ['./', 'index.html', 'app.css', 'mapview.js', 'weather.js', 'maplibre-gl.js', 'maplibre-gl.css', 'mapbox-gl-rtl-text.js', 'qrcode.js', 'maparound.js',
-  'manifest.webmanifest', 'icon-192.png', 'themes/topo.xml', 'world.bin', 'borders.bin', 'regions.bin',
+  'manifest.webmanifest', 'icon-192.png', 'themes/topo.xml', 'themes/topo2.xml', 'world.bin', 'borders.bin', 'regions.bin',
   'tiles/tiles-worker.js', 'tiles/maptiles.js'];
 
 // A party notification tapped: back to the app.

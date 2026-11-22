@@ -113,9 +113,12 @@ class Prefs(
     }
 
     // ---- offline map style & terrain ----
-    /** The offline maps' style ([MapThemes] id); before styles could be imported it was Topo or Classic. */
+    /**
+     * The offline maps' style ([MapThemes] id): Topo v2 until one is picked. Before styles could be
+     * imported it was Topo or Classic: Classic chosen then stays.
+     */
     private val _mapTheme = MutableStateFlow(
-        sp.getString(K_THEME) ?: if (sp.getBoolean(K_TOPO, true)) MapThemes.TOPO else MapThemes.CLASSIC,
+        sp.getString(K_THEME) ?: if (sp.getBoolean(K_TOPO, true)) MapThemes.DEFAULT else MapThemes.CLASSIC,
     )
     val mapTheme: StateFlow<String> = _mapTheme.asStateFlow()
     fun setMapTheme(id: String) {

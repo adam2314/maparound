@@ -327,8 +327,9 @@ fun main() {
         // The app's own files, all asked for at once (not one after another): the style, the
         // world map and borders (waited for), the regions (set when they come), and in a
         // right-to-left language its letters (waited for before the first text).
-        val topo = async { fetchText("themes/topo.xml") }
-        val tracestrack = if (embedded) null else async { fetchText("themes/tracestrack.xml") }
+        // Embedded: the default style only (Topo v2).
+        val topo = if (embedded) null else async { fetchText("themes/topo.xml") }
+        val topo2 = async { fetchText("themes/topo2.xml") }
         val world = async { fetchBytes("world.bin") }
         val borders = async { fetchBytes("borders.bin") }
         val regions = if (embedded) null else async { fetchBytes("regions.bin") }
@@ -336,8 +337,8 @@ fun main() {
         WebFiles.load(keep = !embedded)
         if (!embedded) WebFiles.persist()
         val app = WebApp(
-            topoXml = topo.await(),
-            tracestrackXml = tracestrack?.await(),
+            topoXml = topo?.await(),
+            topo2Xml = topo2.await(),
             world = world.await(),
             borders = borders.await(),
             base = pageBase(),

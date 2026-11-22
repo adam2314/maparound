@@ -10,25 +10,28 @@ Online maps are XYZ tile **sources**: the built-in ones, and any you add or impo
 
 | Style | What it is | Options |
 |---|---|---|
-| **Topo** | MapAround's hiking style (`app/src/main/assets/themes/topo.xml`): contours, marked trails, peaks | see below |
-| **Tracestrack look** | MapAround's maps drawn like [Tracestrack Topo](https://wiki.openstreetmap.org/wiki/Tracestrack_Maps) (`app/src/main/assets/themes/tracestrack.xml`): light green forests, grey contours, OpenStreetMap Carto's road colours, brown tracks dashed by grade, salmon footpaths; Topo's marked trails and points of interest | Topo's |
+| **Topo v2** (the default) | Topo in the look of [Tracestrack Topo](https://wiki.openstreetmap.org/wiki/Tracestrack_Maps) (`app/src/main/assets/themes/topo2.xml`): light green forests, grey contours, OpenStreetMap Carto's road colours at Tracestrack's widths; Topo's dirt roads, paths by difficulty, bike paths, marked trails and points of interest | Topo's |
+| **Topo** | MapAround's first hiking style (`app/src/main/assets/themes/topo.xml`): contours, marked trails, peaks | see below |
 | **Classic** | mapsforge's default theme | none |
 | **Osmarender** | the classic OpenStreetMap look | none |
 | **Biker** | mapsforge's cycling theme | its own |
 | **Motorider** | mapsforge's road theme | its own |
 
-On iPhone and on the web, Topo and Tracestrack look are available, with all their options.
+A style picked stays; until one is, and when the picked one is gone, the map is in Topo v2. An
+embedded map (the web's `?embed`) has Topo v2 only. On iPhone and on the web, Topo v2 and Topo are
+available, with all their options.
 Every platform turns the theme into a MapLibre style; area patterns aren't drawn yet.
 
-Tracestrack look takes its colours, widths and dashes from Tracestrack's stylesheet
+Topo v2 takes its colours and road widths (zoom by zoom, from `roads.mss`) from Tracestrack's stylesheet
 ([tracestrack/tracestrack-topo-map](https://github.com/tracestrack/tracestrack-topo-map), CC0-1.0),
 and borders, protected areas and railways from OpenStreetMap Carto, which Tracestrack follows. Its
-peak and saddle icons are Tracestrack's (CC0), in `themes/symbols/tracestrack/`. It isn't
-Tracestrack's map, only drawn like it.
+peak and saddle icons are Tracestrack's (CC0), in `themes/symbols/tracestrack/`. Its dirt roads,
+paths, bike paths and marked trails are Topo's rules as they are, so a change there goes in both
+files. It isn't Tracestrack's map, only its look.
 
 ### Topo's options
 
-Tracestrack look has the same. All are on at first.
+Topo v2 has the same. All are on at first.
 
 | Option | What it hides when off |
 |---|---|
@@ -141,7 +144,7 @@ existing theme switchable without touching its rules.
 
 ### MapAround's own map data
 
-MapAround adds ways that aren't in the map files. Imported styles (like Topo and Tracestrack look) get
+MapAround adds ways that aren't in the map files. Imported styles (like Topo and Topo v2) get
 all of them, mapsforge's built-in ones only the country borders. Style them to show them:
 
 | Ways | Tags | From |

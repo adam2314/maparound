@@ -57,8 +57,8 @@ class WebApp(
     borders: ByteArray?,
     base: String,
     val embedded: Boolean = false,
-    /** The Tracestrack look style (none in an embedded map: Topo only). */
-    tracestrackXml: String? = null,
+    /** The Topo v2 style, the default (an embedded map has only it; [topoXml] is null there). */
+    topo2Xml: String? = null,
 ) {
     /** Where settings are kept: the browser's localStorage, or (embedded) nowhere. */
     private fun store(name: String): KeyValueStore = if (embedded) MemoryStore() else WebStorageStore(name)
@@ -81,9 +81,9 @@ class WebApp(
     private val glyphs = "${base}fonts/{fontstack}/{range}.pbf"
     private val symbols = "${base}mapsforge/"
 
-    val themes = WebMapThemes(topoXml, tracestrackXml, symbols)
+    val themes = WebMapThemes(topoXml, topo2Xml, symbols)
 
-    /** The map styles, one per style (Topo, Tracestrack look), made from their themes when first shown. */
+    /** The map styles, one per style (Topo, Topo v2), made from their themes when first shown. */
     private val styles = ThemeStyles(glyphs, themes::themeXml)
     val maps = WebInstalledMaps()
     val places = PlaceRepository(WebFiles.ROOT)

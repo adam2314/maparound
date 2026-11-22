@@ -26,9 +26,9 @@ class ThemeStyleTest {
         return if (fileSystem.exists(path)) fileSystem.read(path) { readUtf8() } else null
     }
 
-    /** The built-in Tracestrack look (TRACESTRACK_FILE on the iOS simulator). */
-    private fun tracestrack(): String? {
-        val path = (testEnv("TRACESTRACK_FILE") ?: "../app/src/main/assets/themes/tracestrack.xml").toPath()
+    /** The built-in Topo v2 (TOPO2_FILE on the iOS simulator). */
+    private fun topo2(): String? {
+        val path = (testEnv("TOPO2_FILE") ?: "../app/src/main/assets/themes/topo2.xml").toPath()
         return if (fileSystem.exists(path)) fileSystem.read(path) { readUtf8() } else null
     }
 
@@ -71,19 +71,25 @@ class ThemeStyleTest {
         (layer["minzoom"]?.jsonPrimitive?.doubleOrNull ?: 0.0) <= z && z < (layer["maxzoom"]?.jsonPrimitive?.doubleOrNull ?: 99.0)
 
     @Test
-    fun tracestrackLookConverts() {
-        val xml = tracestrack() ?: return
+    fun topo2Converts() {
+        val xml = topo2() ?: return
         val layers = ThemeStyle.convert(xml).layers
         assertTrue(layers.size > 100, "${layers.size} layers")
         fun drawing(type: String, props: Map<String, String>, z: Double) =
             layers.filter { it.type == type && at(it, z) && it.str("source") == MapStyle.OSM_SOURCE && matches(it, props) }
-        // Pale lime forest, and a grade-3 track brown at 80 % (Tracestrack's colours).
+        // Tracestrack's pale lime forest and a residential street's casing as wide as theirs at zoom 15 (5 px).
         val forest = drawing("fill", mapOf("natural" to "wood"), 12.0).map { it["paint"]!!.jsonObject.str("fill-color") }
         assertTrue("rgb(220,244,167)" in forest, forest.toString())
-        val track = mapOf("highway" to "track", "tracktype" to "grade3")
-        assertTrue(drawing("line", track, 14.0).any { lineColour(it, track) == "rgba(153,102,0,0.8)" })
-        // Its own peak icon, next to the theme.
+        val street = mapOf("highway" to "residential")
+        assertTrue(drawing("line", street, 14.0).any { lineColour(it, street) == "rgb(187,187,187)" && it["paint"]!!.jsonObject["line-width"].toString() == "5.0" })
+        // Topo's dirt roads (their edges) and bike paths (blue).
+        val track = mapOf("highway" to "track", "tracktype" to "grade1")
+        assertTrue(drawing("line", track, 14.0).any { lineColour(it, track) == "rgb(59,46,36)" })
+        val bike = mapOf("highway" to "cycleway")
+        assertTrue(drawing("line", bike, 14.0).any { lineColour(it, bike) == "rgb(30,99,214)" })
+        // Its own peak icon, and Topo's bike signs.
         assertTrue(layers.any { it.toString().contains(ThemeStyle.SYMBOL_PREFIX + "symbols/tracestrack/mountain.svg") })
+        assertTrue(layers.any { it.toString().contains(ThemeStyle.SYMBOL_PREFIX + "symbols/maparound/bicycle.svg") })
         // Topo's options, by the same ids (their names come from the texts).
         val topoMenu = topo()?.let { app.maparound.map.StyleMenu.parse(it) } ?: return
         val menu = assertNotNull(app.maparound.map.StyleMenu.parse(xml))

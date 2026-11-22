@@ -69,6 +69,8 @@ class PrefsTest {
         store.putString("base_layer", "osm")
         val p = Prefs(store)
         assertEquals(MapThemes.CLASSIC, p.mapTheme.value)
+        // Nothing picked: Topo v2.
+        assertEquals(MapThemes.TOPO2, Prefs(MemoryStore()).mapTheme.value)
         assertEquals(TileSources.DEFAULT_ID, p.baseLayer.value)
 
         p.setMapTheme("user:elevate/Elevate.xml")

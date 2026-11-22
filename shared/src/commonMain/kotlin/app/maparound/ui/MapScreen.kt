@@ -264,7 +264,7 @@ fun MapScreen(
     val themes by themeLib.themes.collectAsState()
     val chosenTheme by prefs.mapTheme.collectAsState()
     val styleChoices by prefs.styleChoices.collectAsState()
-    val theme = chosenTheme.takeIf { id -> themes.any { it.id == id } } ?: themes.firstOrNull()?.id ?: MapThemes.TOPO
+    val theme = chosenTheme.takeIf { id -> themes.any { it.id == id } } ?: themes.firstOrNull()?.id ?: MapThemes.DEFAULT
     val categories = remember(theme, styleChoices, themes) { themeLib.categories(theme, styleChoices) }
     val contours by prefs.contours.collectAsState()
     val hillshade by prefs.hillshade.collectAsState()
