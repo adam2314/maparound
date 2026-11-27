@@ -55,6 +55,10 @@ class MapStyle(
         dataRasters: List<OnlineSource> = emptyList(),
         /** The data view's street photos: their vector tiles' address ({z}/{x}/{y}), or null. */
         photoTiles: String? = null,
+        /** The map dark, light on dark ([NightStyle]): the dark map setting, the car at night. */
+        night: Boolean = false,
+        /** The offline maps' buildings standing up, for a tilted map (the car's 3D). */
+        buildings3d: Boolean = false,
     ): String = buildJsonObject {
         val tilesBaseUrl = tiles.baseUrl
         put("version", 8)
@@ -139,6 +143,19 @@ class MapStyle(
                 }
             }
         }
+        // Buildings standing up, under the map's names and symbols (where the offline maps are drawn).
+        if (buildings3d && base is BaseMap.Offline && layers.any { (it as JsonObject).source() == OSM_SOURCE }) {
+            val labels = layers.indexOfFirst { (it as JsonObject).type() == "symbol" }
+            layers.add(if (labels < 0) layers.size else labels, buildingsLayer())
+        }
+        // The layers so far are the base map; ours go over it.
+        if (night) {
+            val imagery = base is BaseMap.Online && base.source.kind == OnlineSource.Kind.IMAGERY
+            for (i in layers.indices) {
+                val l = layers[i] as JsonObject
+                layers[i] = NightStyle.base(l, imagery = l.source() == "satellite" || imagery && l.source() == "online")
+            }
+        }
         if (trailOverlay) {
             sources["trails-online"] = rasterSource(TileSources.trailsOverlay)
             // From the zoom the downloaded trails start at: zoomed out, Europe's long-distance routes
@@ -177,7 +194,7 @@ class MapStyle(
                     put("data", JsonObject(mapOf("type" to JsonPrimitive("FeatureCollection"), "features" to JsonArray(emptyList()))))
                 }
             }
-            layers += overlayLayers(dataRasters)
+            layers += overlayLayers(dataRasters).let { o -> if (night) o.map(NightStyle::overlay) else o }
         } else {
             layers.removeAll { (it as JsonObject).type() == "symbol" }
         }
@@ -185,6 +202,26 @@ class MapStyle(
         // Theme layers for tiles this map doesn't have (contours, trails) stay out.
         put("layers", JsonArray(layers.filter { l -> (l as JsonObject).source().let { it == null || it in sources } }))
     }.toString()
+
+    /**
+     * The offline maps' buildings as blocks: their height (or 3 m a level, else 7 m) from where they
+     * start (min_height), from zoom 14 (MapLibre's; the tiles have buildings from there). As the
+     * web app's 3D view draws them (mapview.js), without its terrain.
+     */
+    private fun buildingsLayer() = layer(BUILDINGS_3D, "fill-extrusion") {
+        put("source", OSM_SOURCE)
+        put("source-layer", MapsforgeToMvt.AREA)
+        put("minzoom", 14)
+        put("filter", arr("has", "building"))
+        put("paint", obj(
+            "fill-extrusion-color" to "#D6CBC1",
+            "fill-extrusion-opacity" to 0.9,
+            "fill-extrusion-height" to arr(
+                "coalesce", arr("to-number", arr("get", "height")), arr("*", 3, arr("to-number", arr("get", "building:levels"))), 7,
+            ),
+            "fill-extrusion-base" to arr("coalesce", arr("to-number", arr("get", "min_height")), 0),
+        ))
+    }
 
     /** MapLibre's own hill shading from the elevation tiles, in the Topo style's browns. */
     private fun hillshadeLayer(hillshade: ThemeStyle.Hillshade?) = layer("hillshade", "hillshade") {
@@ -474,7 +511,8 @@ class MapStyle(
             ))
         },
         line("tracks-casing", TRACKS, "#FFFFFF", 7.0),
-        line("tracks-line", TRACKS, "#E65100", 4.0),
+        // Tapped: its card (MapLibreSurface.TAP_TRACK and its id).
+        line("${TAP_PREFIX}tracks-line", TRACKS, "#E65100", 4.0),
         arrows("tracks-arrows", TRACKS, "#E65100"),
         line("recording", RECORDING, "#D50000", 4.0),
         // The parties' marks: areas and circles filled as set, lines (and outlines) solid, dashed or
@@ -632,6 +670,9 @@ class MapStyle(
 
         /** The viewshed image's source and layer. */
         const val VIEWSHED = "mr-viewshed"
+
+        /** The offline maps' buildings standing up ([build]'s buildings3d). */
+        const val BUILDINGS_3D = "buildings-3d"
 
         /** Names the viewshed image: a new one gets a new URL. */
         fun viewshedKey(vs: app.maparound.tools.Viewshed): String = (vs.hashCode().toLong() and 0xFFFFFFFFL).toString(16)

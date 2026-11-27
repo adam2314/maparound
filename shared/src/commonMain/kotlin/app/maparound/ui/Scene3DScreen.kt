@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -21,7 +23,9 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -40,7 +44,12 @@ import app.maparound.data.LocalPrefs
 import app.maparound.i18n.T
 import app.maparound.map.satelliteSource
 import app.maparound.shared.util.localFixed
+import app.maparound.map.maplibre.MarkerIcons
+import app.maparound.party.LocalParty
+import app.maparound.sensors.GeoFix
+import app.maparound.shared.util.nowMillis
 import app.maparound.three.Camera3D
+import app.maparound.three.Marker3D
 import kotlinx.coroutines.delay
 
 /** What the shared 3D screen needs from the platform's 3D view once it exists; its zoom for the slider. */
@@ -53,8 +62,14 @@ interface Scene3DControl : app.maparound.map.ZoomTarget {
 
     fun faceNorth()
 
-    /** Moves the view to look at ([lat], [lon]) (a search's result). */
+    /** Moves the view to look at ([lat], [lon]) (a search's result, my position). */
     fun lookAt(lat: Double, lon: Double) {}
+
+    /** It does [lookAt] (the my-position button shows). */
+    val canLookAt: Boolean get() = false
+
+    /** Markers on the ground, drawn over the view: my position, the parties' (none: the view has none). */
+    fun setMarkers(markers: List<Marker3D>) {}
 
     /** Closing: the view eases back to the 2D map's look (straight down, north up), then [done] on the main thread. */
     fun leave(done: () -> Unit) = done()
@@ -101,6 +116,8 @@ fun Scene3DScreen(
     mapCredits: String,
     onClose: (last: Camera3D?) -> Unit,
     onControl: (Scene3DControl?) -> Unit = {},
+    /** My position: its marker on the ground, and the button that turns the view to it. */
+    me: GeoFix? = null,
     buttons: @Composable (zoom: app.maparound.map.ZoomTarget?, relief: Boolean, onRelief: () -> Unit, close: () -> Unit, bottomLimit: Float?) -> Unit,
     view: @Composable (Scene3DViewArgs) -> Unit,
 ) {
@@ -137,6 +154,10 @@ fun Scene3DScreen(
         }
     }
     PlatformBackHandler(onBack = { close() })
+
+    // My position and the parties' markers, as on the 2D map, standing on the ground.
+    val markers = rememberMarkers3D(me)
+    LaunchedEffect(control, markers) { control?.setMarkers(markers) }
 
     var turned by remember { mutableStateOf(false) }
     LaunchedEffect(control) {
@@ -212,6 +233,15 @@ fun Scene3DScreen(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().onGloballyPositioned { bottomTop = it.positionInRoot().y }.padding(8.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
+            // To my position, where it is on the 2D map (bottom corner), above the settings and credits.
+            val c = control
+            if (me != null && c != null && c.canLookAt) {
+                Box(Modifier.align(Alignment.End)) {
+                    Tip(T.map.myLocation) { FloatingActionButton(onClick = { c.lookAt(me.lat, me.lon) }) {
+                        Icon(Icons.Filled.MyLocation, contentDescription = T.map.myLocation)
+                    } }
+                }
+            }
             if (settings) Settings3D(
                 exaggeration, { exaggeration = it }, hasBuildings, buildings, { buildings = it },
                 satellite,
@@ -249,6 +279,28 @@ fun Scene3DScreen(
                     .padding(horizontal = 6.dp, vertical = 2.dp),
             )
         }
+    }
+}
+
+/** My position and every shown party's markers (as the 2D map has them), for the 3D view; mine last, on top. */
+@Composable
+private fun rememberMarkers3D(me: GeoFix?): List<Marker3D> {
+    val partyControl = LocalParty.current
+    val party by partyControl.state.collectAsState()
+    val parties by partyControl.parties.collectAsState()
+    val shown by LocalPrefs.current.partyOnMap.collectAsState()
+    val replay by PartyReplay.state.collectAsState()
+    // How long ago members were seen changes how they look (stale): looked at again now and then.
+    val clock by produceState(nowMillis()) {
+        while (true) {
+            delay(30_000)
+            value = nowMillis()
+        }
+    }
+    return remember(me?.lat, me?.lon, party, parties, shown, replay, clock) {
+        partyMapMarkers(parties.ifEmpty { listOf(party) }, clock, replay, shown = shown).map {
+            Marker3D(it.lat, it.lon, MarkerIcons.party(it.kind, it.color, it.label, it.stale, it.icon, it.ring))
+        } + listOfNotNull(me?.let { Marker3D(it.lat, it.lon, MarkerIcons.ME) })
     }
 }
 

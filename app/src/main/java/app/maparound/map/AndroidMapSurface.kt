@@ -30,6 +30,9 @@ class AndroidMapSurface private constructor(
         surface.setBaseMap(base)
     }
 
+    /** Buildings standing up ([MapLibreSurface.buildings3d]): the car's 3D. */
+    var buildings3d by surface::buildings3d
+
     override fun onResume() = native.onResume()
     override fun onPause() = native.onPause()
 

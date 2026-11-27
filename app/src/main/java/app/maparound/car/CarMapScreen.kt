@@ -23,13 +23,14 @@ import app.maparound.R
 import app.maparound.i18n.T
 import app.maparound.routing.NavigationSession
 import app.maparound.routing.PlannerSession
+import app.maparound.share.GeoRequest
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 /**
  * The map screen on the car: speed/altitude line, or the next maneuver while navigating; start /
- * stop navigation, voice, satellite toggle, re-centre, pan and zoom.
+ * stop navigation, voice, search (not navigating), satellite toggle, re-centre, pan and zoom.
  */
 class CarMapScreen(
     carContext: CarContext,
@@ -66,8 +67,19 @@ class CarMapScreen(
                     }
                     .build(),
             )
-        } else if (planner.active && planner.route != null && !planner.busy) {
-            actions.addAction(Action.Builder().setTitle(T.common.start).setOnClickListener { renderer.startNavigation() }.build())
+        } else {
+            if (planner.active && planner.route != null && !planner.busy) {
+                actions.addAction(Action.Builder().setTitle(T.common.start).setOnClickListener { renderer.startNavigation() }.build())
+            }
+            // Where to: typed or said, the places found to pick (not while navigating: no room left).
+            actions.addAction(
+                Action.Builder()
+                    .setIcon(icon(R.drawable.ic_car_search))
+                    .setOnClickListener {
+                        screenManager.push(CarSearchScreen(carContext, renderer, null, null, null, GeoRequest.Mode.NAVIGATE, goIfClear = false))
+                    }
+                    .build(),
+            )
         }
         actions
             .addAction(

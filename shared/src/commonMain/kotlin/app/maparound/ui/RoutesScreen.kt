@@ -1,7 +1,6 @@
 package app.maparound.ui
 
 import app.maparound.tools.ToolsSession
-import app.maparound.routing.NavigationSession
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.foundation.clickable
@@ -129,40 +128,8 @@ fun RoutesScreen(
         onShowMap()
     }
 
-    // Navigation along it: a planned route is calculated again along its stops (for its turns);
-    // a track, or a route that can't be, is followed as it is (a track asks how first).
-    var navigateHow by remember { mutableStateOf<SavedTrack?>(null) }
-    fun follow(t: SavedTrack, profile: RouteProfile) {
-        ToolsSession.close()
-        NavigationSession.follow(t.track.points, profile)
-        repo.setVisible(t.id, true)
-        onShowMap()
-    }
-    fun navigate(t: SavedTrack) {
-        if (!hasLocation) {
-            requestLocation()
-            return
-        }
-        val track = t.track
-        val profile = track.profile
-        if (profile == null || track.waypoints.size < 2) {
-            navigateHow = t
-            return
-        }
-        scope.launch {
-            launch { snackbar.showSnackbar(T.library.calculatingRoute) }
-            val route = runCatching { PlannerSession.router(track.waypoints, profile) }.getOrNull()
-            snackbar.currentSnackbarData?.dismiss()
-            if (route == null || route.points.size < 2) {
-                follow(t, profile)
-            } else {
-                ToolsSession.close()
-                NavigationSession.start(route, track.waypoints, profile)
-                repo.setVisible(t.id, true)
-                onShowMap()
-            }
-        }
-    }
+    // Navigation along it (as from its card on the map).
+    val navigate = RouteNavigation(hasLocation, requestLocation, snackbar, onShowMap)
 
     // The code that puts it on a map in a web page, copied to paste there.
     val clipboard = LocalClipboardManager.current
@@ -289,27 +256,6 @@ fun RoutesScreen(
         }
     }
 
-    // A track (no way of travelling of its own): on foot, by bike or by car.
-    navigateHow?.let { t ->
-        AlertDialog(
-            onDismissRequest = { navigateHow = null },
-            title = { Text(T.library.navigateHow) },
-            text = {
-                Column {
-                    Text(T.library.navigateAlongNote, style = MaterialTheme.typography.bodySmall)
-                    for (p in listOf(RouteProfile.HIKE, RouteProfile.BIKE, RouteProfile.CAR)) {
-                        TextButton(onClick = {
-                            navigateHow = null
-                            follow(t, t.track.profile ?: p)
-                        }) { Text(p.label) }
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = { TextButton(onClick = { navigateHow = null }) { Text(T.common.cancel) } },
-        )
-    }
-
     renaming?.let { t ->
         var name by remember(t.id) { mutableStateOf(t.track.name) }
         AlertDialog(
@@ -407,7 +353,7 @@ private fun iconFor(kind: TrackKind): ImageVector = when (kind) {
 }
 
 /** Recorded tracks show their real duration; routes their estimated walking/riding time. */
-private fun durationOf(t: SavedTrack): Long? {
+internal fun durationOf(t: SavedTrack): Long? {
     val s = t.track.stats
     return when {
         t.track.kind == TrackKind.RECORDED -> s.elapsedS
@@ -417,7 +363,7 @@ private fun durationOf(t: SavedTrack): Long? {
     }
 }
 
-private fun subtitle(t: SavedTrack): String {
+internal fun subtitle(t: SavedTrack): String {
     val s = t.track.stats
     val parts = mutableListOf(Fmt.distance(s.distanceM.toFloat()))
     s.ascentM?.let { parts += "↑ ${Fmt.height(it)}" }

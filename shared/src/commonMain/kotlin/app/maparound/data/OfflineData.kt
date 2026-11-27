@@ -110,6 +110,12 @@ interface CatalogSource {
 
     /** Another list to offer instead (MapAround's catalog: the mapsforge.org maps), or null. */
     val alternative: CatalogSource? get() = null
+
+    /**
+     * The maps and folders anywhere in the list (every continent) whose name matches [query], best
+     * first; null when the list is read a folder at a time and can't be searched whole.
+     */
+    suspend fun search(query: String): List<CatalogEntry>? = null
 }
 
 /**

@@ -182,6 +182,11 @@ open class NavTexts {
     /** A track is being recorded. */
     open val carRecording = "recording"
     open val carNoOfflineMaps = "no offline maps: download them on the phone"
+
+    /** The car's search (and Assistant's "navigate to X"); a command MapAround hasn't got. */
+    open val carSearchHint = "Search for a place"
+    open fun carNothingFound(query: String) = "Nothing found for “$query”"
+    open val carNotSupported = "Not available in MapAround"
 }
 
 /** Hebrew. */
@@ -301,4 +306,7 @@ object NavTextsHe : NavTexts() {
     override fun carPartyOnMap(n: Int) = "קבוצה: $n במפה"
     override val carRecording = "בהקלטה"
     override val carNoOfflineMaps = "אין מפות אופליין: אפשר להוריד אותן בטלפון"
+    override val carSearchHint = "חיפוש מקום"
+    override fun carNothingFound(query: String) = "לא נמצא דבר עבור „$query”"
+    override val carNotSupported = "לא זמין ב־MapAround"
 }

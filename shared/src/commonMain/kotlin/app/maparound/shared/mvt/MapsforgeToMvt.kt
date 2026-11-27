@@ -15,6 +15,9 @@ object MapsforgeToMvt {
     /** The layer of marked trail lines built into the maps. */
     const val TRAILS = "trails"
 
+    /** The layer of polygons (buildings among them). */
+    const val AREA = "area"
+
     /**
      * The vector tile z/x/y from several maps (a world overview and country maps). MapLibre's
      * tiles are 512 px, so data is read one zoom deeper than the tile, like a 256 px map would.
@@ -66,7 +69,7 @@ object MapsforgeToMvt {
                 for (ring in w.rings) t.layer(TRAILS).line(ring, props)
             } else if (isArea(w)) {
                 val relief = if (ground != null && w.tags.any { it.key == "building" || it.key == "building:part" }) relief(w.rings[0], ground) else null
-                t.layer("area").polygon(w.rings, if (relief != null) props + relief else props)
+                t.layer(AREA).polygon(w.rings, if (relief != null) props + relief else props)
                 // Labels and symbols of areas (names, a parking's P, a hut…) go in the point
                 // layer, at mapsforge's label position or else the middle of the outline; only in
                 // the tile that holds that point (the area itself is in every tile it crosses).

@@ -3,6 +3,7 @@ package app.maparound.data
 import app.maparound.sources.Sources
 import app.maparound.sources.SourceKind
 import app.maparound.i18n.T
+import app.maparound.search.SearchText
 import app.maparound.shared.net.httpGetText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -76,6 +77,36 @@ class MapAroundCatalog(
 
     override fun urlFor(entry: CatalogEntry): String = entry.url ?: fallback.urlFor(entry)
 
+    /**
+     * The whole list searched ([find]); null while it can't be read (then the folder at hand is
+     * filtered). What MapAround hasn't built gets mapsforge.org's file, as its folder's list shows
+     * it (that folder's mapsforge.org listing is read for the first few such folders, and kept).
+     */
+    override suspend fun search(query: String): List<CatalogEntry>? {
+        val all = try {
+            maps ?: parse(fetch()).also { maps = it }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return null
+        }
+        val found = find(all, query)
+        if (!useMapsforge) return found
+        val folders = found.filter { !it.isDirectory && it.unavailable != null }.map { it.folder }.distinct().take(BASIC_FOLDERS)
+        val merged = HashMap<String, CatalogEntry>()
+        for (f in folders) {
+            val basic = try {
+                fallback.list(f)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                continue
+            }
+            for (e in merge(found.filter { it.folder == f }, basic, fallback::urlFor)) merged[e.path] = e
+        }
+        return found.map { merged[it.path] ?: it }
+    }
+
     /** catalog.json's text, read now; null when it can't be (offline). */
     suspend fun fetchText(): String? = try {
         fetch()
@@ -132,6 +163,37 @@ class MapAroundCatalog(
                     },
                 )
             }
+        }
+
+        /** How many folders' mapsforge.org listings a search reads, for maps MapAround hasn't built. */
+        private const val BASIC_FOLDERS = 5
+
+        /**
+         * The maps and folders in [all] whose name matches [query], in every continent, best first:
+         * how well the name matches ([SearchText.score]), then higher up, then maps before folders
+         * (Germany's whole map before its regions). Several words may name the folders too ("germany
+         * bay" finds Bayern); one word only the map's or folder's own name ("europe" isn't every map there).
+         */
+        fun find(all: List<CatalogEntry>, query: String, limit: Int = 60): List<CatalogEntry> {
+            val q = SearchText.normalize(query)
+            if (q.isEmpty()) return emptyList()
+            val folders = LinkedHashMap<String, CatalogEntry>()
+            for (m in all) {
+                var slash = m.path.indexOf('/')
+                while (slash >= 0) {
+                    val dir = m.path.substring(0, slash + 1)
+                    folders.getOrPut(dir) { CatalogEntry(dir, isDirectory = true, sizeLabel = null, sizeBytes = null, modified = null) }
+                    slash = m.path.indexOf('/', slash + 1)
+                }
+            }
+            return (folders.values + all).mapNotNull { e ->
+                val score = SearchText.score(e.title, q)
+                    ?: if (' ' in q) SearchText.score(listOfNotNull(e.group, e.title).joinToString(" "), q)?.let { 5 } else null
+                score?.let { e to it }
+            }
+                .sortedWith(compareBy({ it.second }, { it.first.path.removeSuffix("/").count { c -> c == '/' } }, { it.first.isDirectory }, { it.first.title }))
+                .take(limit)
+                .map { it.first }
         }
 
         /** What's in folder [path] ("" or e.g. "europe/germany/"): its maps and subfolders, by name. */

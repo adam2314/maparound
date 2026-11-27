@@ -199,6 +199,14 @@ class Scene3DView(
         gl.requestRender()
     }
 
+    override val canLookAt: Boolean get() = true
+
+    /** Placed with the names over the next frame (drawn now, so they show without moving). */
+    override fun setMarkers(markers: List<Marker3D>) {
+        labels.setMarkers(markers)
+        gl.requestRender()
+    }
+
     // The zoom slider: zoom 0 is the whole planet in view, each step half as far away.
     override val zoomRange: ClosedFloatingPointRange<Double>
         get() = 0.0..(ln(Renderer3D.MAX_DISTANCE.toDouble() / Renderer3D.MIN_DISTANCE) / ln(2.0))

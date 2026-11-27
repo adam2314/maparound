@@ -231,6 +231,7 @@ fun MapScreen(
     val scope = rememberCoroutineScope()
 
     val controller = remember { createMap().apply { moveTo(prefs.lastPosition() ?: WORLD_START) } }
+    MapNightEffect(controller)
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -555,6 +556,8 @@ fun MapScreen(
     val places by placesRepo.places.collectAsState()
     val placesOn by prefs.placesOnMap.collectAsState()
     var selectedPlace by remember { mutableStateOf<String?>(null) }
+    // A shown route or track tapped on the map: its card (RouteCard).
+    var selectedTrack by remember { mutableStateOf<String?>(null) }
     var editPlace by remember { mutableStateOf<Pair<app.maparound.places.Place, Boolean>?>(null) } // place, isNew
     LaunchedEffect(places, placesOn) { controller.setPlaces(if (placesOn) placeMapMarkers(places) else emptyList()) }
     val placeFocus by placesRepo.focus.collectAsState()
@@ -767,13 +770,14 @@ fun MapScreen(
 
     // Back closes what's open over the map, the top one first (search, the 3D view, sheets and
     // dialogs close themselves); with nothing open it leaves the app. Not while navigating.
-    val somethingOpen = pin != null || selectedPlace != null || selectedParty != null || showMe ||
+    val somethingOpen = pin != null || selectedPlace != null || selectedTrack != null || selectedParty != null || showMe ||
         dataSelected != null || dataView || explorerOpen || tools.active || (planner.active && !nav.active) || replay != null
     PlatformBackHandler(enabled = somethingOpen) {
         when {
             replay != null -> PartyReplay.close()
             pin != null -> pin = null
             selectedPlace != null -> selectedPlace = null
+            selectedTrack != null -> selectedTrack = null
             selectedParty != null -> selectedParty = null
             showMe -> showMe = false
             explorerOpen -> explorerOpen = false
@@ -888,6 +892,10 @@ fun MapScreen(
 
             override fun onPlaceTap(id: String) {
                 selectedPlace = id
+            }
+
+            override fun onTrackTap(id: String) {
+                selectedTrack = id
             }
 
             override fun onDataTap(key: String) {
@@ -1195,6 +1203,7 @@ fun MapScreen(
                     },
                 )
             }
+            selectedTrack?.let { id -> RouteCard(id, hasLocation, requestLocation, snackbar, onClose = { selectedTrack = null }) }
             selectedParty?.let { key ->
                 PartyMarkerCard(key, parties.ifEmpty { listOf(party) }, location, speedUnit, onClose = { selectedParty = null }, onShare = { la, lo, title -> shareTarget = Triple(la, lo, title) }, onRoute = { target ->
                     selectedParty = null
@@ -1625,6 +1634,7 @@ fun MapScreen(
                     controller.endNavigation()
                 },
                 onControl = { scene3dControl = it },
+                me = location,
                 buttons = { zoom, relief, onRelief, close, limit ->
                     MapButtons(Modifier, in3d = true, zoom = zoom, relief = relief, onRelief = onRelief, onSwitch3d = close, bottomLimit = limit)
                 },

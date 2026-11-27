@@ -98,6 +98,14 @@ open class OfflineTexts {
     open val basicMaps = "Basic maps from mapsforge.org"
     open val basicMapsText = "The older maps, without the marked trails and outdoor details"
     open val filter = "Filter"
+
+    /** The download list's search, in every continent. */
+    open val searchMaps = "Search all maps"
+    open val noMapsFound = "No map by that name"
+
+    /** How fast a download goes ("2.4 MB/s"), and how long it has left ([time] null: under a minute). */
+    open fun perSecond(size: String) = "$size/s"
+    open fun timeLeft(time: String?) = if (time == null) "under a minute left" else "about $time left"
     open val cantLoadMapList = "Can't load the map list"
     open val retry = "Retry"
     open val continent = "Continent"
@@ -386,6 +394,10 @@ object OfflineTextsHe : OfflineTexts() {
     override val basicMaps = "מפות בסיסיות מ־mapsforge.org"
     override val basicMapsText = "המפות הישנות, בלי השבילים המסומנים ופרטי השטח"
     override val filter = "סינון"
+    override val searchMaps = "חיפוש בכל המפות"
+    override val noMapsFound = "אין מפה בשם הזה"
+    override fun perSecond(size: String) = "$size לשנייה"
+    override fun timeLeft(time: String?) = if (time == null) "פחות מדקה" else "עוד כ־$time"
     override val cantLoadMapList = "אי אפשר לטעון את רשימת המפות"
     override val retry = "לנסות שוב"
     override val continent = "יבשת"

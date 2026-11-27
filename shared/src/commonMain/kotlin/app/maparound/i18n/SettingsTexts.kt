@@ -53,6 +53,12 @@ open class SettingsTexts {
         "How long the screen stays on after you last touch it. It doesn't go off sooner than the phone's own " +
             "setting; Always on uses more battery. The Speed screen always keeps it on."
 
+    /** The map drawn dark: automatic (with the device's dark mode), light, dark. */
+    open val darkMap = "Dark map"
+    open val mapLight = "Light"
+    open val mapDark = "Dark"
+    open val darkMapNote = "Light text on a dark map, easier on the eyes at night. Automatic follows the device's dark mode."
+
     // ---- sharing ----
     open val sharing = "Sharing"
     open fun shareLinkSummary(link: String) = "Link: $link"
@@ -155,6 +161,10 @@ object SettingsTextsHe : SettingsTexts() {
     override val screenNote =
         "כמה זמן המסך נשאר דולק אחרי הנגיעה האחרונה. הוא לא נכבה מוקדם יותר מההגדרה של הטלפון עצמו; תמיד דולק " +
             "צורך יותר סוללה. מסך המהירות תמיד משאיר אותו דולק."
+    override val darkMap = "מפה כהה"
+    override val mapLight = "בהירה"
+    override val mapDark = "כהה"
+    override val darkMapNote = "טקסט בהיר על מפה כהה, נוח יותר לעיניים בלילה. האפשרות האוטומטית לפי המצב הכהה של המכשיר."
     override val sourcesNote =
         "כל השירותים המקוונים ש־MapAround משתמשת בהם. אפשר להגדיר שרת משלך לכל אחד, או לכבות אותו; אחרת משמשים השירותים " +
             "של האפליקציה, ובחלק מהאזורים יש שירות משלהם (המפה הלאומית של המדינה)."

@@ -1,6 +1,8 @@
 package app.maparound.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
+import app.maparound.map.MapNight
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -304,13 +306,17 @@ private fun screenLabel(s: ScreenOn): String = when (s) {
     else -> T.settings.screenMinutes(s.minutes!!)
 }
 
-/** How long the screen stays on after the last touch: with the app open, and while navigating. */
+/**
+ * How long the screen stays on after the last touch: with the app open, and while navigating.
+ * Then the dark map: with the device's dark mode (what it is now), always light, always dark.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ScreenPage() {
     val prefs = LocalPrefs.current
     val open by prefs.screenOnOpen.collectAsState()
     val nav by prefs.screenOnNav.collectAsState()
+    val night by prefs.mapNight.collectAsState()
     Text(
         T.settings.screenNote,
         style = MaterialTheme.typography.bodySmall,
@@ -326,6 +332,24 @@ private fun ScreenPage() {
             for (s in ScreenOn.entries) FilterChip(chosen == s, onClick = { set(s) }, label = { Text(screenLabel(s)) })
         }
     }
+    Section(T.settings.darkMap)
+    val deviceDark = isSystemInDarkTheme()
+    FlowRow(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        for (n in MapNight.entries) {
+            val label = when (n) {
+                MapNight.AUTO -> T.settings.automaticNow(if (deviceDark) T.settings.mapDark else T.settings.mapLight)
+                MapNight.LIGHT -> T.settings.mapLight
+                MapNight.DARK -> T.settings.mapDark
+            }
+            FilterChip(night == n, onClick = { prefs.setMapNight(n) }, label = { Text(label) })
+        }
+    }
+    Text(
+        T.settings.darkMapNote,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+    )
 }
 
 /**

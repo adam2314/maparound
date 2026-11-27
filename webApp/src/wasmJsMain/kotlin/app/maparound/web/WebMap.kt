@@ -315,6 +315,7 @@ private class WebScene3DControl : Scene3DControl {
     override fun setZoom(zoom: Double) = ml3dZoom(zoom)
 
     override fun lookAt(lat: Double, lon: Double) = ml3dLookAt(lat, lon)
+    override val canLookAt: Boolean get() = true
 
     override fun metresPerDp(): Double {
         val v = ml3dCamera().split(',').map { it.toDoubleOrNull() ?: 0.0 }

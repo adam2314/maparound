@@ -145,7 +145,7 @@ configuration; a localhost server as a fallback):
 - **Search**: the reader's `readNamedItems` port gives the same offline name search.
 - **3D view**: shared `TileSelector`/`TileMesh`/`Buildings`; textures from MapLibre's
   `MLNMapSnapshotter` (same style) or online tiles; drawn with Metal. (MapLibre Native has no 3D
-  terrain of its own as far as I know, so we keep ours.)
+  terrain of its own as far as I know, so we keep ours.) The steps: [IOS_3D_PLAN.md](IOS_3D_PLAN.md).
 
 ## 4. Feature by feature
 

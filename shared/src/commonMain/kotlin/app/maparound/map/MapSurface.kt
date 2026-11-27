@@ -134,6 +134,9 @@ interface MapListener {
     fun onPartyMarkerTap(key: String)
     fun onPlaceTap(id: String)
 
+    /** A shown route or track (its id in the track library), when [onTap] didn't use the tap. */
+    fun onTrackTap(id: String) {}
+
     /** A country or locality of the data view ([app.maparound.stats.StatsLayers.TAP_COUNTRY]…). */
     fun onDataTap(key: String) {}
 
@@ -160,6 +163,9 @@ interface ZoomTarget {
 /** The platform's map view, driven by the shared map screen (main thread). */
 interface MapSurface : ZoomTarget {
     var listener: MapListener?
+
+    /** Drawn dark, light text on dark ground ([MapNight]; the car's night mode). */
+    var night: Boolean
 
     fun position(): MapPos
     fun moveTo(pos: MapPos)

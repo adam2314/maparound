@@ -90,6 +90,24 @@ class MapAroundCatalogTest {
         assertEquals(merged.map { it.path }.sorted(), merged.map { it.path })
     }
 
+    @Test
+    fun searchFindsMapsInEveryContinent() {
+        val all = MapAroundCatalog.parse(json)
+        fun find(q: String) = MapAroundCatalog.find(all, q).map { it.path }
+        // Inside a country, from the top: the map and where it is.
+        assertEquals(listOf("europe/germany/bayern.map"), find("bay"))
+        assertEquals("Europe › Germany", MapAroundCatalog.find(all, "bayern").single().group)
+        // A country: its whole map first, then its folder of regions.
+        assertEquals(listOf("europe/germany.map", "europe/germany/"), find("Germany"))
+        // A continent is its folder, not every map in it; a word of a name ("far eastern"), any case.
+        assertEquals(listOf("europe/"), find("europe"))
+        assertEquals(listOf("russia/far-eastern-fed-district-1.map"), find("EASTERN"))
+        // Several words may name the folders too.
+        assertEquals(listOf("europe/germany/bayern.map"), find("germany bay"))
+        assertTrue(find("atlantis").isEmpty())
+        assertTrue(find(" ").isEmpty())
+    }
+
     private class FakeSource(val name: String) : CatalogSource {
         override suspend fun list(path: String, forceRefresh: Boolean) =
             listOf(CatalogEntry("$path$name.map", false, null, null, null))

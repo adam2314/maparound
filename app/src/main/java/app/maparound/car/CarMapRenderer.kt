@@ -20,6 +20,7 @@ import app.maparound.data.MapPos
 import app.maparound.i18n.T
 import app.maparound.map.AndroidMapSurface
 import app.maparound.map.LiveMapFeed
+import app.maparound.map.MapNight
 import app.maparound.map.TileSources
 import app.maparound.map.maplibre.MapLibreSurface
 import app.maparound.party.PartySession
@@ -27,6 +28,7 @@ import app.maparound.routing.GeoPoint
 import app.maparound.routing.NavigationSession
 import app.maparound.routing.PlannerSession
 import app.maparound.routing.RouteProfile
+import app.maparound.share.GeoRequest
 import app.maparound.sensors.LocationSource
 import app.maparound.sensors.bestAltitude
 import app.maparound.sensors.hasLocationPermission
@@ -95,6 +97,9 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
             val p = Presentation(carContext, vd.display)
             // Map text and symbols for the car's density, a bit larger for reading at a glance.
             val c = AndroidMapSurface(p.context, textScale = 1.25f)
+            c.night = night()
+            // 3D, tilted: the buildings stand up.
+            c.buildings3d = AppGraph.prefs.navigation3d.value
             p.setContentView(c.native.view)
             p.show()
             c.onResume()
@@ -115,6 +120,17 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
     }
 
     override fun onSurfaceDestroyed(container: SurfaceContainer) = release()
+
+    /** The car switched between day and night. */
+    fun onCarConfigurationChanged() {
+        map?.night = night()
+    }
+
+    /**
+     * The map dark at night as the car says (its light sensor, the time, its own setting), light text
+     * on it, as Android Auto requires; and by day too when the phone's map is set to always dark.
+     */
+    private fun night() = carContext.isDarkMode || AppGraph.prefs.mapNight.value == MapNight.DARK
 
     override fun onVisibleAreaChanged(visibleArea: Rect) {
         this.visibleArea = Rect(visibleArea)
@@ -185,16 +201,49 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
         feed?.satellite = satellite
     }
 
-    /** "Navigate to" from the car: a car route from here, and guidance as soon as it is calculated. */
-    fun showDestination(p: GeoPoint) {
+    /** Satellite imagery on or off (Assistant's show/hide satellite). */
+    fun setSatellite(on: Boolean) {
+        if (satellite != on) toggleSatellite()
+    }
+
+    /** The whole route in view (Assistant's route overview); false with no route. */
+    fun overview(): Boolean {
+        val route = NavigationSession.state.value.route ?: PlannerSession.state.value.route ?: return false
+        setFollowing(false)
+        map?.showPoints(route.points)
+        return true
+    }
+
+    /** Where the car is, else where the map last was: to search around. */
+    fun here(): GeoPoint? =
+        location?.let { GeoPoint(it.latitude, it.longitude) } ?: AppGraph.prefs.lastPosition()?.let { GeoPoint(it.lat, it.lon) }
+
+    /** A place asked for before the car's position was known: gone to with the first fix. */
+    private var pending: Triple<GeoPoint, RouteProfile?, GeoRequest.Mode>? = null
+
+    /**
+     * Somewhere to go (a navigation request, a place found): a route from here by [profile] (by car
+     * when the request doesn't say), guidance as soon as it's calculated ([GeoRequest.Mode.NAVIGATE]),
+     * or only shown with its Start ([GeoRequest.Mode.DIRECTIONS]); [GeoRequest.Mode.ADD_STOP] while
+     * navigating goes by [p] on the way to where it was going.
+     */
+    fun goTo(p: GeoPoint, profile: RouteProfile?, mode: GeoRequest.Mode) {
         setFollowing(false)
         map?.animateTo(p.lat, p.lon, minZoom = 13)
         val me = location
-        if (me != null) {
-            NavigationSession.stop()
-            PlannerSession.load(listOf(GeoPoint(me.latitude, me.longitude), p), RouteProfile.CAR)
-            startWhenRouted = true
+        if (me == null) {
+            pending = Triple(p, profile, mode)
+            return
         }
+        pending = null
+        val nav = NavigationSession.state.value
+        val from = GeoPoint(me.latitude, me.longitude)
+        val via = mode == GeoRequest.Mode.ADD_STOP && nav.active
+        val stops = if (via) listOfNotNull(from, p, nav.route?.points?.lastOrNull()) else listOf(from, p)
+        val by = profile ?: if (via) nav.profile else RouteProfile.CAR
+        NavigationSession.stop()
+        PlannerSession.load(stops, by)
+        startWhenRouted = mode != GeoRequest.Mode.DIRECTIONS
     }
 
     /** Guidance along the planned route. */
@@ -245,6 +294,9 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
             it.satellite = satellite
             it.start()
         }
+        s.launch { AppGraph.prefs.mapNight.collect { c.night = night() } }
+        // 2D / 3D, switched here or on the phone: the buildings stand up in 3D.
+        s.launch { AppGraph.prefs.navigation3d.collect { c.buildings3d = it } }
         s.launch {
             // "Navigate to" from the car: guidance once the route is there.
             combine(PlannerSession.state, NavigationSession.state) { planner, nav -> planner to nav }.collect { (planner, nav) ->
@@ -271,6 +323,7 @@ class CarMapRenderer(private val carContext: CarContext, lifecycle: Lifecycle) :
             s.launch {
                 LocationSource.updates(carContext).collect { loc ->
                     location = loc
+                    pending?.let { (p, profile, mode) -> goTo(p, profile, mode) }
                     c.updateLocation(loc.toGeoFix())
                     // The navigation service feeds it too; the same fix counts once.
                     if (NavigationSession.state.value.active) NavigationSession.onFix(loc.toGeoFix())

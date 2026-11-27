@@ -20,6 +20,7 @@ import app.maparound.R
 import app.maparound.data.SharedPrefsStore
 import app.maparound.i18n.T
 import app.maparound.party.link.LinkSession
+import app.maparound.sensors.hasLocationPermission
 import app.maparound.sensors.toGeoFix
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -57,10 +58,7 @@ object PartySession : PartyController {
             radios = { address, _, listener -> if (hasBluetoothPermission()) MeshtasticTransport(app, address, listener) else null },
             battery = ::battery,
             charging = ::charging,
-            service = { on ->
-                val intent = Intent(app, PartyService::class.java)
-                runCatching { if (on) ContextCompat.startForegroundService(app, intent) else app.stopService(intent) }
-            },
+            service = { on -> if (on) startService() else runCatching { app.stopService(Intent(app, PartyService::class.java)) } },
             scope = scope,
         )
         scope.launch {
@@ -113,6 +111,28 @@ object PartySession : PartyController {
     override fun history(member: Int): List<HistoryPoint> = session.history(member)
 
     // ---- service hooks ----------------------------------------------------------------------------
+
+    /** [PartyService] is up (in the foreground, taking fixes). */
+    internal var serviceRunning = false
+
+    /**
+     * The parties run in [PartyService], which keeps them going with the screen off and takes my
+     * position. A location service may only start with location permission (else Android stops
+     * the app): without it (watching only, or not allowed yet) they run here, while the app is open,
+     * until it's allowed ([onLocationAllowed]). Also when the service may not start now (the app
+     * in the background).
+     */
+    private fun startService() {
+        val started = app.hasLocationPermission() &&
+            runCatching { ContextCompat.startForegroundService(app, Intent(app, PartyService::class.java)) }.isSuccess
+        // Later, as the service would: not inside the session's own change.
+        if (!started) scope.launch { session.attach() }
+    }
+
+    /** Location was just allowed: parties running without the service move into it, and share my position. */
+    fun onLocationAllowed() {
+        if (!serviceRunning && session.parties.value.any { it.active }) startService()
+    }
 
     internal fun attach() = session.attach()
 

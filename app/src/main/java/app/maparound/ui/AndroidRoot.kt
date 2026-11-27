@@ -50,6 +50,8 @@ fun AndroidRoot() {
         hasLocation = context.hasLocationPermission()
         onPauseOrDispose { }
     }
+    // A party that ran without it (joined from a link before location was allowed) starts sharing.
+    LaunchedEffect(hasLocation) { if (hasLocation) PartySession.onLocationAllowed() }
 
     MapAroundRoot(
         hasLocation = hasLocation,

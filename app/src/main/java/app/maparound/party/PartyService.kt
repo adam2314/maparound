@@ -1,6 +1,5 @@
 package app.maparound.party
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
@@ -8,7 +7,6 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.location.Location
 import android.net.ConnectivityManager
@@ -22,10 +20,10 @@ import android.os.IBinder
 import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
-import androidx.core.content.ContextCompat
 import app.maparound.MainActivity
 import app.maparound.R
 import app.maparound.i18n.T
+import app.maparound.sensors.hasLocationPermission
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -49,25 +47,20 @@ class PartyService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // Started again before it stopped (a party left, another joined): connect the new one.
+        // Started again before it stopped (a party left, another joined): connect the new one. Each
+        // start asks for the foreground again (in it already: the same notification).
         if (listener != null) {
+            goForeground(summary(PartySession.parties.value))
             PartySession.attach()
             return START_STICKY
         }
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+        // PartySession starts it only with location permission, precise or approximate (either lets a
+        // location service run): stopping before startForeground would make Android stop the app.
+        if (!hasLocationPermission() || !goForeground(T.party.connecting)) {
             stopSelf()
             return START_NOT_STICKY
         }
-        createChannel()
-        try {
-            ServiceCompat.startForeground(
-                this, NOTIFICATION_ID, notification(title(PartySession.parties.value), T.party.connecting),
-                if (Build.VERSION.SDK_INT >= 29) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0,
-            )
-        } catch (e: Exception) {
-            stopSelf()
-            return START_NOT_STICKY
-        }
+        PartySession.serviceRunning = true
         PartySession.attach()
         startLocation()
         watchNetwork()
@@ -81,6 +74,18 @@ class PartyService : Service() {
                 .collect { (title, text) -> getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(title, text)) }
         }
         return START_STICKY
+    }
+
+    /** In the foreground, as a location service with its notification ([text]); false if Android won't have it. */
+    private fun goForeground(text: String): Boolean = try {
+        createChannel()
+        ServiceCompat.startForeground(
+            this, NOTIFICATION_ID, notification(title(PartySession.parties.value), text),
+            if (Build.VERSION.SDK_INT >= 29) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0,
+        )
+        true
+    } catch (e: Exception) {
+        false
     }
 
     @SuppressLint("MissingPermission")
@@ -133,6 +138,7 @@ class PartyService : Service() {
         listener = null
         main.removeCallbacksAndMessages(null)
         scope.cancel()
+        PartySession.serviceRunning = false
         PartySession.detach()
         super.onDestroy()
     }

@@ -1,6 +1,7 @@
 package app.maparound.map
 
 import android.app.Presentation
+import android.content.res.Configuration
 import android.hardware.display.DisplayManager
 import android.os.Handler
 import android.os.Looper
@@ -93,6 +94,9 @@ class AndroidSecondScreen(private val activity: ComponentActivity) : SecondScree
             m.onResume()
             m.moveTo(AppGraph.prefs.lastPosition()?.let { it.copy(zoom = it.zoom.coerceAtLeast(12)) } ?: MapPos(30.0, 10.0, 3))
             val s = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+            // Dark or light as the phone's map is set (Settings → Screen), with the phone's dark mode.
+            val deviceDark = (activity.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+            s.launch { AppGraph.prefs.mapNight.collect { m.night = it.dark(deviceDark) } }
             LiveMapFeed(m, s).start()
             s.launch {
                 // Navigating: close enough to see the turns.

@@ -1,3 +1,8 @@
 <resources>
-    <style name="Theme.MapAround" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.MapAround" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- The bars before Android 15, which ignores these and draws every app edge to edge
+             (ui/SystemBars.kt lays the window out behind them). -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@color/navigation_bar</item>
+    </style>
 </resources>

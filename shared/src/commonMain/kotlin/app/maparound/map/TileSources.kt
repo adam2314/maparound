@@ -37,8 +37,9 @@ object TileSources {
     const val DEFAULT_ID = "osmfr"
 
     /**
-     * Pseudo-source id: the map layer that suits where the map is ([app.maparound.sources.RegionalDefaults]),
-     * else [DEFAULT_ID]; what's shown until the user picks one.
+     * Pseudo-source id: the online map layer that suits where the map is
+     * ([app.maparound.sources.RegionalDefaults]), else [DEFAULT_ID]. (Until the user picks a map,
+     * the offline maps, [OFFLINE_ID], are shown.)
      */
     const val AUTO_ID = "auto"
 

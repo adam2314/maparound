@@ -90,7 +90,7 @@ class SourcesTest {
         val again = Prefs(store, onSources = { given = it })
         assertEquals(mapOf<SourceKind, SourceSetting>(SourceKind.SEARCH to SourceSetting.Off), again.sources.value)
         assertEquals(again.sources.value, given)
-        // Never set: the automatic map layer.
-        assertEquals(TileSources.AUTO_ID, again.baseLayer.value)
+        // Never set: MapAround's offline maps (read online where none is downloaded), on every platform.
+        assertEquals(TileSources.OFFLINE_ID, again.baseLayer.value)
     }
 }

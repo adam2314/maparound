@@ -1,0 +1,4 @@
+<resources>
+    <!-- values-night would win over values-v29 on a dark Android 10+, so this is here too. -->
+    <color name="navigation_bar">@android:color/transparent</color>
+</resources>

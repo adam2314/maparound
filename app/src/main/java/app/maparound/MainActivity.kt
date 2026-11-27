@@ -7,8 +7,9 @@ import app.maparound.party.PartySession
 import app.maparound.share.IncomingShare
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import app.maparound.data.LocalOfflineData
 import app.maparound.data.LocalPrefs
 import app.maparound.data.OfflineData
@@ -27,17 +28,20 @@ import app.maparound.ui.LocalRecordingControl
 import app.maparound.ui.LocalPlatform
 import app.maparound.ui.LocalSearcher
 import app.maparound.ui.AndroidRoot
+import app.maparound.ui.SystemBars
 import app.maparound.ui.theme.MapAroundTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        SystemBars.setUp(this)
         val sensors = AndroidSensors(this)
         val platform = AndroidPlatform(this)
         val recording = AndroidRecordingControl(this)
         val secondScreen = app.maparound.map.AndroidSecondScreen(this)
         setContent {
+            val dark = isSystemInDarkTheme()
+            LaunchedEffect(dark) { SystemBars.icons(window, dark) }
             // What the shared screens get from the platform.
             CompositionLocalProvider(
                 LocalPrefs provides AppGraph.prefs,

@@ -10,6 +10,7 @@ import app.maparound.i18n.TimeFormat
 import app.maparound.i18n.UnitChoice
 import app.maparound.i18n.UnitSystem
 import app.maparound.i18n.Units
+import app.maparound.map.MapNight
 import app.maparound.map.MapThemes
 import app.maparound.map.OnlineSource
 import app.maparound.map.StyleChoice
@@ -62,7 +63,8 @@ class Prefs(
         I18n.apply(_language.value)
     }
 
-    private val _baseLayer = MutableStateFlow(sp.getString(K_BASE)?.let(TileSources::current) ?: TileSources.AUTO_ID)
+    // Until one is picked: MapAround's offline maps (read online where none is downloaded), everywhere.
+    private val _baseLayer = MutableStateFlow(sp.getString(K_BASE)?.let(TileSources::current) ?: TileSources.OFFLINE_ID)
     val baseLayer: StateFlow<String> = _baseLayer.asStateFlow()
     fun setBaseLayer(id: String) {
         _baseLayer.value = id
@@ -88,7 +90,7 @@ class Prefs(
 
     fun removeCustomSource(id: String) {
         saveSources(_customSources.value.filterNot { it.id == id })
-        if (_baseLayer.value == id) setBaseLayer(TileSources.AUTO_ID)
+        if (_baseLayer.value == id) setBaseLayer(TileSources.OFFLINE_ID)
     }
 
     private val _seaLevelPressure = MutableStateFlow(sp.getFloat(K_QNH, STANDARD_PRESSURE))
@@ -278,6 +280,7 @@ class Prefs(
         private const val K_GRID = "show_grid"
         private const val K_SCREEN_OPEN = "screen_on_open"
         private const val K_SCREEN_NAV = "screen_on_nav"
+        private const val K_MAP_NIGHT = "map_night"
         private const val K_PLACES_ON_MAP = "places_on_map"
         private const val K_PARTY_ON_MAP = "party_on_map"
         private const val K_NAV_VOICE = "nav_voice"
@@ -408,6 +411,14 @@ class Prefs(
     fun setScreenOnNav(value: ScreenOn) {
         _screenOnNav.value = value
         sp.putString(K_SCREEN_NAV, value.name)
+    }
+
+    // ---- the map dark ([MapNight]): with the device's dark mode, or always light or dark ----
+    private val _mapNight = MutableStateFlow(enumOrNull<MapNight>(sp.getString(K_MAP_NIGHT)) ?: MapNight.AUTO)
+    val mapNight: StateFlow<MapNight> = _mapNight.asStateFlow()
+    fun setMapNight(value: MapNight) {
+        _mapNight.value = value
+        sp.putString(K_MAP_NIGHT, value.name)
     }
 
     // ---- the online services: the user's choices ([Sources]; some are kept as their own settings) ----

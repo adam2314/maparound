@@ -26,6 +26,12 @@ data class CatalogEntry(
 ) {
     val name: String get() = path.removeSuffix("/").substringAfterLast('/')
     val title: String get() = MapNames.pretty(name)
+
+    /** The folder it's in ("europe/germany/"; "" at the top). */
+    val folder: String get() = path.removeSuffix("/").substringBeforeLast('/', "").let { if (it.isEmpty()) "" else "$it/" }
+
+    /** The folders it's in, as titles ("Europe › Germany"); null at the top. */
+    val group: String? get() = folder.split('/').filter { it.isNotEmpty() }.joinToString(" › ") { MapNames.pretty(it) }.ifEmpty { null }
     val localFileName: String get() = MapNames.localFileName(path)
 
     enum class Unavailable {

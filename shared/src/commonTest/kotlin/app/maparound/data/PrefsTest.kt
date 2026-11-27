@@ -58,7 +58,7 @@ class PrefsTest {
         assertNull(Prefs(store).levelUp.value)
         again.setBaseLayer("c1")
         again.removeCustomSource("c1")
-        assertEquals(TileSources.AUTO_ID, Prefs(store).baseLayer.value) // removing the source in use falls back to the automatic one
+        assertEquals(TileSources.OFFLINE_ID, Prefs(store).baseLayer.value) // removing the source in use falls back to the default: the offline maps
     }
 
     @Test

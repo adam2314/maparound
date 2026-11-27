@@ -68,6 +68,8 @@ class MapLibreSurface(
                     tapped.startsWith(TAP_WAYPOINT) -> tapped.removePrefix(TAP_WAYPOINT).toIntOrNull()?.let(l::onWaypointTap)
                     tapped.startsWith(TAP_PARTY) -> l.onPartyMarkerTap(tapped.removePrefix(TAP_PARTY))
                     tapped.startsWith(TAP_PLACE) -> l.onPlaceTap(tapped.removePrefix(TAP_PLACE))
+                    // A shown route or track: the planner or a tool takes the tap first (a point on it), else its card.
+                    tapped.startsWith(TAP_TRACK) -> if (!l.onTap(GeoPoint(lat, lon))) l.onTrackTap(tapped.removePrefix(TAP_TRACK))
                     tapped.startsWith("data:") -> l.onDataTap(tapped)
                     else -> tapMap(l, GeoPoint(lat, lon))
                 }
@@ -194,10 +196,29 @@ class MapLibreSurface(
         rebuild()
     }
 
+    override var night = false
+        set(value) {
+            if (value == field) return
+            field = value
+            rebuild()
+        }
+
+    /** The offline maps' buildings standing up, for a tilted map (the car's 3D). */
+    var buildings3d = false
+        set(value) {
+            if (value == field) return
+            field = value
+            rebuild()
+        }
+
     /** The style for what's shown now, applied when it changed. */
     fun rebuild() {
         val b = base
-        applyStyle(styleFor((b as? BaseMap.Offline)?.theme).build(b, tiles, trailOverlay, dataRasters = dataRasters, photoTiles = photoTiles))
+        applyStyle(
+            styleFor((b as? BaseMap.Offline)?.theme).build(
+                b, tiles, trailOverlay, dataRasters = dataRasters, photoTiles = photoTiles, night = night, buildings3d = buildings3d,
+            ),
+        )
     }
 
     private fun applyStyle(json: String) {
@@ -230,7 +251,7 @@ class MapLibreSurface(
     }
 
     override fun setShownTracks(tracks: Map<String, List<GeoPoint>>) {
-        native.setGeoJson(MapStyle.TRACKS, GeoJson.collection(tracks.mapNotNull { (id, pts) -> GeoJson.line(pts, mapOf("id" to id)) }))
+        native.setGeoJson(MapStyle.TRACKS, GeoJson.collection(tracks.mapNotNull { (id, pts) -> GeoJson.line(pts, mapOf("id" to id, "tap" to "$TAP_TRACK$id")) }))
     }
 
     override fun setRecording(points: List<GeoPoint>) {
@@ -381,6 +402,7 @@ class MapLibreSurface(
         const val TAP_WAYPOINT = "wp:"
         const val TAP_PARTY = "party:"
         const val TAP_PLACE = "place:"
+        const val TAP_TRACK = "track:"
 
         /** A mark's line style, as the style's mark layers filter on it. */
         private val MARK_LINES = listOf("solid", "dashed", "dotted")

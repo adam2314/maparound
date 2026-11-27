@@ -5,6 +5,7 @@ import app.maparound.data.Prefs
 import app.maparound.map.BaseMap
 import app.maparound.map.MapThemes
 import app.maparound.map.MapListener
+import app.maparound.map.MapNight
 import app.maparound.map.OnlineSource
 import app.maparound.map.PlaceMarker
 import app.maparound.routing.GeoPoint
@@ -135,6 +136,61 @@ class MapLibreSurfaceTest {
         assertTrue("forest" !in ids && "land" !in ids)
         val imageryOnly = layers(style.build(offline(Prefs.BACKGROUND_SATELLITE, vectorOnTop = false), TileService()))
         assertTrue(imageryOnly.none { it["source"]?.jsonPrimitive?.content == "osm" })
+    }
+
+    @Test
+    fun theDarkMapIsANewStyleOnlyWhenItChanges() {
+        val native = FakeMap()
+        val map = MapLibreSurface(native, TileService(), style)
+        val day = native.styles.last()
+        map.night = true
+        assertEquals(2, native.styles.size)
+        val canvas = layers(native.styles.last()).first { it["id"]!!.jsonPrimitive.content == "canvas" }
+        assertTrue(canvas["paint"]!!.jsonObject["background-color"]!!.jsonPrimitive.content != MapStyle.OUTSIDE)
+        map.night = true
+        assertEquals(2, native.styles.size)
+        map.night = false
+        assertEquals(day, native.styles.last())
+    }
+
+    @Test
+    fun aTapOnAShownRouteOpensItsCardUnlessThePlannerTakesIt() {
+        val native = FakeMap()
+        val map = MapLibreSurface(native, TileService(), style)
+        map.setShownTracks(mapOf("t1" to listOf(GeoPoint(46.0, 8.0), GeoPoint(46.1, 8.1))))
+        assertTrue(native.data[MapStyle.TRACKS]!!.contains("\"tap\":\"track:t1\""))
+        var tapped: String? = null
+        var screenUses = false
+        map.listener = object : MapListener {
+            override fun onUserGesture() {}
+            override fun onLongPress(point: GeoPoint) {}
+            override fun onTap(point: GeoPoint) = screenUses
+            override fun onWaypointTap(index: Int) {}
+            override fun onPartyMarkerTap(key: String) {}
+            override fun onPlaceTap(id: String) {}
+            override fun onMyLocationTap() {}
+            override fun onTrackTap(id: String) {
+                tapped = id
+            }
+        }
+        native.cbs!!.onTap(46.05, 8.05, "track:t1")
+        assertEquals("t1", tapped)
+        // Planning: a point on the route instead.
+        tapped = null
+        screenUses = true
+        native.cbs!!.onTap(46.05, 8.05, "track:t1")
+        assertNull(tapped)
+        // The line is one of the layers a tap looks in.
+        val ids = layers(style.build(offline(), TileService())).map { it["id"]!!.jsonPrimitive.content }
+        assertTrue("${MapStyle.TAP_PREFIX}tracks-line" in ids)
+    }
+
+    @Test
+    fun theDarkMapSetting() {
+        assertTrue(MapNight.AUTO.dark(deviceDark = true))
+        assertTrue(!MapNight.AUTO.dark(deviceDark = false))
+        assertTrue(!MapNight.LIGHT.dark(deviceDark = true))
+        assertTrue(MapNight.DARK.dark(deviceDark = false))
     }
 
     @Test

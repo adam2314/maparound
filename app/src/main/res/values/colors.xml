@@ -1,3 +1,7 @@
 <resources>
     <color name="ic_launcher_background">#1B6B4A</color>
+    <!-- Before Android 10: a scrim behind the navigation buttons, which the app draws under
+         (androidx.activity's light and dark ones). From 10 see-through: the system adds its own
+         scrim behind three-button navigation, none behind the gesture bar (values-v29). -->
+    <color name="navigation_bar">#E6FFFFFF</color>
 </resources>

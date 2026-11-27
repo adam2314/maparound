@@ -88,7 +88,9 @@ import app.maparound.data.LocalPrefs
 import app.maparound.data.MapAroundMaps
 import app.maparound.data.MapNames
 import app.maparound.data.MapPos
+import app.maparound.data.TransferRate
 import app.maparound.data.mapBounds
+import app.maparound.shared.util.nowMillis
 import app.maparound.i18n.T
 import app.maparound.i18n.ltr
 import app.maparound.map.TileSources
@@ -137,12 +139,23 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
 
     val installed by repo.files.collectAsState()
     val wifiOnly by prefs.wifiOnly.collectAsState()
+    // How fast each download goes and how long it has left (maps, routing data, terrain), looked at
+    // each second with the list.
+    var rates by remember { mutableStateOf(emptyMap<String, TransferRate.Estimate>()) }
     val downloads by produceState(initialValue = emptyList<DownloadInfo>()) {
+        val meters = HashMap<String, TransferRate>()
         while (true) {
             value = withContext(Dispatchers.Default) {
                 offline.routing.poll()
                 downloader.poll()
             }
+            val now = nowMillis()
+            val looked = HashMap<String, Pair<Long, Long>>()
+            for (d in value) looked["map:${d.id}"] = d.downloadedBytes to d.totalBytes
+            for (d in offline.routing.state.value.downloads) looked["routing:${d.id}"] = d.done to d.total
+            offline.terrain.state.value.progress?.let { looked["terrain"] = it.done.toLong() to it.total.toLong() }
+            meters.keys.retainAll(looked.keys)
+            rates = looked.mapValues { (key, amount) -> meters.getOrPut(key) { TransferRate() }.run { add(now, amount.first); estimate(amount.second) } }
             delay(1000)
         }
     }
@@ -166,6 +179,25 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
         path = p
         filter = ""
     }
+    // What matches it anywhere in the list (every continent), when the list can be searched whole;
+    // else (the mapsforge.org list, or one letter) the open folder is filtered.
+    var found by remember { mutableStateOf<List<CatalogEntry>?>(null) }
+    LaunchedEffect(filter, catalog) {
+        val q = filter.trim()
+        if (q.length < 2) {
+            found = null
+            return@LaunchedEffect
+        }
+        delay(200)
+        found = try {
+            catalog.search(q)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+    }
+    val results = found?.takeIf { filter.trim().length >= 2 }
     val listState = rememberLazyListState()
     // A region the map asked for: its folder, filtered down to it, scrolled to.
     val focus by OfflineFocus.region.collectAsState()
@@ -180,8 +212,8 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
     LaunchedEffect(listing, scrollToList) {
         if (scrollToList && listing !is Listing.Loading) {
             scrollToList = false
-            val n = listState.layoutInfo.totalItemsCount
-            if (n > 0) listState.animateScrollToItem(n - 1)
+            // The list is at the top.
+            listState.animateScrollToItem(0)
         }
     }
     var confirmEntry by remember { mutableStateOf<CatalogEntry?>(null) }
@@ -259,6 +291,32 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
         )
     }
 
+    /** A folder to open or a map to download; [group]: the folders it's in (a search finds it anywhere). */
+    @Composable
+    fun EntryRow(entry: CatalogEntry, group: String?) {
+        if (entry.isDirectory) {
+            ListItem(
+                modifier = Modifier.clickable { openFolder(entry.path) },
+                leadingContent = { Icon(Icons.Filled.Folder, contentDescription = null) },
+                headlineContent = { Text(entry.title) },
+                supportingContent = {
+                    Text(listOfNotNull(group, if (entry.folder.isEmpty()) T.offline.continent else T.offline.regions).joinToString(" · "))
+                },
+                trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
+            )
+        } else {
+            val local = installed.firstOrNull { it.fileName == entry.localFileName }
+            CatalogMapRow(
+                entry = entry,
+                local = local,
+                localIsMapAround = local?.let { extras[it.fileName]?.builtInTrails } == true,
+                download = downloads.firstOrNull { it.fileName == entry.localFileName },
+                group = group,
+                onDownload = { requestDownload(entry) },
+            )
+        }
+    }
+
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
             title = { Text(T.offline.screenTitle) },
@@ -273,8 +331,103 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
         )
         if (importing) LinearProgressIndicator(Modifier.fillMaxWidth())
         RasterPreparingRow(rasters)
+        // First the maps to download, found anywhere or browsed by folder; the field stays in view.
+        OutlinedTextField(
+            value = filter,
+            onValueChange = { filter = it },
+            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+            trailingIcon = if (filter.isEmpty()) null else {
+                { IconButton(onClick = { filter = "" }) { Icon(Icons.Filled.Close, contentDescription = T.poi.clearSearch) } }
+            },
+            placeholder = { Text(if (basicList) T.offline.filter else T.offline.searchMaps) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        )
 
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
+            if (results != null) {
+                if (results.isEmpty()) {
+                    item {
+                        Text(
+                            T.offline.noMapsFound,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        )
+                    }
+                }
+                items(results, key = { "found-${it.path}" }) { entry -> EntryRow(entry, entry.group) }
+            } else {
+                item { Breadcrumbs(path, onNavigate = { openFolder(it) }) }
+                when (val l = listing) {
+                    Listing.Loading -> item {
+                        Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    }
+                    is Listing.Failed -> item {
+                        MessageCard(
+                            icon = Icons.Filled.CloudOff,
+                            title = T.offline.cantLoadMapList,
+                            body = l.message,
+                            action = T.offline.retry,
+                            onAction = { retryToken++ },
+                            modifier = Modifier.padding(16.dp),
+                        )
+                    }
+                    is Listing.Ready -> {
+                        val visible = l.entries.filter { filter.isBlank() || it.title.contains(filter.trim(), ignoreCase = true) }
+                        items(visible, key = { it.path }) { entry -> EntryRow(entry, null) }
+                    }
+                }
+            }
+
+            if (downloads.isNotEmpty()) {
+                item { SectionHeader(T.offline.downloading, null) }
+                items(downloads, key = { "dl-${it.id}" }) { d -> DownloadRow(d, rates["map:${d.id}"], onCancel = { downloader.cancel(d.id) }) }
+            }
+
+            // Where the list's maps come from, and how they're downloaded.
+            item {
+                Column {
+                    SectionHeader(T.offline.downloadMaps, (listing as? Listing.Ready)?.attribution)
+                    SectionInfo(
+                        T.offline.downloadInfo,
+                        if (basicList) SourceSite("mapsforge.org", "https://mapsforge.org/")
+                        else SourceSite(T.offline.howTheyreMade, "https://github.com/adam2314/my-pipeline"),
+                        Guides.OFFLINE_MAPS,
+                    )
+                }
+            }
+            if (downloader.canWaitForWifi) {
+                item {
+                    Row(
+                        Modifier.fillMaxWidth().clickable { prefs.setWifiOnly(!wifiOnly) }.padding(horizontal = 16.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(T.offline.downloadOverWifiOnly, Modifier.weight(1f))
+                        Switch(checked = wifiOnly, onCheckedChange = { prefs.setWifiOnly(it) })
+                    }
+                }
+            }
+            if (offline.catalog.alternative != null) {
+                item {
+                    Row(
+                        Modifier.fillMaxWidth().clickable { basicList = !basicList }.padding(horizontal = 16.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(T.offline.basicMaps)
+                            Text(
+                                T.offline.basicMapsText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(checked = basicList, onCheckedChange = { basicList = it })
+                    }
+                }
+            }
+
             val hasWorld = installed.any { it.isWorld } || downloads.any { MapNames.isWorld(it.fileName) }
             if (!hasWorld && !offline.builtInWorld) {
                 item {
@@ -429,7 +582,8 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     LinearProgressIndicator(progress = { progress.fraction }, modifier = Modifier.fillMaxWidth())
                                     Text(
-                                        T.offline.terrainProgress(progress.done, progress.total, progress.failed),
+                                        (listOf(T.offline.terrainProgress(progress.done, progress.total, progress.failed)) +
+                                            progressNote(progress.fraction, null, rates["terrain"], bytes = false)).joinToString(" · "),
                                         style = MaterialTheme.typography.bodySmall,
                                     )
                                 }
@@ -482,9 +636,15 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                     ListItem(
                         headlineContent = { Text(T.offline.routingData(d.name)) },
                         supportingContent = {
-                            val f = d.fraction
-                            if (f != null) LinearProgressIndicator(progress = { f }, modifier = Modifier.fillMaxWidth())
-                            else LinearProgressIndicator(Modifier.fillMaxWidth())
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                val f = d.fraction
+                                if (f != null) LinearProgressIndicator(progress = { f }, modifier = Modifier.fillMaxWidth())
+                                else LinearProgressIndicator(Modifier.fillMaxWidth())
+                                Text(
+                                    progressNote(f, amountText(d.done, d.total), rates["routing:${d.id}"]).joinToString(" · "),
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
                         },
                         trailingContent = {
                             Tip(T.offline.cancelDownload) { IconButton(onClick = { offline.routing.cancel(d.id) }) {
@@ -507,102 +667,6 @@ fun OfflineMapsScreen(snackbar: SnackbarHostState, onShowOnMap: () -> Unit) {
                 }
             }
 
-            if (downloads.isNotEmpty()) {
-                item { SectionHeader(T.offline.downloading, null) }
-                items(downloads, key = { "dl-${it.id}" }) { d -> DownloadRow(d, onCancel = { downloader.cancel(d.id) }) }
-            }
-
-            item {
-                Column {
-                    SectionHeader(T.offline.downloadMaps, (listing as? Listing.Ready)?.attribution)
-                    SectionInfo(
-                        T.offline.downloadInfo,
-                        if (basicList) SourceSite("mapsforge.org", "https://mapsforge.org/")
-                        else SourceSite(T.offline.howTheyreMade, "https://github.com/adam2314/my-pipeline"),
-                        Guides.OFFLINE_MAPS,
-                    )
-                }
-            }
-            if (downloader.canWaitForWifi) {
-                item {
-                    Row(
-                        Modifier.fillMaxWidth().clickable { prefs.setWifiOnly(!wifiOnly) }.padding(horizontal = 16.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(T.offline.downloadOverWifiOnly, Modifier.weight(1f))
-                        Switch(checked = wifiOnly, onCheckedChange = { prefs.setWifiOnly(it) })
-                    }
-                }
-            }
-            if (offline.catalog.alternative != null) {
-                item {
-                    Row(
-                        Modifier.fillMaxWidth().clickable { basicList = !basicList }.padding(horizontal = 16.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(T.offline.basicMaps)
-                            Text(
-                                T.offline.basicMapsText,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Switch(checked = basicList, onCheckedChange = { basicList = it })
-                    }
-                }
-            }
-            item { Breadcrumbs(path, onNavigate = { openFolder(it) }) }
-            item {
-                OutlinedTextField(
-                    value = filter,
-                    onValueChange = { filter = it },
-                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                    placeholder = { Text(T.offline.filter) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                )
-            }
-            when (val l = listing) {
-                Listing.Loading -> item {
-                    Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
-                }
-                is Listing.Failed -> item {
-                    MessageCard(
-                        icon = Icons.Filled.CloudOff,
-                        title = T.offline.cantLoadMapList,
-                        body = l.message,
-                        action = T.offline.retry,
-                        onAction = { retryToken++ },
-                        modifier = Modifier.padding(16.dp),
-                    )
-                }
-                is Listing.Ready -> {
-                    val visible = l.entries.filter { filter.isBlank() || it.title.contains(filter.trim(), ignoreCase = true) }
-                    items(visible, key = { it.path }) { entry ->
-                        if (entry.isDirectory) {
-                            ListItem(
-                                modifier = Modifier.clickable { openFolder(entry.path) },
-                                leadingContent = { Icon(Icons.Filled.Folder, contentDescription = null) },
-                                headlineContent = { Text(entry.title) },
-                                supportingContent = { Text(if (path.isEmpty()) T.offline.continent else T.offline.regions) },
-                                trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
-                            )
-                        } else {
-                            val local = installed.firstOrNull { it.fileName == entry.localFileName }
-                            CatalogMapRow(
-                                entry = entry,
-                                local = local,
-                                localIsMapAround = local?.let { extras[it.fileName]?.builtInTrails } == true,
-                                download = downloads.firstOrNull { it.fileName == entry.localFileName },
-                                onDownload = { requestDownload(entry) },
-                            )
-                        }
-                    }
-                }
-            }
         }
     }
 
@@ -811,8 +875,24 @@ private fun Breadcrumbs(path: String, onNavigate: (String) -> Unit) {
     }
 }
 
+/** "120 MB / 720 MB", or what's come while the size isn't known. */
+private fun amountText(done: Long, total: Long): String =
+    if (total > 0) ltr("${Fmt.fileSize(done)} / ${Fmt.fileSize(total)}") else Fmt.fileSize(done)
+
+/**
+ * How a download goes: "34%", [amount], "2.4 MB/s", "about 4 min left", each as far as it's known.
+ * [bytes]: [rate] counts bytes (else things, terrain's cells: no speed then).
+ */
+private fun progressNote(fraction: Float?, amount: String?, rate: TransferRate.Estimate?, bytes: Boolean = true): List<String> =
+    listOfNotNull(
+        fraction?.let { ltr("${(it * 100).toInt().coerceIn(0, 100)}%") },
+        amount,
+        rate?.perSecond?.takeIf { bytes && it > 0 }?.let { T.offline.perSecond(Fmt.fileSize(it.toLong())) },
+        rate?.secondsLeft?.let { s -> T.offline.timeLeft(if (s < 60) null else Fmt.duration(s)) },
+    )
+
 @Composable
-private fun DownloadRow(d: DownloadInfo, onCancel: () -> Unit) {
+private fun DownloadRow(d: DownloadInfo, rate: TransferRate.Estimate?, onCancel: () -> Unit) {
     ListItem(
         headlineContent = { Text(d.title) },
         supportingContent = {
@@ -823,12 +903,11 @@ private fun DownloadRow(d: DownloadInfo, onCancel: () -> Unit) {
                 } else {
                     LinearProgressIndicator(Modifier.fillMaxWidth())
                 }
-                val amount = if (d.totalBytes > 0) {
-                    ltr("${Fmt.fileSize(d.downloadedBytes)} / ${Fmt.fileSize(d.totalBytes)}")
-                } else {
-                    Fmt.fileSize(d.downloadedBytes)
-                }
-                Text("${d.statusText} · $amount", style = MaterialTheme.typography.bodySmall)
+                // "Downloading · 34% · 120 MB / 720 MB · 2.4 MB/s · about 4 min left"
+                Text(
+                    (listOf(d.statusText) + progressNote(progress, amountText(d.downloadedBytes, d.totalBytes), rate)).joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         },
         trailingContent = {
@@ -844,6 +923,8 @@ private fun CatalogMapRow(
     /** The installed file is one of MapAround's maps (not an older mapsforge.org one). */
     localIsMapAround: Boolean,
     download: DownloadInfo?,
+    /** The folders it's in ("Europe › Germany"), shown first: a search result's. */
+    group: String?,
     onDownload: () -> Unit,
 ) {
     // Something to download: MapAround's map, or mapsforge.org's where MapAround has none yet.
@@ -860,11 +941,12 @@ private fun CatalogMapRow(
                 null -> null
             }
             if (!downloadable) {
+                val whyHere = listOfNotNull(group, why).joinToString(" · ")
                 if (entry.unavailable == CatalogEntry.Unavailable.NEEDS_FUNDING) {
                     // Too big for the free build machines: what would build it.
                     val platform = LocalPlatform.current
                     Column {
-                        Text(why.orEmpty())
+                        Text(whyHere)
                         Text(
                             T.offline.howToHelp,
                             color = MaterialTheme.colorScheme.primary,
@@ -872,12 +954,13 @@ private fun CatalogMapRow(
                         )
                     }
                 } else {
-                    Text(why.orEmpty())
+                    Text(whyHere)
                 }
             } else {
                 val date = entry.modified?.let { Fmt.date(it) }
                 Text(
                     listOfNotNull(
+                        group,
                         why,
                         T.offline.basicMapNote.takeIf { entry.basic },
                         entry.sizeLabel?.let { "${it}B" },
