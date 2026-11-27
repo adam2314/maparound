@@ -25,8 +25,8 @@ android {
         minSdk = 30
         targetSdk = 34
         // Its own numbers, beside the phone app's in the same Play listing (phone 10 → watch 100010).
-        versionCode = 100012
-        versionName = "0.5.4"
+        versionCode = 100013
+        versionName = "0.5.5"
     }
 
     signingConfigs {

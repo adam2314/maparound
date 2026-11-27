@@ -1,16 +1,16 @@
 <en-US>
-• New default map style, Topo v2: Topo in Tracestrack's look. On tablets and computers the tabs are beside the map.
-• Party rebuilt (all members need this version): up to 4 parties at once, each in its colour, with trails; easier on the battery; your own server.
-• Each turn buzzes on any watch that shows the phone's notifications.
-• Layers in tabs; query mode: tap anything on the map to see what it is.
-• 3D: solid ground while loading, relief far away.
-• Settings from the gear on every screen.
+• Android Auto: say "Navigate to…", search on the car screen, a dark map at night, 3D buildings.
+• Dark map: Settings → Screen (follows the phone's dark mode).
+• Tap a route on the map: distance, elevation graph, navigate, edit or hide.
+• 3D: your position and the party on the terrain, and a button back to you.
+• Offline maps: now the default map; search every region at once; downloads show %, speed and time left.
+• Fixed: joining a party without location access closed the app.
 </en-US>
 <iw-IL>
-• סגנון מפה חדש כברירת מחדל, Topo v2: ‏Topo במראה של Tracestrack. בטאבלט ובמחשב הלשוניות לצד המפה.
-• הקבוצה נבנתה מחדש (כולם צריכים את הגרסה הזו): עד 4 קבוצות בבת אחת, כל אחת בצבע שלה, עם המסלולים של המשתתפים; חסכונית בסוללה; שרת משלך.
-• כל פנייה מרטטת בכל שעון שמציג את ההתראות של הטלפון.
-• שכבות בלשוניות; מצב זיהוי: הקשה על כל דבר במפה מראה מה הוא.
-• תלת־ממד: קרקע יציבה בזמן הטעינה, ותבליט גם במרחק.
-• ההגדרות מגלגל השיניים בכל מסך.
+• Android Auto: אפשר לומר "נווט ל…", חיפוש במסך הרכב, מפה כהה בלילה, בניינים בתלת־ממד.
+• מפה כהה: הגדרות ← מסך (לפי המצב הכהה של הטלפון).
+• הקשה על מסלול במפה: מרחק, גרף גבהים, ניווט, עריכה או הסתרה.
+• תלת־ממד: המיקום שלך והקבוצה על התבליט, וכפתור שחוזר אליך.
+• מפות אופליין: עכשיו מפת ברירת המחדל; חיפוש בכל האזורים בבת אחת; בהורדה רואים אחוזים, מהירות וזמן שנותר.
+• תוקן: הצטרפות לקבוצה בלי גישה למיקום סגרה את האפליקציה.
 </iw-IL>
